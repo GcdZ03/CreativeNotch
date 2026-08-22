@@ -13,7 +13,9 @@ public final class HoverTracker: NSView {
     public var onDwell: () -> Void = {}
     public var onExit: () -> Void = {}
 
-    private var trackingRect: CGRect = .zero
+    /// Readable so the funnel that keeps it in sync with the state can
+    /// be verified; only `updateTrackingRect(_:)` may set it.
+    public private(set) var trackingRect: CGRect = .zero
     private var dwellTask: Task<Void, Never>?
 
     /// `NSTrackingArea` rects are interpreted in the owning view's own
