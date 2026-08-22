@@ -160,7 +160,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hover.onDwell = { [weak self] in self?.peek() }
         hover.onExit  = { [weak self] in self?.collapse() }
 
-        let container = NSView(frame: CGRect(origin: .zero, size: size))
+        let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
         container.addSubview(host)
         container.addSubview(hover)
         host.frame = container.bounds

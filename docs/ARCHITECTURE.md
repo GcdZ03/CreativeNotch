@@ -90,6 +90,31 @@ on screen. Shrinking early is harmless; clicks fall through a panel that is
 still visibly collapsing. Get this wrong and the app silently swallows
 menu bar clicks across a 620pt band.
 
+### Three layers decline a click, and all three must
+
+AppKit asks the **content view** first, so pass-through is decided there,
+not in the hosting view:
+
+| Layer | Declines by |
+|---|---|
+| `PassthroughContainer` | returning `nil` unless a subview claims the point |
+| `HoverTracker` | returning `nil` always — it only wants tracking areas |
+| `HitTestingHostingView` | returning `nil` outside `NotchShape.visibleRect` |
+
+The container was a plain `NSView` until this was caught while designing
+the file shelf. `NSView.hitTest` returns `self` for any in-bounds point no
+subview claims, so it captured every click in the 620x260 rect — including
+the menu bar either side of the notch — while both subviews were correctly
+declining them. Every test passed, because they exercised the hosting view
+in isolation rather than the assembled panel.
+
+Same shape as the coordinate trap below: each piece correct, the assembly
+wrong. When touching this, test through `panel.contentView`, not through a
+view in isolation.
+
+This layer also bounds any drop target, since AppKit finds dragging
+destinations by hit-testing.
+
 ### The coordinate trap
 
 **`NSHostingView.isFlipped == true`.** Its local coordinate space is
