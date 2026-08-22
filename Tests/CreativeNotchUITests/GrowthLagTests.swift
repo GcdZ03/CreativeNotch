@@ -113,6 +113,27 @@ struct GrowthLagTests {
         #expect(host.hitTest(insideOpenOnly) != nil)
     }
 
+    /// `.receiving` is the one state that must widen at once.
+    ///
+    /// The lag exists so the app never accepts a click on something not
+    /// yet drawn. During a drag there is no click to mis-accept, and the
+    /// drop region is gated by hit-testing — so a third of a second of
+    /// refused drops would land exactly when the cursor is moving into the
+    /// panel it just opened.
+    @Test func aDragWidensTheAcceptedRegionImmediately() {
+        let delegate = makeDelegate()
+        delegate.state.transition(to: .receiving)
+        // No await: the drop area is available the moment the drag arrives.
+        #expect(delegate.acceptedRect == Self.openRect)
+    }
+
+    /// And the exception is only for `.receiving`.
+    @Test func aClickOpenedPanelStillLags() {
+        let delegate = makeDelegate()
+        delegate.state.transition(to: .open(.shelf))
+        #expect(delegate.acceptedRect == Self.closedRect)
+    }
+
     /// The invariant itself, stated directly.
     @Test func theAcceptedRegionIsNeverLargerThanTheDrawnOne() async throws {
         let delegate = makeDelegate()

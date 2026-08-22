@@ -16,6 +16,17 @@ import AppKit
 /// found by hit-testing too.
 final class PassthroughContainer: NSView {
 
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        // Registering here rather than at the call site keeps the drop
+        // contract with the view that implements it.
+        registerForDraggedTypes([.fileURL, .string, .png, .tiff])
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("PassthroughContainer is not loaded from a nib") }
+
+
     /// `point` arrives in this view's own coordinate space, which is what
     /// `subview.hitTest(_:)` expects for a direct child — so it is passed
     /// through unconverted.

@@ -25,7 +25,18 @@
 
 ---
 
-### Task 1: Probe whether the drop region is gated by `hitTest`
+### Task 1: Probe whether the drop region is gated by `hitTest` — ✅ DONE
+
+**Outcome: it is gated.** Every `draggingEntered` landed inside the notch
+band (y 233–238 of 222–260); drags held 150–200pt lower produced nothing.
+Recorded in spec §6.1 with the evidence.
+
+The consequence is an interaction change, not a blocker: acquire on the
+notch, then drop anywhere in the expanded panel, since `.receiving` draws
+at full size. `.receiving` was also made to bypass the growth lag (spec
+§6.3), or drops would be refused for 320ms exactly as the cursor arrives.
+
+Original task text follows for the record.
 
 Spec §6.1. Everything downstream assumes a 620×260 drop zone. If AppKit locates dragging destinations by hit-testing, `PassthroughContainer` returning `nil` outside the visible shape silently collapses that zone to the notch — and it would *look* correct, because dropping on the notch still works.
 

@@ -226,6 +226,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         growthTask?.cancel()
         growthTask = nil
 
+        // `.receiving` widens at once. The lag exists so the app never
+        // accepts a click on something not yet drawn; during a drag there
+        // is no click to mis-accept, and the drop region is gated by
+        // hit-testing — so lagging here would refuse drops for a third of
+        // a second exactly as the cursor moves into the panel it just
+        // opened.
+        if case .receiving = state.state {
+            acceptRect(target)
+            return
+        }
+
         // Shrinking, or the lag disabled: apply now and stay synchronous,
         // so callers that do not care about the animation need not await.
         guard area(of: target) > area(of: acceptedRect), growthDelay > .zero else {

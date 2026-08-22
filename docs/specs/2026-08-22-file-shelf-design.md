@@ -149,21 +149,50 @@ and less surprising.
 exit, and both outside-click and app-switch dismissal skip it. The
 foundation built those guards for this module before it existed.
 
-### 6.1 ⚠️ Unverified: is the drop region gated by `hitTest`?
+### 6.1 The drop region is gated by `hitTest` — settled 2026-08-22
 
-`PassthroughContainer.hitTest` returns `nil` outside the visible shape. **It
-is not established whether AppKit locates dragging destinations via
-`hitTest` or by frame containment.**
+**Answered by probe, not assumed.** A temporary `draggingEntered` writing
+to a file, with real drags from Finder:
 
-If it uses `hitTest`, the 620×260 drop zone silently collapses to the notch
-— and it would *look* correct, because dropping on the notch still works.
-That is the same shape as the two bugs this project has already shipped
-(the inverted y axis, and the container swallowing clicks): each piece
-correct, the assembly wrong, every test green.
+```
+draggingEntered at x=331 y=235   (bounds 620x260)
+draggingEntered at x=388 y=236
+draggingEntered at x=334 y=238
+draggingEntered at x=346 y=233
+```
 
-**Task 1 of the implementation plan is a probe that answers this**, before
-anything is built on the assumption. Known fallback: have the container
-claim points while a drag is in flight.
+The closed notch occupies panel-local y 222–260. **Every event landed
+inside that band.** Drags deliberately held 150–200pt lower produced
+nothing at all. AppKit locates dragging destinations by hit-testing, so
+`PassthroughContainer` returning `nil` outside the visible shape bounds the
+drop region to exactly what is drawn.
+
+Had this been assumed rather than probed, dropping *on* the notch would
+have worked perfectly and the 620×260 zone would have been quietly
+fictional — the same shape as the two bugs this project has already
+shipped.
+
+### 6.2 What this means for the interaction
+
+The drop region follows the drawn shape, and `.receiving` draws at the full
+620×260. So:
+
+**Aim at the notch to open the shelf, then drop anywhere in the panel that
+opens.** Precision is needed to *acquire*, not to *drop*, and the acquire
+target is the notch the user is already aiming at.
+
+No global monitor, no permission, nothing running at idle — the design's
+central constraint survives intact.
+
+### 6.3 `.receiving` bypasses the growth lag
+
+`AppDelegate` normally trails growth of the accepted region by the expand
+animation, so a click is never accepted on something not yet drawn.
+
+**`.receiving` is exempt.** During a drag there is no click to mis-accept,
+and because the drop region is hit-test-gated, lagging would refuse drops
+for a third of a second — exactly as the cursor moves into the panel it
+just opened. Every other state keeps the lag.
 
 ## 7. Getting things out
 
