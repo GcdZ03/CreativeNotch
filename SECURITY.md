@@ -37,7 +37,7 @@ Worth knowing before you install anything that asks for Accessibility:
 Every release ships a SHA-256 checksum:
 
 ```bash
-shasum -a 256 -c CreativeNotch-v0.1.0.tar.gz.sha256
+shasum -a 256 -c CreativeNotch-v0.2.0.tar.gz.sha256
 codesign --verify --deep --strict CreativeNotch.app
 ```
 

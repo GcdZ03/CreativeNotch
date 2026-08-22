@@ -77,13 +77,11 @@ jobs:
             ${{ steps.package.outputs.name }}
             ${{ steps.package.outputs.name }}.sha256
           body: |
-            > **Early release.** The foundation is complete — the panel
-            > anchors to the notch (or a pill on notchless Macs), peeks on
-            > hover, opens on click, and follows the focused screen. The four
-            > modules — media, file shelf, clipboard, HUD — are **not built
-            > yet**, so the panel does not do anything useful with itself.
-            > Install it to watch the project develop, not to replace a notch
-            > app you already use.
+            > **Early release.** The file shelf works: drag a file onto the
+            > notch to stash it, drag it out again later. The other three
+            > modules — clipboard, media, HUD — are **not built yet**. Install
+            > it to watch the project develop, not to replace a notch app you
+            > already use.
 
             ## Install
 
