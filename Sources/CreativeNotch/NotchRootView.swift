@@ -4,7 +4,7 @@ import CreativeNotchCore
 @Observable
 final class AppState {
     var state: NotchState = .closed
-    var anchor: CoreAnchor = .pill(.zero)
+    var anchor: CreativeNotchCore.Anchor = .pill(.zero)
 }
 
 struct NotchRootView: View {
