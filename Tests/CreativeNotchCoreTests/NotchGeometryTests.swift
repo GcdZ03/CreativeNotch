@@ -92,3 +92,63 @@ private let external = ScreenMetrics(
     #expect(frame.maxX <= narrow.frame.maxX)
     #expect(frame.minX == 180)  // Clamped: 800 - 620 = 180
 }
+
+// MARK: - Off-origin screens
+//
+// Everything above places the screen at the global origin, which makes
+// `frame.minX == 0` and `frame.maxY == frame.height` — so a geometry
+// expression that dropped `frame.minX` or confused `frame.maxY` with
+// `frame.height` would still pass. macOS puts the *primary* screen at the
+// origin, not the built-in one: set an external display as primary and the
+// notched built-in gets a non-zero `minX`, and a non-zero `minY` if it sits
+// below the primary. These tests pin the absolute positions.
+
+// The same notched MacBook as above, but repositioned to the right of and
+// above the global origin, as it would be when an external display is
+// primary.
+private let notchedOffOrigin = ScreenMetrics(
+    frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
+    safeAreaTopInset: 38,
+    auxiliaryTopLeftWidth: 620,
+    auxiliaryTopRightWidth: 620,
+    menuBarHeight: 38
+)
+
+@Test func notchAnchorLandsInAbsoluteScreenCoordinates() {
+    guard case .notch(let r) = NotchGeometry.anchor(for: notchedOffOrigin) else {
+        Issue.record("expected .notch"); return
+    }
+    // x: screen origin + the left auxiliary area, not the auxiliary area alone.
+    #expect(r.minX == 2090)          // 1470 + 620
+    #expect(r.width == 230)
+    // y: measured down from the screen's *top edge in global space*
+    // (200 + 956), not from its height.
+    #expect(r.maxY == 1156)
+    #expect(r.minY == 1118)          // 1156 - 38
+}
+
+@Test func panelFrameLandsInAbsoluteScreenCoordinates() {
+    let anchor = NotchGeometry.anchor(for: notchedOffOrigin)
+    let frame = NotchGeometry.panelFrame(for: anchor, in: notchedOffOrigin)
+    #expect(frame == CGRect(x: 1895, y: 896, width: 620, height: 260))
+    #expect(frame.midX == anchor.rect.midX)
+    #expect(frame.maxY == anchor.rect.maxY)
+}
+
+@Test func panelOnASecondaryScreenClampsToThatScreenNotTheGlobalOrigin() {
+    // A narrow display parked to the right of the primary. The anchor sits
+    // hard against *its* left edge, so the 620pt panel must clamp to
+    // `frame.minX` (1470) — clamping to a global 0 would fling the panel
+    // onto the primary display.
+    let secondary = ScreenMetrics(
+        frame: CGRect(x: 1470, y: 0, width: 800, height: 600),
+        safeAreaTopInset: 0,
+        auxiliaryTopLeftWidth: 0,
+        auxiliaryTopRightWidth: 0,
+        menuBarHeight: 24
+    )
+    let anchor = Anchor.pill(CGRect(x: 1470, y: 560, width: 180, height: 32))
+    let frame = NotchGeometry.panelFrame(for: anchor, in: secondary)
+    #expect(frame.minX == 1470)      // unclamped would be 1560 - 310 = 1250
+    #expect(frame.maxX <= secondary.frame.maxX)
+}

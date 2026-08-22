@@ -34,3 +34,6 @@ dist/
 
 # SDD workspace (scratch)
 .superpowers/
+
+# Editors
+.vscode/
