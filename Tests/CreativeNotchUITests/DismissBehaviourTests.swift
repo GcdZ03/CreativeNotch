@@ -33,6 +33,7 @@ struct DismissBehaviourTests {
         let delegate = AppDelegate()
         delegate.installOutsideClickMonitor = { handler in spy.install(handler) }
         delegate.removeOutsideClickMonitor = { spy.remove($0) }
+        delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
         delegate.dismissGrace = grace
         return (delegate, spy)

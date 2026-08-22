@@ -40,6 +40,9 @@ struct AppDelegateStateFunnelTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        // These tests are about the funnel, not the expand animation, so
+        // the growth lag is switched off. F6 has its own suite.
+        delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
         return delegate
     }

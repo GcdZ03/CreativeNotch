@@ -12,7 +12,7 @@ import CreativeNotchCore
 public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private(set) var panel: NotchPanel?
-    private var hostView: HitTestingHostingView<NotchRootView>?
+    private(set) var hostView: HitTestingHostingView<NotchRootView>?
     private(set) var hoverView: HoverTracker?
     private var menuBar: MenuBarController?
 
@@ -71,6 +71,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var outsideClickToken: Any?
 
+    // MARK: - Growth lag (F6)
+
+    /// How long the drawn shape takes to expand.
+    ///
+    /// The panel animates open over roughly this long while the derived
+    /// rects used to snap to full size instantly, so for that window the
+    /// app accepted clicks on a region that was not visibly there yet --
+    /// the same "swallows clicks you cannot see" failure the hit test
+    /// exists to prevent, just briefly.
+    public static let defaultGrowthDelay: Duration = .milliseconds(320)
+
+    /// Overridable so tests need not wait out a real animation.
+    var growthDelay: Duration = AppDelegate.defaultGrowthDelay
+
+    private var growthTask: Task<Void, Never>?
+
+    /// The region currently *accepted* for hit testing and hover, which
+    /// lags `visibleRect()` while the shape is growing and matches it
+    /// immediately when shrinking.
+    ///
+    /// The invariant: the accepted region is never larger than what is
+    /// drawn. Shrinking early is safe -- clicks fall through a panel that
+    /// is still visibly collapsing, which is harmless. Growing early is
+    /// not.
+    private(set) var acceptedRect: CGRect = .zero
+
     /// Whether the outside-click monitor is currently installed. Nothing
     /// should be running while the notch is idle.
     var isWatchingForOutsideClicks: Bool { outsideClickToken != nil }
@@ -126,7 +152,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
-        host.visibleRectProvider = { [weak self] in self?.visibleRect() ?? .zero }
+        host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
 
         let hover = HoverTracker(frame: CGRect(origin: .zero, size: size))
         hover.autoresizingMask = [.width, .height]
@@ -169,7 +195,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
         state.setGeometry(anchor: anchor, panelFrame: frame)
         panel.setFrame(frame, display: true)
-        syncTrackingRect()
+        // Seeded directly rather than through the lag: at install there is
+        // no animation in flight for the accepted region to trail.
+        growthTask?.cancel()
+        acceptRect(visibleRect())
     }
 
     // MARK: - Derived geometry
@@ -184,9 +213,41 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Moves the accepted region toward the drawn one.
+    ///
+    /// Shrink now, grow late: the accepted region must never describe more
+    /// than is on screen. (Follow-up F6.)
     private func syncTrackingRect() {
-        hoverView?.updateTrackingRect(visibleRect())
+        let target = visibleRect()
+        // Cancelling stops pending tasks piling up; re-reading below means
+        // a superseded task would settle on the right region anyway. Each
+        // alone would be correct, so neither has a test that fails without
+        // it -- they are kept as independent defences, not as behaviour.
+        growthTask?.cancel()
+        growthTask = nil
+
+        // Shrinking, or the lag disabled: apply now and stay synchronous,
+        // so callers that do not care about the animation need not await.
+        guard area(of: target) > area(of: acceptedRect), growthDelay > .zero else {
+            acceptRect(target)
+            return
+        }
+
+        growthTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.growthDelay)
+            guard !Task.isCancelled else { return }
+            // Re-read: the state may have moved on while we waited.
+            self.acceptRect(self.visibleRect())
+        }
     }
+
+    private func acceptRect(_ rect: CGRect) {
+        acceptedRect = rect
+        hoverView?.updateTrackingRect(rect)
+    }
+
+    private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
 
     // MARK: - Hover
 
