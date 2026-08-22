@@ -20,7 +20,9 @@ public final class HoverTracker: NSView {
     /// Readable so the funnel that keeps it in sync with the state can
     /// be verified; only `updateTrackingRect(_:)` may set it.
     public private(set) var trackingRect: CGRect = .zero
-    private var dwellTask: Task<Void, Never>?
+    /// Exposed for the same reason as `AppDelegate.growthTask`: tests
+    /// await it rather than sleeping past it.
+    private(set) var dwellTask: Task<Void, Never>?
 
     /// `NSTrackingArea` rects are interpreted in the owning view's own
     /// coordinate space. Staying unflipped (the `NSView` default) matches

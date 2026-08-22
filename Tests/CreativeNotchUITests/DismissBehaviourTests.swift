@@ -39,6 +39,11 @@ struct DismissBehaviourTests {
         return (delegate, spy)
     }
 
+    /// Awaits the pending dismissal rather than sleeping past it.
+    private func settle(_ delegate: AppDelegate) async {
+        await delegate.graceTask?.value
+    }
+
     final class MonitorSpy {
         private(set) var installs = 0
         private(set) var removals = 0
@@ -75,40 +80,40 @@ struct DismissBehaviourTests {
         #expect(delegate.state.state == .open(.shelf))
     }
 
-    @Test func aMouseExitClosesTheOpenPanelOnceTheGraceElapses() async throws {
+    @Test func aMouseExitClosesTheOpenPanelOnceTheGraceElapses() async {
         let (delegate, _) = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         delegate.hoverView?.onExit()
-        try await Task.sleep(for: .milliseconds(120))
+        await settle(delegate)
         #expect(delegate.state.state == .closed)
     }
 
-    @Test func returningDuringTheGraceKeepsThePanelOpen() async throws {
+    @Test func returningDuringTheGraceKeepsThePanelOpen() async {
         let (delegate, _) = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         delegate.hoverView?.onExit()
         delegate.hoverView?.onEnter()          // cursor came back
-        try await Task.sleep(for: .milliseconds(120))
+        await settle(delegate)
         #expect(delegate.state.state == .open(.shelf))
     }
 
     /// The grace must not resurrect a panel the user already closed.
-    @Test func clickingClosedDuringTheGraceLeavesItClosed() async throws {
+    @Test func clickingClosedDuringTheGraceLeavesItClosed() async {
         let (delegate, _) = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         delegate.hoverView?.onExit()
         delegate.state.transition(to: .closed)
-        try await Task.sleep(for: .milliseconds(120))
+        await settle(delegate)
         #expect(delegate.state.state == .closed)
     }
 
     /// A drag in flight has to outlive the cursor leaving, grace or no
     /// grace, or the drop can never land.
-    @Test func aDragInFlightIsNeverDismissedByLeaving() async throws {
+    @Test func aDragInFlightIsNeverDismissedByLeaving() async {
         let (delegate, _) = makeDelegate()
         delegate.state.transition(to: .receiving)
         delegate.hoverView?.onExit()
-        try await Task.sleep(for: .milliseconds(120))
+        await settle(delegate)
         #expect(delegate.state.state == .receiving)
     }
 

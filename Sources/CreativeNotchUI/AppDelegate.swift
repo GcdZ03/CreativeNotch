@@ -62,7 +62,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Overridable so tests can await it instead of waiting 400ms each.
     var dismissGrace: Duration = AppDelegate.defaultDismissGrace
 
-    private var graceTask: Task<Void, Never>?
+    /// Exposed so tests can await the real work instead of sleeping and
+    /// hoping. Sleeping raced the scheduler: the tests passed locally and
+    /// failed on a loaded CI runner, which is the worst kind of test.
+    private(set) var graceTask: Task<Void, Never>?
 
     /// Installs a monitor calling `handler` when a mouse-down lands in
     /// another application; returns a token for removal.
@@ -94,7 +97,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Overridable so tests need not wait out a real animation.
     var growthDelay: Duration = AppDelegate.defaultGrowthDelay
 
-    private var growthTask: Task<Void, Never>?
+    private(set) var growthTask: Task<Void, Never>?
 
     /// The region currently *accepted* for hit testing and hover, which
     /// lags `visibleRect()` while the shape is growing and matches it

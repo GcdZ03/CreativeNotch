@@ -126,6 +126,31 @@ So, for every test you add:
 If you cannot make a test fail, it is not protecting anything — either
 rewrite it or rename it to describe what it actually checks.
 
+## Never sleep in a test
+
+There is no `Task.sleep` anywhere in the suite, and there should not be.
+
+Timing tests originally slept past a delay and asserted afterwards. They
+passed locally every time and **failed seven at once on CI**, because Swift
+Testing runs suites in parallel and a loaded runner does not schedule a
+pending `Task { @MainActor … }` inside the window the test guessed at.
+
+Await the real work instead:
+
+```swift
+delegate.state.transition(to: .open(.shelf))
+#expect(delegate.acceptedRect == closedRect)   // not yet
+await delegate.growthTask?.value               // deterministic
+#expect(delegate.acceptedRect == openRect)
+```
+
+`AppDelegate.growthTask`, `AppDelegate.graceTask` and
+`HoverTracker.dwellTask` are exposed for exactly this.
+
+Sleeping for *less* than a delay is the same trap in reverse — "wait 150ms,
+which is inside the 300ms dwell" overshoots on a slow runner and fires the
+thing you were proving had not fired. Hold the task and await it instead.
+
 ## Things that will bite you
 
 **Coordinate spaces.** `NSHostingView.isFlipped == true`; `NotchShape`

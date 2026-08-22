@@ -25,6 +25,12 @@ struct GrowthLagTests {
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
     private static let openRect   = CGRect(x: 0, y: 0, width: 620, height: 260)
 
+    /// Awaits the pending growth rather than sleeping past it. Sleeping
+    /// raced the scheduler — green locally, red on a loaded CI runner.
+    private func settle(_ delegate: AppDelegate) async {
+        await delegate.growthTask?.value
+    }
+
     private func makeDelegate(delay: Duration = .milliseconds(60)) -> AppDelegate {
         let delegate = AppDelegate()
         delegate.growthDelay = delay
@@ -42,21 +48,21 @@ struct GrowthLagTests {
         #expect(delegate.acceptedRect == Self.closedRect)
     }
 
-    @Test func growingIsDeferredUntilTheDrawCatchesUp() async throws {
+    @Test func growingIsDeferredUntilTheDrawCatchesUp() async {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
 
         // Right away the panel is still visibly a notch.
         #expect(delegate.acceptedRect == Self.closedRect)
 
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         #expect(delegate.acceptedRect == Self.openRect)
     }
 
-    @Test func shrinkingIsImmediate() async throws {
+    @Test func shrinkingIsImmediate() async {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         #expect(delegate.acceptedRect == Self.openRect)
 
         delegate.state.transition(to: .closed)
@@ -64,34 +70,34 @@ struct GrowthLagTests {
         #expect(delegate.acceptedRect == Self.closedRect)
     }
 
-    @Test func theHoverTrackerFollowsTheAcceptedRegionNotTheDrawnOne() async throws {
+    @Test func theHoverTrackerFollowsTheAcceptedRegionNotTheDrawnOne() async {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         #expect(delegate.hoverView?.trackingRect == Self.closedRect)
 
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         #expect(delegate.hoverView?.trackingRect == Self.openRect)
     }
 
     /// Closing again before the growth lands must not leave a pending task
     /// that expands a panel the user already dismissed.
-    @Test func aTransitionDuringTheLagCancelsThePendingGrowth() async throws {
+    @Test func aTransitionDuringTheLagCancelsThePendingGrowth() async {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         delegate.state.transition(to: .closed)
 
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         #expect(delegate.acceptedRect == Self.closedRect)
     }
 
     /// Growing twice in a row must settle on the final region, not an
     /// intermediate one.
-    @Test func rapidGrowthSettlesOnTheLastState() async throws {
+    @Test func rapidGrowthSettlesOnTheLastState() async {
         let delegate = makeDelegate()
         delegate.state.transition(to: .peek(.dragTarget))
         delegate.state.transition(to: .open(.shelf))
 
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         #expect(delegate.acceptedRect == Self.openRect)
     }
 
@@ -108,7 +114,7 @@ struct GrowthLagTests {
         // Still drawn as a notch, so this must not be captured yet.
         #expect(host.hitTest(insideOpenOnly) == nil)
 
-        try await Task.sleep(for: .milliseconds(150))
+        await settle(delegate)
         // Now the panel is really there.
         #expect(host.hitTest(insideOpenOnly) != nil)
     }
@@ -135,7 +141,7 @@ struct GrowthLagTests {
     }
 
     /// The invariant itself, stated directly.
-    @Test func theAcceptedRegionIsNeverLargerThanTheDrawnOne() async throws {
+    @Test func theAcceptedRegionIsNeverLargerThanTheDrawnOne() async {
         let delegate = makeDelegate()
         for next in [NotchState.peek(.dragTarget), .open(.shelf), .closed, .receiving] {
             delegate.state.transition(to: next)

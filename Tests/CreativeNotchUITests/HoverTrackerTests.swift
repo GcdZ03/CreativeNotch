@@ -1,6 +1,6 @@
 import AppKit
 import Testing
-import CreativeNotchUI
+@testable import CreativeNotchUI
 
 /// Covers the dwell timing state machine and the coordinate-space seam
 /// `HoverTracker` sits on: `NSTrackingArea` rects are interpreted in the
@@ -113,25 +113,25 @@ struct HoverTrackerTests {
         #expect(!dwelled.value)
     }
 
-    @Test func dwellFiresAfterTheDelayElapses() async throws {
+    @Test func dwellFiresAfterTheDelayElapses() async {
         let tracker = HoverTracker(frame: .zero)
         let fired = Flag()
         tracker.onDwell = { fired.set() }
 
         tracker.mouseEntered(with: enterEvent())
-        try await Task.sleep(for: .milliseconds(500))
+        await tracker.dwellTask?.value
 
         #expect(fired.value)
     }
 
-    @Test func exitingBeforeTheDwellElapsesCancelsIt() async throws {
+    @Test func exitingBeforeTheDwellElapsesCancelsIt() async {
         let tracker = HoverTracker(frame: .zero)
         let fired = Flag()
         tracker.onDwell = { fired.set() }
 
         tracker.mouseEntered(with: enterEvent())
         tracker.mouseExited(with: exitEvent())
-        try await Task.sleep(for: .milliseconds(500))
+        await tracker.dwellTask?.value
 
         #expect(!fired.value)
     }
@@ -148,15 +148,21 @@ struct HoverTrackerTests {
 
     /// Re-entering before the previous dwell fires must restart the clock,
     /// not stack a second timer.
-    @Test func reenteringRestartsTheDwellRatherThanStacking() async throws {
+    @Test func reenteringRestartsTheDwellRatherThanStacking() async {
         let tracker = HoverTracker(frame: .zero)
         let dwellCount = Counter()
         tracker.onDwell = { dwellCount.increment() }
 
+        // No sleep between the two entries. Sleeping "less than the dwell"
+        // is itself a race: on a slow runner the wait overshoots, the first
+        // dwell fires, and the count is 2. Holding the first task and
+        // awaiting it proves it was cancelled instead.
         tracker.mouseEntered(with: enterEvent())
-        try await Task.sleep(for: .milliseconds(150))
+        let firstDwell = tracker.dwellTask
         tracker.mouseEntered(with: enterEvent())
-        try await Task.sleep(for: .milliseconds(500))
+
+        await firstDwell?.value          // cancelled — returns at once
+        await tracker.dwellTask?.value   // the one that should fire
 
         #expect(dwellCount.value == 1)
     }
