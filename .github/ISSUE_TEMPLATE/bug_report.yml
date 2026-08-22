@@ -1,0 +1,49 @@
+name: Bug report
+description: Something behaves incorrectly
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing: the four modules (media, file shelf, clipboard, HUD)
+        are **not built yet**. If you are reporting that one of them is
+        missing, that is expected — see the roadmap in the README.
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version
+      placeholder: "26.6.2"
+    validations: { required: true }
+  - type: input
+    id: hardware
+    attributes:
+      label: Mac model
+      description: And whether it has a physical notch
+      placeholder: "MacBook Air 13\" M5 — has a notch"
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: CreativeNotch version
+      description: From the menu bar item, or the release you installed
+      placeholder: "v0.1.0"
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+    validations: { required: true }
+  - type: textarea
+    id: displays
+    attributes:
+      label: Display setup
+      description: External displays, which is primary, mirroring, scaling
+      placeholder: "Built-in only"

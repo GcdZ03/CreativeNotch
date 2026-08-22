@@ -1,0 +1,27 @@
+name: Feature request
+description: Suggest something
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is a personal tool built to one architectural rule: **no
+        subsystem runs when it isn't needed.** Anything requiring continuous
+        polling — audio visualisers especially — will be declined, however
+        good it looks. That constraint is the whole point of the project.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: The problem, not the solution you have in mind.
+    validations: { required: true }
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+  - type: checkboxes
+    id: polling
+    attributes:
+      label: Battery
+      options:
+        - label: This can be driven by events rather than a timer or a global monitor
