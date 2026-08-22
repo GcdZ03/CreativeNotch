@@ -152,6 +152,34 @@ assigns its own observer will silently clobber the delegate's sync and
 reintroduce that bug at runtime with no compiler help. Make it an observer
 list before that happens — see follow-up **F2**.
 
+### Dismissing an open panel
+
+Because `hitTest` returns `nil` outside the visible shape — the thing that
+keeps menu bar clicks working — a click anywhere else passes straight
+through and the app never hears about it. Dismissal therefore has to be
+arranged explicitly, from three sources:
+
+- **an outside click**, via a global mouse-down monitor **installed only
+  while `.open`** and removed the instant the state leaves it. Lazy, so
+  nothing runs at idle; global monitors also never see events destined for
+  our own app, so clicking the panel cannot double-fire against the tap
+  gesture. Mouse monitors need no Accessibility permission — only keyboard
+  ones do.
+- **another app activating**, off the existing `didActivateApplication`
+  observer. Free, no monitor.
+- **the cursor leaving**, after a 400 ms grace cancelled if it returns.
+  Without the grace, brushing a pixel past the edge snaps the panel shut and
+  reads as a glitch. The mirror image of the 300 ms hover dwell.
+
+All three funnel into one `dismissIfOpen()` that no-ops unless the state is
+still `.open`, so a pending grace timer can never disturb a state the user
+has since changed — **a drag in flight above all**. `.receiving` is
+dismissed by none of the three.
+
+The monitor's lifetime is driven from `onTransition` rather than from call
+sites, so there is no path that opens the panel without arming it, or closes
+it and leaves a monitor running.
+
 ### Peek arbitration
 
 One slot, three competitors. `PeekArbiter` resolves them: **drag > HUD >
@@ -218,7 +246,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-70 tests, split evenly between Core and UI, all headless. `swift test` takes
+86 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified

@@ -10,7 +10,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-70-brightgreen" alt="70 tests">
+  <img src="https://img.shields.io/badge/tests-86-brightgreen" alt="86 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -162,7 +162,10 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause on the notch for ~300 ms | Peeks open |
 | Move away | Collapses |
 | Click the notch | Opens the full panel |
-| Click again | Closes it |
+| Click it again | Closes it |
+| Click anywhere outside | Closes it |
+| Switch to another app | Closes it |
+| Move the cursor away | Closes it, after a 400 ms grace |
 | Menu bar icon | Accessibility status, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
@@ -178,7 +181,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 70 tests, ~1s, no window server needed
+swift test           # 86 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -205,7 +208,7 @@ Sources/
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
   CreativeNotchCoreTests/   35 tests
-  CreativeNotchUITests/     35 tests
+  CreativeNotchUITests/     51 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit

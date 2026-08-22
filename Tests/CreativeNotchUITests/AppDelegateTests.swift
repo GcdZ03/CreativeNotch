@@ -121,7 +121,7 @@ struct AppDelegateStateFunnelTests {
         #expect(delegate.hoverView?.trackingRect == CGRect(x: 195, y: 222, width: 230, height: 38))
     }
 
-    @Test func aMouseExitLeavesAClickOpenedPanelOpen() {
+    @Test func aMouseExitDoesNotCloseAClickOpenedPanelImmediately() {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
         delegate.hoverView?.onExit()

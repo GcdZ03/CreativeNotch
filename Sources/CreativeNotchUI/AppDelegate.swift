@@ -26,6 +26,40 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public let state = AppState()
     private let onboarding = OnboardingController()
 
+    // MARK: - Dismissal
+
+    /// How long an open panel survives the cursor leaving it.
+    ///
+    /// Without a grace period, brushing a pixel past the edge snaps the
+    /// panel shut, which reads as a glitch rather than as intent. The
+    /// mirror image of the 300ms hover dwell.
+    public static let defaultDismissGrace: Duration = .milliseconds(400)
+
+    /// Overridable so tests can await it instead of waiting 400ms each.
+    var dismissGrace: Duration = AppDelegate.defaultDismissGrace
+
+    private var graceTask: Task<Void, Never>?
+
+    /// Installs a monitor calling `handler` when a mouse-down lands in
+    /// another application; returns a token for removal.
+    ///
+    /// Injected rather than called directly so the install/remove
+    /// lifecycle is assertable without a real global monitor -- and so a
+    /// test can fire a synthetic outside click.
+    var installOutsideClickMonitor: (@escaping () -> Void) -> Any? = { handler in
+        NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { _ in handler() }
+    }
+
+    var removeOutsideClickMonitor: (Any) -> Void = { NSEvent.removeMonitor($0) }
+
+    private var outsideClickToken: Any?
+
+    /// Whether the outside-click monitor is currently installed. Nothing
+    /// should be running while the notch is idle.
+    var isWatchingForOutsideClicks: Bool { outsideClickToken != nil }
+
     public override init() { super.init() }
 
     // MARK: - Lifecycle
@@ -81,6 +115,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hover = HoverTracker(frame: CGRect(origin: .zero, size: size))
         hover.autoresizingMask = [.width, .height]
+        hover.onEnter = { [weak self] in self?.cancelDismissGrace() }
         hover.onDwell = { [weak self] in self?.peek() }
         hover.onExit  = { [weak self] in self?.collapse() }
 
@@ -100,7 +135,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // tracking rect from the new presentation, so no caller has to
         // remember to. Nothing outside `AppState.transition(to:)` can
         // change the state, so nothing can bypass this.
-        state.onTransition = { [weak self] _ in self?.syncTrackingRect() }
+        state.onTransition = { [weak self] newState in
+            self?.syncTrackingRect()
+            self?.syncDismissAffordances(for: newState)
+        }
 
         // Seeds `currentAnchor`, `currentFrame`, `state.anchor`, the panel
         // frame and the tracking rect -- the same five assignments
@@ -151,14 +189,76 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transition(to: .closed)
 
         case .open:
-            // Opened by an explicit click; only another click closes it.
-            break
+            // A click opened it, so a click, an app switch, or the cursor
+            // staying away closes it. Leaving starts a grace period rather
+            // than dismissing outright.
+            startDismissGrace()
 
         case .receiving:
             // A drag is in flight. The drop target has to outlive the
             // cursor leaving the notch or the drop can never land.
             break
         }
+    }
+
+    // MARK: - Dismissing an open panel
+
+    /// Keeps the outside-click monitor's lifetime tied to `.open`.
+    ///
+    /// Driven from the funnel rather than from call sites: every state
+    /// change routes through `AppState.transition(to:)`, so there is no
+    /// path that can open the panel without arming this, or close it and
+    /// leave a monitor running.
+    private func syncDismissAffordances(for newState: NotchState) {
+        guard case .open = newState else {
+            cancelDismissGrace()
+            if let token = outsideClickToken {
+                removeOutsideClickMonitor(token)
+                outsideClickToken = nil
+            }
+            return
+        }
+
+        // Already armed -- switching tabs must not stack monitors.
+        guard outsideClickToken == nil else { return }
+
+        outsideClickToken = installOutsideClickMonitor { [weak self] in
+            // Global monitor handlers are delivered on the main thread;
+            // the closure's type just cannot express that.
+            MainActor.assumeIsolated { self?.dismissIfOpen() }
+        }
+    }
+
+    private func startDismissGrace() {
+        graceTask?.cancel()
+        graceTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.dismissGrace)
+            guard !Task.isCancelled else { return }
+            self.dismissIfOpen()
+        }
+    }
+
+    private func cancelDismissGrace() {
+        graceTask?.cancel()
+        graceTask = nil
+    }
+
+    /// Closes the panel only if it is still open, so a pending grace
+    /// timer can never reopen or disturb a state the user has since
+    /// changed -- a drag in flight above all.
+    private func dismissIfOpen() {
+        guard case .open = state.state else { return }
+        state.transition(to: .closed)
+    }
+
+    /// Another application came forward.
+    ///
+    /// Takes a pid rather than an `NSRunningApplication` so it is drivable
+    /// from a test without conjuring a real running app.
+    func applicationDidActivate(pid: pid_t) {
+        guard pid != ProcessInfo.processInfo.processIdentifier else { return }
+        dismissIfOpen()
     }
 
     // MARK: - Screen changes
@@ -181,9 +281,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observers.append(NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
-        ) { [weak self] _ in
-            guard let self, let screen = NSScreen.main else { return }
-            MainActor.assumeIsolated { _ = self.reposition(metrics: screen.metrics) }
+        ) { [weak self] note in
+            guard let self else { return }
+            let app = note.userInfo?[NSWorkspace.applicationUserInfoKey]
+                as? NSRunningApplication
+            MainActor.assumeIsolated {
+                if let pid = app?.processIdentifier {
+                    self.applicationDidActivate(pid: pid)
+                }
+                if let screen = NSScreen.main {
+                    _ = self.reposition(metrics: screen.metrics)
+                }
+            }
         })
     }
 

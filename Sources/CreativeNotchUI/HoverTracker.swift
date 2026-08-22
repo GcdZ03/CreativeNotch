@@ -10,6 +10,10 @@ public final class HoverTracker: NSView {
 
     public static let dwell: Duration = .milliseconds(300)
 
+    /// Fires the moment the cursor enters, before the dwell elapses.
+    /// `onDwell` says "the user meant to open this"; `onEnter` says "the
+    /// cursor is back", which is what cancels a pending dismissal.
+    public var onEnter: () -> Void = {}
     public var onDwell: () -> Void = {}
     public var onExit: () -> Void = {}
 
@@ -43,6 +47,7 @@ public final class HoverTracker: NSView {
     }
 
     public override func mouseEntered(with event: NSEvent) {
+        onEnter()
         dwellTask?.cancel()
         dwellTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: Self.dwell)

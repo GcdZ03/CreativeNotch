@@ -90,6 +90,29 @@ struct HoverTrackerTests {
 
     // MARK: - Dwell timing
 
+    /// `onEnter` is what cancels a pending dismissal, so it has to fire the
+    /// moment the cursor arrives -- not 300ms later with the dwell.
+    @Test func enteringFiresOnEnterImmediately() {
+        let tracker = HoverTracker(frame: .zero)
+        let entered = Flag()
+        tracker.onEnter = { entered.set() }
+
+        tracker.mouseEntered(with: enterEvent())
+
+        // No sleep: `onDwell` waits, `onEnter` must not.
+        #expect(entered.value)
+    }
+
+    @Test func enteringDoesNotFireTheDwellYet() {
+        let tracker = HoverTracker(frame: .zero)
+        let dwelled = Flag()
+        tracker.onDwell = { dwelled.set() }
+
+        tracker.mouseEntered(with: enterEvent())
+
+        #expect(!dwelled.value)
+    }
+
     @Test func dwellFiresAfterTheDelayElapses() async throws {
         let tracker = HoverTracker(frame: .zero)
         let fired = Flag()
