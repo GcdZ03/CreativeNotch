@@ -1,0 +1,187 @@
+import AppKit
+import Testing
+import CreativeNotchCore
+@testable import CreativeNotchUI
+
+/// The hover tracking rect is *derived* from `NotchState`: it must always
+/// describe the region currently drawn, or `NSTrackingArea` reports
+/// enter/exit for a shape that is no longer on screen. Before the funnel,
+/// re-syncing it was a hand-written call at four sites and the tap gesture
+/// hit none of them.
+///
+/// These tests drive the real `AppDelegate` -- which is why it had to move
+/// out of the executable target, where no test could reach it -- against a
+/// synthetic notched screen deliberately placed away from the global
+/// origin.
+///
+/// Screen (1470, 200, 1470, 956) with a 38pt notch inset and 620pt
+/// auxiliary areas gives anchor (2090, 1118, 230, 38) inside panel
+/// (1895, 896, 620, 260), i.e. panel-local closed rect (195, 222, 230, 38).
+@MainActor
+struct AppDelegateStateFunnelTests {
+
+    private static let notched = ScreenMetrics(
+        frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
+        safeAreaTopInset: 38,
+        auxiliaryTopLeftWidth: 620,
+        auxiliaryTopRightWidth: 620,
+        menuBarHeight: 38
+    )
+
+    /// A second display the panel can be moved to, to exercise
+    /// repositioning.
+    private static let external = ScreenMetrics(
+        frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
+        safeAreaTopInset: 0,
+        auxiliaryTopLeftWidth: 0,
+        auxiliaryTopRightWidth: 0,
+        menuBarHeight: 24
+    )
+
+    private func makeDelegate() -> AppDelegate {
+        let delegate = AppDelegate()
+        delegate.install(metrics: Self.notched)
+        return delegate
+    }
+
+    /// What the tracking rect must be for `state`, derived independently
+    /// of the delegate's own code path.
+    private func expected(_ state: NotchState, on delegate: AppDelegate) -> CGRect {
+        NotchShape.visibleRect(
+            presentation: state.presentation,
+            anchor: delegate.currentAnchor,
+            panelFrame: delegate.currentFrame
+        )
+    }
+
+    // MARK: - The funnel
+
+    @Test func installSeedsTheTrackingRectFromTheClosedShape() {
+        let delegate = makeDelegate()
+        #expect(delegate.currentAnchor == .notch(CGRect(x: 2090, y: 1118, width: 230, height: 38)))
+        #expect(delegate.currentFrame == CGRect(x: 1895, y: 896, width: 620, height: 260))
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 195, y: 222, width: 230, height: 38))
+    }
+
+    /// The core guarantee: *any* programmatic transition, in any order,
+    /// leaves the tracking rect matching that state's visible rect.
+    @Test func everyProgrammaticTransitionResyncsTheTrackingRect() {
+        let delegate = makeDelegate()
+        let sequence: [NotchState] = [
+            .peek(.nowPlaying(TrackSnapshot(title: "t", artist: "a", isPlaying: true))),
+            .open(.shelf),
+            .receiving,
+            .open(.clipboard),
+            .peek(.dragTarget),
+            .closed,
+            .receiving,
+            .closed,
+        ]
+        for next in sequence {
+            delegate.state.transition(to: next)
+            #expect(delegate.state.state == next)
+            #expect(
+                delegate.hoverView?.trackingRect == expected(next, on: delegate),
+                "tracking rect is stale after transitioning to \(next)"
+            )
+        }
+    }
+
+    /// The same guarantee pinned to literal numbers, so a `visibleRect`
+    /// that stopped depending on the presentation could not satisfy both
+    /// this and the closed-state seed above.
+    @Test func peekWidensTheTrackingRectAndExpandedTakesTheWholePanel() {
+        let delegate = makeDelegate()
+
+        delegate.state.transition(to: .peek(.dragTarget))
+        // 320x44, centred on the notch, top-aligned: local midX 310.
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
+
+        delegate.state.transition(to: .receiving)
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 0, y: 0, width: 620, height: 260))
+
+        delegate.state.transition(to: .closed)
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 195, y: 222, width: 230, height: 38))
+    }
+
+    // MARK: - Mouse exit (M1)
+
+    @Test func theDwellPeeksThroughTheFunnel() {
+        let delegate = makeDelegate()
+        delegate.hoverView?.onDwell()
+        #expect(delegate.state.state.presentation == .peek)
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
+    }
+
+    @Test func aMouseExitEndsAHoverPeek() {
+        let delegate = makeDelegate()
+        delegate.state.transition(to: .peek(.dragTarget))
+        delegate.hoverView?.onExit()
+        #expect(delegate.state.state == .closed)
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 195, y: 222, width: 230, height: 38))
+    }
+
+    @Test func aMouseExitLeavesAClickOpenedPanelOpen() {
+        let delegate = makeDelegate()
+        delegate.state.transition(to: .open(.shelf))
+        delegate.hoverView?.onExit()
+        #expect(delegate.state.state == .open(.shelf))
+    }
+
+    /// The bug the funnel and the explicit `switch` exist to prevent: a
+    /// drag that moves below the notch must not close the drop target it
+    /// is aimed at.
+    @Test func aMouseExitDuringADragKeepsTheDropTargetAlive() {
+        let delegate = makeDelegate()
+        delegate.state.transition(to: .receiving)
+        delegate.hoverView?.onExit()
+        #expect(delegate.state.state == .receiving)
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 0, y: 0, width: 620, height: 260))
+    }
+
+    @Test func aMouseExitWhileClosedChangesNothing() {
+        let delegate = makeDelegate()
+        delegate.hoverView?.onExit()
+        #expect(delegate.state.state == .closed)
+    }
+
+    // MARK: - Repositioning (M3)
+
+    @Test func repositioningToTheSameScreenIsANoOp() {
+        let delegate = makeDelegate()
+        // Every Cmd-Tab reaches this path; nothing has moved, so nothing
+        // may be reassigned or redrawn.
+        #expect(delegate.reposition(metrics: Self.notched) == false)
+    }
+
+    @Test func repositioningToADifferentScreenMovesThePanel() {
+        let delegate = makeDelegate()
+        #expect(delegate.reposition(metrics: Self.external) == true)
+        #expect(delegate.currentAnchor.isNotch == false)
+        #expect(delegate.currentAnchor == delegate.state.anchor)
+        #expect(delegate.hoverView?.trackingRect == expected(.closed, on: delegate))
+    }
+}
+
+/// The funnel itself, independent of AppKit.
+@MainActor
+struct AppStateTransitionTests {
+
+    @Test func onlyAcceptedChangesNotifyTheObserver() {
+        let state = AppState()
+        var seen: [NotchState] = []
+        state.onTransition = { seen.append($0) }
+
+        state.transition(to: .open(.shelf))
+        state.transition(to: .open(.shelf))     // equal: dropped
+        state.transition(to: .receiving)
+        state.transition(to: .closed)
+
+        #expect(seen == [.open(.shelf), .receiving, .closed])
+        #expect(state.state == .closed)
+    }
+
+    @Test func aFreshStateIsClosedAndUnobserved() {
+        #expect(AppState().state == .closed)
+    }
+}
