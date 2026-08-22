@@ -1155,10 +1155,12 @@ final class HoverTracker: NSView {
         onExit()
     }
 
-    override func mouseDown(with event: NSEvent) {
-        dwellTask?.cancel()
-        super.mouseDown(with: event)
-    }
+    /// This view sits *above* the hosting view so its tracking area covers
+    /// the panel. Returning nil means it never intercepts a click, so taps
+    /// still reach SwiftUI underneath. Tracking areas deliver
+    /// `mouseEntered`/`mouseExited` regardless of hit-testing, so hover is
+    /// unaffected.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
 }
 ```
 
@@ -1644,5 +1646,11 @@ The four modules. Each gets its own plan once the foundation is real:
 - **Plan 3 — File shelf.** Lazy drag monitor, 20-entry copy store, drop target.
 - **Plan 4 — Clipboard.** The gated poller, `ConcealedType` filtering, 50-entry in-memory ring.
 - **Plan 5 — Media.** The perl MediaRemote helper, supervision, ungated transport controls.
+
+Also deferred: **`SystemActivity`** (spec section 4.7), the sleep/lock gate
+that suspends pollers. Nothing in the foundation polls, so there is nothing
+for it to gate yet. It lands in Plan 4 alongside the clipboard poller — its
+first and most important consumer — rather than being built here against no
+consumer at all.
 
 Deferred spikes: `OSDUIHelper` suppression, brightness read.
