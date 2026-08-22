@@ -1,0 +1,244 @@
+# Architecture
+
+How CreativeNotch works, and — more usefully — the parts that are not
+obvious from reading the code.
+
+## The one rule
+
+> No subsystem runs when it isn't needed, and that rule is enforced
+> centrally rather than trusted to each module.
+
+Every design decision below is downstream of it. When adding code, the
+question to ask is not "is this fast?" but "does this run when nobody is
+looking at it?"
+
+**Currently allowed:** `NSTrackingArea` (costs nothing when the cursor is
+elsewhere), `NotificationCenter` and `NSWorkspace` observers, an
+`NSMenuDelegate` refresh on menu open.
+
+**Not allowed:** an unconditional `Timer`, a permanently-installed global
+event monitor, cursor-position polling, an audio tap. If you believe you
+need one, you almost certainly need a notification you have not found yet.
+
+The one genuine exception will be clipboard history, because `NSPasteboard`
+has no change notification. It gets a poller, and that poller is gated
+centrally on `SystemActivity` (see *Deliberately absent* below).
+
+## Targets
+
+```
+CreativeNotchCore   pure logic, no AppKit, no SwiftUI
+        ↑
+CreativeNotchUI     AppKit + SwiftUI, all the behaviour
+        ↑
+CreativeNotch       18-line executable
+```
+
+`CreativeNotchCore` importing AppKit or SwiftUI is a mistake, not a
+tradeoff. Its independence is what lets the geometry, hit-test shapes, state
+machine, and peek arbitration run headlessly in CI in under a second. When
+something in `CreativeNotchUI` turns out to be worth testing, the answer is
+usually to move its logic down into Core rather than to reach for a mock.
+
+`CreativeNotch` exists only to construct `NSApplication`, attach the
+delegate, set `.accessory` activation policy, and run. Anything that
+accumulates there should move up into `CreativeNotchUI` — that target is
+reachable by tests and the executable is not.
+
+## Geometry
+
+The panel attaches to an `Anchor`, which is one of two things:
+
+```swift
+enum Anchor {
+    case notch(CGRect)   // real hardware
+    case pill(CGRect)    // synthesised, centred under the menu bar
+}
+```
+
+`NotchGeometry.anchor(for:)` picks between them from a `ScreenMetrics`
+snapshot — an AppKit-free value type populated from `NSScreen`. A notch
+exists when `safeAreaInsets.top > 0` and the auxiliary top areas are
+non-empty; the notch's width is the screen width minus those two areas.
+
+This is why cross-device support is one UI rather than two. Modules render
+into whichever anchor they are given and never ask which kind it is.
+
+Notably, CreativeNotch does **not** paint a fake black notch on notchless
+Macs. That is the specific thing reviewers criticise in comparable apps.
+
+**Coordinates are bottom-left origin, y increasing upward.** `frame.maxY` is
+the top of the screen. A notch rect sits at `y = frame.maxY - inset` with
+height `inset`, so its own `maxY` is flush with the screen top — an
+invariant the peek geometry relies on.
+
+## The window is always full size
+
+`NotchPanel` is a borderless, non-activating `NSPanel` sized to the fully
+expanded bounds (620×260) at all times. Content animates inside it. That
+avoids window-resize jank, but it means a large transparent rectangle sits
+permanently under your menu bar.
+
+So `HitTestingHostingView.hitTest(_:)` returns `nil` everywhere outside the
+currently visible shape, and `NotchShape.visibleRect` — pure and tested —
+decides what that shape is. Get this wrong and the app silently swallows
+menu bar clicks across a 620pt band.
+
+### The coordinate trap
+
+**`NSHostingView.isFlipped == true`.** Its local coordinate space is
+top-left origin with y increasing *downward*, while `NotchShape.visibleRect`
+returns bottom-left origin. Converting a point into the hosting view's own
+space therefore mirrors y around the panel height.
+
+This shipped once during the foundation build. It is worth understanding
+exactly how bad the failure mode was:
+
+- clicks on the notch returned `nil`, so the panel could not be clicked at
+  all while closed or peeking
+- a band of screen ~230–260pt below the top silently swallowed clicks
+- `.expanded` was accidentally immune, because its rect is the whole panel
+  and the mirror is a no-op on a full-bounds rect
+- **all 24 tests passed**, the drawing looked perfect, and the manual check
+  written to catch it ("do menu bar clicks either side still work?")
+  succeeded — those points miss on the x axis regardless of y
+
+The fix is to convert to **window base coordinates**, which are bottom-left
+origin and, for a borderless panel whose content view fills the frame,
+identical to panel-local space:
+
+```swift
+let inPanel = superview?.convert(point, to: nil) ?? point
+```
+
+`HoverTracker` is a plain `NSView` and therefore unflipped, so its
+`NSTrackingArea` rect needs no conversion. It declares
+`isFlipped { false }` explicitly anyway, and there is a test asserting it —
+because this is the seam that broke.
+
+**Rule of thumb:** any time a rect or point crosses a boundary here, write
+down which of the three spaces it is in (screen-global, window-base /
+panel-local, or view-local) and whether that view is flipped.
+
+## State
+
+```swift
+enum NotchState {
+    case closed              // exactly the anchor rect, invisible
+    case peek(PeekContent)   // glanceable
+    case open(Tab)           // now-playing header + tabbed area
+    case receiving           // drag in flight, shelf target shown
+}
+```
+
+State transitions are the only thing that triggers a redraw.
+
+### The funnel
+
+`AppState.state` is `public private(set)`. The **only** way to change it is
+`AppState.transition(to:)`, which fires `onTransition`, which the app
+delegate uses to keep the hover tracking rect in sync.
+
+This is compiler-enforced, and deliberately so. The tracking rect is derived
+state; when it desynchronised from the real state, hover died silently and —
+worse — a programmatic transition to `.receiving` could be immediately
+undone by a `mouseExited`, making a drop target vanish mid-drag.
+
+`private(set)` scopes to the enclosing declaration, so not even a
+same-file `@Bindable` binding can write it. Keep it that way.
+
+⚠️ **`onTransition` is currently a single closure.** The first module that
+assigns its own observer will silently clobber the delegate's sync and
+reintroduce that bug at runtime with no compiler help. Make it an observer
+list before that happens — see follow-up **F2**.
+
+### Peek arbitration
+
+One slot, three competitors. `PeekArbiter` resolves them: **drag > HUD >
+now-playing**. Transient content preempts ambient content and then falls
+back, the same model as the iPhone Dynamic Island. The HUD has a 1.5 s TTL;
+a drag has none and lasts until cleared.
+
+`content(now:)` takes the current time as a *parameter* rather than reading
+a clock. That is what makes TTL expiry testable without sleeping. Do not
+replace it with `Date()`.
+
+`PeekArbiter` is complete and tested but **not yet wired to anything** —
+`AppDelegate.peek()` currently fabricates a placeholder. Plan 1 is its first
+consumer.
+
+## Fullscreen
+
+The panel is hidden entirely over fullscreen apps. There is no detection
+logic for this — it falls out of omitting `.fullScreenAuxiliary` from
+`collectionBehavior`:
+
+```swift
+collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
+```
+
+That omission is load-bearing and easy to "fix" by accident, so
+`NotchPanelTests` asserts the exact collection behaviour set.
+
+A consequence worth knowing: the HUD module does nothing in fullscreen.
+Since Apple's own OSD is not suppressed, native volume feedback still
+appears there, so it degrades cleanly rather than silently.
+
+## Concurrency
+
+Swift 6 strict concurrency is on and the build is warning-free. Keep it
+that way.
+
+`AppDelegate` is `@MainActor`. The two notification observers wrap their
+callbacks in `MainActor.assumeIsolated`, which is sound **only because both
+register with `queue: .main`**. `assumeIsolated` is a runtime assertion that
+crashes if the assumption is false — if you add an observer, pass `.main`
+or do not use it.
+
+`Permissions` is `@MainActor` by choice, not by compiler requirement:
+`@preconcurrency import ApplicationServices` is what silences the
+`kAXTrustedCheckOptionPrompt` Sendability error. Any future off-main caller
+will need to hop. This is documented in the source too.
+
+## Permissions
+
+Accessibility is needed for exactly two things: global key events (HUD) and
+drag detection (shelf). Clipboard and the shelf's drop target need nothing.
+
+Requested during first-launch onboarding, re-checkable from the menu bar.
+The "has it been granted yet?" refresh is driven by
+`didBecomeActiveNotification` — which fires when the user returns from
+System Settings — rather than by polling `AXIsProcessTrusted()`.
+
+`Permissions.requestAccessibility()` pops a real system dialog. **Never call
+it from a test.** `AXIsProcessTrusted()` is a safe read.
+
+The app is not sandboxed. A private framework and a `perl` subprocess make
+sandboxing impractical, and there is no App Store target.
+
+## Testing
+
+70 tests, split evenly between Core and UI, all headless. `swift test` takes
+about a second.
+
+The expectation is that a test **fails when its code is broken**, verified
+rather than assumed. Three vacuous tests shipped during the foundation
+build — each passed with its implementation deleted, and each was caught by
+mutating the source rather than by reading it. Two more were only proven
+adequate after a reviewer showed they covered half the bug.
+
+When adding a test: introduce the bug, watch it fail, revert, watch it pass.
+
+Not covered, and known: anything requiring a screen (notch alignment, hover
+feel, the onboarding window), anything requiring a real `NSScreen` (the menu
+bar height measurement), and observer removal on terminate.
+
+## Deliberately absent
+
+- **`SystemActivity`** — the sleep/lock/idle gate from the spec. Nothing in
+  the foundation polls, so it has no consumer yet. It lands with the
+  clipboard module, its first and most important one.
+- **An audio visualiser** — named in the category as a top CPU cost. It
+  contradicts the one rule.
+- **iCloud sync** — would require the paid Developer Program.
+- **A synthetic black notch** on notchless Macs — the pill is the answer.
