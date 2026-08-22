@@ -3,6 +3,7 @@ import CoreGraphics
 public enum NotchGeometry {
     public static let pillSize = CGSize(width: 180, height: 32)
     public static let pillTopGap: CGFloat = 8
+    public static let peekSize = CGSize(width: 320, height: 44)
     public static let expandedSize = CGSize(width: 620, height: 260)
 
     /// Resolves the anchor for a screen. Real notch when the hardware has
