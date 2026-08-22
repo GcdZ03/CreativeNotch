@@ -73,9 +73,12 @@ public final class OnboardingController {
         window.title = "Welcome to CreativeNotch"
         window.center()
         window.isReleasedWhenClosed = false
-        window.contentView = NSHostingView(rootView: OnboardingView { [weak self] in
+        // `[weak window]`: the window transitively owns this closure
+        // (window -> contentView -> rootView -> onDone), so capturing
+        // `window` strongly would close a retain cycle and leak it.
+        window.contentView = NSHostingView(rootView: OnboardingView { [weak self, weak window] in
             self?.defaults.set(true, forKey: Self.seenKey)
-            window.close()
+            window?.close()
         })
         window.makeKeyAndOrderFront(nil)
         NSApp.activate()
