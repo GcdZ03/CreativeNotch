@@ -77,3 +77,18 @@ private let external = ScreenMetrics(
     #expect(frame.minX >= narrow.frame.minX)
     #expect(frame.maxX <= narrow.frame.maxX)
 }
+
+@Test func panelIsClampedAtRightEdge() {
+    // A pill hard against the right edge must not push the panel off-screen.
+    let narrow = ScreenMetrics(
+        frame: CGRect(x: 0, y: 0, width: 800, height: 600),
+        safeAreaTopInset: 0,
+        auxiliaryTopLeftWidth: 0,
+        auxiliaryTopRightWidth: 0,
+        menuBarHeight: 24
+    )
+    let anchor = Anchor.pill(CGRect(x: 620, y: 560, width: 180, height: 32))
+    let frame = NotchGeometry.panelFrame(for: anchor, in: narrow)
+    #expect(frame.maxX <= narrow.frame.maxX)
+    #expect(frame.minX == 180)  // Clamped: 800 - 620 = 180
+}
