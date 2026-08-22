@@ -38,6 +38,9 @@ CreativeNotch's one architectural commitment is the inverse:
 | Media depth | Metadata + transport controls. No scrubber, no visualizer |
 | Peek arbitration | Transient events preempt ambient, then fall back |
 | Settings | Menu bar menu only |
+| Panel layout | Media header always on top; shelf / clipboard / HUD tabbed below |
+| Shelf cap | 20 entries, oldest evicted |
+| CI | GitHub Actions — build + test on push |
 | OSD suppression | Deferred to its own spike; v1 renders alongside Apple's |
 
 ## 3. Architecture
@@ -117,9 +120,11 @@ never polled.
 enum NotchState: Equatable {
     case closed              // exactly the anchor rect, invisible
     case peek(PeekContent)   // glanceable
-    case open(ModuleID)      // full panel
+    case open(Tab)           // media header + selected tab
     case receiving           // drag in flight, shelf target shown
 }
+
+enum Tab: Equatable { case shelf, clipboard, hud }
 
 enum PeekContent: Equatable {
     case hud(HUDEvent)              // transient, TTL 1.5s
@@ -129,6 +134,10 @@ enum PeekContent: Equatable {
 ```
 
 State transitions are the **only** thing that triggers a redraw.
+
+When open, the panel renders a persistent now-playing header above a tabbed
+area holding the shelf, clipboard, and HUD history. Music is ambient and
+always worth seeing; the rest is on demand.
 
 ### 4.5 PeekArbiter
 
@@ -204,8 +213,11 @@ battery. The rule here:
 A permanent drag monitor is never installed.
 
 Files are **copied** into `~/Library/Application Support/CreativeNotch/Shelf/`,
-so moving or deleting the original never breaks a shelf entry. Cleared
-manually via the menu bar item.
+so moving or deleting the original never breaks a shelf entry.
+
+**Capped at 20 entries, oldest evicted.** This is a staging shelf, not
+storage — a hard count cap cannot run away and needs no timestamp logic.
+Also clearable on demand from the menu bar item.
 
 ### 5.3 Clipboard — the only genuine poller
 
@@ -239,7 +251,11 @@ technique (BSD-3) is viable and requires no SIP changes.
   Not gated. Works today, no helper needed.
 - **Metadata** — bundled helper framework run via system perl, streaming
   newline-delimited JSON on stdout, read with a `readabilityHandler`.
-- Helper spawns only when media is on screen; killed 30s after it leaves.
+- Helper spawns when media enters the peek slot **or when the panel opens**
+  (the now-playing header is always visible there), and is killed 30s after
+  both conditions clear. Opening the panel to check the clipboard therefore
+  starts the helper — acceptable, because panel opens are brief and always
+  user-initiated.
 - Artwork cached by track identity; documented as arriving late or never.
 
 **Risk:** the adapter does not explicitly claim macOS 26 testing. The
@@ -295,7 +311,20 @@ Cheapest and most self-contained first; riskiest last.
 
 Deferred spikes: OSD suppression, brightness read.
 
-## 10. Non-goals
+## 10. CI
+
+GitHub Actions on push to `main` and on pull requests: `xcodebuild test`
+against a macOS runner with code signing disabled.
+
+The pure logic in section 8 — geometry, hit-testing, peek arbitration,
+clipboard filtering, NDJSON parsing — is where the real bugs will live, and
+all of it runs headlessly. The AppKit layer is untested by design and stays
+thin for that reason.
+
+The workflow no-ops until an Xcode project exists, so it will not report red
+during step 0.
+
+## 11. Non-goals
 
 - No sync, no CloudKit, no iCloud entitlement
 - No audio visualizer — directly contradicts the battery architecture
