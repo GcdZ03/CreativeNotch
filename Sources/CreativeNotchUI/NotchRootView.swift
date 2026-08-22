@@ -36,6 +36,12 @@ public struct NotchRootView: View {
                         .foregroundStyle(.white.opacity(0.9))
                 }
             }
+            .onTapGesture {
+                switch app.state {
+                case .open:  app.state = .closed
+                default:     app.state = .open(.shelf)
+                }
+            }
     }
 
     private var label: String {
