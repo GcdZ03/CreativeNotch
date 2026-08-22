@@ -25,6 +25,33 @@ public final class ShelfStore {
         self.directory = directory
         self.fileManager = fileManager
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        items = Self.load(from: directory, fileManager: fileManager)
+    }
+
+    /// Rebuilds the list from what is actually on disk.
+    ///
+    /// The directory is the source of truth: there is no sidecar index to
+    /// fall out of step with it, and a file removed from underneath us
+    /// simply stops appearing. `addedAt` comes from the file's creation
+    /// date, which is what the 7-day purge measures against.
+    private static func load(from directory: URL, fileManager: FileManager) -> [ShelfItem] {
+        let urls = (try? fileManager.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: [.creationDateKey],
+            options: [.skipsHiddenFiles]
+        )) ?? []
+
+        return urls.compactMap { url -> ShelfItem? in
+            guard let created = try? url.resourceValues(forKeys: [.creationDateKey]).creationDate
+            else { return nil }
+            return ShelfItem(
+                id: UUID(),
+                url: url,
+                displayName: url.lastPathComponent,
+                addedAt: created
+            )
+        }
+        .sorted { $0.addedAt > $1.addedAt }
     }
 
     @discardableResult
@@ -48,6 +75,7 @@ public final class ShelfStore {
         )
         items.insert(item, at: 0)
         try evictBeyondCapacity()
+        try purge(now: now)
         return item
     }
 
@@ -61,6 +89,22 @@ public final class ShelfStore {
         let all = items
         items.removeAll()
         for item in all { try trash(item) }
+    }
+
+    /// Removes anything older than `maxAge`, returning what went.
+    ///
+    /// Called on launch and after each add — never on a timer. A shelf can
+    /// only grow when something is added to it, so nothing needs to watch
+    /// it.
+    @discardableResult
+    public func purge(now: Date) throws -> [ShelfItem] {
+        let expired = items.filter { now.timeIntervalSince($0.addedAt) > Self.maxAge }
+        guard !expired.isEmpty else { return [] }
+
+        let expiredIDs = Set(expired.map(\.id))
+        items.removeAll { expiredIDs.contains($0.id) }
+        for item in expired { try trash(item) }
+        return expired
     }
 
     // MARK: - Internals

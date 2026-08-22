@@ -118,6 +118,80 @@ struct ShelfStoreTests {
         #expect(store.items.isEmpty)
     }
 
+    // MARK: - Purging and persistence
+
+    @Test func purgingRemovesItemsOlderThanSevenDays() throws {
+        let (store, _) = try makeStore()
+        let old = try store.add(.text("ancient"), now: t0)
+        let fresh = try store.add(.text("recent"), now: t0.addingTimeInterval(ShelfStore.maxAge))
+
+        let removed = try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge + 1))
+
+        #expect(removed.count == 1)
+        #expect(removed.first?.id == old.id)
+        #expect(store.items.map(\.id) == [fresh.id])
+        #expect(FileManager.default.fileExists(atPath: old.url.path) == false)
+    }
+
+    /// Exactly at the boundary the item survives; a second later it does
+    /// not. Without this, `<` and `<=` are indistinguishable.
+    @Test func anItemExactlyAtTheAgeLimitSurvives() throws {
+        let (store, _) = try makeStore()
+        try store.add(.text("borderline"), now: t0)
+
+        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge)).isEmpty)
+        #expect(store.items.count == 1)
+
+        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge + 1)).count == 1)
+        #expect(store.items.isEmpty)
+    }
+
+    @Test func purgingAnEmptyShelfIsHarmless() throws {
+        let (store, _) = try makeStore()
+        #expect(try store.purge(now: t0).isEmpty)
+    }
+
+    @Test func aShelfSurvivesBeingReopened() throws {
+        let (store, dir) = try makeStore()
+        try store.add(.text("kept"), now: t0)
+        try store.add(.text("also kept"), now: t0.addingTimeInterval(1))
+
+        let reopened = try ShelfStore(directory: dir)
+
+        #expect(reopened.items.count == 2)
+    }
+
+    /// Reload sorts by creation date, newest first.
+    ///
+    /// The dates are stamped explicitly rather than relying on two files
+    /// written milliseconds apart: at filesystem timestamp resolution that
+    /// ordering is not guaranteed, and a flaky test is worse than none.
+    @Test func reopeningPutsTheNewestFirst() throws {
+        let (store, dir) = try makeStore()
+        let older = try store.add(.text("older"), now: t0)
+        let newer = try store.add(.text("newer"), now: t0)
+
+        try FileManager.default.setAttributes(
+            [.creationDate: t0], ofItemAtPath: older.url.path)
+        try FileManager.default.setAttributes(
+            [.creationDate: t0.addingTimeInterval(3600)], ofItemAtPath: newer.url.path)
+
+        let reopened = try ShelfStore(directory: dir)
+
+        #expect(reopened.items.count == 2)
+        #expect(reopened.items.first?.url.lastPathComponent == newer.url.lastPathComponent)
+        #expect(reopened.items.last?.url.lastPathComponent == older.url.lastPathComponent)
+    }
+
+    @Test func reopeningIgnoresFilesThatVanished() throws {
+        let (store, dir) = try makeStore()
+        let item = try store.add(.text("doomed"), now: t0)
+        try FileManager.default.removeItem(at: item.url)
+
+        let reopened = try ShelfStore(directory: dir)
+        #expect(reopened.items.isEmpty)
+    }
+
     @Test func theCapAndAgeAreWhatTheSpecSays() {
         #expect(ShelfStore.capacity == 20)
         #expect(ShelfStore.maxAge == 7 * 24 * 3600)
