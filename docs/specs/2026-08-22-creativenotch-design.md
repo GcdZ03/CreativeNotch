@@ -205,6 +205,13 @@ knows how long it has been since anything changed.
 
 ### 5.1 HUD — push, effectively free
 
+> **Superseded 2026-08-22.** A spike found this section wrong on both
+> halves: volume and brightness are better observed as *values* (no
+> Accessibility permission, and it catches changes from any source), and
+> `OSDUIHelper` — the suppression target below — no longer runs on macOS 26.
+> The module is deferred. See
+> [`../research/2026-08-22-hud-feasibility.md`](../research/2026-08-22-hud-feasibility.md).
+
 Global monitor on `.systemDefined`, filtering `subtype == 8`:
 
 ```swift

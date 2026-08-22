@@ -226,15 +226,18 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 In build order. Each module gets its own spec and plan before any code.
 
-1. **System HUD** — volume and brightness in the notch, rendered alongside
-   Apple's own OSD. Cheapest and most self-contained.
-2. **File shelf** — drag a file to the notch to stash it, drag it out later.
+1. **File shelf** — drag a file to the notch to stash it, drag it out later.
    Copies files, capped at 20 entries.
-3. **Clipboard history** — 50-entry in-memory ring, cleared on quit, with
+2. **Clipboard history** — 50-entry in-memory ring, cleared on quit, with
    `org.nspasteboard.ConcealedType` filtered so password managers never
    land on disk. The only subsystem that genuinely polls, and the reason
    `SystemActivity` exists.
-4. **Media** — now-playing metadata and transport controls.
+3. **Media** — now-playing metadata and transport controls.
+4. **System HUD** — volume and brightness in the notch. *Deferred*: the
+   observation half is solved and needs no permission, but suppressing
+   Apple's own HUD has no known solution on macOS 26 — `OSDUIHelper`, the
+   documented target, no longer runs. See
+   [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md).
 
 Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
 battery architecture), iCloud sync, a synthetic black notch on notchless
@@ -255,6 +258,7 @@ Before module work starts, see
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |
+| [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | Why the HUD is deferred, and what was proven |
 
 ---
 
