@@ -23,6 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var panel: NotchPanel?
     private var hostView: HitTestingHostingView<NotchRootView>?
     private var hoverView: HoverTracker?
+    private var menuBar: MenuBarController?
     private var currentAnchor: Anchor = .pill(.zero)
     private var currentFrame: CGRect = .zero
     let state = AppState()
@@ -30,7 +31,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let screen = NSScreen.main else { return }
         install(on: screen)
+
+        let menuBar = MenuBarController { [weak self] in
+            self?.showOnboarding()
+        }
+        menuBar.install()
+        self.menuBar = menuBar
     }
+
+    // Temporary stub — Task 8 replaces this with the real onboarding window.
+    func showOnboarding() {}
 
     private func install(on screen: NSScreen) {
         let metrics = screen.metrics
