@@ -72,6 +72,7 @@ public struct ShelfItem: Equatable, Sendable, Identifiable {
     public let addedAt: Date
 }
 
+@MainActor
 public final class ShelfStore {
     public static let capacity = 20
     public static let maxAge: TimeInterval = 7 * 24 * 3600
@@ -98,6 +99,12 @@ public final class ShelfStore {
 without waiting a week, and it must not be replaced with `Date()`.
 
 Storage directory: `~/Library/Application Support/CreativeNotch/Shelf/`.
+
+`@MainActor` because every caller is: the drop target, the view, and the
+menu bar item. File I/O on the main actor is acceptable at this scale — a
+shelf holds twenty items and only touches disk when one is added or
+removed. If a large file ever makes a drop feel slow, the copy is the part
+to move off, not the store.
 
 ### 5.1 Naming
 
@@ -129,8 +136,14 @@ implements `NSDraggingDestination`:
 | Event | Effect |
 |---|---|
 | `draggingEntered` | transition to `.receiving`, return `.copy` |
-| `draggingExited` | transition back to the previous state |
+| `draggingExited` | transition to `.closed` |
 | `performDragOperation` | convert the pasteboard, add to the store, transition to `.open(.shelf)` |
+
+`draggingExited` returns to `.closed` rather than to whatever preceded the
+drag. Restoring the prior state would mean remembering it across an
+interaction the user may have abandoned halfway, and a drag that leaves the
+panel is a clear signal the shelf is not wanted — `.closed` is both simpler
+and less surprising.
 
 `.receiving` already exists and is already protected: it survives a mouse
 exit, and both outside-click and app-switch dismissal skip it. The
