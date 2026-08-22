@@ -125,12 +125,15 @@ the prompt and grant it later from the menu bar item.
 ```bash
 pkill -f CreativeNotch
 rm -rf /Applications/CreativeNotch.app        # or wherever you put it
-rm -rf ~/Library/Application\ Support/CreativeNotch
-defaults delete com.gcdz.creativenotch
+defaults delete com.gcdz.creativenotch        # only exists after onboarding
 ```
 
 Also remove CreativeNotch from **System Settings → Privacy & Security →
 Accessibility** if you granted it.
+
+Once the file shelf module lands it will store copies under
+`~/Library/Application Support/CreativeNotch` — nothing creates that
+directory today.
 
 ---
 
