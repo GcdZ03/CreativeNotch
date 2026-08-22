@@ -12,10 +12,20 @@ public final class MenuBarController: NSObject {
 
     private var item: NSStatusItem?
     private var accessibilityItem: NSMenuItem?
-    private let onShowOnboarding: () -> Void
+    private var clearShelfItem: NSMenuItem?
 
-    public init(onShowOnboarding: @escaping () -> Void) {
+    private let onShowOnboarding: () -> Void
+    private let onClearShelf: () -> Void
+    private let shelfCount: () -> Int
+
+    public init(
+        onShowOnboarding: @escaping () -> Void,
+        onClearShelf: @escaping () -> Void,
+        shelfCount: @escaping () -> Int
+    ) {
         self.onShowOnboarding = onShowOnboarding
+        self.onClearShelf = onClearShelf
+        self.shelfCount = shelfCount
     }
 
     public func install() {
@@ -36,6 +46,16 @@ public final class MenuBarController: NSObject {
         accessibility.target = self
         menu.addItem(accessibility)
         self.accessibilityItem = accessibility
+
+        let clear = NSMenuItem(
+            title: clearShelfTitle(),
+            action: #selector(clearShelf),
+            keyEquivalent: ""
+        )
+        clear.target = self
+        clear.isEnabled = shelfCount() > 0
+        menu.addItem(clear)
+        self.clearShelfItem = clear
 
         menu.addItem(.separator())
 
@@ -59,6 +79,16 @@ public final class MenuBarController: NSObject {
             : "Accessibility: not granted — set up…"
     }
 
+    /// Read when the menu opens, never polled.
+    func clearShelfTitle() -> String {
+        let count = shelfCount()
+        return count == 0 ? "Shelf is empty" : "Clear Shelf (\(count))"
+    }
+
+    @objc func clearShelf() {
+        onClearShelf()
+    }
+
     @objc private func openOnboarding() {
         onShowOnboarding()
     }
@@ -71,5 +101,7 @@ extension MenuBarController: NSMenuDelegate {
     /// on a timer.
     public func menuWillOpen(_ menu: NSMenu) {
         accessibilityItem?.title = Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted)
+        clearShelfItem?.title = clearShelfTitle()
+        clearShelfItem?.isEnabled = shelfCount() > 0
     }
 }

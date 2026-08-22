@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 112
+swift test                              # all 155
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -88,8 +88,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI. Everything with behaviour.
   CreativeNotch/       18-line executable.
 Tests/
-  CreativeNotchCoreTests/   42 tests
-  CreativeNotchUITests/     70 tests
+  CreativeNotchCoreTests/   63 tests
+  CreativeNotchUITests/     92 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
@@ -143,6 +143,15 @@ delegate's tracking-rect sync and outside-click monitor already live on it.
 **`assumeIsolated` requires `queue: .main`.** It is a runtime assertion that
 crashes when the assumption is false. If you add a notification observer,
 pass `.main` or do not use it.
+
+**Shelf tests write to real temporary directories**, not a fake
+`FileManager` — name collisions, extensions and deletion are exactly where a
+fake diverges from the real thing, and those are the cases that can lose a
+file. `ShelfStore` takes `now` as a parameter, like `PeekArbiter`, so the
+7-day purge is testable without waiting a week.
+
+**`removeItem` must never appear in the shelf module.** Removal is
+`trashItem`, always.
 
 **Never call `Permissions.requestAccessibility()` from a test** — it pops a
 real system dialog. `AXIsProcessTrusted()` is a safe read.

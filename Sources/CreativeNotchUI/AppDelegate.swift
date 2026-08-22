@@ -123,9 +123,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             panel?.orderFrontRegardless()
         }
 
-        let menuBar = MenuBarController { [weak self] in
-            self?.showOnboarding()
-        }
+        let menuBar = MenuBarController(
+            onShowOnboarding: { [weak self] in self?.showOnboarding() },
+            onClearShelf: { [weak self] in try? self?.shelf?.clear() },
+            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 }
+        )
         menuBar.install()
         self.menuBar = menuBar
 

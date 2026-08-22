@@ -294,6 +294,50 @@ Not covered, and known: anything requiring a screen (notch alignment, hover
 feel, the onboarding window), anything requiring a real `NSScreen` (the menu
 bar height measurement), and observer removal on terminate.
 
+## The file shelf
+
+`ShelfStore` lives in **`CreativeNotchCore`**, not the UI target. `FileManager`
+is Foundation, not AppKit, so the code that can destroy a file runs headlessly
+in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
+`CreativeNotchUI`.
+
+**Removal is always `FileManager.trashItem`.** `removeItem` must not appear in
+this module. Eviction at the 20-item cap and the 7-day purge are automatic and
+silent; a file dropped here whose original was later deleted has no other copy,
+so deleting outright would destroy it without the user ever deciding to.
+
+**The directory is the source of truth.** There is no sidecar index to fall out
+of step with it — the shelf reloads by listing the directory, and a file removed
+from underneath us simply stops appearing. `addedAt` comes from the file's
+creation date, which is what the purge measures against.
+
+**Purging runs on launch and after each add, never on a timer.** A shelf can
+only grow when something is added to it.
+
+### The drop region follows the drawn shape
+
+AppKit locates dragging destinations by **hit-testing** — established by probe,
+not assumed:
+
+```
+draggingEntered at x=331 y=235   (bounds 620x260)
+```
+
+Every event landed inside the closed notch's band (y 222–260); drags held
+150–200pt lower produced nothing at all. So `PassthroughContainer` returning
+`nil` outside the visible shape bounds the drop region to exactly what is drawn.
+
+The interaction that follows: **aim at the notch to open the shelf, then drop
+anywhere in the panel**, because `.receiving` draws at the full 620×260.
+Precision is needed to acquire, not to drop.
+
+`.receiving` is also the one state that **bypasses the growth lag**. During a
+drag there is no click to mis-accept, and lagging would refuse drops for 320ms
+exactly as the cursor moves into the panel it just opened.
+
+No global monitor and no permission: AppKit already delivers dragging events to
+the window under the cursor.
+
 ## Deliberately absent
 
 - **`SystemActivity`** — the sleep/lock/idle gate from the spec. Nothing in

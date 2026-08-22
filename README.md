@@ -10,7 +10,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-112-brightgreen" alt="112 tests">
+  <img src="https://img.shields.io/badge/tests-155-brightgreen" alt="155 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -52,13 +52,15 @@ distributed, not sold, and not on the App Store.
 | ✅ Hover to peek, click to open | Built |
 | ✅ Follows the focused screen | Built |
 | ✅ Menu bar item, first-launch onboarding | Built |
+| ✅ **File shelf** — drag files in, drag them out | Built |
 | ⬜ Media controls | Planned |
-| ⬜ File shelf | Planned |
+
 | ⬜ Clipboard history | Planned |
 | ⬜ System HUD replacement | Planned |
 
-Today the app draws a panel that reacts to hover and click. It does not yet
-do anything useful with that panel — that is what the modules are for.
+The file shelf is the first working module. Drag a file onto the notch and
+it opens to receive; drop it and the file is copied into the shelf; drag it
+back out anywhere later.
 
 ---
 
@@ -161,6 +163,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 |---|---|
 | Pause on the notch for ~300 ms | Peeks open |
 | Move away | Collapses |
+| Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
+| Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel |
 | Click it again | Closes it |
 | Click anywhere outside | Closes it |
@@ -181,7 +185,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 112 tests, ~1s, no window server needed
+swift test           # 155 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -207,8 +211,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   42 tests
-  CreativeNotchUITests/     70 tests
+  CreativeNotchCoreTests/   63 tests
+  CreativeNotchUITests/     92 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -226,9 +230,7 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 In build order. Each module gets its own spec and plan before any code.
 
-1. **File shelf** — drag a file to the notch to stash it, drag it out later.
-   Copies files, capped at 20 entries.
-2. **Clipboard history** — 50-entry in-memory ring, cleared on quit, with
+1. **Clipboard history** — 50-entry in-memory ring, cleared on quit, with
    `org.nspasteboard.ConcealedType` filtered so password managers never
    land on disk. The only subsystem that genuinely polls, and the reason
    `SystemActivity` exists.
@@ -257,6 +259,7 @@ Before module work starts, see
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
+| [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |
 | [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | Why the HUD is deferred, and what was proven |
