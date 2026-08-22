@@ -2,15 +2,21 @@ import SwiftUI
 import CreativeNotchCore
 
 @Observable
-final class AppState {
-    var state: NotchState = .closed
-    var anchor: CreativeNotchCore.Anchor = .pill(.zero)
+public final class AppState {
+    public var state: NotchState = .closed
+    public var anchor: CreativeNotchCore.Anchor = .pill(.zero)
+
+    public init() {}
 }
 
-struct NotchRootView: View {
+public struct NotchRootView: View {
     @Bindable var app: AppState
 
-    var body: some View {
+    public init(app: AppState) {
+        self.app = app
+    }
+
+    public var body: some View {
         VStack(spacing: 0) {
             shape
                 .frame(width: width, height: height)

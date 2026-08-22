@@ -5,12 +5,12 @@ import AppKit
 /// `.fullScreenAuxiliary` is deliberately absent from `collectionBehavior`.
 /// That single omission is what hides the panel entirely over fullscreen
 /// apps — no frontmost-window detection, no edge cases.
-final class NotchPanel: NSPanel {
+public final class NotchPanel: NSPanel {
 
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
+    public override var canBecomeKey: Bool { false }
+    public override var canBecomeMain: Bool { false }
 
-    init(contentRect: NSRect) {
+    public init(contentRect: NSRect) {
         super.init(
             contentRect: contentRect,
             styleMask: [.borderless, .nonactivatingPanel],

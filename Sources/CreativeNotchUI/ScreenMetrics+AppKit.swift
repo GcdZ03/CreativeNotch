@@ -4,7 +4,7 @@ import CreativeNotchCore
 extension NSScreen {
     /// Snapshots this screen into the AppKit-free value type the core uses.
     @MainActor
-    var metrics: ScreenMetrics {
+    public var metrics: ScreenMetrics {
         ScreenMetrics(
             frame: frame,
             safeAreaTopInset: safeAreaInsets.top,
