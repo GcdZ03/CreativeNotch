@@ -16,12 +16,27 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var hoverView: HoverTracker?
     private var menuBar: MenuBarController?
 
-    private(set) var currentAnchor: Anchor = .pill(.zero)
-    private(set) var currentFrame: CGRect = .zero
+    /// Views onto the funnel rather than a second copy. They used to be
+    /// stored here *and* on `AppState`, which is two places one value can
+    /// drift apart. (Follow-up F4.)
+    var currentAnchor: Anchor { state.anchor }
+    var currentFrame: CGRect { state.panelFrame }
 
-    /// Retained so they can actually be removed. Discarding the tokens
-    /// made `removeObserver` impossible.
-    private var observers: [NSObjectProtocol] = []
+    /// Each token paired with the centre that issued it. Passing every
+    /// token to both centres worked only because the mismatched calls are
+    /// no-ops. (Follow-up F3.)
+    private var observers: [(token: NSObjectProtocol, center: NotificationCenter)] = []
+
+    /// Removed and re-registered by `install`, so building the panel twice
+    /// cannot stack duplicate observers on the state.
+    private var stateObserver: AppState.ObserverToken?
+
+    /// The centre each screen observer was registered with, so the pairing
+    /// that F3 fixed is assertable. Removing a token from the wrong centre
+    /// is a silent no-op, which is exactly why it went unnoticed.
+    var screenObserverCenters: [NotificationCenter] { observers.map(\.center) }
+
+    var stateObserverCount: Int { state.observerCount }
 
     public let state = AppState()
     private let onboarding = OnboardingController()
@@ -131,19 +146,30 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         self.hostView = host
         self.hoverView = hover
 
-        // The funnel. Every accepted state change re-derives the hover
-        // tracking rect from the new presentation, so no caller has to
-        // remember to. Nothing outside `AppState.transition(to:)` can
-        // change the state, so nothing can bypass this.
-        state.onTransition = { [weak self] newState in
-            self?.syncTrackingRect()
-            self?.syncDismissAffordances(for: newState)
+        // The funnel. Every accepted change re-derives the hover tracking
+        // rect, so no caller has to remember to. Nothing outside
+        // `AppState` can change state or geometry, so nothing bypasses it.
+        if let previous = stateObserver { state.removeObserver(previous) }
+        stateObserver = state.observe { [weak self] change in
+            guard let self else { return }
+            self.syncTrackingRect()
+            if case .state(let newState) = change {
+                self.syncDismissAffordances(for: newState)
+            }
         }
 
-        // Seeds `currentAnchor`, `currentFrame`, `state.anchor`, the panel
-        // frame and the tracking rect -- the same five assignments
-        // repositioning needs, so they live in one place.
-        reposition(metrics: metrics)
+        // Seeding is unconditional on purpose. `reposition` dedupes on the
+        // geometry being unchanged, which is right for a screen change and
+        // wrong here: a second `install` builds a *fresh* panel and hover
+        // tracker whose frame and tracking rect are still zero, so
+        // delegating to the deduping path left the new panel unpositioned
+        // and the tracking rect empty -- no tracking area at all, and hover
+        // silently dead. (Follow-up F1.)
+        let anchor = NotchGeometry.anchor(for: metrics)
+        let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
+        state.setGeometry(anchor: anchor, panelFrame: frame)
+        panel.setFrame(frame, display: true)
+        syncTrackingRect()
     }
 
     // MARK: - Derived geometry
@@ -263,22 +289,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Screen changes
 
-    private func observeScreenChanges() {
+    func observeScreenChanges() {
         // `queue: .main` guarantees these closures run on the main thread,
         // but their type is `@Sendable`, so the compiler can't see that --
         // `MainActor.assumeIsolated` asserts the guarantee the API already
         // gives us rather than deferring the call to a fresh `Task`, which
         // would change *when* repositioning happens relative to the
         // notification.
-        observers.append(NotificationCenter.default.addObserver(
+        observers.append((NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, let screen = NSScreen.main else { return }
             MainActor.assumeIsolated { _ = self.reposition(metrics: screen.metrics) }
-        })
+        }, NotificationCenter.default))
 
-        observers.append(NSWorkspace.shared.notificationCenter.addObserver(
+        observers.append((NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification,
             object: nil, queue: .main
         ) { [weak self] note in
@@ -293,13 +319,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                     _ = self.reposition(metrics: screen.metrics)
                 }
             }
-        })
+        }, NSWorkspace.shared.notificationCenter))
     }
 
     private func removeScreenObservers() {
-        for token in observers {
-            NotificationCenter.default.removeObserver(token)
-            NSWorkspace.shared.notificationCenter.removeObserver(token)
+        for observer in observers {
+            observer.center.removeObserver(observer.token)
         }
         observers.removeAll()
     }
@@ -315,13 +340,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = NotchGeometry.anchor(for: metrics)
         let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
-        guard anchor != currentAnchor || frame != currentFrame else { return false }
-
-        currentAnchor = anchor
-        currentFrame = frame
-        state.anchor = anchor
+        // The dedupe lives in the funnel now, and the tracking rect
+        // re-syncs from the geometry observer.
+        guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
         panel?.setFrame(frame, display: true)
-        syncTrackingRect()
         return true
     }
 }

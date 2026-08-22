@@ -145,6 +145,64 @@ struct AppDelegateStateFunnelTests {
         #expect(delegate.state.state == .closed)
     }
 
+    // MARK: - Re-installing (F1)
+
+    /// `install` builds a *fresh* panel and hover tracker, so it must
+    /// position them whether or not the geometry changed.
+    ///
+    /// It used to delegate to `reposition`, which dedupes on unchanged
+    /// geometry — correct for a screen change, wrong here. A second install
+    /// left the new panel at the origin and the tracking rect empty, which
+    /// means no tracking area at all and hover silently dead.
+    @Test func reinstallingOnTheSameScreenStillPositionsTheNewPanel() {
+        let delegate = makeDelegate()
+        delegate.install(metrics: Self.notched)     // same metrics, second time
+
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 195, y: 222, width: 230, height: 38))
+        #expect(delegate.panel?.frame == CGRect(x: 1895, y: 896, width: 620, height: 260))
+    }
+
+    /// And it must not stack a second observer on the state, or every
+    /// derived value would be re-synced twice per change.
+    @Test func reinstallingDoesNotStackStateObservers() {
+        let delegate = makeDelegate()
+        #expect(delegate.stateObserverCount == 1)
+
+        delegate.install(metrics: Self.notched)
+        delegate.install(metrics: Self.notched)
+
+        #expect(delegate.stateObserverCount == 1)
+    }
+
+    /// F3: each token has to go back to the centre that issued it.
+    /// Removing from the wrong one is a silent no-op, so the leak this
+    /// prevents would never announce itself.
+    @Test func eachScreenObserverRemembersItsOwnNotificationCentre() {
+        let delegate = AppDelegate()
+        delegate.install(metrics: Self.notched)
+        delegate.observeScreenChanges()
+
+        let centers = delegate.screenObserverCenters
+        #expect(centers.count == 2)
+        #expect(centers[0] === NotificationCenter.default)
+        #expect(centers[1] === NSWorkspace.shared.notificationCenter)
+        #expect(centers[1] !== NotificationCenter.default)
+    }
+
+    /// Note the limit: that removal uses the *right* centre cannot be
+    /// asserted. `removeObserver` on a centre that never issued the token
+    /// is a silent no-op with no observable effect, which is precisely why
+    /// the mismatch went unnoticed. The pairing above is the testable half.
+    @Test func terminatingClearsTheScreenObservers() {
+        let delegate = AppDelegate()
+        delegate.install(metrics: Self.notched)
+        delegate.observeScreenChanges()
+        #expect(delegate.screenObserverCenters.count == 2)
+
+        delegate.applicationWillTerminate(Notification(name: .init("terminate")))
+        #expect(delegate.screenObserverCenters.isEmpty)
+    }
+
     // MARK: - Repositioning (M3)
 
     @Test func repositioningToTheSameScreenIsANoOp() {
@@ -170,7 +228,7 @@ struct AppStateTransitionTests {
     @Test func onlyAcceptedChangesNotifyTheObserver() {
         let state = AppState()
         var seen: [NotchState] = []
-        state.onTransition = { seen.append($0) }
+        state.observe { if case .state(let next) = $0 { seen.append(next) } }
 
         state.transition(to: .open(.shelf))
         state.transition(to: .open(.shelf))     // equal: dropped
