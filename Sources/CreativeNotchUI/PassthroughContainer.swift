@@ -1,4 +1,5 @@
 import AppKit
+import CreativeNotchCore
 
 /// The panel's content view: claims a click only if one of its subviews
 /// does.
@@ -25,6 +26,25 @@ final class PassthroughContainer: NSView {
 
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("PassthroughContainer is not loaded from a nib") }
+
+    // MARK: - Dragging destination
+
+    var onDragEntered: () -> Void = {}
+    var onDragExited: () -> Void = {}
+    var onDrop: ([DropPayload]) -> Bool = { _ in false }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        onDragEntered()
+        return .copy
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        onDragExited()
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        onDrop(sender.draggingPasteboard.dropPayloads())
+    }
 
 
     /// `point` arrives in this view's own coordinate space, which is what

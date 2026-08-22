@@ -41,6 +41,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public let state = AppState()
     private let onboarding = OnboardingController()
 
+    // MARK: - Shelf
+
+    /// Overridable so tests do not write into the real Application Support.
+    var shelfDirectory: URL = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("CreativeNotch/Shelf")
+
+    private(set) var shelf: ShelfStore?
+
     // MARK: - Dismissal
 
     /// How long an open panel survives the cursor leaving it.
@@ -161,6 +170,48 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hover.onExit  = { [weak self] in self?.collapse() }
 
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
+
+        // Purged on launch and after each add — never on a timer.
+        shelf = try? ShelfStore(directory: shelfDirectory)
+        try? shelf?.purge(now: Date())
+
+        container.onDragEntered = { [weak self] in
+            self?.state.transition(to: .receiving)
+        }
+        container.onDragExited = { [weak self] in
+            self?.state.transition(to: .closed)
+        }
+        container.onDrop = { [weak self] payloads in
+            guard let self, let shelf = self.shelf else {
+                self?.state.transition(to: .closed)
+                return false
+            }
+
+            // Spec section 9: a write that fails refuses the drop rather
+            // than half-completing it. Swallowing the error and opening
+            // the shelf anyway would show an empty shelf and no reason why.
+            var stored = 0
+            for payload in payloads {
+                do {
+                    try shelf.add(payload, now: Date())
+                    stored += 1
+                } catch {
+                    NSLog("CreativeNotch: shelf could not store a drop: \(error)")
+                }
+            }
+
+            // Also covers an empty drop: nothing stored, nothing opened.
+            // An explicit `payloads.isEmpty` check above was redundant
+            // with this one — mutation testing found it changed no
+            // behaviour, so it went rather than gaining a test that
+            // asserted nothing.
+            guard stored > 0 else {
+                self.state.transition(to: .closed)
+                return false
+            }
+            self.state.transition(to: .open(.shelf))
+            return true
+        }
         container.addSubview(host)
         container.addSubview(hover)
         host.frame = container.bounds
