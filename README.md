@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/app-icon.png" width="128" height="128" alt="CreativeNotch app icon">
+</p>
+
 <h1 align="center">CreativeNotch</h1>
 
 <p align="center">
