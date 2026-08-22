@@ -1,0 +1,107 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to build (e.g. v0.1.0)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        run: |
+          sw_vers
+          swift --version
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+
+      # The bundle version and the tag must agree, or users end up with an app
+      # that reports a different version than the release it came from — and
+      # the installer's "already up to date" check silently stops working.
+      - name: Verify the tag matches the bundle version
+        run: |
+          PLIST=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
+          CORE=$(grep -o '"[0-9][0-9.]*"' Sources/CreativeNotchCore/Version.swift | head -1 | tr -d '"')
+          echo "tag=${{ steps.tag.outputs.version }}  Info.plist=$PLIST  CoreInfo=$CORE"
+          if [ "$PLIST" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::Info.plist CFBundleShortVersionString ($PLIST) != tag (${{ steps.tag.outputs.version }})"
+            exit 1
+          fi
+          if [ "$CORE" != "${{ steps.tag.outputs.version }}" ]; then
+            echo "::error::CoreInfo.version ($CORE) != tag (${{ steps.tag.outputs.version }})"
+            exit 1
+          fi
+
+      - name: Test
+        run: swift test
+
+      - name: Build and sign
+        run: ./Scripts/bundle.sh release
+
+      - name: Verify the signature
+        run: |
+          codesign --verify --deep --strict --verbose=2 dist/CreativeNotch.app
+          codesign -dv dist/CreativeNotch.app 2>&1 | grep -q "Signature=adhoc" \
+            || { echo "::error::expected an ad-hoc signature"; exit 1; }
+          codesign -dv dist/CreativeNotch.app 2>&1 | grep -q "TeamIdentifier=not set" \
+            || { echo "::error::a team identifier leaked into the build"; exit 1; }
+
+      - name: Package
+        id: package
+        run: |
+          NAME="CreativeNotch-${{ steps.tag.outputs.tag }}.tar.gz"
+          tar -czf "$NAME" -C dist CreativeNotch.app
+          shasum -a 256 "$NAME" > "$NAME.sha256"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+          ls -la "$NAME"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: CreativeNotch ${{ steps.tag.outputs.tag }}
+          files: |
+            ${{ steps.package.outputs.name }}
+            ${{ steps.package.outputs.name }}.sha256
+          body: |
+            ## Install
+
+            ```bash
+            curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash
+            ```
+
+            Re-run the same command to update.
+
+            ### Installing by hand
+
+            Download the `.tar.gz` below, then:
+
+            ```bash
+            tar -xzf CreativeNotch-${{ steps.tag.outputs.tag }}.tar.gz
+            mv CreativeNotch.app /Applications/
+            xattr -dr com.apple.quarantine /Applications/CreativeNotch.app
+            ```
+
+            That last line matters. The app is **ad-hoc signed, not
+            notarised**, so a copy downloaded through a browser carries the
+            quarantine flag and macOS will refuse to open it. The installer
+            script avoids this entirely because `curl` never sets the flag.
+
+            **Requires macOS 26 or later.** A physical notch is optional —
+            notchless Macs get a pill under the menu bar.

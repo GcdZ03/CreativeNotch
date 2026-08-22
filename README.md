@@ -77,7 +77,43 @@ do anything useful with that panel — that is what the modules are for.
 
 ## Installation
 
-There is no DMG, no Homebrew formula, and no release. Build it from source.
+```bash
+curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash
+```
+
+Installs to `/Applications`. Run the same command again to update — it
+checks the installed version and exits early if you are current.
+
+<details>
+<summary>What that script does, before you pipe it to bash</summary>
+
+Checks you are on macOS 26+, fetches the latest release from the GitHub API,
+downloads the `.tar.gz`, verifies its code signature, stops any running copy,
+and moves it into `/Applications`. It asks for `sudo` only if `/Applications`
+needs it. Read it first if you like — it is
+[`Scripts/install.sh`](Scripts/install.sh), and piping a script from the
+internet into your shell deserves a look.
+
+</details>
+
+### Why `curl` rather than a download button
+
+CreativeNotch is **ad-hoc signed, not notarised** — notarisation requires the
+$99/yr Apple Developer Program, which this project deliberately does not use.
+
+Browsers, Mail, Messages, and AirDrop stamp downloads with
+`com.apple.quarantine`, and Gatekeeper refuses to open a quarantined app that
+is not notarised. `curl` does not set that flag, so an install fetched this
+way simply runs.
+
+If you download the `.tar.gz` from the releases page by hand instead, strip
+the flag yourself:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/CreativeNotch.app
+```
+
+### Build from source
 
 ```bash
 git clone https://github.com/GcdZ03/CreativeNotch.git
@@ -86,45 +122,26 @@ cd CreativeNotch
 open dist/CreativeNotch.app
 ```
 
-`bundle.sh` compiles a release build, assembles `dist/CreativeNotch.app`,
-and ad-hoc signs it. That takes a few seconds and needs no Apple Developer
-account.
-
-### Why you will not see a Gatekeeper warning
-
-Because you built it yourself, the app never passes through a browser and
-so never gets the `com.apple.quarantine` attribute that triggers Gatekeeper.
-It launches straight away.
-
-If you ever copy the `.app` to another Mac **via a browser, AirDrop, Mail,
-or Messages**, that copy *will* be quarantined and macOS will refuse to open
-it — the app is ad-hoc signed, not notarised, and notarisation requires the
-$99/yr Apple Developer Program. Two ways around it:
-
-```bash
-# Strip the quarantine flag on the receiving Mac
-xattr -dr com.apple.quarantine /Applications/CreativeNotch.app
-```
-
-…or transfer it with a tool that does not set the flag in the first place
-(`scp`, `rsync`, `curl`, `git`).
+Needs the Xcode Command Line Tools; a full Xcode install is not required, and
+there is no `.xcodeproj`. A locally built app is never quarantined, so it runs
+immediately.
 
 ### Permissions
 
-On first launch an onboarding window explains that **Accessibility** access
-is needed, and why:
+On first launch an onboarding window explains that **Accessibility** access is
+needed, and why:
 
 - global key events, so the HUD can show volume and brightness in the notch
 - drag detection, so the file shelf can open as a drop target
 
-Clipboard history and the shelf's drop area work without it. You can skip
-the prompt and grant it later from the menu bar item.
+Clipboard history and the shelf's drop area work without it. You can skip the
+prompt and grant it later from the menu bar item.
 
 ### Uninstalling
 
 ```bash
 pkill -f CreativeNotch
-rm -rf /Applications/CreativeNotch.app        # or wherever you put it
+rm -rf /Applications/CreativeNotch.app
 defaults delete com.gcdz.creativenotch        # only exists after onboarding
 ```
 
@@ -134,8 +151,6 @@ Accessibility** if you granted it.
 Once the file shelf module lands it will store copies under
 `~/Library/Application Support/CreativeNotch` — nothing creates that
 directory today.
-
----
 
 ## Usage
 
@@ -162,15 +177,21 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift build          # build
 swift test           # 70 tests, ~1s, no window server needed
-./Scripts/bundle.sh  # assemble + ad-hoc sign dist/CreativeNotch.app
+./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
-Xcode can open `Package.swift` directly — there is no `.xcodeproj` to
-maintain. Note that a bare `swift run` produces an executable with no bundle
-and therefore no stable identity for TCC, so Accessibility will not stick;
-use `bundle.sh` and launch the `.app`.
+Xcode opens `Package.swift` directly — there is no project file to maintain.
+
+**Set up signing before touching any module that needs Accessibility.** An
+ad-hoc signature's designated requirement is the hash of the code, so macOS
+revokes your Accessibility grant on every rebuild. A one-time local
+certificate fixes it:
+
+```bash
+./Scripts/setup-signing.sh
+export CODESIGN_IDENTITY="CreativeNotch Dev"
+```
 
 ### Project layout
 
@@ -186,21 +207,16 @@ Tests/
   CreativeNotchUITests/     35 tests
 ```
 
-The split is load-bearing, not cosmetic. `CreativeNotchCore` importing
-AppKit or SwiftUI is a build-breaking mistake: its freedom from them is what
-lets the geometry and state logic run headlessly in CI in under a second.
+The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
+or SwiftUI is a mistake: its freedom from them is what lets the geometry and
+state logic run headlessly in CI in under a second.
 
-### Testing culture
+Tests here are expected to **fail when the code is broken**, and that gets
+verified rather than assumed — three tests shipped during the foundation
+build that passed with their implementation deleted. When adding a test,
+introduce the bug it targets, confirm it fails, then revert.
 
-Tests here are expected to **fail when the code is broken**, and that is
-verified rather than assumed. During the foundation build, three tests
-shipped that passed with their implementation deleted — every one was caught
-by a reviewer mutating the source, not by reading it.
-
-So: when adding a test, introduce the bug it targets, confirm the test
-fails, then revert. A test you cannot make fail proves nothing.
-
----
+Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
@@ -231,6 +247,7 @@ Before module work starts, see
 | Document | What it covers |
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How it works, and the non-obvious parts |
+| [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |

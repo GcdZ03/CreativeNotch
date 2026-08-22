@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
-# Builds CreativeNotch.app and ad-hoc signs it.
+# Builds CreativeNotch.app and signs it.
 #
-# Ad-hoc signing is mandatory on Apple Silicon — an unsigned arm64 binary
-# will not launch at all — and unlike a development certificate it carries
-# no device restrictions, so the same bundle runs on any Mac.
+# Signing is mandatory on Apple Silicon — an unsigned arm64 binary will not
+# launch at all. Two identities are supported:
+#
+#   ad-hoc ("-", the default)  no device restrictions, runs on any Mac, but
+#                              its designated requirement is the code hash,
+#                              so macOS revokes TCC grants on every rebuild.
+#
+#   $CODESIGN_IDENTITY         a stable local identity (see setup-signing.sh).
+#                              Accessibility survives rebuilds. Use for dev.
 set -euo pipefail
 
 CONFIG="${1:-release}"
@@ -19,7 +25,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/CreativeNotch"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 
-codesign -s - --force --timestamp=none "$APP"
+IDENTITY="${CODESIGN_IDENTITY:--}"
+codesign -s "$IDENTITY" --force --timestamp=none "$APP"
 codesign -dv "$APP" 2>&1 | grep -E 'Identifier|Signature'
 
 echo "built $APP"
