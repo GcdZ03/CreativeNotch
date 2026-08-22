@@ -31,3 +31,6 @@ Package.resolved
 dist/
 *.app.zip
 *.tar.gz
+
+# SDD workspace (scratch)
+.superpowers/
