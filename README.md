@@ -11,6 +11,7 @@
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
   <img src="https://img.shields.io/badge/tests-70-brightgreen" alt="70 tests">
+  <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
 <!-- Screenshot goes here once there is UI worth showing. -->
@@ -269,4 +270,9 @@ Before module work starts, see
 
 ## License
 
-Private project. All rights reserved.
+[GPL-3.0](LICENSE).
+
+You may use, modify, and redistribute this, including commercially — but
+derivative works must also be released under GPL-3.0. That is deliberate:
+this category has a pattern of open work being repackaged as closed paid
+apps, and the copyleft is there to prevent it.
