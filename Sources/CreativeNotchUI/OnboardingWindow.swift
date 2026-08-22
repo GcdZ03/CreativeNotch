@@ -9,6 +9,15 @@ public final class OnboardingController {
 
     private static let seenKey = "hasCompletedOnboarding"
     private let defaults: UserDefaults
+
+    /// Reached whenever `show()` runs — whether it reuses an existing
+    /// window or creates a fresh one. Bound to `presentRealWindow` by the
+    /// public initializer; overridable only through the internal
+    /// test-only initializer below, so `showIfNeeded()`'s "don't reach the
+    /// window-presenting path once already seen" guarantee can be verified
+    /// from a test without ever creating or presenting a real `NSWindow`.
+    private let presenter: (OnboardingController) -> Void
+
     private var window: NSWindow?
 
     /// `defaults` is injectable so the "show only if not yet seen" decision
@@ -16,6 +25,20 @@ public final class OnboardingController {
     /// of the real `.standard` domain.
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        // Not `{ [weak self] in self?.presentRealWindow() }` — that would
+        // capture `self` before all stored properties (including this one)
+        // have initial values. Taking the instance as a parameter instead
+        // sidesteps that entirely.
+        self.presenter = { $0.presentRealWindow() }
+    }
+
+    /// Test-only seam: substitutes a spy for the real window-presenting
+    /// path. Deliberately not `public` — reached from tests only via
+    /// `@testable import`, so it can never be used to bypass the real
+    /// presentation logic from production code.
+    init(defaults: UserDefaults, presenter: @escaping (OnboardingController) -> Void) {
+        self.defaults = defaults
+        self.presenter = presenter
     }
 
     /// The pure "have we already shown onboarding" read `showIfNeeded()`
@@ -31,6 +54,10 @@ public final class OnboardingController {
     }
 
     public func show() {
+        presenter(self)
+    }
+
+    private func presentRealWindow() {
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
