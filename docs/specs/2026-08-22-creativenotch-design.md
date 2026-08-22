@@ -230,6 +230,12 @@ and must not block the easiest of the four modules.
 
 ### 5.2 File shelf — lazy monitor
 
+> **Superseded 2026-08-22** by
+> [`2026-08-22-file-shelf-design.md`](2026-08-22-file-shelf-design.md). The
+> lazy drag monitor below is not needed at all: AppKit delivers dragging
+> events to the window under the cursor, so the shelf needs no monitoring
+> and no permission. Removal also goes to the Trash rather than deleting.
+
 Drop target via `.dropDestination(for: URL.self)`.
 
 Expanding the notch when a drag *starts* is where naive implementations burn
