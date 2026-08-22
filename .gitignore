@@ -35,6 +35,12 @@ dist/
 # SDD workspace (scratch)
 .superpowers/
 
+# Agent worktrees live inside the checkout, so they would otherwise show up
+# as untracked here and a `git add -A` would commit an entire second tree.
+# Only the worktrees are ignored: .claude/settings.json and friends stay
+# committable, since those are worth sharing with contributors.
+.claude/worktrees/
+
 # Editors
 .vscode/
 

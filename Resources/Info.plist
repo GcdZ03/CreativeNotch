@@ -5,6 +5,10 @@
   <key>CFBundleName</key><string>CreativeNotch</string>
   <key>CFBundleDisplayName</key><string>CreativeNotch</string>
   <key>CFBundleExecutable</key><string>CreativeNotch</string>
+  <!-- A loose .icns in Contents/Resources, copied by Scripts/bundle.sh.
+       CFBundleIconName is deliberately absent: it addresses an entry in a
+       compiled asset catalog, and this bundle is assembled by hand. -->
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>com.gcdz.creativenotch</string>
   <key>CFBundleVersion</key><string>1</string>
   <!-- Substituted by Scripts/bundle.sh from CoreInfo.version. -->
