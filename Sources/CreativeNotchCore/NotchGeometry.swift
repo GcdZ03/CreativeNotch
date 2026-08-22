@@ -34,7 +34,13 @@ public enum NotchGeometry {
         let width = max(expandedSize.width, anchor.rect.width)
         let height = expandedSize.height
         let unclampedX = anchor.rect.midX - width / 2
-        let x = min(max(unclampedX, m.frame.minX), m.frame.maxX - width)
+        // The right bound can fall left of the left bound on a screen
+        // narrower than the panel, in which case the left bound wins --
+        // otherwise clamping pushes the panel off the near edge while
+        // trying to keep it on the far one. No real Mac display is under
+        // 620pt, but the invariant should not depend on that.
+        let rightBound = max(m.frame.minX, m.frame.maxX - width)
+        let x = min(max(unclampedX, m.frame.minX), rightBound)
         return CGRect(x: x, y: anchor.rect.maxY - height, width: width, height: height)
     }
 }

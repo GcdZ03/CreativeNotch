@@ -152,3 +152,26 @@ private let notchedOffOrigin = ScreenMetrics(
     #expect(frame.minX == 1470)      // unclamped would be 1560 - 310 = 1250
     #expect(frame.maxX <= secondary.frame.maxX)
 }
+
+// MARK: - F11: a screen narrower than the panel
+
+/// The clamp keeps the panel on screen from both edges, but the right
+/// bound sits left of the left bound once the screen is narrower than the
+/// panel. Left has to win, or clamping pushes the panel off the near edge
+/// while trying to hold the far one.
+@Test func aScreenNarrowerThanThePanelClampsToItsLeftEdge() {
+    let tiny = ScreenMetrics(
+        frame: CGRect(x: 300, y: 0, width: 400, height: 300),
+        safeAreaTopInset: 0,
+        auxiliaryTopLeftWidth: 0,
+        auxiliaryTopRightWidth: 0,
+        menuBarHeight: 24
+    )
+    let anchor = NotchGeometry.anchor(for: tiny)
+    let frame = NotchGeometry.panelFrame(for: anchor, in: tiny)
+
+    // The panel is wider than the screen, so it cannot fit -- but it must
+    // still start at the screen's left edge rather than left of it.
+    #expect(frame.width == NotchGeometry.expandedSize.width)
+    #expect(frame.minX == tiny.frame.minX)
+}

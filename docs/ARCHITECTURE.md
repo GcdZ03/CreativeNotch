@@ -81,7 +81,13 @@ permanently under your menu bar.
 
 So `HitTestingHostingView.hitTest(_:)` returns `nil` everywhere outside the
 currently visible shape, and `NotchShape.visibleRect` — pure and tested —
-decides what that shape is. Get this wrong and the app silently swallows
+decides what that shape is, and the drawn shape is derived from the same
+function, so what is drawn and what is clickable cannot disagree.
+
+The accepted region **lags growth** by the expand animation and follows
+shrinkage immediately, so the app never accepts a click on something not yet
+on screen. Shrinking early is harmless; clicks fall through a panel that is
+still visibly collapsing. Get this wrong and the app silently swallows
 menu bar clicks across a 620pt band.
 
 ### The coordinate trap
@@ -135,9 +141,11 @@ State transitions are the only thing that triggers a redraw.
 
 ### The funnel
 
-`AppState.state` is `public private(set)`. The **only** way to change it is
-`AppState.transition(to:)`, which fires `onTransition`, which the app
-delegate uses to keep the hover tracking rect in sync.
+`AppState.state`, `.anchor` and `.panelFrame` are all `public private(set)`.
+The **only** ways to change them are `transition(to:)` and `setGeometry(_:_:)`,
+which notify a **list** of observers — the app delegate registers the hover
+tracking-rect re-sync and the outside-click monitor there, and each module
+will register its own.
 
 This is compiler-enforced, and deliberately so. The tracking rect is derived
 state; when it desynchronised from the real state, hover died silently and —
@@ -147,10 +155,10 @@ undone by a `mouseExited`, making a drop target vanish mid-drag.
 `private(set)` scopes to the enclosing declaration, so not even a
 same-file `@Bindable` binding can write it. Keep it that way.
 
-⚠️ **`onTransition` is currently a single closure.** The first module that
-assigns its own observer will silently clobber the delegate's sync and
-reintroduce that bug at runtime with no compiler help. Make it an observer
-list before that happens — see follow-up **F2**.
+It was a single closure until follow-up **F2**: the first module to register
+its own observer would have replaced the delegate's, taking the tracking-rect
+sync and outside-click dismissal with it, at runtime, with no compiler help.
+Registering is now additive and returns a token for removal.
 
 ### Dismissing an open panel
 

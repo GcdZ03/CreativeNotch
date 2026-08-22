@@ -47,13 +47,4 @@ public enum NotchShape {
         }
     }
 
-    public static func contains(
-        _ point: CGPoint,
-        presentation: Presentation,
-        anchor: Anchor,
-        panelFrame: CGRect
-    ) -> Bool {
-        visibleRect(presentation: presentation, anchor: anchor, panelFrame: panelFrame)
-            .contains(point)
-    }
 }

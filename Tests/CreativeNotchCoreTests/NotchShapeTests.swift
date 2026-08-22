@@ -42,23 +42,23 @@ private let pillAnchor = Anchor.pill(
 @Test func clickBesideTheClosedNotchPassesThrough() {
     // A point in the menu bar, level with the notch but well to its left.
     let p = CGPoint(x: 20, y: 250)
-    #expect(!NotchShape.contains(p, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 @Test func clickInsideTheClosedNotchIsCaptured() {
     let p = CGPoint(x: 320, y: 250)
-    #expect(NotchShape.contains(p, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 @Test func clickBelowTheClosedNotchPassesThrough() {
     // Directly under the notch but below its 38pt height — desktop, not us.
     let p = CGPoint(x: 320, y: 100)
-    #expect(!NotchShape.contains(p, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 @Test func sameClickIsCapturedWhenExpanded() {
     let p = CGPoint(x: 320, y: 100)
-    #expect(NotchShape.contains(p, presentation: .expanded, anchor: anchor, panelFrame: panel))
+    #expect(NotchShape.visibleRect(presentation: .expanded, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 // MARK: - Gap 1: .peek contains()
@@ -69,13 +69,13 @@ private let pillAnchor = Anchor.pill(
     // specifically catches a mutation where .peek falls through to the
     // .closed rect.
     let p = CGPoint(x: 180, y: 230)
-    #expect(NotchShape.contains(p, presentation: .peek, anchor: anchor, panelFrame: panel))
+    #expect(NotchShape.visibleRect(presentation: .peek, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 @Test func peekClickOutsideTheWidenedBandPassesThrough() {
     // Just past peek's right edge (maxX 480).
     let p = CGPoint(x: 490, y: 230)
-    #expect(!NotchShape.contains(p, presentation: .peek, anchor: anchor, panelFrame: panel))
+    #expect(!NotchShape.visibleRect(presentation: .peek, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 // MARK: - Gap 2: .pill anchor
@@ -87,12 +87,12 @@ private let pillAnchor = Anchor.pill(
 
 @Test func pillClickInsideIsCaptured() {
     let p = CGPoint(x: 150, y: 220) // inside (85-265, 204-236)
-    #expect(NotchShape.contains(p, presentation: .closed, anchor: pillAnchor, panelFrame: panel))
+    #expect(NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel).contains(p))
 }
 
 @Test func pillClickOutsideIsNotCaptured() {
     let p = CGPoint(x: 20, y: 220) // well to the left of the pill
-    #expect(!NotchShape.contains(p, presentation: .closed, anchor: pillAnchor, panelFrame: panel))
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel).contains(p))
 }
 
 // MARK: - Gap 3: passthrough symmetry and boundary semantics
@@ -102,7 +102,7 @@ private let pillAnchor = Anchor.pill(
     // the notch (maxX 435), still comfortably inside the panel (width 620),
     // level with the notch.
     let p = CGPoint(x: 600, y: 250)
-    #expect(!NotchShape.contains(p, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(p))
 }
 
 @Test func closedRectBoundaryIsInclusiveOfMinAndExclusiveOfMax() {
@@ -110,6 +110,6 @@ private let pillAnchor = Anchor.pill(
     // (min) corner is inside the rect, the far (max) corner is outside.
     let minCorner = CGPoint(x: 205, y: 222)
     let maxCorner = CGPoint(x: 435, y: 260)
-    #expect(NotchShape.contains(minCorner, presentation: .closed, anchor: anchor, panelFrame: panel))
-    #expect(!NotchShape.contains(maxCorner, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(minCorner))
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel).contains(maxCorner))
 }

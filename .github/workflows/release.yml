@@ -34,17 +34,14 @@ jobs:
       # The bundle version and the tag must agree, or users end up with an app
       # that reports a different version than the release it came from — and
       # the installer's "already up to date" check silently stops working.
-      - name: Verify the tag matches the bundle version
+      # CoreInfo is the single source; Info.plist takes its value at bundle
+      # time. Only the tag can disagree, so only the tag is checked.
+      - name: Verify the tag matches CoreInfo.version
         run: |
-          PLIST=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" Resources/Info.plist)
-          CORE=$(grep -o '"[0-9][0-9.]*"' Sources/CreativeNotchCore/Version.swift | head -1 | tr -d '"')
-          echo "tag=${{ steps.tag.outputs.version }}  Info.plist=$PLIST  CoreInfo=$CORE"
-          if [ "$PLIST" != "${{ steps.tag.outputs.version }}" ]; then
-            echo "::error::Info.plist CFBundleShortVersionString ($PLIST) != tag (${{ steps.tag.outputs.version }})"
-            exit 1
-          fi
+          CORE=$(sed -n 's/.*static let version = "\(.*\)".*/\1/p' Sources/CreativeNotchCore/Version.swift)
+          echo "tag=${{ steps.tag.outputs.version }}  CoreInfo=$CORE"
           if [ "$CORE" != "${{ steps.tag.outputs.version }}" ]; then
-            echo "::error::CoreInfo.version ($CORE) != tag (${{ steps.tag.outputs.version }})"
+            echo "::error::CoreInfo.version ($CORE) != tag (${{ steps.tag.outputs.version }}). Bump Sources/CreativeNotchCore/Version.swift."
             exit 1
           fi
 

@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 70
+swift test                              # all 112
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -88,8 +88,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI. Everything with behaviour.
   CreativeNotch/       18-line executable.
 Tests/
-  CreativeNotchCoreTests/   35 tests
-  CreativeNotchUITests/     35 tests
+  CreativeNotchCoreTests/   42 tests
+  CreativeNotchUITests/     70 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
@@ -137,9 +137,8 @@ written to catch it. See `ARCHITECTURE.md` for the full account.
 `transition(to:)`. Keep it that way — the tracking rect is derived from it,
 and a direct write desynchronises them silently.
 
-**`onTransition` is a single closure.** The first module to assign its own
-observer clobbers the delegate's tracking-rect sync. Make it an observer
-list before that happens — follow-up **F2**.
+**Register on `AppState.observe`, never replace.** It is a list, and the
+delegate's tracking-rect sync and outside-click monitor already live on it.
 
 **`assumeIsolated` requires `queue: .main`.** It is a runtime assertion that
 crashes when the assumption is false. If you add a notification observer,
@@ -153,9 +152,9 @@ real system dialog. `AXIsProcessTrusted()` is a safe read.
 Releases are cut by tag; CI builds, verifies, packages, and publishes.
 
 ```bash
-# 1. bump BOTH version strings — CI fails the release if they disagree
-#    Resources/Info.plist          CFBundleShortVersionString
+# 1. bump the version -- there is only one place now
 #    Sources/CreativeNotchCore/Version.swift   CoreInfo.version
+#    (Info.plist carries a __VERSION__ placeholder that bundle.sh fills in)
 
 # 2. commit, tag, push
 git commit -am "Release v0.2.0"
@@ -167,5 +166,6 @@ The workflow runs the tests, builds, asserts the signature is ad-hoc with no
 team identifier, tars the app with a SHA-256 checksum, and attaches both to
 a GitHub release with install instructions.
 
-Keeping two version strings in sync by hand is a wart (follow-up **F9**);
-the CI check exists so it fails loudly rather than drifting quietly.
+`CoreInfo.version` is the single source; `Scripts/bundle.sh` substitutes it
+into the bundled `Info.plist` at build time, and CI fails the release if the
+tag disagrees with it.
