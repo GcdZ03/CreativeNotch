@@ -7,6 +7,17 @@ private let anchor = Anchor.notch(
 )
 private let panel = CGRect(x: 415, y: 696, width: 620, height: 260)
 
+// Local closed rect for `anchor`: (205, 222, 230, 38) — minX 205, maxX 435,
+// minY 222, maxY 260. Peek widens to NotchGeometry.peekSize (320x44)
+// centred on the same midX, top-aligned: (160, 216, 320, 44) — minX 160,
+// maxX 480.
+
+private let pillAnchor = Anchor.pill(
+    CGRect(x: 500, y: 900, width: 180, height: 32)
+)
+// Local closed rect for `pillAnchor`: (85, 204, 180, 32) — minX 85, maxX 265,
+// minY 204, maxY 236.
+
 @Test func closedVisibleRectMatchesTheAnchorExactly() {
     let r = NotchShape.visibleRect(presentation: .closed, anchor: anchor, panelFrame: panel)
     #expect(r.width == 230)
@@ -48,4 +59,57 @@ private let panel = CGRect(x: 415, y: 696, width: 620, height: 260)
 @Test func sameClickIsCapturedWhenExpanded() {
     let p = CGPoint(x: 320, y: 100)
     #expect(NotchShape.contains(p, presentation: .expanded, anchor: anchor, panelFrame: panel))
+}
+
+// MARK: - Gap 1: .peek contains()
+
+@Test func peekClickInsideTheWidenedBandIsCaptured() {
+    // x=180 sits inside peek's centred band (minX 160, maxX 480) but
+    // outside the narrower closed notch rect (minX 205, maxX 435) — this
+    // specifically catches a mutation where .peek falls through to the
+    // .closed rect.
+    let p = CGPoint(x: 180, y: 230)
+    #expect(NotchShape.contains(p, presentation: .peek, anchor: anchor, panelFrame: panel))
+}
+
+@Test func peekClickOutsideTheWidenedBandPassesThrough() {
+    // Just past peek's right edge (maxX 480).
+    let p = CGPoint(x: 490, y: 230)
+    #expect(!NotchShape.contains(p, presentation: .peek, anchor: anchor, panelFrame: panel))
+}
+
+// MARK: - Gap 2: .pill anchor
+
+@Test func pillClosedVisibleRectMatchesThePillAnchor() {
+    let r = NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel)
+    #expect(r == CGRect(x: 85, y: 204, width: 180, height: 32))
+}
+
+@Test func pillClickInsideIsCaptured() {
+    let p = CGPoint(x: 150, y: 220) // inside (85-265, 204-236)
+    #expect(NotchShape.contains(p, presentation: .closed, anchor: pillAnchor, panelFrame: panel))
+}
+
+@Test func pillClickOutsideIsNotCaptured() {
+    let p = CGPoint(x: 20, y: 220) // well to the left of the pill
+    #expect(!NotchShape.contains(p, presentation: .closed, anchor: pillAnchor, panelFrame: panel))
+}
+
+// MARK: - Gap 3: passthrough symmetry and boundary semantics
+
+@Test func clickBesideTheClosedNotchOnTheRightPassesThrough() {
+    // Symmetric to clickBesideTheClosedNotchPassesThrough: to the right of
+    // the notch (maxX 435), still comfortably inside the panel (width 620),
+    // level with the notch.
+    let p = CGPoint(x: 600, y: 250)
+    #expect(!NotchShape.contains(p, presentation: .closed, anchor: anchor, panelFrame: panel))
+}
+
+@Test func closedRectBoundaryIsInclusiveOfMinAndExclusiveOfMax() {
+    // Pins down CGRect.contains' boundary convention explicitly: the near
+    // (min) corner is inside the rect, the far (max) corner is outside.
+    let minCorner = CGPoint(x: 205, y: 222)
+    let maxCorner = CGPoint(x: 435, y: 260)
+    #expect(NotchShape.contains(minCorner, presentation: .closed, anchor: anchor, panelFrame: panel))
+    #expect(!NotchShape.contains(maxCorner, presentation: .closed, anchor: anchor, panelFrame: panel))
 }

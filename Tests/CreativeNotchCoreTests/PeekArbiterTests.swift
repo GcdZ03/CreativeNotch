@@ -41,6 +41,15 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
     #expect(a.content(now: 200) == nil)
 }
 
+@Test func hudIsExpiredAtExactlyTheTTLBoundary() {
+    // The implementation checks `now < hudExpiry` (strict). At now ==
+    // hudExpiry the HUD must already be gone — substituting `<=` for `<`
+    // would make this pass incorrectly.
+    var a = PeekArbiter()
+    a.recordHUD(volumeUp, now: 100)
+    #expect(a.content(now: 100 + PeekArbiter.hudTTL) == nil)
+}
+
 @Test func dragPreemptsEverything() {
     var a = PeekArbiter()
     a.setNowPlaying(track)
