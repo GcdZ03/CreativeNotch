@@ -43,6 +43,3 @@ dist/
 
 # Editors
 .vscode/
-
-# Agent worktrees and local session state
-.claude/
