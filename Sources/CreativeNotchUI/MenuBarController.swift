@@ -1,5 +1,4 @@
 import AppKit
-import ApplicationServices
 
 /// The only settings surface. A four-module personal tool does not need a
 /// preferences window.
@@ -30,7 +29,7 @@ public final class MenuBarController: NSObject {
         menu.delegate = self
 
         let accessibility = NSMenuItem(
-            title: Self.accessibilityTitle(trusted: AXIsProcessTrusted()),
+            title: Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted),
             action: #selector(openOnboarding),
             keyEquivalent: ""
         )
@@ -51,8 +50,9 @@ public final class MenuBarController: NSObject {
         self.item = item
     }
 
-    /// Pure formatting, pulled out of `AXIsProcessTrusted()`'s call site so
-    /// it can be tested without touching Accessibility permission state.
+    /// Pure formatting, pulled out of `Permissions.isAccessibilityTrusted`'s
+    /// call site so it can be tested without touching Accessibility
+    /// permission state.
     public static func accessibilityTitle(trusted: Bool) -> String {
         trusted
             ? "Accessibility: granted"
@@ -67,8 +67,9 @@ public final class MenuBarController: NSObject {
 extension MenuBarController: NSMenuDelegate {
     /// Refreshes the Accessibility line each time the menu opens, so a
     /// permission grant made in System Settings while the app was already
-    /// running shows up without polling `AXIsProcessTrusted()` on a timer.
+    /// running shows up without polling `Permissions.isAccessibilityTrusted`
+    /// on a timer.
     public func menuWillOpen(_ menu: NSMenu) {
-        accessibilityItem?.title = Self.accessibilityTitle(trusted: AXIsProcessTrusted())
+        accessibilityItem?.title = Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted)
     }
 }

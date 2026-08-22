@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var currentAnchor: Anchor = .pill(.zero)
     private var currentFrame: CGRect = .zero
     let state = AppState()
+    private let onboarding = OnboardingController()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard let screen = NSScreen.main else { return }
@@ -37,10 +38,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         menuBar.install()
         self.menuBar = menuBar
+
+        onboarding.showIfNeeded()
     }
 
-    // Temporary stub — Task 8 replaces this with the real onboarding window.
-    func showOnboarding() {}
+    func showOnboarding() {
+        onboarding.show()
+    }
 
     private func install(on screen: NSScreen) {
         let metrics = screen.metrics
