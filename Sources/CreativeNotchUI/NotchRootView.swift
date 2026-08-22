@@ -44,6 +44,12 @@ public final class AppState {
     ///
     /// `@ObservationIgnored` because it is wiring, not observable state:
     /// registering must never invalidate a SwiftUI view.
+    /// Set once at install. `@ObservationIgnored` because the store
+    /// publishes its own changes; re-assigning this must not invalidate a
+    /// view.
+    @ObservationIgnored
+    public var shelf: ShelfStore?
+
     @ObservationIgnored
     private var observers: [(token: ObserverToken, handler: (Change) -> Void)] = []
 
@@ -146,7 +152,21 @@ public struct NotchRootView: View {
         RoundedRectangle(cornerRadius: app.anchor.isNotch && app.state == .closed ? 0 : 14)
             .fill(.black)
             .overlay {
-                if app.state != .closed {
+                switch app.state {
+                case .closed:
+                    EmptyView()
+
+                case .open(.shelf):
+                    if let shelf = app.shelf {
+                        ShelfView(store: shelf)
+                    }
+
+                case .receiving:
+                    Text("Drop here")
+                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+
+                default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))

@@ -174,6 +174,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Purged on launch and after each add — never on a timer.
         shelf = try? ShelfStore(directory: shelfDirectory)
         try? shelf?.purge(now: Date())
+        state.shelf = shelf
 
         container.onDragEntered = { [weak self] in
             self?.state.transition(to: .receiving)
