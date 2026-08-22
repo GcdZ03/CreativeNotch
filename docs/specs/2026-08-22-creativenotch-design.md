@@ -41,6 +41,10 @@ CreativeNotch's one architectural commitment is the inverse:
 | Panel layout | Media header always on top; shelf / clipboard / HUD tabbed below |
 | Shelf cap | 20 entries, oldest evicted |
 | CI | GitHub Actions — build + test on push |
+| Fullscreen apps | Hidden entirely |
+| Hover delay | 300ms deliberate pause |
+| Permissions | Requested during first-launch onboarding |
+| Dev workflow | TDD on pure logic, manual verification of AppKit |
 | OSD suppression | Deferred to its own spike; v1 renders alongside Apple's |
 
 ## 3. Architecture
@@ -70,11 +74,20 @@ final class NotchPanel: NSPanel {
 ```
 styleMask          = [.borderless, .nonactivatingPanel]
 level              = .statusBar + 1
-collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary,
-                      .stationary, .ignoresCycle]
+collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 isOpaque = false, backgroundColor = .clear, hasShadow = false
 isMovable = false
 ```
+
+`.fullScreenAuxiliary` is deliberately **omitted**. That single omission is
+what hides the panel entirely over fullscreen apps — no detection logic, no
+frontmost-window inspection, no edge cases. NotchNook's persistent
+now-playing preview obscuring fullscreen content is a documented complaint;
+this avoids it by construction.
+
+The consequence is that the HUD module does nothing in fullscreen. Since v1
+does not suppress `OSDUIHelper`, Apple's native volume and brightness OSD
+still appears there, so the behaviour degrades cleanly rather than silently.
 
 The panel is **always sized to fully-expanded bounds**; content animates
 inside it. This avoids window-resize jank, but leaves a large transparent
@@ -113,6 +126,16 @@ that is the specific thing reviewers single out as jarring in NotchNook.
 Driven by `NSWorkspace.didActivateApplicationNotification` and
 `NSWindow.didBecomeKeyNotification`. Event-driven, so cursor position is
 never polled.
+
+### 4.3b Hover
+
+Hover is detected with an `NSTrackingArea` on the panel itself — never a
+global mouse monitor — so it costs nothing when the cursor is elsewhere.
+
+A **300ms dwell** is required before peeking. The notch sits directly on the
+path to the menu bar and the traffic lights, so a deliberate pause is what
+separates intent from a cursor passing through. The timer is cancelled on
+exit.
 
 ### 4.4 NotchState
 
@@ -273,8 +296,15 @@ anything depends on it.
 Non-sandboxed: a private framework and a perl subprocess make sandboxing
 impractical, and there is no App Store target.
 
-Each module declares its required permissions and surfaces what is missing,
-rather than silently doing nothing.
+### 6.1 Onboarding
+
+A first-launch window explains why Accessibility is needed — global key
+events for the HUD, and drag detection for the shelf — and then triggers the
+system prompt. Shown once, re-openable from the menu bar.
+
+Modules that lack their permission disable themselves and say so in the menu
+rather than silently doing nothing. Clipboard and the shelf drop target need
+no permission and always work.
 
 ## 7. Error handling
 
@@ -296,14 +326,21 @@ Pure and unit-tested:
 - `ClipboardFilterTests` — concealed-type skipping, dedup, ring eviction
 - `MediaAdapterParsingTests` — NDJSON fixtures including malformed lines
 
-The `NSPanel` and global-monitor layer stays deliberately thin and is
-verified by hand.
+**Workflow: test-first for the pure logic above, manual verification for the
+AppKit layer.** That boundary is deliberate — the pure logic is where real
+bugs live and it runs headlessly in CI, whereas a panel mostly needs to look
+right, and wrapping AppKit in protocols to fake it would buy ceremony rather
+than confidence.
+
+The `NSPanel` and global-monitor layer stays deliberately thin for exactly
+this reason.
 
 ## 9. Build order
 
 Cheapest and most self-contained first; riskiest last.
 
 0. Panel skeleton, geometry, state machine, menu bar item
+0.5 First-launch onboarding and Accessibility request
 1. HUD (alongside Apple's OSD)
 2. File shelf
 3. Clipboard
