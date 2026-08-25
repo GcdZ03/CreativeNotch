@@ -105,9 +105,13 @@ struct HUDControllerTests {
     /// is checked independently rather than all three being pinned down
     /// together, because the three fail for unrelated reasons:
     ///
-    /// - `keys.isRunning` is safe everywhere: `NSEvent.addGlobalMonitorForEvents`
-    ///   returns a non-nil token regardless of Accessibility — only event
-    ///   *delivery* is gated, not installation — so it is asserted directly.
+    /// - `keys.isRunning` is *not* safe everywhere, unlike before: the old
+    ///   `NSEvent.addGlobalMonitorForEvents` always returned a non-nil
+    ///   token regardless of Accessibility (only delivery was gated, not
+    ///   installation). It was replaced with a `CGEventTap` because the
+    ///   `NSEvent` monitor delivers nothing at all on macOS 26 — but
+    ///   `CGEventTapCreate` itself can fail without Accessibility granted
+    ///   to the process, which a CI runner has no way to grant.
     /// - `volume.isRunning` is not safe on CI: GitHub Actions macOS runners
     ///   have a documented, intermittent bug (`actions/runner-images#13668`)
     ///   where the Null Audio Device fails to initialise, leaving no audio
@@ -135,7 +139,13 @@ struct HUDControllerTests {
         let (controller, _) = makeController()
         controller.start()
 
-        #expect(controller.keys.isRunning)
+        let keysStarted = controller.keys.isRunning
+        withKnownIssue(
+            "CGEventTapCreate fails without Accessibility granted to the process, which a CI runner cannot grant",
+            isIntermittent: true
+        ) {
+            #expect(keysStarted)
+        }
 
         let volumeStarted = controller.volume.isRunning
         withKnownIssue(
@@ -155,7 +165,9 @@ struct HUDControllerTests {
 
         controller.stop()
 
-        #expect(controller.keys.isRunning == false)
+        if keysStarted {
+            #expect(controller.keys.isRunning == false)
+        }
 
         if volumeStarted {
             #expect(controller.volume.isRunning == false)
