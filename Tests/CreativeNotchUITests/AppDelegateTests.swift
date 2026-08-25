@@ -109,9 +109,12 @@ struct AppDelegateStateFunnelTests {
 
     // MARK: - Mouse exit (M1)
 
+    /// The dwell shows whatever the arbiter has. An empty arbiter has
+    /// nothing, so record a HUD event first — which is also the real
+    /// sequence: a level changes, then the notch shows it.
     @Test func theDwellPeeksThroughTheFunnel() {
         let delegate = makeDelegate()
-        delegate.hoverView?.onDwell()
+        delegate.showHUD(.volume(0.5))
         #expect(delegate.state.state.presentation == .peek)
         #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
     }

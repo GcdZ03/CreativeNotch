@@ -41,6 +41,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public let state = AppState()
     private let onboarding = OnboardingController()
 
+    // MARK: - HUD (F8)
+
+    private var hud: HUDController?
+    private var arbiter = PeekArbiter()
+
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
@@ -141,10 +146,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observeScreenChanges()
 
         onboarding.showIfNeeded()
+
+        let hud = HUDController { [weak self] kind in self?.showHUD(kind) }
+        hud.start()
+        self.hud = hud
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
+        hud?.stop()
     }
 
     public func showOnboarding() {
@@ -319,11 +329,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Hover
 
+    /// The dwell opened the notch. What it shows is the arbiter's call.
     private func peek() {
         guard state.state == .closed else { return }
-        state.transition(to: .peek(.nowPlaying(
-            TrackSnapshot(title: "CreativeNotch", artist: "", isPlaying: true)
-        )))
+        guard let content = arbiter.content(now: Date().timeIntervalSince1970) else { return }
+        state.transition(to: .peek(content))
+    }
+
+    /// A level changed and the HUD decided it is worth showing.
+    ///
+    /// Internal rather than private: the test target reaches it through
+    /// `@testable import` to drive the funnel without a real hardware
+    /// change.
+    func showHUD(_ kind: HUDKind) {
+        let now = Date().timeIntervalSince1970
+        arbiter.recordHUD(HUDEvent(kind: kind), now: now)
+        guard let content = arbiter.content(now: now) else { return }
+        state.transition(to: .peek(content))
     }
 
     /// The cursor left the visible shape.
