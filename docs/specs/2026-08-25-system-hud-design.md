@@ -58,9 +58,31 @@ The notch stays silent when Apple's HUD is already showing. That requires
 knowing a change came from a keypress, and nothing exposes whether Apple's
 HUD is on screen.
 
-**A global `.systemDefined` monitor** (subtype 8, keycodes
-`NX_KEYTYPE_SOUND_UP`/`SOUND_DOWN`/`MUTE`/`BRIGHTNESS_UP`/`BRIGHTNESS_DOWN`)
-detects the keys. Key events require **Accessibility permission**.
+**A `CGEventTap`** on the session tap, filtering `NX_SYSDEFINED` events for
+subtype 8 and keycodes `NX_KEYTYPE_SOUND_UP`/`SOUND_DOWN`/`MUTE`/
+`BRIGHTNESS_UP`/`BRIGHTNESS_DOWN`. This requires **Accessibility permission**.
+
+> **Corrected 2026-08-26.** This originally specified
+> `NSEvent.addGlobalMonitorForEvents(matching: .systemDefined)`. That
+> delivers **nothing** on macOS 26 even with Accessibility granted —
+> instrumentation of the running app recorded **zero** key events across
+> 1729 level changes, so attribution never fired and the notch showed for
+> keypresses too. A spike confirmed a `CGEventTap` receives them correctly:
+> 64 events, keycodes 0/1/2/3, subtype 8, arriving in down/up pairs about
+> 40ms apart.
+>
+> Two properties of the tap are load-bearing:
+>
+> - **`.listenOnly`.** Consuming these events would break the user's volume
+>   and brightness keys system-wide.
+> - **Re-enable on disable.** macOS disables a tap that is slow or under
+>   load, delivering `.tapDisabledByTimeout` or `.tapDisabledByUserInput`.
+>   Unhandled, the monitor dies silently mid-session.
+>
+> One behavioural consequence: `CGEventTapCreate` genuinely **fails**
+> without Accessibility, whereas `NSEvent` returned a token regardless and
+> merely never fired. Failure is now honest rather than silent — but it
+> means `isRunning` depends on permission, which matters for CI.
 
 Two alternatives were considered and rejected:
 
@@ -98,6 +120,36 @@ The letter of the rule catches this; its reason does not. It is admitted
 deliberately, and recorded here rather than reinterpreted quietly. The rule
 is otherwise unchanged: no `Timer`, no polling, no mouse monitors.
 
+## 3.3 Significance — ambient light is not a user action
+
+**Brightness changes on its own.** The ambient light sensor micro-adjusts
+the backlight roughly **60 times a second**, in deltas around `0.00007`:
+
+```
+brightness(0.44905930)
+brightness(0.44898808)   ← 0.00007 lower, 16ms later
+brightness(0.44891902)
+```
+
+1729 events were recorded in one short session. `HUDCoalescer` cannot help:
+every value differs, so none are duplicates. Unfixed, the notch strobes
+permanently — violating the project's central rule against anything running
+continuously.
+
+A pure significance gate in `CreativeNotchCore` filters them. A change is
+significant when it differs from the **last level actually shown for that
+kind** by at least **1/32 (0.03125)**. The keys move in 1/16 steps (0.0625),
+comfortably above; ambient drift is three orders of magnitude below.
+
+Comparing against the last *shown* value rather than the last *observed* one
+matters: a slow Control Center drag accumulates until it crosses the
+threshold and does show, instead of being filtered away step by step.
+`.mute` is boolean and always significant. Kinds are tracked independently.
+
+> **Added 2026-08-26.** The original spec assumed brightness only changes
+> when someone changes it. It does not, and no test would have questioned
+> that premise — it took a human watching the real app.
+
 ## 4. What the notch shows
 
 An icon and a level bar, mirroring what Apple's HUD conveys — the same
@@ -133,10 +185,12 @@ fabricates a placeholder `TrackSnapshot` that this module replaces.
 Sources/CreativeNotchCore/HUD/
   HUDAttribution.swift    pure: was this change caused by a keypress?
   HUDCoalescer.swift      pure: collapse CoreAudio's duplicate callbacks
+  HUDSignificanceGate.swift  pure: is this change big enough to be a user action?
 Sources/CreativeNotchUI/HUD/
   VolumeObserver.swift    CoreAudio listener, device re-subscription
   BrightnessObserver.swift DisplayServices listener
-  MediaKeyMonitor.swift   the .systemDefined monitor
+  MediaKeyMonitor.swift   the CGEventTap
+  HUDController.swift     coalesce -> significance -> attribution -> peek
   HUDView.swift           the icon and bar
 ```
 
