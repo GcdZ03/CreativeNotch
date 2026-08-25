@@ -23,9 +23,10 @@ struct MediaKeyMonitorTests {
     }
 
     @Test func otherSystemKeysAreIgnored() {
-        // Keyboard illumination and eject are system-defined too, and must
-        // not be mistaken for a level change.
-        for code in [4, 6, 21, 22] {
+        // Other system-defined events that must not be mistaken for a level
+        // change: 4 is CAPS_LOCK, 6 is POWER, 14 is EJECT, 21 is ILLUMINATION_DOWN,
+        // 22 is ILLUMINATION_UP.
+        for code in [4, 6, 14, 21, 22] {
             #expect(MediaKeyMonitor.isMediaKey(subtype: 8, data1: data1(keyCode: code)) == false)
         }
     }
@@ -60,5 +61,21 @@ struct MediaKeyMonitorTests {
 
         #expect(removals == 1)
         #expect(monitor.isRunning == false)
+    }
+
+    @Test func stoppingRemovesTheSameTokenThatStartInstalled() {
+        let monitor = MediaKeyMonitor()
+        let installed = NSObject()
+        var removed: Any?
+        monitor.installMonitor = { _ in installed }
+        monitor.removeMonitor = { removed = $0 }
+
+        monitor.start()
+        monitor.stop()
+
+        // Identity, not just "removal happened once" — a stop() that
+        // removes the wrong token leaks the monitor while reporting
+        // success, and `isRunning` flips either way.
+        #expect(removed as? NSObject === installed)
     }
 }

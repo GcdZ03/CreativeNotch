@@ -53,8 +53,15 @@ public final class MediaKeyMonitor {
 
     /// `data1` packs the key code into its high 16 bits.
     ///
-    /// Only the level keys count. Keyboard illumination and eject are
-    /// system-defined events too, and must not be read as a level change.
+    /// Only the level keys count: volume up/down, mute, brightness up/down.
+    /// System-defined events like caps lock, power, eject, and illumination
+    /// must not be read as a level change.
+    ///
+    /// The key-state bits (key down vs. up, repeat presses) are not filtered,
+    /// so a single physical press fires `onKey()` for both down and up, plus
+    /// repeats while held. This is deliberate: re-stamping the timestamp keeps
+    /// the suppression window alive for exactly as long as Apple's overlay is
+    /// on screen, which is what we want.
     public static func isMediaKey(subtype: Int, data1: Int) -> Bool {
         guard subtype == 8 else { return false }
         let keyCode = (data1 & 0xFFFF_0000) >> 16
