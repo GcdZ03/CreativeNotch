@@ -115,6 +115,13 @@ struct AppDelegateStateFunnelTests {
     @Test func theDwellPeeksThroughTheFunnel() {
         let delegate = makeDelegate()
         delegate.showHUD(.volume(0.5))
+
+        // Close, then dwell — so the assertion runs through the real
+        // peek() -> arbiter.content(now:) path rather than showHUD's
+        // direct transition. Without this, gutting peek() passes.
+        delegate.state.transition(to: .closed)
+        delegate.hoverView?.onDwell()
+
         #expect(delegate.state.state.presentation == .peek)
         #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
     }

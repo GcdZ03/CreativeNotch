@@ -14,9 +14,14 @@ public final class HUDController {
 
     private let onPeek: (HUDKind) -> Void
 
-    private let volume = VolumeObserver()
-    private let brightness = BrightnessObserver()
-    private let keys = MediaKeyMonitor()
+    /// Internal rather than private so the lifecycle is provable: a
+    /// `stop()` that silently forgot one of the three would otherwise pass
+    /// review the same way the mismatched `stop()`s in `VolumeObserver`,
+    /// `BrightnessObserver` and `MediaKeyMonitor` did before their own
+    /// identity-based tests existed.
+    let volume = VolumeObserver()
+    let brightness = BrightnessObserver()
+    let keys = MediaKeyMonitor()
 
     public init(onPeek: @escaping (HUDKind) -> Void) {
         self.onPeek = onPeek

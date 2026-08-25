@@ -71,4 +71,32 @@ struct HUDControllerTests {
         controller.handle(.volume(0.5), at: 100.6)     // beyond the window
         #expect(peeked.value == [.volume(0.5)])
     }
+
+    /// `stop()` must actually stop every source it owns, not just report
+    /// success. `volume`, `brightness` and `keys` are `let`-declared at
+    /// internal (not private) access precisely so this is provable rather
+    /// than trusted — the same reasoning behind `VolumeObserver.registrationCount`
+    /// and `BrightnessObserver.lastRegisteredCallback`.
+    ///
+    /// `start()` here touches real hardware, and the key monitor needs
+    /// Accessibility permission to actually install. The two `#expect`s
+    /// right after `start()` pin that precondition down explicitly: on a
+    /// host where one of the three never actually started, those fail
+    /// loudly and explain why, rather than letting the after-`stop()`
+    /// checks below pass vacuously for the wrong reason.
+    @Test func stopStopsAllThreeOwnedSources() {
+        let (controller, _) = makeController()
+        controller.start()
+
+        #expect(controller.volume.isRunning)
+        #expect(controller.brightness.isRunning)
+        #expect(controller.keys.isRunning)
+
+        controller.stop()
+
+        #expect(controller.volume.isRunning == false)
+        #expect(controller.brightness.isRunning == false)
+        #expect(controller.keys.isRunning == false)
+    }
 }
+
