@@ -41,10 +41,15 @@ struct HUDCoalescerTests {
 
     @Test func theBoundaryIsExclusive() {
         var c = HUDCoalescer()
-        _ = c.accept(.volume(0.3), at: 100)
-        // Exactly at the interval is still within the duplicate window.
-        let result = c.accept(.volume(0.3), at: 100 + HUDCoalescer.minimumInterval)
-        #expect(result == false)
+        // Times chosen so the delta is *exactly* minimumInterval. Starting at
+        // 100 instead of 0 makes `100 + 0.05` lose precision (it evaluates to
+        // 100.04999999999971), the delta lands just under the interval, and
+        // `<` and `<=` become indistinguishable — the test would then prove
+        // nothing about the boundary it exists to pin down.
+        let result1 = c.accept(.volume(0.3), at: 0)
+        #expect(result1)
+        let result2 = c.accept(.volume(0.3), at: HUDCoalescer.minimumInterval)
+        #expect(result2 == false)
     }
 
     @Test func differentKindsDoNotSuppressEachOther() {
