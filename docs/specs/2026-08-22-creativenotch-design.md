@@ -205,12 +205,12 @@ knows how long it has been since anything changed.
 
 ### 5.1 HUD — push, effectively free
 
-> **Superseded 2026-08-22.** A spike found this section wrong on both
-> halves: volume and brightness are better observed as *values* (no
-> Accessibility permission, and it catches changes from any source), and
-> `OSDUIHelper` — the suppression target below — no longer runs on macOS 26.
-> The module is deferred. See
-> [`../research/2026-08-22-hud-feasibility.md`](../research/2026-08-22-hud-feasibility.md).
+> **Superseded** by [`2026-08-25-system-hud-design.md`](2026-08-25-system-hud-design.md).
+> A spike found this section wrong on both halves: volume and brightness are
+> better observed as *values*, and `OSDUIHelper` — the suppression target
+> below — no longer runs on macOS 26. The goal changed from replacing
+> Apple's HUD to **coexisting** with it, which is both achievable and
+> better: the notch covers the triggers Apple ignores.
 
 Global monitor on `.systemDefined`, filtering `subtype == 8`:
 

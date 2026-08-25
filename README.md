@@ -239,11 +239,11 @@ In build order. Each module gets its own spec and plan before any code.
    land on disk. The only subsystem that genuinely polls, and the reason
    `SystemActivity` exists.
 3. **Media** — now-playing metadata and transport controls.
-4. **System HUD** — volume and brightness in the notch. *Deferred*: the
-   observation half is solved and needs no permission, but suppressing
-   Apple's own HUD has no known solution on macOS 26 — `OSDUIHelper`, the
-   documented target, no longer runs. See
-   [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md).
+4. **System HUD** — volume and brightness in the notch, **alongside**
+   Apple's rather than replacing it. Apple's HUD only appears for the
+   physical keys, so the notch covers what it ignores: Control Center,
+   Siri, the menu bar slider, other apps. See
+   [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md).
 
 Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
 battery architecture), iCloud sync, a synthetic black notch on notchless
@@ -263,6 +263,7 @@ Before module work starts, see
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
+| [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module |
 | [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |

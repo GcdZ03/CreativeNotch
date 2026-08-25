@@ -91,8 +91,19 @@ If suppression is revisited, the unexplored leads are: enumerating
 `OSD.framework`'s actual exports from the dyld shared cache, and examining
 how a currently-shipping HUD replacement does it on macOS 26.
 
-## Recommendation
+## Recommendation — superseded 2026-08-25
 
-Build the HUD when suppression is understood, or when a design that does
-not need it is found. Shipping the observation half alone means two HUDs on
-screen at once — more visual noise than the one you started with.
+The original conclusion was to wait until suppression was understood. **The
+goal changed instead: the two HUDs coexist**, and suppression left scope
+entirely. See [`../specs/2026-08-25-system-hud-design.md`](../specs/2026-08-25-system-hud-design.md).
+
+The reframing holds up better than a concession would suggest. Apple's HUD
+appears **only for the physical keys** — confirmed here: a programmatic
+volume change never spawned it. Value-based observation sees every change
+whatever caused it. So the notch covers Control Center, Siri, the menu bar
+slider and other applications, where macOS currently gives no feedback at
+all, and the only genuine overlap is the keypress case — which the module
+deliberately stays silent for.
+
+The findings above stand unchanged; only the conclusion drawn from them
+moved.
