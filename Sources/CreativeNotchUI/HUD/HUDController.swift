@@ -10,6 +10,7 @@ import CreativeNotchCore
 public final class HUDController {
 
     private var coalescer = HUDCoalescer()
+    private var significanceGate = HUDSignificanceGate()
     private var lastKeyAt: TimeInterval?
 
     private let onPeek: (HUDKind) -> Void
@@ -57,6 +58,12 @@ public final class HUDController {
         // Duplicates first: CoreAudio fires twice per change, and letting
         // both through flickers the pill and restarts the peek TTL twice.
         guard coalescer.accept(kind, at: time) else { return }
+
+        // Then significance: the ambient light sensor micro-adjusts the
+        // backlight roughly 60 times a second, and every value differs, so
+        // the coalescer above cannot catch it. Left unfiltered, the notch
+        // would strobe continuously.
+        guard significanceGate.accept(kind) else { return }
 
         // Apple's HUD already covers keypresses. Everywhere else, macOS
         // gives no feedback at all — that is the gap this fills.
