@@ -281,7 +281,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-196 tests, all headless. `swift test` takes
+198 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified

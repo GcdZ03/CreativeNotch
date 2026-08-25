@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 196
+swift test                              # all 198
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -88,8 +88,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI. Everything with behaviour.
   CreativeNotch/       18-line executable.
 Tests/
-  CreativeNotchCoreTests/   73 tests
-  CreativeNotchUITests/     123 tests
+  CreativeNotchCoreTests/   74 tests
+  CreativeNotchUITests/     124 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
