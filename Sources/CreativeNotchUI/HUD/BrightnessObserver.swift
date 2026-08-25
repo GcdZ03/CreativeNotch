@@ -41,7 +41,7 @@ public final class BrightnessObserver {
 
     /// Set while running so the C callback — which carries no context we
     /// can trust — can reach the live observer.
-    private nonisolated(unsafe) static weak var active: BrightnessObserver?
+    private static weak var active: BrightnessObserver?
 
     /// The single callback instance passed to both register and
     /// unregister. Two `@convention(c)` closure *literals* are not
@@ -71,6 +71,14 @@ public final class BrightnessObserver {
     /// have passed review.
     static private(set) var lastRegisteredCallback: UnsafeRawPointer?
     static private(set) var lastUnregisteredCallback: UnsafeRawPointer?
+
+    /// The display ID `currentLevel()` last actually queried, set
+    /// immediately before the `get()` call. Exposed only so a regression
+    /// back to the callback's unusable `0` — which degrades silently to a
+    /// `nil` read indistinguishable from a host with no readable
+    /// brightness — is provable from a test rather than only from a
+    /// silent `nil` on real hardware. Mirrors `lastRegisteredCallback`.
+    static private(set) var lastQueriedDisplay: CGDirectDisplayID?
 
     public init() {}
 
@@ -107,7 +115,9 @@ public final class BrightnessObserver {
         let get = unsafeBitCast(sym, to: GetBrightness.self)
         var level: Float = 0
         // CGMainDisplayID(), never the ID handed to the callback.
-        guard get(CGMainDisplayID(), &level) == 0 else { return nil }
+        let display = CGMainDisplayID()
+        Self.lastQueriedDisplay = display
+        guard get(display, &level) == 0 else { return nil }
         return Double(level)
     }
 }

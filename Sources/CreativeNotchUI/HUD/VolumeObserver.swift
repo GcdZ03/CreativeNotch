@@ -1,4 +1,3 @@
-import AppKit
 import CoreAudio
 import AudioToolbox
 import CreativeNotchCore

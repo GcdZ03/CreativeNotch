@@ -75,4 +75,16 @@ struct BrightnessObserverTests {
         #expect(registered != nil)
         #expect(registered == unregistered)
     }
+
+    /// The callback's own `CGDirectDisplayID` argument is always `0` and
+    /// unusable — reading with it returns status 1000 and writes nothing,
+    /// which degrades silently to `nil`, indistinguishable from a host
+    /// with no readable brightness at all. `currentLevel()` must always
+    /// query `CGMainDisplayID()` instead, which this proves directly
+    /// rather than only inferring it from a non-nil read on hardware that
+    /// happens to have a readable backlight.
+    @Test func currentLevelAlwaysQueriesTheMainDisplayNotTheCallbacksZero() {
+        _ = BrightnessObserver().currentLevel()
+        #expect(BrightnessObserver.lastQueriedDisplay == CGMainDisplayID())
+    }
 }

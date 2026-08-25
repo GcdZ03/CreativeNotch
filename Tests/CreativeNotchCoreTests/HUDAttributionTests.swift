@@ -37,4 +37,11 @@ struct HUDAttributionTests {
     @Test func aKeyAfterTheChangeIsNotACause() {
         #expect(HUDAttribution.isKeyDriven(changeAt: 100, lastKeyAt: 100.1) == false)
     }
+
+    /// `delta == 0` — the key and the change land at the exact same
+    /// timestamp. Without this case, mutating `delta >= 0` to `delta > 0`
+    /// passes every other test in this file silently.
+    @Test func aKeyAtTheExactSameInstantClaimsIt() {
+        #expect(HUDAttribution.isKeyDriven(changeAt: 100, lastKeyAt: 100))
+    }
 }
