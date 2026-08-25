@@ -96,14 +96,16 @@ struct OnboardingView: View {
                 .font(.title2.weight(.semibold))
 
             Text("""
-                 Two features depend on it:
+                 CreativeNotch needs Accessibility access for one thing: to \
+                 notice when you press the volume or brightness keys.
 
-                 • The HUD reads volume and brightness key presses so it can \
-                 show them in the notch.
-                 • The file shelf notices when you pick up a file, so it can \
-                 open as a drop target.
+                 It uses that to stay *quiet*. macOS already shows its own \
+                 overlay for those keys, so the notch stands aside — and \
+                 speaks up only when you change the volume somewhere macOS \
+                 gives you no feedback at all, like Control Center or Siri.
 
-                 The clipboard and the shelf's drop area work without it.
+                 Without it, everything still works; you will just see both \
+                 indicators at once when using the keys.
                  """)
                 .font(.callout)
                 .foregroundStyle(.secondary)

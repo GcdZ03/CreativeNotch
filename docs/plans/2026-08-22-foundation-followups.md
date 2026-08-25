@@ -2,7 +2,8 @@
 
 Findings carried out of the foundation build. **All eleven are resolved**
 as of the follow-ups branch; this file is kept as the record of what they
-were and how each was closed.
+were and how each was closed. **F8** closed later, with the system HUD
+module, since it needed a real consumer to close against.
 
 | | Finding | Resolution |
 |---|---|---|
@@ -13,7 +14,7 @@ were and how each was closed.
 | **F5** | `NotchRootView` re-derived the drawn rect independently | Derived from `NotchShape.visibleRect`, the same function the hit test uses |
 | **F6** | The hit region snapped to full size while the shape animated | The accepted region lags growth and follows shrinkage immediately |
 | **F7** | `NotchShape.contains` had zero production callers | Deleted; tests express clicks through `visibleRect` |
-| **F8** | `PeekArbiter` wired to nothing | Not a defect — it is Plan 1's first task. See below |
+| **F8** | `PeekArbiter` wired to nothing | **Closed.** The HUD is now its first consumer; `AppDelegate.peek()` no longer fabricates a placeholder `TrackSnapshot`. See below |
 | **F9** | Two version strings that would drift | `CoreInfo.version` is the source; `bundle.sh` injects it into the plist |
 | **F10** | Nothing enforced the Core import rule | `CorePurityTests` checks it mechanically |
 | **F11** | Narrow-screen clamp could violate its own left bound | The left bound wins when the right one falls left of it |
@@ -29,12 +30,15 @@ both — at runtime, silently, with no compiler help, and with the symptoms
 (a dead hover region, a panel that will not dismiss, a drop target
 vanishing mid-drag) appearing far from the cause.
 
-## F8 is not a defect
+## F8, closed
 
-`PeekArbiter` is complete and tested but has no consumer:
-`AppDelegate.peek()` fabricates a placeholder `TrackSnapshot`. That is
-correct for a foundation with no modules. Plan 1 (HUD) is its first
-consumer — expect the integration, not the arbiter, to carry the bugs.
+`PeekArbiter` was complete and tested but had no consumer:
+`AppDelegate.peek()` fabricated a placeholder `TrackSnapshot`. That was
+correct for a foundation with no modules — it was never a defect, just
+unfinished wiring waiting on a real consumer. The system HUD module is that
+consumer: `HUDController` drives `PeekArbiter` through the coalesce →
+attribute → peek path, and `AppDelegate.peek()` no longer fabricates
+anything.
 
 ## Still unverified by any automated check
 

@@ -1,9 +1,11 @@
 import AppKit
 @preconcurrency import ApplicationServices
 
-/// Accessibility is needed for two things: global key events for the HUD
-/// module, and drag detection for the shelf. Clipboard and the shelf drop
-/// target need no permission and always work.
+/// Accessibility is needed for exactly one thing: detecting volume and
+/// brightness keypresses, so the HUD can stay silent for them and leave
+/// Apple's own overlay alone. The file shelf needs no permission — its
+/// drop target and drag detection both work through AppKit's own drag
+/// events, not Accessibility.
 ///
 /// `@preconcurrency import ApplicationServices` is what silences the
 /// Swift 6 strict-concurrency error on `kAXTrustedCheckOptionPrompt` (a C
