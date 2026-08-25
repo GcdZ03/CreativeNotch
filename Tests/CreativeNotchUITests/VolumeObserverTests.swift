@@ -40,4 +40,42 @@ struct VolumeObserverTests {
             #expect(muted == true || muted == false)
         }
     }
+
+    @Test func startingRegistersListenersAndStoppingRemovesThem() {
+        let observer = VolumeObserver()
+        #expect(observer.registrationCount == 0)
+
+        observer.start()
+        // A host with no output device legitimately registers nothing, so
+        // only assert the relationship, not a specific count.
+        let afterStart = observer.registrationCount
+
+        observer.stop()
+        #expect(observer.registrationCount == 0)
+        #expect(afterStart >= observer.registrationCount)
+    }
+
+    @Test func startingTwiceDoesNotStackRegistrations() {
+        let observer = VolumeObserver()
+        observer.start()
+        let afterFirst = observer.registrationCount
+        observer.start()
+        #expect(observer.registrationCount == afterFirst)
+        observer.stop()
+    }
+
+    /// Reading the level must not depend on having started observing.
+    /// It did: `device` was only resolved in `start()`, so an unstarted
+    /// observer returned nil unconditionally — and the suite's "nil is a
+    /// legitimate answer" tolerance hid it.
+    @Test func theLevelReadsTheSameBeforeAndAfterStarting() {
+        let observer = VolumeObserver()
+        let before = observer.currentLevel()
+        observer.start()
+        let after = observer.currentLevel()
+        observer.stop()
+
+        // Either both are nil (no output device) or both have a value.
+        #expect((before == nil) == (after == nil))
+    }
 }

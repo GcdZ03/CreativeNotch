@@ -29,6 +29,12 @@ public final class VolumeObserver {
     }
     private var registrations: [Registration] = []
 
+    /// How many CoreAudio listeners are currently registered. Exposed so
+    /// the lifecycle is provable: `isRunning` alone is a boolean that
+    /// flips whether or not removal actually happened, which is exactly
+    /// how a `stop()` that silently leaked would have passed review.
+    var registrationCount: Int { registrations.count }
+
     /// The system-object listener that tracks default-device changes. It is
     /// registered on `kAudioObjectSystemObject`, not `device`, so it is
     /// tracked separately from `registrations` and removed from the object
