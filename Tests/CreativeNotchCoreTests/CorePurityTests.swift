@@ -21,15 +21,35 @@ struct CorePurityTests {
             .appendingPathComponent("Sources/CreativeNotchCore")
     }
 
+    /// Recursive: `contentsOfDirectory` only lists the top level, which
+    /// silently stopped covering `HUD/` and `Shelf/` the moment those
+    /// subdirectories appeared — the purity check kept passing, but it had
+    /// stopped scanning most of the module.
     private static var swiftFiles: [URL] {
-        (try? FileManager.default.contentsOfDirectory(
-            at: coreDirectory, includingPropertiesForKeys: nil
-        ))?.filter { $0.pathExtension == "swift" } ?? []
+        guard let enumerator = FileManager.default.enumerator(
+            at: coreDirectory,
+            includingPropertiesForKeys: [.isRegularFileKey],
+            options: [.skipsHiddenFiles]
+        ) else { return [] }
+
+        var files: [URL] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            files.append(url)
+        }
+        return files
     }
 
     @Test func theCoreSourcesAreWhereWeThinkTheyAre() {
-        // Guards against the check silently passing on an empty list.
-        #expect(Self.swiftFiles.count >= 5)
+        // >= 5 alone is satisfied by the top-level directory by itself, so
+        // it would not have noticed the subdirectories going unscanned. A
+        // higher count that only a recursive walk reaches, plus asserting
+        // that files which live *only* in a subdirectory are among those
+        // scanned, together pin the walk to actually being recursive.
+        #expect(Self.swiftFiles.count >= 10)
+
+        let names = Set(Self.swiftFiles.map(\.lastPathComponent))
+        #expect(names.contains("HUDAttribution.swift"))
+        #expect(names.contains("ShelfStore.swift"))
     }
 
     @Test func theCoreImportsNoUIFramework() throws {
