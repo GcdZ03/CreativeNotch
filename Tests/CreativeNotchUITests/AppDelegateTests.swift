@@ -234,6 +234,139 @@ struct AppDelegateStateFunnelTests {
     }
 }
 
+/// `presentPeek` is the single owner of the `.peek` state: `showHUD` and
+/// the hover dwell both route through it. It must refuse to override a
+/// deliberate user state (`.open`, `.receiving`), and the HUD's transient
+/// occupancy of the peek slot must actually expire and fall back, per
+/// spec §5 -- nothing re-read the arbiter after the initial transition
+/// before this.
+@MainActor
+struct HUDPeekOwnershipTests {
+
+    private static let notched = ScreenMetrics(
+        frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
+        safeAreaTopInset: 38,
+        auxiliaryTopLeftWidth: 620,
+        auxiliaryTopRightWidth: 620,
+        menuBarHeight: 38
+    )
+
+    /// A settable clock, so a test can jump "1.7 seconds later" without
+    /// waiting for one -- the TTL re-check task itself still runs for
+    /// real, on a short overridden delay, and is awaited rather than
+    /// slept past.
+    final class FakeClock {
+        var value: TimeInterval
+        init(_ value: TimeInterval) { self.value = value }
+    }
+
+    private func makeDelegate(clock: FakeClock) -> AppDelegate {
+        let delegate = AppDelegate()
+        delegate.growthDelay = .zero
+        delegate.now = { clock.value }
+        delegate.install(metrics: Self.notched)
+        return delegate
+    }
+
+    // MARK: - C1: the peek expires and falls back
+
+    @Test func aHUDPeekExpiresAndFallsBackToClosed() async {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        delegate.hudTTLDelay = .milliseconds(5)
+
+        delegate.showHUD(.volume(0.5))
+        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+
+        clock.value += 1.7   // past the 1.5s TTL
+        await delegate.hudTTLTask?.value
+
+        #expect(delegate.state.state == .closed)
+    }
+
+    @Test func aHUDPeekThatHasNotExpiredYetSurvivesReevaluation() async {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        delegate.hudTTLDelay = .milliseconds(5)
+
+        delegate.showHUD(.volume(0.5))
+        clock.value += 0.2   // well inside the 1.5s TTL
+        await delegate.hudTTLTask?.value
+
+        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+    }
+
+    // MARK: - C2: showHUD must not transition from any state
+
+    @Test func aHUDEventDoesNotOverrideReceiving() {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        delegate.state.transition(to: .receiving)
+
+        delegate.showHUD(.volume(0.5))
+
+        #expect(delegate.state.state == .receiving)
+    }
+
+    @Test func aHUDEventDoesNotOverrideOpen() {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        delegate.state.transition(to: .open(.shelf))
+
+        delegate.showHUD(.volume(0.5))
+
+        #expect(delegate.state.state == .open(.shelf))
+    }
+
+    @Test func aHUDEventStillUpdatesAnAlreadyShowingPeek() {
+        // `.peek` is not a deliberate user state the way `.open` and
+        // `.receiving` are -- a second HUD event while one is already
+        // showing must still update the pill.
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        delegate.showHUD(.volume(0.5))
+        delegate.showHUD(.volume(0.6))
+        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.6)))))
+    }
+
+    // MARK: - C3: the drag is wired into the arbiter
+
+    /// `container.onDragEntered` sets `.receiving` directly, which already
+    /// refuses a HUD event on its own (C2). This test isolates the
+    /// *arbiter's* half of the wiring: force the state back to `.closed`
+    /// without going through `onDragExited`, so `dragActive` is still true
+    /// only inside the arbiter, then dwell -- the arbiter, not the state
+    /// guard, must be what keeps the drag on top.
+    @Test func dragOutranksAHUDEventThroughTheArbiter() throws {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+
+        delegate.showHUD(.volume(0.5))
+        container.onDragEntered()
+        delegate.state.transition(to: .closed)
+        delegate.hoverView?.onDwell()
+
+        #expect(delegate.state.state == .peek(.dragTarget))
+    }
+
+    /// The mirror image: once the drag actually ends, the arbiter must
+    /// stop reporting it, or a drop that completes would leave `.dragTarget`
+    /// permanently wedged into the peek slot's priority.
+    @Test func endingTheDragStopsItOutrankingTheHUD() throws {
+        let clock = FakeClock(1_000)
+        let delegate = makeDelegate(clock: clock)
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+
+        delegate.showHUD(.volume(0.5))
+        container.onDragEntered()
+        container.onDragExited()
+        delegate.hoverView?.onDwell()
+
+        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+    }
+}
+
 /// The funnel itself, independent of AppKit.
 @MainActor
 struct AppStateTransitionTests {
