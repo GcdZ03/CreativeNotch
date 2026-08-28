@@ -40,11 +40,42 @@ public final class VolumeObserver {
     /// it was actually added to.
     private var systemRegistration: (address: AudioObjectPropertyAddress, block: AudioObjectPropertyListenerBlock)?
 
+    /// Whether the system-object listener that watches for the default
+    /// output device changing is currently installed. Exposed only so a
+    /// test can prove it survives a device-less `start()` without needing
+    /// to unplug real hardware — the exact window this module's spec names:
+    /// "a missed re-subscription means the volume half silently stops."
+    var isWatchingForDefaultDeviceChanges: Bool { systemRegistration != nil }
+
+    /// How `start()` resolves the default output device. A test seam:
+    /// production always calls `defaultOutputDevice()`, but proving the
+    /// device-less path requires forcing `device == 0` deterministically,
+    /// which a real machine with real audio hardware cannot do on demand.
+    var deviceProvider: () -> AudioDeviceID = { VolumeObserver.defaultOutputDevice() }
+
     public init() {}
 
     public func start() {
         guard !isRunning else { return }
-        device = Self.defaultOutputDevice()
+
+        // Registered unconditionally, before the device is even resolved,
+        // and only if not already installed. The default output device
+        // changes when headphones are plugged in, a display is connected,
+        // or Bluetooth audio drops — including to *no* device at all. The
+        // old order resolved the device and bailed out here whenever it
+        // was 0, before ever reaching this call: a transient no-device
+        // window then left nothing listening for the device to come back,
+        // and the volume half stayed dead until the app restarted. This
+        // must run every time `start()` does, device or no device.
+        if systemRegistration == nil {
+            subscribeToSystem(kAudioHardwarePropertyDefaultOutputDevice) { [weak self] in
+                guard let self else { return }
+                self.stop()
+                self.start()
+            }
+        }
+
+        device = deviceProvider()
         guard device != 0 else { return }
 
         subscribe(to: kAudioHardwareServiceDeviceProperty_VirtualMainVolume) { [weak self] in
@@ -54,15 +85,6 @@ public final class VolumeObserver {
         subscribe(to: kAudioDevicePropertyMute) { [weak self] in
             guard let self, let muted = self.isMuted() else { return }
             self.onChange(.mute(muted))
-        }
-
-        // The default output device changes when headphones are plugged in
-        // or a display is connected. Without re-subscribing, the volume
-        // half silently stops working.
-        subscribeToSystem(kAudioHardwarePropertyDefaultOutputDevice) { [weak self] in
-            guard let self else { return }
-            self.stop()
-            self.start()
         }
 
         isRunning = true

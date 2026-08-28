@@ -1,4 +1,5 @@
 import AppKit
+import CoreAudio
 import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
@@ -84,5 +85,23 @@ struct VolumeObserverTests {
 
         // Either both are nil (no output device) or both have a value.
         #expect((before == nil) == (after == nil))
+    }
+
+    /// The bug: `start()` resolved `device`, then bailed via `guard device
+    /// != 0` *before* ever registering the system-object listener that
+    /// watches for the default output device changing. A transient window
+    /// with no default device — Bluetooth headphones dropping, waking from
+    /// sleep, switching outputs — left `isRunning == false` and nothing
+    /// listening, so nothing would ever notice the device coming back: the
+    /// spec's own words are "a missed re-subscription means the volume half
+    /// silently stops." `deviceProvider` forces that exact window
+    /// deterministically, without needing to unplug real hardware.
+    @Test func aDeviceLessStartStillRegistersTheSystemListener() {
+        let observer = VolumeObserver()
+        observer.deviceProvider = { AudioDeviceID(0) }
+        observer.start()
+
+        #expect(observer.isWatchingForDefaultDeviceChanges)
+        #expect(observer.isRunning == false)   // no device: nothing else could start
     }
 }
