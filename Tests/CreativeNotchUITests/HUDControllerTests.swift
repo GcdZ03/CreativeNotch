@@ -95,6 +95,23 @@ struct HUDControllerTests {
         #expect(peeked.value == [.volume(0.5)])
     }
 
+    /// A key-driven change that is suppressed must not advance the
+    /// significance gate's baseline -- it was never displayed. Baseline
+    /// shown is 0.5; the key-driven jump to 0.5625 (significant on its
+    /// own, +0.0625) is suppressed by attribution; a later genuine change
+    /// to 0.59 is only +0.0275 from 0.5625 (below the 0.03125 threshold)
+    /// but +0.09 from what is actually still on screen, 0.5, and must
+    /// show. If the gate committed on significance instead of on display,
+    /// this second, real change would be silently dropped.
+    @Test func aSuppressedKeyDrivenChangeDoesNotAdvanceTheBaseline() {
+        let (controller, peeked) = makeController()
+        controller.handle(.volume(0.5), at: 100)          // shown, baseline = 0.5
+        controller.noteKeyPress(at: 100.1)
+        controller.handle(.volume(0.5625), at: 100.12)    // key-driven, suppressed
+        controller.handle(.volume(0.59), at: 101)         // genuine, +0.09 from 0.5
+        #expect(peeked.value == [.volume(0.5), .volume(0.59)])
+    }
+
     /// `stop()` must actually stop every source it owns, not just report
     /// success. `volume`, `brightness` and `keys` are `let`-declared at
     /// internal (not private) access precisely so this is provable rather

@@ -63,11 +63,19 @@ public final class HUDController {
         // backlight roughly 60 times a second, and every value differs, so
         // the coalescer above cannot catch it. Left unfiltered, the notch
         // would strobe continuously.
-        guard significanceGate.accept(kind) else { return }
+        guard significanceGate.isSignificant(kind) else { return }
 
         // Apple's HUD already covers keypresses. Everywhere else, macOS
         // gives no feedback at all — that is the gap this fills.
+        //
+        // The baseline is committed only here, once every filter has run
+        // and the value is actually about to be shown. Committing on mere
+        // significance would advance the baseline for a keypress-driven
+        // change this suppresses, and a later genuine external change
+        // within the threshold of that phantom baseline would be silently
+        // dropped even though it never appeared on screen.
         guard !HUDAttribution.isKeyDriven(changeAt: time, lastKeyAt: lastKeyAt) else { return }
+        significanceGate.commitShown(kind)
 
         onPeek(kind)
     }

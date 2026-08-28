@@ -34,26 +34,45 @@ public struct HUDSignificanceGate: Equatable, Sendable {
 
     public init() {}
 
-    /// Returns whether this event differs enough from what was last shown
-    /// for its kind to be worth showing again.
-    public mutating func accept(_ kind: HUDKind) -> Bool {
+    /// Returns whether `kind` differs enough from what was last actually
+    /// *shown* for its channel to be worth showing again.
+    ///
+    /// A pure query: it does not update the baseline. Significance and
+    /// display are decided at different points -- attribution can still
+    /// suppress a change this reports as significant -- so committing here
+    /// would advance the baseline for a value the caller never displays.
+    /// Call `commitShown` separately, and only once the caller has
+    /// actually displayed `kind`.
+    public func isSignificant(_ kind: HUDKind) -> Bool {
         switch kind {
         case .mute:
             return true
         case .volume(let level):
-            return acceptLevel(.volume, level)
+            return isSignificantLevel(.volume, level)
         case .brightness(let level):
-            return acceptLevel(.brightness, level)
+            return isSignificantLevel(.brightness, level)
         }
     }
 
-    private mutating func acceptLevel(_ channel: Channel, _ level: Double) -> Bool {
-        guard let last = lastShown[channel] else {
-            lastShown[channel] = level
-            return true
+    private func isSignificantLevel(_ channel: Channel, _ level: Double) -> Bool {
+        guard let last = lastShown[channel] else { return true }
+        return abs(level - last) >= Self.threshold
+    }
+
+    /// Records `kind` as the value actually shown for its channel, so
+    /// future comparisons are against what is really on screen.
+    ///
+    /// Call this only when `kind` was actually displayed -- never merely
+    /// because `isSignificant` returned `true`, since a later filter (a
+    /// keypress attribution, for instance) may still keep it off screen.
+    public mutating func commitShown(_ kind: HUDKind) {
+        switch kind {
+        case .mute:
+            break
+        case .volume(let level):
+            lastShown[.volume] = level
+        case .brightness(let level):
+            lastShown[.brightness] = level
         }
-        guard abs(level - last) >= Self.threshold else { return false }
-        lastShown[channel] = level
-        return true
     }
 }
