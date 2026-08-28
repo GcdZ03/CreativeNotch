@@ -137,14 +137,15 @@ struct HUDControllerTests {
     ///   notifications are tied to a real backlight, and whether a runner's
     ///   virtual display supports them is unverified.
     ///
-    /// The `volume`/`brightness` preconditions are wrapped in
-    /// `withKnownIssue(isIntermittent: true)` so an absent device is
-    /// *attributed and visible* in the test output rather than either
-    /// failing the whole test (the old behaviour) or being silently
-    /// deleted (which would let `stop()` "pass" a source that never ran).
-    /// Deleting the preconditions outright was rejected: they exist to
-    /// stop this test passing for the wrong reason, a failure mode this
-    /// project has hit twice already.
+    /// The `volume`/`brightness` preconditions go through
+    /// `expectOrKnownHardwareIssue` (in `KnownHardwareIssue.swift`, shared
+    /// with `VolumeObserverTests` and `BrightnessObserverTests`) so an
+    /// absent device is *attributed and visible* in the test output rather
+    /// than either failing the whole test (the old behaviour) or being
+    /// silently deleted (which would let `stop()` "pass" a source that
+    /// never ran). Deleting the preconditions outright was rejected: they
+    /// exist to stop this test passing for the wrong reason, a failure
+    /// mode this project has hit twice already.
     ///
     /// Whether `stop()` actually did its job is still checked hard, but
     /// only for a source that is confirmed to have started — a source that
@@ -157,28 +158,22 @@ struct HUDControllerTests {
         controller.start()
 
         let keysStarted = controller.keys.isRunning
-        withKnownIssue(
-            "CGEventTapCreate fails without Accessibility granted to the process, which a CI runner cannot grant",
-            isIntermittent: true
-        ) {
-            #expect(keysStarted)
-        }
+        expectOrKnownHardwareIssue(
+            keysStarted,
+            "CGEventTapCreate fails without Accessibility granted to the process, which a CI runner cannot grant"
+        )
 
         let volumeStarted = controller.volume.isRunning
-        withKnownIssue(
-            "CI runners intermittently have no audio device (actions/runner-images#13668)",
-            isIntermittent: true
-        ) {
-            #expect(volumeStarted)
-        }
+        expectOrKnownHardwareIssue(
+            volumeStarted,
+            "CI runners intermittently have no audio device (actions/runner-images#13668)"
+        )
 
         let brightnessStarted = controller.brightness.isRunning
-        withKnownIssue(
-            "Whether a CI runner's virtual display supports DisplayServices brightness notifications is unverified",
-            isIntermittent: true
-        ) {
-            #expect(brightnessStarted)
-        }
+        expectOrKnownHardwareIssue(
+            brightnessStarted,
+            "Whether a CI runner's virtual display supports DisplayServices brightness notifications is unverified"
+        )
 
         controller.stop()
 
