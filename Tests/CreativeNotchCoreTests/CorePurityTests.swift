@@ -59,11 +59,23 @@ struct CorePurityTests {
         for file in Self.swiftFiles {
             let source = try String(contentsOf: file, encoding: .utf8)
             for line in source.split(separator: "\n") {
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                guard trimmed.hasPrefix("import ") else { continue }
-                let module = trimmed
+                var candidate = line.trimmingCharacters(in: .whitespaces)
+
+                // Strip any leading attributes (`@preconcurrency`,
+                // `@_implementationOnly`, `@testable`, …) before deciding
+                // whether this line is an import at all. Attributed imports
+                // are the house idiom (see Permissions.swift), so checking
+                // `hasPrefix("import ")` before stripping them let
+                // `@preconcurrency import AppKit` sail straight through.
+                while candidate.hasPrefix("@") {
+                    guard let spaceIndex = candidate.firstIndex(of: " ") else { break }
+                    candidate = String(candidate[candidate.index(after: spaceIndex)...])
+                        .trimmingCharacters(in: .whitespaces)
+                }
+
+                guard candidate.hasPrefix("import ") else { continue }
+                let module = candidate
                     .replacingOccurrences(of: "import ", with: "")
-                    .replacingOccurrences(of: "@preconcurrency ", with: "")
                     .trimmingCharacters(in: .whitespaces)
                 if banned.contains(module) {
                     offences.append("\(file.lastPathComponent) imports \(module)")
