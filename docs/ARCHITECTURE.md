@@ -281,7 +281,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-198 tests, all headless. `swift test` takes
+221 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -374,14 +374,17 @@ the project. The no-polling rule exists to stop monitors that fire
 continuously; this one fires only a few dozen times a day, on physical
 keypresses, and it exists purely to detect *that a keypress happened* for
 attribution — the level change itself is read from CoreAudio/DisplayServices,
-not from the key event. It needs Accessibility permission to actually
-receive events (though `NSEvent.addGlobalMonitorForEvents` installs
-regardless of whether it is granted). Without Accessibility, attribution
-**fails open**: the monitor never fires, `HUDAttribution` never sees a key
-timestamp to correlate against, and the notch reacts to every change,
-including ones caused by the keys. That is doubled feedback (Apple's HUD and
-the notch both showing), not silence — silence would be indistinguishable
-from the module being broken.
+not from the key event. A session `CGEventTap` does the listening, not
+`NSEvent.addGlobalMonitorForEvents`: instrumenting a live app showed the
+`NSEvent` monitor delivers **zero** system-defined events on macOS 26, even
+with Accessibility granted. Unlike that old monitor — which always returned a
+token and only had its *delivery* gated by Accessibility — `CGEventTapCreate`
+itself genuinely **fails** without Accessibility granted, returning no tap at
+all. Either way `onKey` never fires, so without Accessibility, attribution
+**fails open**: `HUDAttribution` never sees a key timestamp to correlate
+against, and the notch reacts to every change, including ones caused by the
+keys. That is doubled feedback (Apple's HUD and the notch both showing), not
+silence — silence would be indistinguishable from the module being broken.
 
 ## Deliberately absent
 

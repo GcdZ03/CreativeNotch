@@ -37,8 +37,8 @@ vanishing mid-drag) appearing far from the cause.
 correct for a foundation with no modules — it was never a defect, just
 unfinished wiring waiting on a real consumer. The system HUD module is that
 consumer: `HUDController` drives `PeekArbiter` through the coalesce →
-attribute → peek path, and `AppDelegate.peek()` no longer fabricates
-anything.
+significance → attribute → peek path, and `AppDelegate.peek()` no longer
+fabricates anything.
 
 ## Still unverified by any automated check
 

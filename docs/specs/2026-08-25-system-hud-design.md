@@ -150,6 +150,36 @@ threshold and does show, instead of being filtered away step by step.
 > when someone changes it. It does not, and no test would have questioned
 > that premise — it took a human watching the real app.
 
+### 3.4 Decision order
+
+The four filters run in a fixed sequence, each a hard gate on the next:
+
+```
+coalesce → significance → attribution → peek
+```
+
+**Coalesce first**, because CoreAudio's duplicate callback is a literal
+repeat of the same value — the cheapest thing to reject, and nothing
+downstream can distinguish it from a real change anyway. **Significance
+second**, because it is also a pure filter on the value alone and must run
+before attribution ever sees the ambient-light noise; letting 1729
+events/session reach attribution would just move the strobing problem one
+stage down. **Attribution last**, because it is the only stage that decides
+*whether this specific, already-confirmed-significant change came from a
+key* — running it earlier would mean correlating key timestamps against
+values that were never going to be shown regardless.
+
+The significance gate's **baseline commits only in the last stage**, once
+attribution has also passed and the change is about to be peeked —
+`HUDController.handle` calls `significanceGate.commitShown(kind)`
+immediately before `onPeek(kind)`, not immediately after
+`isSignificant(kind)` returns true. Committing one stage earlier, on mere
+significance, would advance the baseline for a change this suppresses for
+being key-driven; a later *genuine* external change landing within the
+1/32 threshold of that phantom baseline would then be silently dropped,
+even though nothing had ever actually appeared on screen. The baseline
+tracks what the notch has shown, not what merely passed one filter.
+
 ## 4. What the notch shows
 
 An icon and a level bar, mirroring what Apple's HUD conveys — the same
