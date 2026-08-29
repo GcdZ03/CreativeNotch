@@ -33,12 +33,14 @@ struct MediaControlsTests {
     /// Accessibility labels are how this is operated without sight, and
     /// the notch is small enough that the icons alone are ambiguous.
     @Test func theLabelsDescribeTheAction() {
-        let labels = Dictionary(
-            uniqueKeysWithValues: MediaControlsView.buttons.map { ($0.command, $0.label) }
-        )
-        #expect(labels[.previousTrack] == "Previous track")
-        #expect(labels[.togglePlayPause] == "Play or pause")
-        #expect(labels[.nextTrack] == "Next track")
+        // Use first(where:) for non-trapping lookup so duplicate commands fail cleanly
+        let previousLabel = MediaControlsView.buttons.first(where: { $0.command == .previousTrack })?.label
+        let playPauseLabel = MediaControlsView.buttons.first(where: { $0.command == .togglePlayPause })?.label
+        let nextLabel = MediaControlsView.buttons.first(where: { $0.command == .nextTrack })?.label
+
+        #expect(previousLabel == "Previous track")
+        #expect(playPauseLabel == "Play or pause")
+        #expect(nextLabel == "Next track")
     }
 
     /// The injected closure is what the panel wires to the bridge. If a
