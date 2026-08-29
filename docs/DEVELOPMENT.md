@@ -38,8 +38,17 @@ HUD and the file shelf both will):
 
 ```bash
 ./Scripts/setup-signing.sh
-export CODESIGN_IDENTITY="CreativeNotch Dev"   # add to your shell profile
 ```
+
+That is the whole setup. `bundle.sh` picks the identity up from your
+keychain by name, prints which one it used on every build, and warns
+loudly if it ever falls back to ad-hoc. Set `CODESIGN_IDENTITY` only to
+override it with a different certificate.
+
+> Earlier versions required you to `export CODESIGN_IDENTITY` yourself,
+> and silently signed ad-hoc when you forgot — revoking Accessibility
+> with nothing on screen to say so. A build in a fresh shell looked
+> completely normal and the media keys simply stopped being detected.
 
 **Why.** An ad-hoc signature's designated requirement is the hash of the
 code itself:
@@ -125,6 +134,20 @@ So, for every test you add:
 
 If you cannot make a test fail, it is not protecting anything — either
 rewrite it or rename it to describe what it actually checks.
+
+## The brightness noise floor is calibrated, not universal
+
+`HUDSignificanceGate.noiseFloor` (0.005) is what stops the ambient light
+sensor popping the HUD. It was measured on one M-series MacBook: 2063
+ambient steps, worst case 0.00326, against 0.0625 for a keypress.
+
+If the HUD pops on your hardware with nothing touched, that machine's
+sensor is noisier than the one this was calibrated against. Measure before
+changing the constant — `HUDNoiseFloorTests` pins it above the measured
+worst case, and lowering it silently brings the spurious HUDs back.
+
+Raising it too far costs the other direction: a Control Center drag whose
+steps fall under the floor stops showing entirely.
 
 ## Never sleep in a test
 

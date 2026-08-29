@@ -70,6 +70,27 @@ wherever macOS gives none — Control Center, Siri, another app — and stays
 silent for the physical keys, which macOS already covers with its own
 overlay.
 
+It draws into the **ears either side of the notch** — icon on the left,
+level bar on the right — so nothing is ever hidden behind the camera
+housing:
+
+```
+     ┌────┬─────────────┬──────┐
+═════│ ☀  │   notch     │▓▓▓░░ │═════   menu bar
+     └────┴─────────────┴──────┘
+```
+
+Notchless Macs get a single centred pill instead; there is no housing to
+work around, so two empty ears would be worse.
+
+It also ignores your **ambient light sensor**. Auto-brightness ramps the
+backlight constantly, and those are real changes — measured on an M-series
+MacBook doing nothing at all: 2301 events in one session. Changes smaller
+than 0.005 in a single step are treated as the sensor rather than as you.
+The trade-off is deliberate and worth knowing: a Control Center drag slower
+than about three seconds moves in steps too small to register, so it will
+not show.
+
 Clipboard history is the third, and the only one that genuinely polls. Fifty
 entries of text and images, in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
@@ -181,6 +202,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Change volume from Control Center, Siri, or another app | Peeks a speaker icon and level bar |
 | Change brightness from Control Center or another app | Peeks a sun icon and level bar |
 | Press the volume or brightness keys | Apple's own HUD appears; the notch stays silent |
+| Auto-brightness adjusts to the room | Nothing — the sensor is not you |
+| Drag the brightness slider very slowly (>3s end to end) | Nothing; the steps fall under the ambient noise floor |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last |
