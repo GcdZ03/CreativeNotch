@@ -275,6 +275,43 @@ to the no-polling rule, so it is the most tightly constrained.
 Most clipboard managers ignore `ConcealedType` and quietly write passwords
 to disk. Combined with in-memory-only storage, secrets never leave RAM.
 
+**Captured content.** Text and images. File URLs are the shelf's job — a URL
+entry would go stale the moment the original moved, and the shelf already
+solves that by copying.
+
+Both are capped per entry, and content over the cap is **skipped, never
+truncated**: a half-written string pastes back as corrupt data, which is
+worse than an absent entry.
+
+| Kind | Cap | Ring worst case |
+|---|---|---|
+| Text | 1 MB | 50 MB |
+| Image | 10 MB | 500 MB |
+
+The image ceiling is the real cost of this module. It is reachable only by
+copying fifty large images without ever quitting, and it is bounded, in
+memory, and dies with the process — but it is the number to revisit first if
+the app ever grows a persistence story.
+
+**Duplicates promote rather than append.** Copying something already in the
+ring moves that entry to the front and refreshes its timestamp. Fifty slots
+therefore hold fifty *distinct* things, and re-copying one value cannot flush
+the history.
+
+**Resuming from `.locked` or `.asleep` resyncs without capturing.** The
+poller is suspended across those states, so `changeCount` will have moved if
+anything was copied meanwhile. That new value is adopted as the baseline and
+its content is never read. Capturing it would mean recording whatever another
+session or a background process put on the pasteboard while the screen was
+locked — exactly the content this module has the least claim to.
+
+**Clicking an entry writes it back to the pasteboard and nothing more.** No
+synthesized paste keystroke: section 6 commits this module to needing no
+permission, and key synthesis would require Accessibility. The write is seen
+by the poller as an ordinary change, and promotion resolves it to the same
+entry returning to the front — the correct outcome, reached with no special
+case.
+
 ### 5.4 Media — out-of-process by necessity
 
 **Verified on macOS 26.6.2:** `mediaremoted` gates Now Playing reads by
