@@ -53,6 +53,19 @@ public final class AppState {
     @ObservationIgnored
     public var shelf: ShelfStore?
 
+    /// Set once at install, like `shelf`. `@ObservationIgnored` because
+    /// the store publishes its own changes — it is `@Observable`, so the
+    /// view redraws from the store rather than from this reference.
+    @ObservationIgnored
+    public var clipboard: ClipboardStore?
+
+    /// How the view asks for an entry to be put back on the pasteboard.
+    ///
+    /// A closure rather than a `ClipboardController` reference, so the
+    /// view layer never gains a way to start or stop the poller.
+    @ObservationIgnored
+    public var onPasteClipboard: ((ClipboardEntry) -> Void)?
+
     /// A list, not a single closure.
     ///
     /// It was one closure, which meant the second registration silently
@@ -171,9 +184,10 @@ public struct NotchRootView: View {
                 case .closed:
                     EmptyView()
 
-                case .open(.shelf):
-                    if let shelf = app.shelf {
-                        ShelfView(store: shelf)
+                case .open(let tab):
+                    VStack(spacing: 0) {
+                        PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
+                        openContent(for: tab)
                     }
 
                 case .receiving:
@@ -194,9 +208,28 @@ public struct NotchRootView: View {
                 // Through the funnel, like every other mutation.
                 switch app.state {
                 case .open:  app.transition(to: .closed)
-                default:     app.transition(to: .open(.shelf))
+                default:     app.transition(to: .open(app.lastOpenTab))
                 }
             }
+    }
+
+    @ViewBuilder
+    private func openContent(for tab: CreativeNotchCore.Tab) -> some View {
+        switch tab {
+        case .shelf:
+            if let shelf = app.shelf { ShelfView(store: shelf) }
+        case .clipboard:
+            if let clipboard = app.clipboard {
+                ClipboardView(store: clipboard) { entry in
+                    app.onPasteClipboard?(entry)
+                }
+            }
+        case .hud:
+            // Not built. `PanelTabBar.visible` does not offer this tab, so
+            // it is unreachable — but `Tab` is exhaustive and the compiler
+            // wants a case.
+            EmptyView()
+        }
     }
 
     private var label: String {
