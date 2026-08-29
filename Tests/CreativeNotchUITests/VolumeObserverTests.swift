@@ -53,23 +53,37 @@ struct VolumeObserverTests {
         let observer = VolumeObserver()
         #expect(observer.registrationCount == 0)
 
-        observer.start()
         // A host with no output device legitimately registers nothing, so
-        // only assert the relationship, not a specific count.
+        // the precondition is asserted softly and everything that only
+        // means something when it held is asserted hard, below. The
+        // earlier shape — `afterStart >= registrationCount` — was
+        // trivially true whenever the final count was 0, which is to say
+        // always: it passed with `start()` gutted entirely.
+        let hasDevice = observer.deviceProvider() != 0
+
+        observer.start()
         let afterStart = observer.registrationCount
 
         observer.stop()
         #expect(observer.registrationCount == 0)
-        #expect(afterStart >= observer.registrationCount)
+
+        expectOrKnownHardwareIssue(hasDevice, "no default output device on this host")
+        if hasDevice { #expect(afterStart > 0) }
     }
 
     @Test func startingTwiceDoesNotStackRegistrations() {
         let observer = VolumeObserver()
+        let hasDevice = observer.deviceProvider() != 0
+
         observer.start()
         let afterFirst = observer.registrationCount
         observer.start()
         #expect(observer.registrationCount == afterFirst)
         observer.stop()
+
+        // Without this, the equality above holds vacuously at 0 == 0.
+        expectOrKnownHardwareIssue(hasDevice, "no default output device on this host")
+        if hasDevice { #expect(afterFirst > 0) }
     }
 
     /// Reading the level must not depend on having started observing.
