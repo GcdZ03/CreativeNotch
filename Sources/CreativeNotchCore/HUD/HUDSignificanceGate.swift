@@ -57,6 +57,12 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     /// deliberately lags so that small deliberate steps can accumulate.
     private var lastObserved: [Channel: Double] = [:]
 
+    /// The mute state last actually shown. Mute carries no magnitude, so
+    /// neither the threshold nor the noise floor applies to it — without
+    /// this, every mute callback reached the screen, including a driver
+    /// re-notifying a state that had not changed.
+    private var lastShownMute: Bool?
+
     public init() {}
 
     /// Returns whether `kind` differs enough from what was last actually
@@ -70,8 +76,10 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     /// actually displayed `kind`.
     public func isSignificant(_ kind: HUDKind) -> Bool {
         switch kind {
-        case .mute:
-            return true
+        case .mute(let muted):
+            // Not "always significant": significant when it actually
+            // differs from what is on screen.
+            return lastShownMute != muted
         case .volume(let level):
             return isSignificantLevel(.volume, level)
         case .brightness(let level):
@@ -105,9 +113,17 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     }
 
     private func isAboveFloor(_ channel: Channel, _ level: Double) -> Bool {
-        // Nothing seen yet: the first change after launch must not be
-        // silently swallowed for want of a baseline.
-        guard let last = lastObserved[channel] else { return true }
+        // Nothing seen yet, so this event *is* the baseline — record it
+        // (via `commitObserved`) and show nothing.
+        //
+        // This returned `true` originally, on the reasoning that the first
+        // change after launch should be visible. Watching the real app
+        // disproved it: `start()` primes the baseline by reading the
+        // current level, that read can return nil when the framework is
+        // not yet ready, and the next ambient tick then became "the first
+        // thing ever seen" and popped a HUD half a second after launch —
+        // on some launches and not others.
+        guard let last = lastObserved[channel] else { return false }
         return abs(level - last) >= Self.noiseFloor
     }
 
@@ -132,8 +148,8 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     /// keypress attribution, for instance) may still keep it off screen.
     public mutating func commitShown(_ kind: HUDKind) {
         switch kind {
-        case .mute:
-            break
+        case .mute(let muted):
+            lastShownMute = muted
         case .volume(let level):
             lastShown[.volume] = level
         case .brightness(let level):

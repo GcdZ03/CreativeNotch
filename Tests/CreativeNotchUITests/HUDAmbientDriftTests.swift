@@ -44,10 +44,30 @@ struct HUDAmbientDriftTests {
         var peeks: [HUDKind] = []
         let controller = HUDController { peeks.append($0) }
 
+        controller.noteBaseline(.brightness(0.4))     // as start() would
         controller.handle(.brightness(0.5), at: 1000)
         controller.handle(.brightness(0.5 + 1.0 / 16.0), at: 1001)
 
         #expect(peeks.count == 2)
+    }
+
+    /// A machine that is already muted at launch must not announce it.
+    /// `lastShownMute` starts empty, so without priming the first mute
+    /// callback — which macOS can emit on a route or device change with
+    /// nothing having toggled — shows a speaker HUD for a state that was
+    /// already true.
+    @Test func anAlreadyMutedMachineDoesNotAnnounceItselfAtLaunch() {
+        var peeks: [HUDKind] = []
+        let controller = HUDController { peeks.append($0) }
+
+        controller.noteBaseline(.mute(true))          // as start() would
+        controller.handle(.mute(true), at: 1000)      // a redundant re-notification
+
+        #expect(peeks.isEmpty)
+
+        // An actual toggle still shows.
+        controller.handle(.mute(false), at: 1001)
+        #expect(peeks == [.mute(false)])
     }
 
     /// A drag is a stream of moderate steps, not one jump. It must still
@@ -56,6 +76,7 @@ struct HUDAmbientDriftTests {
         var peeks: [HUDKind] = []
         let controller = HUDController { peeks.append($0) }
 
+        controller.noteBaseline(.brightness(0.4))
         controller.handle(.brightness(0.5), at: 1000)
         peeks.removeAll()
 

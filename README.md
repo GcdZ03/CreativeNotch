@@ -203,6 +203,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Change brightness from Control Center or another app | Peeks a sun icon and level bar |
 | Press the volume or brightness keys | Apple's own HUD appears; the notch stays silent |
 | Auto-brightness adjusts to the room | Nothing — the sensor is not you |
+| Launch the app | Nothing; the current levels become the baseline |
+| A device or route change re-reports the same mute state | Nothing; only an actual toggle shows |
 | Drag the brightness slider very slowly (>3s end to end) | Nothing; the steps fall under the ambient noise floor |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |

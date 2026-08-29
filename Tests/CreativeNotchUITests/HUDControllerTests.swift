@@ -21,6 +21,8 @@ struct HUDControllerTests {
 
     @Test func aChangeFromElsewherePeeks() {
         let (controller, peeked) = makeController()
+        // What start() does on a real launch: the level already exists.
+        controller.noteBaseline(.volume(0.5))
         controller.handle(.volume(0.4), at: 100)
         #expect(peeked.value == [.volume(0.4)])
     }
@@ -34,6 +36,7 @@ struct HUDControllerTests {
 
     @Test func aChangeLongAfterAKeypressPeeksAgain() {
         let (controller, peeked) = makeController()
+        controller.noteBaseline(.volume(0.5))
         controller.noteKeyPress(at: 100)
         controller.handle(.volume(0.4), at: 105)
         #expect(peeked.value == [.volume(0.4)])
@@ -42,6 +45,7 @@ struct HUDControllerTests {
     /// CoreAudio fires twice per change; only one peek should result.
     @Test func duplicateCallbacksProduceOnePeek() {
         let (controller, peeked) = makeController()
+        controller.noteBaseline(.volume(0.5))
         controller.handle(.volume(0.4), at: 100)
         controller.handle(.volume(0.4), at: 100.001)
         #expect(peeked.value == [.volume(0.4)])
@@ -50,6 +54,7 @@ struct HUDControllerTests {
     @Test func aGenuineStreamOfValuesAllPeek() {
         // Dragging a slider: distinct values, all real.
         let (controller, peeked) = makeController()
+        controller.noteBaseline(.volume(0.30))
         controller.handle(.volume(0.40), at: 100)
         controller.handle(.volume(0.45), at: 100.01)
         controller.handle(.volume(0.50), at: 100.02)
@@ -58,6 +63,7 @@ struct HUDControllerTests {
 
     @Test func brightnessAndMuteBothPeek() {
         let (controller, peeked) = makeController()
+        controller.noteBaseline(.brightness(0.5))
         controller.handle(.brightness(0.6), at: 100)
         controller.handle(.mute(true), at: 101)
         #expect(peeked.value == [.brightness(0.6), .mute(true)])
@@ -69,10 +75,10 @@ struct HUDControllerTests {
     /// it from strobing the notch continuously.
     @Test func ambientDriftDoesNotPeek() {
         let (controller, peeked) = makeController()
-        controller.handle(.brightness(0.44905930), at: 100)
+        controller.handle(.brightness(0.44905930), at: 100)      // establishes the baseline
         controller.handle(.brightness(0.44898808), at: 100.016)
         controller.handle(.brightness(0.44891902), at: 100.032)
-        #expect(peeked.value == [.brightness(0.44905930)])
+        #expect(peeked.value.isEmpty, "drift must not reach the screen, first event included")
     }
 
     /// A slow slider drag accumulates small, individually-insignificant
@@ -80,7 +86,8 @@ struct HUDControllerTests {
     /// threshold, rather than being filtered away step by step forever.
     @Test func aSlowDragThroughTheControllerEventuallyPeeksAgain() {
         let (controller, peeked) = makeController()
-        controller.handle(.volume(0), at: 100)          // shown, baseline
+        controller.noteBaseline(.volume(0.5))            // as start() would
+        controller.handle(.volume(0), at: 100)           // shown
         controller.handle(.volume(0.02), at: 100.02)     // too small alone
         controller.handle(.volume(0.04), at: 100.04)     // 0.04 from 0
         #expect(peeked.value == [.volume(0), .volume(0.04)])
@@ -105,6 +112,7 @@ struct HUDControllerTests {
     /// this second, real change would be silently dropped.
     @Test func aSuppressedKeyDrivenChangeDoesNotAdvanceTheBaseline() {
         let (controller, peeked) = makeController()
+        controller.noteBaseline(.volume(0.2))            // as start() would
         controller.handle(.volume(0.5), at: 100)          // shown, baseline = 0.5
         controller.noteKeyPress(at: 100.1)
         controller.handle(.volume(0.5625), at: 100.12)    // key-driven, suppressed

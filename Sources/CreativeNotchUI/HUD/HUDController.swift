@@ -47,14 +47,37 @@ public final class HUDController {
         // be measured against, is treated as the first thing ever seen,
         // and pops a HUD for ambient drift that was already under way —
         // which is precisely the startup flicker this module must not have.
-        if let level = brightness.currentLevel() { noteBaseline(.brightness(level)) }
-        if let level = volume.currentLevel() { noteBaseline(.volume(level)) }
+        if let level = brightness.currentLevel() {
+            noteBaseline(.brightness(level))
+            diagnostics?.record("primed brightness baseline at \(level)")
+        } else {
+            diagnostics?.record("could NOT prime brightness baseline (currentLevel was nil)")
+        }
+        if let level = volume.currentLevel() {
+            noteBaseline(.volume(level))
+            diagnostics?.record("primed volume baseline at \(level)")
+        } else {
+            diagnostics?.record("could NOT prime volume baseline (currentLevel was nil)")
+        }
+        if let muted = volume.isMuted() {
+            noteBaseline(.mute(muted))
+            diagnostics?.record("primed mute baseline at \(muted)")
+        }
     }
 
-    /// Records a level as already-seen without showing anything, so the
-    /// noise floor has a real baseline to measure the next event against.
+    /// Records a value as already-seen without showing anything, so the
+    /// next event is measured against reality rather than against nothing.
+    ///
+    /// Mute takes the other path deliberately: it has no magnitude and so
+    /// no noise-floor baseline, and what must not repeat is the *shown*
+    /// state — otherwise the first mute callback after launch pops a HUD
+    /// for a state that has not changed.
     public func noteBaseline(_ kind: HUDKind) {
-        significanceGate.commitObserved(kind)
+        if case .mute = kind {
+            significanceGate.commitShown(kind)
+        } else {
+            significanceGate.commitObserved(kind)
+        }
     }
 
     public func stop() {
@@ -65,13 +88,29 @@ public final class HUDController {
 
     public func noteKeyPress(at time: TimeInterval) {
         lastKeyAt = time
+        diagnostics?.record("key pressed")
     }
+
+    /// Opt-in decision log, for working out why a peek appeared when
+    /// nobody touched anything.
+    ///
+    /// Off unless explicitly enabled, and it writes only when the HUD path
+    /// actually runs — so it costs nothing in a normal session:
+    ///
+    ///     defaults write com.gcdz.creativenotch HUDDiagnostics -bool YES
+    ///
+    /// Log: ~/Library/Logs/CreativeNotch-hud.log
+    let diagnostics = HUDDiagnostics.enabledFromDefaults()
 
     /// Time is a parameter, not a clock read, so the whole path is testable.
     public func handle(_ kind: HUDKind, at time: TimeInterval) {
+        diagnostics?.record("event \(kind)")
         // Duplicates first: CoreAudio fires twice per change, and letting
         // both through flickers the pill and restarts the peek TTL twice.
-        guard coalescer.accept(kind, at: time) else { return }
+        guard coalescer.accept(kind, at: time) else {
+            diagnostics?.record("  dropped: duplicate within \(HUDCoalescer.minimumInterval)s")
+            return
+        }
 
         // Then the noise floor: the ambient light sensor does not jitter,
         // it *ramps* — bursts of ~58 events a second that move the
@@ -87,11 +126,17 @@ public final class HUDController {
         // cross the floor anyway.
         let aboveFloor = significanceGate.isAboveNoiseFloor(kind)
         significanceGate.commitObserved(kind)
-        guard aboveFloor else { return }
+        guard aboveFloor else {
+            diagnostics?.record("  dropped: under the noise floor (ambient sensor)")
+            return
+        }
 
         // Then significance, which lets a series of small *deliberate*
         // steps accumulate until they are worth showing.
-        guard significanceGate.isSignificant(kind) else { return }
+        guard significanceGate.isSignificant(kind) else {
+            diagnostics?.record("  dropped: too small a change since the last one shown")
+            return
+        }
 
         // Apple's HUD already covers keypresses. Everywhere else, macOS
         // gives no feedback at all — that is the gap this fills.
@@ -102,9 +147,13 @@ public final class HUDController {
         // change this suppresses, and a later genuine external change
         // within the threshold of that phantom baseline would be silently
         // dropped even though it never appeared on screen.
-        guard !HUDAttribution.isKeyDriven(changeAt: time, lastKeyAt: lastKeyAt) else { return }
+        guard !HUDAttribution.isKeyDriven(changeAt: time, lastKeyAt: lastKeyAt) else {
+            diagnostics?.record("  dropped: attributed to a keypress, Apple's HUD covers it")
+            return
+        }
         significanceGate.commitShown(kind)
 
+        diagnostics?.record("  SHOWN")
         onPeek(kind)
     }
 }

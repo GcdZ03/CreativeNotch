@@ -75,13 +75,15 @@ struct HUDSignificanceGateTests {
         #expect(result)
     }
 
-    @Test func muteAlwaysShows() {
-        // Boolean, no magnitude — the threshold comparison does not apply.
+    /// Boolean, no magnitude — so the threshold does not apply, but
+    /// "always show" was too strong. A driver re-notifying the same mute
+    /// state popped a speaker HUD every time it did so.
+    @Test func muteShowsOnlyWhenItActuallyChanges() {
         var gate = HUDSignificanceGate()
         let first = gate.acceptAndCommitIfSignificant(.mute(true))
         #expect(first)
         let repeated = gate.acceptAndCommitIfSignificant(.mute(true))
-        #expect(repeated)
+        #expect(!repeated, "the same state must not show twice")
         let flipped = gate.acceptAndCommitIfSignificant(.mute(false))
         #expect(flipped)
     }

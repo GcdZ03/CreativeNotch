@@ -135,6 +135,22 @@ So, for every test you add:
 If you cannot make a test fail, it is not protecting anything — either
 rewrite it or rename it to describe what it actually checks.
 
+## Why did the HUD just appear?
+
+Turn on the decision log rather than guessing:
+
+```bash
+defaults write com.gcdz.creativenotch HUDDiagnostics -bool YES
+# relaunch, then:
+tail -f ~/Library/Logs/CreativeNotch-hud.log
+```
+
+Every event is logged with the filter that dropped it, or `SHOWN`. This
+found two spurious sources that reading the code had missed: a racy
+baseline priming that popped a HUD on some launches and not others, and
+`.mute` being exempt from every filter so a redundant re-notification
+popped a speaker HUD. Off by default.
+
 ## The brightness noise floor is calibrated, not universal
 
 `HUDSignificanceGate.noiseFloor` (0.005) is what stops the ambient light

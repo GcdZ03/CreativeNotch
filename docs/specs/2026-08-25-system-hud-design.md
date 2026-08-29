@@ -188,6 +188,43 @@ that, the first event after launch has nothing to measure against, is
 treated as the first thing ever seen, and pops a HUD for drift that was
 already under way.
 
+**Two more spurious sources, found by watching the shipped build.**
+*(Added 2026-08-29.)*
+
+The noise floor stopped ambient drift accumulating, and the notch still
+popped. An opt-in decision log in the running app found two causes that no
+amount of reading would have:
+
+**1. The baseline priming is racy.** `start()` primes by reading the
+current level, but that read can return `nil` — DisplayServices is not
+reliably ready the instant the observer starts. When it failed, the next
+ambient tick became "the first thing ever seen", passed every filter, and
+popped a HUD half a second after launch. It happened on one launch and not
+the next, which is exactly what "randomly appears" looks like from
+outside.
+
+The first event of a channel now *establishes* the baseline and is never
+shown, so the race cannot matter. Cost: one swallowed change if someone
+alters volume in the instant after launch.
+
+**2. `.mute` was exempt from every filter.** "Mute carries no magnitude,
+so the threshold does not apply" was true, but "always significant" did
+not follow. `commitShown` recorded nothing for mute, so a driver
+re-notifying an *unchanged* mute state — on a route change, a device
+switch, a wake — popped a speaker HUD every time. Mute is now significant
+only when it differs from the state last shown, and its baseline is primed
+at launch so an already-muted machine does not announce itself.
+
+**Diagnosing this class of bug.** Both were found with:
+
+```bash
+defaults write com.gcdz.creativenotch HUDDiagnostics -bool YES
+```
+
+which logs every event and the filter that dropped it to
+`~/Library/Logs/CreativeNotch-hud.log`. Off by default, costing one
+boolean read at launch.
+
 ### 3.35 Where the HUD is drawn
 
 *(Added 2026-08-29, after the shipped build was reported overlapping the

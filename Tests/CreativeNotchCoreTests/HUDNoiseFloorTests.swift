@@ -73,19 +73,64 @@ struct HUDNoiseFloorTests {
         #expect(gate.isAboveNoiseFloor(.brightness(0.5 + 1.0 / 16.0)))
     }
 
-    /// Nothing has been observed yet, so there is no previous value to be
-    /// noise relative to. Suppressing here would make the very first
-    /// change after launch invisible.
-    @Test func theFirstEventOfAChannelIsAlwaysAboveTheFloor() {
-        let gate = HUDSignificanceGate()
-        #expect(gate.isAboveNoiseFloor(.brightness(0.5)))
-        #expect(gate.isAboveNoiseFloor(.volume(0.5)))
+    /// The first event of a channel establishes the baseline and is never
+    /// shown.
+    ///
+    /// This used to return `true`, reasoning that suppressing it would
+    /// make the first change after launch invisible. Watching the real app
+    /// showed the opposite: `start()` primes the baseline by reading the
+    /// current level, but that read can come back `nil` — DisplayServices
+    /// is not always ready the instant the observer starts — and when it
+    /// does, the next ambient tick becomes "the first thing ever seen",
+    /// passes every filter, and pops a HUD half a second after launch.
+    /// Observed on one launch and not the next, which is exactly what
+    /// "randomly appears" looks like from outside.
+    ///
+    /// Establishing the baseline from the event itself makes the race
+    /// harmless. The cost is one swallowed change if someone alters volume
+    /// in the instant after launch, which is far cheaper than a pop nobody
+    /// asked for.
+    @Test func theFirstEventOfAChannelEstablishesTheBaselineSilently() {
+        var gate = HUDSignificanceGate()
+        #expect(!gate.isAboveNoiseFloor(.brightness(0.5)))
+        #expect(!gate.isAboveNoiseFloor(.volume(0.5)))
+
+        // ...and having established it, a real change still shows.
+        gate.commitObserved(.brightness(0.5))
+        #expect(gate.isAboveNoiseFloor(.brightness(0.5 + 1.0 / 16.0)))
+    }
+
+    /// Mute has no magnitude, so it cannot have a noise floor — but it
+    /// must not therefore be unfiltered. Every mute callback used to reach
+    /// the screen, because `isSignificant` returned `true` unconditionally
+    /// and `commitShown` recorded nothing. A driver re-notifying the same
+    /// state — on a route change, a device switch, a wake — popped a
+    /// speaker HUD each time, with nobody having touched anything.
+    @Test func aRepeatedMuteStateIsNotShownTwice() {
+        var gate = HUDSignificanceGate()
+        #expect(gate.isSignificant(.mute(true)))
+        gate.commitShown(.mute(true))
+
+        #expect(!gate.isSignificant(.mute(true)), "the same mute state must not show again")
+        #expect(gate.isSignificant(.mute(false)), "an actual toggle must still show")
+    }
+
+    /// Mute and the level channels must not interfere.
+    @Test func muteIsTrackedSeparatelyFromTheLevels() {
+        var gate = HUDSignificanceGate()
+        gate.commitShown(.mute(true))
+        gate.commitObserved(.volume(0.5))
+        gate.commitShown(.volume(0.5))
+        #expect(!gate.isSignificant(.mute(true)))
+        #expect(gate.isSignificant(.volume(0.9)))
     }
 
     /// Mute carries no magnitude, so a noise floor is meaningless for it.
     @Test func muteIsNeverFilteredAsNoise() {
         var gate = HUDSignificanceGate()
         gate.commitObserved(.mute(true))
+        // No magnitude, so the *floor* cannot apply — repetition is
+        // handled by the significance gate instead, above.
         #expect(gate.isAboveNoiseFloor(.mute(true)))
         #expect(gate.isAboveNoiseFloor(.mute(false)))
     }
