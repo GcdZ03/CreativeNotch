@@ -239,7 +239,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 359 tests, ~1s, no window server needed
+swift test           # 388 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -265,8 +265,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   147 tests
-  CreativeNotchUITests/     212 tests
+  CreativeNotchCoreTests/   164 tests
+  CreativeNotchUITests/     224 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -284,13 +284,17 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 In build order. Each module gets its own spec and plan before any code.
 
-1. **Media** — now-playing metadata and transport controls.
+1. **Media metadata** — now-playing title, artist, and artwork. Gated by
+   code-signing identifier and needs a `com.apple.*` helper process; deferred
+   to its own spike, spec, and plan. Transport controls (play/pause, next,
+   previous) already shipped without it.
 
-The system HUD and clipboard history have already shipped. See
+The system HUD, clipboard history, and media transport controls have
+already shipped. See
 [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md)
-for the HUD's design, and section 5.3 of
+for the HUD's design, section 5.3 of
 [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md)
-for the clipboard's.
+for the clipboard's, and section 5.4 of the same document for media.
 
 The clipboard is the only subsystem that genuinely polls, and the reason
 `SystemActivity` exists: a 50-entry in-memory ring, cleared on quit, with
@@ -335,7 +339,8 @@ Before module work starts, see
   the open-source notch app this category owes most to, and the reference
   for how a project like this presents itself.
 - [**mediaremote-adapter**](https://github.com/ungive/mediaremote-adapter) —
-  the technique the media module will depend on. Since macOS 15.4 the
+  the technique the deferred now-playing metadata module will depend on.
+  Since macOS 15.4 the
   `mediaremoted` daemon gates Now Playing reads by code-signing identifier;
   the adapter works around it by running a helper through system `perl`,
   which is signed as `com.apple.perl`. No SIP changes required.
