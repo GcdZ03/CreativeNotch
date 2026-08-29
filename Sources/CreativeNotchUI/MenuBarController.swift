@@ -13,19 +13,26 @@ public final class MenuBarController: NSObject {
     private var item: NSStatusItem?
     private var accessibilityItem: NSMenuItem?
     private var clearShelfItem: NSMenuItem?
+    private var clearClipboardItem: NSMenuItem?
 
     private let onShowOnboarding: () -> Void
     private let onClearShelf: () -> Void
     private let shelfCount: () -> Int
+    private let onClearClipboard: () -> Void
+    private let clipboardCount: () -> Int
 
     public init(
         onShowOnboarding: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
-        shelfCount: @escaping () -> Int
+        shelfCount: @escaping () -> Int,
+        onClearClipboard: @escaping () -> Void,
+        clipboardCount: @escaping () -> Int
     ) {
         self.onShowOnboarding = onShowOnboarding
         self.onClearShelf = onClearShelf
         self.shelfCount = shelfCount
+        self.onClearClipboard = onClearClipboard
+        self.clipboardCount = clipboardCount
     }
 
     public func install() {
@@ -56,6 +63,16 @@ public final class MenuBarController: NSObject {
         clear.isEnabled = shelfCount() > 0
         menu.addItem(clear)
         self.clearShelfItem = clear
+
+        let clearClipboard = NSMenuItem(
+            title: clearClipboardTitle(),
+            action: #selector(clearClipboard),
+            keyEquivalent: ""
+        )
+        clearClipboard.target = self
+        clearClipboard.isEnabled = clipboardCount() > 0
+        menu.addItem(clearClipboard)
+        self.clearClipboardItem = clearClipboard
 
         menu.addItem(.separator())
 
@@ -89,6 +106,16 @@ public final class MenuBarController: NSObject {
         onClearShelf()
     }
 
+    /// Read when the menu opens, never polled.
+    func clearClipboardTitle() -> String {
+        let count = clipboardCount()
+        return count == 0 ? "Clipboard is empty" : "Clear Clipboard (\(count))"
+    }
+
+    @objc func clearClipboard() {
+        onClearClipboard()
+    }
+
     @objc private func openOnboarding() {
         onShowOnboarding()
     }
@@ -103,5 +130,7 @@ extension MenuBarController: NSMenuDelegate {
         accessibilityItem?.title = Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted)
         clearShelfItem?.title = clearShelfTitle()
         clearShelfItem?.isEnabled = shelfCount() > 0
+        clearClipboardItem?.title = clearClipboardTitle()
+        clearClipboardItem?.isEnabled = clipboardCount() > 0
     }
 }

@@ -46,6 +46,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hud: HUDController?
     private var arbiter = PeekArbiter()
 
+    /// Internal rather than private so the wiring is provable.
+    private(set) var clipboard: ClipboardController?
+
     /// Overridable so the peek slot's timing is testable without a real
     /// clock or real sleeps -- a test advances this instead of waiting out
     /// the TTL, the same reason `dismissGrace` and `growthDelay` exist.
@@ -150,7 +153,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let menuBar = MenuBarController(
             onShowOnboarding: { [weak self] in self?.showOnboarding() },
             onClearShelf: { [weak self] in try? self?.shelf?.clear() },
-            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 }
+            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
+            onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
+            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 }
         )
         menuBar.install()
         self.menuBar = menuBar
@@ -166,11 +171,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let hud = HUDController { [weak self] kind in self?.showHUD(kind) }
         hud.start()
         self.hud = hud
+
+        clipboard?.start()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
         hud?.stop()
+        clipboard?.stop()
     }
 
     public func showOnboarding() {
@@ -206,6 +214,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelf = try? ShelfStore(directory: shelfDirectory)
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
+
+        // The ring is created here rather than at launch so the wiring
+        // path is testable without putting a window on screen, exactly as
+        // the shelf is. Starting the poller stays in
+        // `applicationDidFinishLaunching` — building a panel must not
+        // install a timer.
+        let clipboardStore = ClipboardStore()
+        let clipboard = ClipboardController(store: clipboardStore)
+        state.clipboard = clipboardStore
+        state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
+        self.clipboard = clipboard
 
         container.onDragEntered = { [weak self] in
             self?.arbiter.setDragActive(true)

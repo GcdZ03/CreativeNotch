@@ -45,11 +45,12 @@ struct CorePurityTests {
         // higher count that only a recursive walk reaches, plus asserting
         // that files which live *only* in a subdirectory are among those
         // scanned, together pin the walk to actually being recursive.
-        #expect(Self.swiftFiles.count >= 10)
+        #expect(Self.swiftFiles.count >= 16)
 
         let names = Set(Self.swiftFiles.map(\.lastPathComponent))
         #expect(names.contains("HUDAttribution.swift"))
         #expect(names.contains("ShelfStore.swift"))
+        #expect(names.contains("ClipboardStore.swift"))
     }
 
     @Test func theCoreImportsNoUIFramework() throws {

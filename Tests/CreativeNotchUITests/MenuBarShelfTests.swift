@@ -10,7 +10,9 @@ struct MenuBarShelfTests {
         let controller = MenuBarController(
             onShowOnboarding: {},
             onClearShelf: { cleared = true },
-            shelfCount: { 3 }
+            shelfCount: { 3 },
+            onClearClipboard: {},
+            clipboardCount: { 0 }
         )
         #expect(controller.clearShelfTitle() == "Clear Shelf (3)")
         controller.clearShelf()
@@ -21,7 +23,9 @@ struct MenuBarShelfTests {
         let controller = MenuBarController(
             onShowOnboarding: {},
             onClearShelf: {},
-            shelfCount: { 0 }
+            shelfCount: { 0 },
+            onClearClipboard: {},
+            clipboardCount: { 0 }
         )
         #expect(controller.clearShelfTitle() == "Shelf is empty")
     }
@@ -30,7 +34,9 @@ struct MenuBarShelfTests {
         let controller = MenuBarController(
             onShowOnboarding: {},
             onClearShelf: {},
-            shelfCount: { 1 }
+            shelfCount: { 1 },
+            onClearClipboard: {},
+            clipboardCount: { 0 }
         )
         #expect(controller.clearShelfTitle() == "Clear Shelf (1)")
     }
