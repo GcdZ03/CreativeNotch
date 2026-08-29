@@ -1793,7 +1793,9 @@ Expected: PASS, 20 tests.
 
 - [ ] **Step 5: Prove the tests bite**
 
-Move the skip-type guard to *after* the image and text reads. Build, run `swift test --filter PasteboardClipboardTests`. Expected: the three skip-type tests and `concealedSuppressesImagesAsWell` fail. Revert.
+Change the skip-type guard's predicate to `{ _ in false }`. Build, run `swift test --filter PasteboardClipboardTests`. Expected: the three skip-type tests and `concealedSuppressesImagesAsWell` fail. Revert.
+
+Note what this mutation does *not* prove. Moving the guard to after the image and text reads leaves every test passing, because both orderings return `nil` — the difference is only whether the content was materialised on the way there. The tests pin that the check happens; that it happens *first* is a code-structure property they cannot distinguish, and it rests on the comment and on review. Do not add a test that claims otherwise.
 
 Delete the file-URL guard. Build, run again. Expected: `copiedFilesAreLeftToTheShelf` fails. Revert.
 
