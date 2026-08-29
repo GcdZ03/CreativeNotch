@@ -376,8 +376,15 @@ before they were understood:
 - The now-playing client is frequently **not the obvious app** — a browser
   tab holding the media session will outrank a running music app.
 
-**Part two — metadata. Gated, and deferred to its own spike, spec and
-plan.** An ad-hoc-signed process gets nothing: not the track fields, not
+**Part two — metadata. Gated.**
+
+> **Superseded 2026-08-29** by
+> [`2026-08-29-media-metadata-design.md`](2026-08-29-media-metadata-design.md).
+> The gating claim below is confirmed, but the lifecycle described further
+> down — spawn on panel open, kill 30s after close — could not support the
+> ambient peek and was replaced. See that document for the design as built.
+
+An ad-hoc-signed process gets nothing: not the track fields, not
 even `MRMediaRemoteGetNowPlayingApplicationPID`, which answers `0` rather
 than the real pid. The `com.apple.*` helper route is genuinely required.
 
