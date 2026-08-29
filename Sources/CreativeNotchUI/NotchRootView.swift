@@ -176,24 +176,21 @@ public struct NotchRootView: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: app.state)
     }
 
-    /// A peek on real hardware is flush with the screen's top edge, so
-    /// only its bottom corners curve — the ears then read as growing out
-    /// of the notch rather than as a separate slab floating over it.
+    /// Derived from `NotchShape.cornerRadii` — the same tested function
+    /// that decides the drawn rect — rather than from a second `switch`
+    /// here. Two independent derivations of one shape is the exact shape
+    /// of this project's only Critical bug.
     private var backgroundShape: AnyShape {
-        guard app.anchor.isNotch else { return AnyShape(RoundedRectangle(cornerRadius: 14)) }
-        switch app.state {
-        case .closed:
-            return AnyShape(Rectangle())
-        case .peek:
-            return AnyShape(UnevenRoundedRectangle(
-                topLeadingRadius: 0,
-                bottomLeadingRadius: 14,
-                bottomTrailingRadius: 14,
-                topTrailingRadius: 0
-            ))
-        default:
-            return AnyShape(RoundedRectangle(cornerRadius: 14))
-        }
+        let r = NotchShape.cornerRadii(
+            presentation: app.state.presentation,
+            anchor: app.anchor
+        )
+        return AnyShape(UnevenRoundedRectangle(
+            topLeadingRadius: r.topLeading,
+            bottomLeadingRadius: r.bottomLeading,
+            bottomTrailingRadius: r.bottomTrailing,
+            topTrailingRadius: r.topTrailing
+        ))
     }
 
     private var shape: some View {

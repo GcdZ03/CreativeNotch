@@ -15,6 +15,52 @@ public enum NotchShape {
         case expanded
     }
 
+    /// The four corner radii the panel is drawn with.
+    public struct CornerRadii: Equatable, Sendable {
+        public var topLeading: CGFloat
+        public var bottomLeading: CGFloat
+        public var bottomTrailing: CGFloat
+        public var topTrailing: CGFloat
+
+        public init(
+            topLeading: CGFloat,
+            bottomLeading: CGFloat,
+            bottomTrailing: CGFloat,
+            topTrailing: CGFloat
+        ) {
+            self.topLeading = topLeading
+            self.bottomLeading = bottomLeading
+            self.bottomTrailing = bottomTrailing
+            self.topTrailing = topTrailing
+        }
+    }
+
+    /// How the panel's corners are rounded.
+    ///
+    /// Lives beside `visibleRect` because the panel's shape and its
+    /// rounding are one decision: a rect that hugs the notch and a radius
+    /// that ignores it produce exactly the artefact this fixes.
+    public static func cornerRadii(presentation: Presentation, anchor: Anchor) -> CornerRadii {
+        guard anchor.isNotch else {
+            // A pill floats below the menu bar with nothing to merge into.
+            let r = NotchGeometry.panelCornerRadius
+            return CornerRadii(topLeading: r, bottomLeading: r, bottomTrailing: r, topTrailing: r)
+        }
+
+        // Anything on a notch is flush with the screen's top edge, so its
+        // top corners never round — that would leave wedges of desktop
+        // showing above the panel.
+        let bottom = presentation == .closed
+            ? NotchGeometry.notchCornerRadius   // match the hardware cutout
+            : NotchGeometry.panelCornerRadius   // now it is a panel, not the notch
+        return CornerRadii(
+            topLeading: 0,
+            bottomLeading: bottom,
+            bottomTrailing: bottom,
+            topTrailing: 0
+        )
+    }
+
     /// Panel-local, bottom-left origin, y increasing upward — matching an
     /// unflipped `NSView`.
     public static func visibleRect(

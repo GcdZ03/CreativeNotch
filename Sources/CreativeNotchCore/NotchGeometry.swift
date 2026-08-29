@@ -13,6 +13,23 @@ public enum NotchGeometry {
     /// ears, so the notch itself is left alone. 110pt holds an 18pt icon
     /// or a readable bar without crowding the menu bar items either side.
     public static let peekEarWidth: CGFloat = 110
+
+    /// Approximates the radius of the hardware notch's bottom corners.
+    ///
+    /// The closed panel covers the notch's bounding box, but the cutout
+    /// itself is rounded — so square corners paint black over real display
+    /// pixels either side of the curve, and the panel shows as a
+    /// hard-edged rectangle instead of vanishing into the housing.
+    ///
+    /// macOS exposes no notch corner radius, so this is measured by eye
+    /// and deliberately errs large: too small leaves black corners
+    /// showing, while too large only reveals desktop pixels the panel was
+    /// never meant to cover in the first place.
+    public static let notchCornerRadius: CGFloat = 12
+
+    /// The panel's own corner styling, once it is large enough to read as
+    /// a panel rather than as the notch.
+    public static let panelCornerRadius: CGFloat = 14
     public static let expandedSize = CGSize(width: 620, height: 260)
 
     /// Resolves the anchor for a screen. Real notch when the hardware has
