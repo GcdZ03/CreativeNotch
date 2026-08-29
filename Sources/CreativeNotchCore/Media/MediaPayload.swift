@@ -49,6 +49,19 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
         return Data(base64Encoded: artworkBase64)
     }
 
+    /// The part of this payload the rest of the app models.
+    ///
+    /// `isPlaying` comes from the payload's own playback rate rather than
+    /// from notification ordering — the spike saw `playing` lag the real
+    /// state in the first notifications after a change.
+    ///
+    /// A payload with no title describes no track: that is how "nothing is
+    /// playing" arrives, and it becomes `nil` rather than an empty header.
+    public var snapshot: TrackSnapshot? {
+        guard !title.isEmpty || !artist.isEmpty else { return nil }
+        return TrackSnapshot(title: title, artist: artist, isPlaying: isPlaying)
+    }
+
     /// Returns `nil` for anything that is not a JSON object — including
     /// the helper's own stderr diagnostics, should they ever be routed
     /// here by mistake.
