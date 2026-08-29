@@ -25,12 +25,37 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     /// point, so boundary comparisons are exact.
     public static let threshold: Double = 0.03125
 
+    /// The smallest single step that can have come from a person.
+    ///
+    /// `threshold` alone is not enough, because it compares against the
+    /// last value *shown* and so lets tiny changes accumulate — which is
+    /// deliberate for a slow slider drag, and catastrophic for the ambient
+    /// light sensor, which ramps continuously and therefore accumulates
+    /// past the threshold on its own. Measured on an M-series MacBook with
+    /// nothing touched: 2301 events, 8 spurious HUDs.
+    ///
+    /// A rate gate cannot tell the two apart — an ambient ramp moves 0.046
+    /// in a second, as fast as a drag. Per-*event* step size can:
+    ///
+    ///   ambient, 2063 samples: median 0.00012 · p99.9 0.00193 · worst 0.00326
+    ///   a keypress or Control Center click: 0.0625 — 19x the worst ambient
+    ///
+    /// 0.005 leaves roughly 1.5x headroom over the worst ambient step
+    /// measured. The cost is a full-range drag slower than about three
+    /// seconds, whose steps fall under the floor and stop registering.
+    public static let noiseFloor: Double = 0.005
+
     private enum Channel: Hashable {
         case volume
         case brightness
     }
 
     private var lastShown: [Channel: Double] = [:]
+
+    /// Every level seen, shown or not — the baseline the noise floor
+    /// measures each new event against. Distinct from `lastShown`, which
+    /// deliberately lags so that small deliberate steps can accumulate.
+    private var lastObserved: [Channel: Double] = [:]
 
     public init() {}
 
@@ -57,6 +82,46 @@ public struct HUDSignificanceGate: Equatable, Sendable {
     private func isSignificantLevel(_ channel: Channel, _ level: Double) -> Bool {
         guard let last = lastShown[channel] else { return true }
         return abs(level - last) >= Self.threshold
+    }
+
+    /// Whether this event moved far enough in one step to have come from
+    /// a person rather than from the ambient light sensor.
+    ///
+    /// A pure query, like `isSignificant`: call `commitObserved` for
+    /// *every* event regardless of the answer. Skipping the commit for
+    /// filtered events would let ambient drift accumulate against a stale
+    /// baseline and eventually cross the floor anyway — reintroducing
+    /// exactly the bug this closes.
+    public func isAboveNoiseFloor(_ kind: HUDKind) -> Bool {
+        switch kind {
+        case .mute:
+            // No magnitude, so no noise floor applies.
+            return true
+        case .volume(let level):
+            return isAboveFloor(.volume, level)
+        case .brightness(let level):
+            return isAboveFloor(.brightness, level)
+        }
+    }
+
+    private func isAboveFloor(_ channel: Channel, _ level: Double) -> Bool {
+        // Nothing seen yet: the first change after launch must not be
+        // silently swallowed for want of a baseline.
+        guard let last = lastObserved[channel] else { return true }
+        return abs(level - last) >= Self.noiseFloor
+    }
+
+    /// Records `kind` as the most recent level seen for its channel,
+    /// whether or not it passed any filter. Call for every event.
+    public mutating func commitObserved(_ kind: HUDKind) {
+        switch kind {
+        case .mute:
+            break
+        case .volume(let level):
+            lastObserved[.volume] = level
+        case .brightness(let level):
+            lastObserved[.brightness] = level
+        }
     }
 
     /// Records `kind` as the value actually shown for its channel, so

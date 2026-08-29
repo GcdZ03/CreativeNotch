@@ -41,6 +41,20 @@ public final class HUDController {
         volume.start()
         brightness.start()
         keys.start()
+
+        // Prime the noise-floor baseline with the levels already in
+        // effect. Without this the first event after launch has nothing to
+        // be measured against, is treated as the first thing ever seen,
+        // and pops a HUD for ambient drift that was already under way —
+        // which is precisely the startup flicker this module must not have.
+        if let level = brightness.currentLevel() { noteBaseline(.brightness(level)) }
+        if let level = volume.currentLevel() { noteBaseline(.volume(level)) }
+    }
+
+    /// Records a level as already-seen without showing anything, so the
+    /// noise floor has a real baseline to measure the next event against.
+    public func noteBaseline(_ kind: HUDKind) {
+        significanceGate.commitObserved(kind)
     }
 
     public func stop() {
@@ -59,10 +73,24 @@ public final class HUDController {
         // both through flickers the pill and restarts the peek TTL twice.
         guard coalescer.accept(kind, at: time) else { return }
 
-        // Then significance: the ambient light sensor micro-adjusts the
-        // backlight roughly 60 times a second, and every value differs, so
-        // the coalescer above cannot catch it. Left unfiltered, the notch
-        // would strobe continuously.
+        // Then the noise floor: the ambient light sensor does not jitter,
+        // it *ramps* — bursts of ~58 events a second that move the
+        // backlight as fast as a slider drag does. Because the
+        // significance gate below compares against the last value shown,
+        // that ramp accumulates past the threshold on its own and pops a
+        // HUD nobody asked for: 8 of them in one measured session with
+        // nothing touched. Rate cannot separate ambient from deliberate;
+        // per-event step size can.
+        //
+        // Observed is committed for every event, filtered or not. Skipping
+        // it here would let drift accumulate against a stale baseline and
+        // cross the floor anyway.
+        let aboveFloor = significanceGate.isAboveNoiseFloor(kind)
+        significanceGate.commitObserved(kind)
+        guard aboveFloor else { return }
+
+        // Then significance, which lets a series of small *deliberate*
+        // steps accumulate until they are worth showing.
         guard significanceGate.isSignificant(kind) else { return }
 
         // Apple's HUD already covers keypresses. Everywhere else, macOS
