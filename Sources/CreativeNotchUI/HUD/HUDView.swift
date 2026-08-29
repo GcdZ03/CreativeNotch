@@ -10,25 +10,55 @@ import CreativeNotchCore
 struct HUDView: View {
     let kind: HUDKind
 
-    var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: symbol)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(.white.opacity(0.9))
-                .frame(width: 18)
+    /// Width of the physical notch to leave empty down the middle.
+    ///
+    /// Zero on a notchless Mac, where there is no camera housing to avoid
+    /// and the icon and bar can simply sit next to each other.
+    var notchGap: CGFloat = 0
 
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(.white.opacity(0.18))
-                    Capsule()
-                        .fill(.white.opacity(0.9))
-                        .frame(width: geometry.size.width * level)
-                }
+    var body: some View {
+        if notchGap > 0 {
+            // Icon in the left ear, bar in the right, nothing behind the
+            // notch. Both ears take an equal share of what is left, so the
+            // layout follows the real notch width on whatever Mac it is.
+            HStack(spacing: 0) {
+                icon
+                    .frame(maxWidth: .infinity)
+
+                Color.clear
+                    .frame(width: notchGap)
+
+                bar
+                    .padding(.trailing, 16)
+                    .frame(maxWidth: .infinity)
             }
-            .frame(height: 4)
+        } else {
+            HStack(spacing: 10) {
+                icon
+                bar
+            }
+            .padding(.horizontal, 22)
         }
-        .padding(.horizontal, 22)
+    }
+
+    private var icon: some View {
+        Image(systemName: symbol)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(.white.opacity(0.9))
+            .frame(width: 18)
+    }
+
+    private var bar: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.white.opacity(0.18))
+                Capsule()
+                    .fill(.white.opacity(0.9))
+                    .frame(width: geometry.size.width * level)
+            }
+        }
+        .frame(height: 4)
     }
 
     private var level: Double {

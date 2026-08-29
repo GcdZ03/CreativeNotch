@@ -97,8 +97,9 @@ struct AppDelegateStateFunnelTests {
         let delegate = makeDelegate()
 
         delegate.state.transition(to: .peek(.dragTarget))
-        // 320x44, centred on the notch, top-aligned: local midX 310.
-        #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
+        // The notch widened by one 110pt ear either side, keeping its own
+        // height: content sits beside the camera housing, not behind it.
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 85, y: 222, width: 450, height: 38))
 
         delegate.state.transition(to: .receiving)
         #expect(delegate.hoverView?.trackingRect == CGRect(x: 0, y: 0, width: 620, height: 260))
@@ -123,7 +124,7 @@ struct AppDelegateStateFunnelTests {
         delegate.hoverView?.onDwell()
 
         #expect(delegate.state.state.presentation == .peek)
-        #expect(delegate.hoverView?.trackingRect == CGRect(x: 150, y: 216, width: 320, height: 44))
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 85, y: 222, width: 450, height: 38))
     }
 
     @Test func aMouseExitEndsAHoverPeek() {

@@ -8,9 +8,9 @@ private let anchor = Anchor.notch(
 private let panel = CGRect(x: 415, y: 696, width: 620, height: 260)
 
 // Local closed rect for `anchor`: (205, 222, 230, 38) — minX 205, maxX 435,
-// minY 222, maxY 260. Peek widens to NotchGeometry.peekSize (320x44)
-// centred on the same midX, top-aligned: (160, 216, 320, 44) — minX 160,
-// maxX 480.
+// minY 222, maxY 260. Peek widens by one ear (110) either side and keeps
+// the notch's own height, so content lands beside the camera housing
+// rather than behind it: (95, 222, 450, 38) — minX 95, maxX 545.
 
 private let pillAnchor = Anchor.pill(
     CGRect(x: 500, y: 900, width: 180, height: 32)
@@ -28,10 +28,10 @@ private let pillAnchor = Anchor.pill(
 
 @Test func peekIsWiderThanClosedAndStillTopAligned() {
     let r = NotchShape.visibleRect(presentation: .peek, anchor: anchor, panelFrame: panel)
-    #expect(r.width == NotchGeometry.peekSize.width)
-    #expect(r.height == NotchGeometry.peekSize.height)
+    #expect(r.width == 230 + NotchGeometry.peekEarWidth * 2)
+    #expect(r.height == 38)     // the notch's own height, not a taller slab
     #expect(r.maxY == 260)
-    #expect(r.midX == 320)      // centred on the anchor: 205 + 230/2
+    #expect(r.midX == 320)      // still centred on the anchor: 205 + 230/2
 }
 
 @Test func expandedFillsThePanel() {
@@ -64,7 +64,7 @@ private let pillAnchor = Anchor.pill(
 // MARK: - Gap 1: .peek contains()
 
 @Test func peekClickInsideTheWidenedBandIsCaptured() {
-    // x=180 sits inside peek's centred band (minX 160, maxX 480) but
+    // x=180 sits inside peek's widened band (minX 95, maxX 545) but
     // outside the narrower closed notch rect (minX 205, maxX 435) — this
     // specifically catches a mutation where .peek falls through to the
     // .closed rect.
@@ -73,8 +73,8 @@ private let pillAnchor = Anchor.pill(
 }
 
 @Test func peekClickOutsideTheWidenedBandPassesThrough() {
-    // Just past peek's right edge (maxX 480).
-    let p = CGPoint(x: 490, y: 230)
+    // Just past peek's right edge (maxX 545).
+    let p = CGPoint(x: 560, y: 230)
     #expect(!NotchShape.visibleRect(presentation: .peek, anchor: anchor, panelFrame: panel).contains(p))
 }
 

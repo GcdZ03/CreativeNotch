@@ -176,8 +176,28 @@ public struct NotchRootView: View {
         .animation(.spring(response: 0.32, dampingFraction: 0.82), value: app.state)
     }
 
+    /// A peek on real hardware is flush with the screen's top edge, so
+    /// only its bottom corners curve — the ears then read as growing out
+    /// of the notch rather than as a separate slab floating over it.
+    private var backgroundShape: AnyShape {
+        guard app.anchor.isNotch else { return AnyShape(RoundedRectangle(cornerRadius: 14)) }
+        switch app.state {
+        case .closed:
+            return AnyShape(Rectangle())
+        case .peek:
+            return AnyShape(UnevenRoundedRectangle(
+                topLeadingRadius: 0,
+                bottomLeadingRadius: 14,
+                bottomTrailingRadius: 14,
+                topTrailingRadius: 0
+            ))
+        default:
+            return AnyShape(RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
     private var shape: some View {
-        RoundedRectangle(cornerRadius: app.anchor.isNotch && app.state == .closed ? 0 : 14)
+        backgroundShape
             .fill(.black)
             .overlay {
                 switch app.state {
@@ -196,7 +216,10 @@ public struct NotchRootView: View {
                         .foregroundStyle(.white.opacity(0.9))
 
                 case .peek(.hud(let event)):
-                    HUDView(kind: event.kind)
+                    HUDView(
+                        kind: event.kind,
+                        notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
+                    )
 
                 default:
                     Text(label)

@@ -34,6 +34,21 @@ public enum NotchShape {
             return local
 
         case .peek:
+            // On real hardware the peek grows sideways into the ears and
+            // keeps the notch's own height, so the icon and the bar land
+            // beside the camera housing instead of behind it. A centred
+            // slab put 72% of the level bar under the notch on a 14" Mac.
+            if anchor.isNotch {
+                let ear = NotchGeometry.peekEarWidth
+                return CGRect(
+                    x: local.minX - ear,
+                    y: local.minY,
+                    width: local.width + ear * 2,
+                    height: local.height
+                )
+            }
+            // A notchless Mac has nothing to avoid, so the pill keeps the
+            // original centred slab.
             let size = NotchGeometry.peekSize
             return CGRect(
                 x: local.midX - size.width / 2,

@@ -4,6 +4,15 @@ public enum NotchGeometry {
     public static let pillSize = CGSize(width: 180, height: 32)
     public static let pillTopGap: CGFloat = 8
     public static let peekSize = CGSize(width: 320, height: 44)
+
+    /// How far the peek extends past each side of a physical notch.
+    ///
+    /// The peek used to be a slab centred on the notch, which drew the
+    /// icon and the level bar straight into the camera housing — on a 14"
+    /// MacBook, 72% of the bar was invisible. Content now lives in these
+    /// ears, so the notch itself is left alone. 110pt holds an 18pt icon
+    /// or a readable bar without crowding the menu bar items either side.
+    public static let peekEarWidth: CGFloat = 110
     public static let expandedSize = CGSize(width: 620, height: 260)
 
     /// Resolves the anchor for a screen. Real notch when the hardware has

@@ -150,12 +150,81 @@ threshold and does show, instead of being filtered away step by step.
 > when someone changes it. It does not, and no test would have questioned
 > that premise — it took a human watching the real app.
 
+**Accumulation is not enough — the noise floor.** *(Added 2026-08-29, after
+the shipped build was reported popping brightness at random.)*
+
+Letting small changes accumulate is right for a slow slider drag and fatal
+for ambient light, because the sensor does not jitter — it **ramps**. Two
+things in the paragraph above are wrong. Ambient is not a steady 60/sec
+trickle of `0.00007`; it arrives in **bursts** of ~58/sec, and it is not
+"three orders of magnitude below" the threshold once it accumulates:
+
+| window | ambient movement | vs. the 1/32 threshold |
+|---|---|---|
+| 0.25s | 0.023 | 0.75× |
+| 1s | 0.046 | **1.5× — fires** |
+
+Measured on an M-series MacBook with nothing touched: **2301 events, 8
+spurious HUDs.** A rate gate cannot fix this — an ambient ramp climbs as
+fast as a real drag, giving at best 1.3× margin. Per-*event* step size can:
+
+| source | per-event step | vs. worst ambient |
+|---|---|---|
+| ambient, median (2063 samples) | 0.00012 | — |
+| ambient, worst | 0.00326 | — |
+| keypress / Control Center click | 0.0625 | **19×** |
+
+So a fifth filter sits ahead of significance: a change moving less than
+**0.005 in a single step** never reaches the significance gate, and so can
+never accumulate. Everything above the floor accumulates exactly as before.
+
+The cost is stated rather than hidden: **a full-range drag slower than
+about three seconds no longer shows.** The floor is also calibrated against
+one machine's sensor; hardware whose ambient floor exceeds 0.005 would need
+it raised.
+
+`start()` primes the baseline from the level already in effect. Without
+that, the first event after launch has nothing to measure against, is
+treated as the first thing ever seen, and pops a HUD for drift that was
+already under way.
+
+### 3.35 Where the HUD is drawn
+
+*(Added 2026-08-29, after the shipped build was reported overlapping the
+notch.)*
+
+The peek was a 320×44 slab centred on the notch and top-aligned with it.
+On a 14" MacBook — a 179×32 notch — that put **72% of the level bar behind
+the camera housing**, and the content's vertical centre 22pt down, inside
+the notch's own 32pt band. Only two 70pt slivers of bar were visible.
+
+The peek now widens into an **ear** either side of the notch
+(`NotchGeometry.peekEarWidth`, 110pt) and keeps the notch's own height:
+
+```
+     ┌────┬─────────────┬──────┐
+═════│ ☀  │   notch     │▓▓▓░░ │═════   menu bar
+     └────┴─────────────┴──────┘
+       ↑                   ↑
+   left ear: icon    right ear: level bar
+```
+
+The icon takes the left ear, the bar the right, and nothing is drawn
+behind the notch. Ears split whatever is left after the real notch width,
+so the layout follows the hardware rather than assuming one Mac. Only the
+bottom corners are rounded, since the peek is flush with the screen's top
+edge — it should read as growing out of the notch, not floating over it.
+
+A notchless Mac keeps the original centred slab: there is no camera
+housing to avoid, and sprouting two empty ears around nothing would be
+worse.
+
 ### 3.4 Decision order
 
 The four filters run in a fixed sequence, each a hard gate on the next:
 
 ```
-coalesce → significance → attribution → peek
+coalesce → noise floor → significance → attribution → peek
 ```
 
 **Coalesce first**, because CoreAudio's duplicate callback is a literal
