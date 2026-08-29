@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-359-brightgreen" alt="359 tests">
+  <img src="https://img.shields.io/badge/tests-388-brightgreen" alt="388 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -48,7 +48,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. Three of the four modules are built.**
+**The foundation is complete. All four modules are built.**
 
 | | |
 |---|---|
@@ -58,7 +58,7 @@ distributed, not sold, and not on the App Store.
 | ✅ Menu bar item, first-launch onboarding | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ **System HUD** — volume and brightness in the notch, alongside Apple's | Built |
-| ⬜ Media controls | Planned |
+| ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
@@ -96,6 +96,14 @@ entries of text and images, in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
 content is read. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
+
+Media controls are the fourth: play/pause, next and previous, sent through
+the private MediaRemote framework to whatever application holds the media
+session. They ship **without now-playing metadata** — no title, artist, or
+artwork, and no play/pause state on the button. Reading that information
+through the same framework is gated by code-signing identifier and needs a
+`com.apple.*` helper process this app cannot become; that read is deferred
+to its own module.
 
 ---
 
@@ -212,6 +220,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Switch to the Clipboard tab | Shows what you have copied, newest first |
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |
 | Click it again | Closes it |
+| Click the media buttons in the panel | Controls whatever is playing |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |

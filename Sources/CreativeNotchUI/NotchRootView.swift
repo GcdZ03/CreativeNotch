@@ -66,6 +66,23 @@ public final class AppState {
     @ObservationIgnored
     public var onPasteClipboard: ((ClipboardEntry) -> Void)?
 
+    /// How the media buttons reach `MediaRemoteBridge`.
+    ///
+    /// A closure rather than calling the bridge from the view, for the
+    /// same reason `onPasteClipboard` is one: it keeps a real transport
+    /// command — which changes playback on the machine — out of anything
+    /// a test constructs.
+    @ObservationIgnored
+    public var onMediaCommand: ((MediaCommand) -> Void)?
+
+    /// Whether to show the media row at all.
+    ///
+    /// Set once at install from `MediaRemoteBridge.isAvailable`. Buttons
+    /// that resolve to nothing would look identical to working ones and
+    /// silently do nothing, which is worse than not offering them.
+    @ObservationIgnored
+    public var showsMediaControls: Bool = false
+
     /// A list, not a single closure.
     ///
     /// It was one closure, which meant the second registration silently
@@ -203,6 +220,9 @@ public struct NotchRootView: View {
 
                 case .open(let tab):
                     VStack(spacing: 0) {
+                        if app.showsMediaControls {
+                            MediaControlsView { app.onMediaCommand?($0) }
+                        }
                         PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
                         openContent(for: tab)
                     }

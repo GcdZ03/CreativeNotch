@@ -226,6 +226,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
         self.clipboard = clipboard
 
+        // No object to own: `MediaRemoteBridge` is stateless beyond its
+        // cached handle, and there is nothing to start or stop. Unlike the
+        // HUD and clipboard controllers it needs no lifecycle hook in
+        // `applicationDidFinishLaunching` or `applicationWillTerminate` —
+        // a command is sent only because a button was clicked.
+        state.showsMediaControls = MediaRemoteBridge.isAvailable
+        state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
+
         container.onDragEntered = { [weak self] in
             self?.arbiter.setDragActive(true)
             self?.state.transition(to: .receiving)
