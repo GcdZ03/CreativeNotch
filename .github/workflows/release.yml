@@ -101,6 +101,17 @@ jobs:
             works, but you will see both overlays at once when you use the
             keys.
 
+            It also ignores your **ambient light sensor**. Auto-brightness
+            changes the backlight constantly, and those are real changes —
+            2301 of them measured in one session with nothing touched. The
+            notch stays quiet for them. The trade-off: a Control Center
+            brightness drag slower than about three seconds moves in steps
+            too small to register, and will not show.
+
+            The HUD draws into the **ears either side of the notch** —
+            icon left, level bar right — so nothing sits behind the camera
+            housing. Notchless Macs get a single centred pill.
+
             ## Install
 
             ```bash
