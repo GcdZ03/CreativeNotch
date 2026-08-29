@@ -104,4 +104,42 @@ struct VolumeObserverTests {
         #expect(observer.isWatchingForDefaultDeviceChanges)
         #expect(observer.isRunning == false)   // no device: nothing else could start
     }
+
+    /// The regression this fixes: `start()` moved the system-listener
+    /// registration ahead of the `guard device != 0` check, but `stop()`
+    /// still opened with `guard isRunning else { return }` -- a guard whose
+    /// invariant that move broke. A device-less `start()` leaves
+    /// `isRunning == false` while the system listener is installed, so the
+    /// old `stop()` no-oped and leaked it.
+    @Test func stopTearsDownTheSystemListenerEvenAfterADeviceLessStart() {
+        let observer = VolumeObserver()
+        observer.deviceProvider = { AudioDeviceID(0) }
+        observer.start()
+        #expect(observer.isWatchingForDefaultDeviceChanges)   // sanity: precondition holds
+
+        observer.stop()
+
+        #expect(observer.isWatchingForDefaultDeviceChanges == false)
+    }
+
+    /// Worse than a leak: because the old `stop()` left the system listener
+    /// installed, a later default-device change would fire it and call
+    /// `self.stop(); self.start()` -- and if a device now existed, `start()`
+    /// would flip `isRunning` back to `true`, resurrecting an observer the
+    /// caller believed was stopped. `simulateDefaultDeviceChange()` fires
+    /// the exact block CoreAudio would, without needing a real device
+    /// change on demand.
+    @Test func stopPreventsADeviceChangeFromResurrectingTheObserver() {
+        let observer = VolumeObserver()
+        var device = AudioDeviceID(0)
+        observer.deviceProvider = { device }
+        observer.start()             // device-less: isRunning stays false
+        observer.stop()               // must tear down the system listener
+
+        device = AudioDeviceID(9999)  // pretend a default device now exists
+        observer.simulateDefaultDeviceChange()
+
+        #expect(observer.isRunning == false)
+        #expect(observer.isWatchingForDefaultDeviceChanges == false)
+    }
 }

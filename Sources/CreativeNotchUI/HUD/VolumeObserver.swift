@@ -91,14 +91,15 @@ public final class VolumeObserver {
     }
 
     public func stop() {
-        guard isRunning else { return }
-        for var registration in registrations {
-            AudioObjectRemovePropertyListenerBlock(
-                device, &registration.address, DispatchQueue.main, registration.block
-            )
-        }
-        registrations.removeAll()
-
+        // Torn down unconditionally, ahead of the `isRunning` guard below.
+        // `start()` now installs this listener *before* the device guard,
+        // so a device-less start leaves `systemRegistration != nil` while
+        // `isRunning` is still `false`. A guard here that bailed out before
+        // reaching this would leave the CoreAudio listener installed past
+        // `stop()` -- and worse, a later default-device change would fire
+        // the block, call `stop()` (a no-op, on the very guard this is
+        // fixing) and then `start()`, resurrecting an observer the caller
+        // believed was stopped.
         if var systemRegistration {
             AudioObjectRemovePropertyListenerBlock(
                 AudioObjectID(kAudioObjectSystemObject),
@@ -109,7 +110,28 @@ public final class VolumeObserver {
         }
         systemRegistration = nil
 
+        guard isRunning else { return }
+        for var registration in registrations {
+            AudioObjectRemovePropertyListenerBlock(
+                device, &registration.address, DispatchQueue.main, registration.block
+            )
+        }
+        registrations.removeAll()
+
         isRunning = false
+    }
+
+    /// Invokes the installed default-device-change handler directly, the
+    /// same block CoreAudio itself would call when the default output
+    /// device changes. Exposed only so the resurrection path -- `stop()`
+    /// failing to remove this listener, then a later device change firing
+    /// it and restarting an observer the caller believed was stopped -- is
+    /// provable without a real, on-demand hardware device change.
+    func simulateDefaultDeviceChange() {
+        guard let systemRegistration else { return }
+        withUnsafePointer(to: systemRegistration.address) { address in
+            systemRegistration.block(1, address)
+        }
     }
 
     public func currentLevel() -> Double? {
