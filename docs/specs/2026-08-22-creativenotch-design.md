@@ -360,9 +360,12 @@ technique (BSD-3) is viable and requires no SIP changes.
 truthed against a real player: `pause` and `togglePlayPause` both took
 effect in both directions. No helper, no subprocess, no third-party code,
 so the no-dependencies rule is untouched. `nextTrack` and `previousTrack`
-are the same call with a different constant and are expected to behave
-identically, but were not sent — doing so moves the user's queue position
-— so they are inferred rather than proven.
+are the same call with a different constant; they were not sent as part of
+the original spike, because doing so moves the user's queue position, but
+were subsequently verified during this plan's Step 9 real-app check —
+sent against Spotify with its AppleScript state as independent ground
+truth, moving the track forward twice and back once as expected. All three
+commands are now verified, not inferred.
 
 Two traps recorded by the spike, both of which produced wrong conclusions
 before they were understood:

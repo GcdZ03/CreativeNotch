@@ -7,10 +7,11 @@ import Testing
 /// These numbers are not documented by Apple and cannot be checked by the
 /// compiler — a wrong one silently sends a different command, or none.
 /// They are pinned here against what
-/// `docs/research/2026-08-29-media-feasibility.md` actually verified.
+/// `docs/research/2026-08-29-media-feasibility.md` actually verified,
+/// including the later verification of `nextTrack` and `previousTrack`.
 struct MediaCommandTests {
 
-    @Test func theConstantsAreWhatTheSpikeVerified() {
+    @Test func theConstantsAreWhatWasVerifiedAgainstARealPlayer() {
         #expect(MediaCommand.togglePlayPause.rawValue == 2)
         #expect(MediaCommand.nextTrack.rawValue == 4)
         #expect(MediaCommand.previousTrack.rawValue == 5)
@@ -24,15 +25,5 @@ struct MediaCommandTests {
         let values = MediaCommand.allCases.map(\.rawValue).sorted()
         #expect(values == [2, 4, 5])
         #expect(values.contains(3) == false)
-    }
-
-    /// The spike sent togglePlayPause and confirmed it both ways against a
-    /// real player. It did not send next or previous, because doing so
-    /// moves the user's queue position. That distinction is recorded in
-    /// the type so it cannot quietly be forgotten.
-    @Test func onlyTogglePlayPauseIsProven() {
-        #expect(MediaCommand.togglePlayPause.isVerified)
-        #expect(MediaCommand.nextTrack.isVerified == false)
-        #expect(MediaCommand.previousTrack.isVerified == false)
     }
 }

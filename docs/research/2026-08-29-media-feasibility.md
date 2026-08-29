@@ -94,11 +94,18 @@ Spotify's AppleScript interface as independent ground truth:
 | `1` (pause), while playing | `true` | `playing` → **`paused`** |
 | `2` (togglePlayPause), while paused | `true` | `paused` → **`playing`** |
 | `2` (togglePlayPause), while playing | `true` | `playing` → **`paused`** |
+| `4` (nextTrack) | `true` | 跳楼机 → **Break My Heart** |
+| `4` (nextTrack) | `true` | Break My Heart → **Wait** |
+| `5` (previousTrack) | `true` | Wait → **Break My Heart** |
 
-**Not verified:** `4` (nextTrack) and `5` (previousTrack). Same function,
-different constant, so they are expected to behave identically — but they
-were not sent, because doing so moves the user's queue position. Treat
-them as inferred rather than proven.
+At the time this spike ran, `4` (nextTrack) and `5` (previousTrack) were
+not sent, because doing so moves the user's queue position — they were
+treated as inferred rather than proven. They were subsequently verified
+during the plan's Step 9 real-app check, sent from an ad-hoc-signed binary
+against Spotify with its AppleScript state as independent ground truth (the
+rows above). Both moved the track as expected, in both directions. That
+verification happened later than this spike, not as part of it; this
+document is left as the dated record of what the spike itself covered.
 
 ## ⚠️ `SendCommand`'s return value means "dispatched", not "obeyed"
 
