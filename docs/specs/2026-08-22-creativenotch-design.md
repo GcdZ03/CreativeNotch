@@ -283,15 +283,31 @@ Both are capped per entry, and content over the cap is **skipped, never
 truncated**: a half-written string pastes back as corrupt data, which is
 worse than an absent entry.
 
-| Kind | Cap | Ring worst case |
-|---|---|---|
-| Text | 1 MB | 50 MB |
-| Image | 10 MB | 500 MB |
+| Kind | Per-entry cap |
+|---|---|
+| Text | 1 MB |
+| Image | 10 MB |
 
-The image ceiling is the real cost of this module. It is reachable only by
-copying fifty large images without ever quitting, and it is bounded, in
-memory, and dies with the process — but it is the number to revisit first if
-the app ever grows a persistence story.
+**Images are stored as PNG, transcoded at capture if they arrive as TIFF.**
+`NSPasteboard` TIFF is uncompressed — roughly `width × height × 4` bytes —
+so a 14" MacBook Pro full-screen grab reaches the pasteboard at about 24 MB.
+Judged at that size it would fail the 10 MB cap and be silently dropped,
+which is the wrong answer for the single most common thing this app will be
+asked to remember. Re-encoded first, the same image is a couple of megabytes
+and is kept. **The cap applies to what the ring will actually hold**, not to
+what the pasteboard handed over.
+
+The transcode runs on the main actor at roughly 50–150 ms for a large image.
+Image copies are rare enough that this should not be visible; if it ever is,
+it moves off the main actor — after a measurement, not before.
+
+**The ring is also capped in total, at 100 MB.** A count cap alone bounds it
+at fifty times the per-entry image cap, which is half a gigabyte resident for
+the life of the process. Transcoding makes the typical entry roughly a tenth
+of its raw size; the total budget is the guarantee that holds even when it
+does not, since a screenshot of noise compresses to nothing at all. Over
+budget, the oldest entries are evicted until the ring is back under it — the
+entry just copied is never the one evicted.
 
 **Duplicates promote rather than append.** Copying something already in the
 ring moves that entry to the front and refreshes its timestamp. Fifty slots

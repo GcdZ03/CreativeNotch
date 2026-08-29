@@ -53,7 +53,191 @@ This plan also discharges the `SystemActivity` deferral recorded in `docs/plans/
 | `Clipboard/ClipboardView.swift` | The list, its thumbnails, and click-to-copy-back |
 | `PanelTabBar.swift` | The shelf / clipboard switcher inside the open panel |
 
-**Modified:** `NotchRootView.swift` (clipboard case, tab bar, last-tab memory), `MenuBarController.swift` (clear item), `AppDelegate.swift` (lifecycle wiring), `CorePurityTests.swift` (recursion anchors), `MenuBarControllerTests.swift` (new init arguments), `README.md`.
+**Modified:** `ShelfStore.swift` (`@Observable`, Task 0), `NotchRootView.swift` (clipboard case, tab bar, last-tab memory), `MenuBarController.swift` (clear item), `AppDelegate.swift` (lifecycle wiring), `CorePurityTests.swift` (recursion anchors), `MenuBarShelfTests.swift` (new init arguments), `README.md`.
+
+Task 0 is a prerequisite bug fix rather than part of the module. It is first, and in its own commit, for the reasons given there.
+
+---
+
+### Task 0: Make `ShelfStore` observable — a prerequisite bug fix
+
+**Not part of the clipboard module.** It lands here, first and in its own
+commit, because this plan adds a second store whose view has the same
+requirement, and shipping the fix for one while leaving the identical bug
+in the other is not defensible.
+
+**The bug.** `AppState` is the only `@Observable` type in the project.
+`ShelfStore` is a plain `@MainActor final class`, and `ShelfView` holds
+`let store: ShelfStore` and reads `store.items` in its body — so SwiftUI
+has no signal when `items` changes.
+
+It looks like it works because the drop handler ends with
+`state.transition(to: .open(.shelf))`, and *that* invalidates
+`NotchRootView`, which rebuilds `ShelfView` from scratch. The view is
+refreshed by the state change, not by the store.
+
+The path with no state change is `AppDelegate.swift:152`:
+
+```swift
+onClearShelf: { [weak self] in try? self?.shelf?.clear() },
+```
+
+Open the panel on the shelf, clear it from the menu bar, and the files go
+to the Trash while their thumbnails stay on screen.
+
+The comment on `AppState.shelf` asserts the store "publishes its own
+changes". Today it does not. This makes the comment true rather than
+deleting it.
+
+**Files:**
+- Modify: `Sources/CreativeNotchCore/Shelf/ShelfStore.swift`
+- Modify: `Sources/CreativeNotchUI/NotchRootView.swift` (the inaccurate comment)
+- Create: `Tests/CreativeNotchCoreTests/ShelfStoreObservationTests.swift`
+
+**Interfaces:**
+- Consumes: nothing.
+- Produces: no API change. `ShelfStore` gains `@Observable`.
+
+- [ ] **Step 1: Write the failing tests**
+
+Create `Tests/CreativeNotchCoreTests/ShelfStoreObservationTests.swift`:
+
+```swift
+import Foundation
+import Observation
+import Testing
+@testable import CreativeNotchCore
+
+/// `ShelfView` reads `store.items` in its body and holds the store as a
+/// plain `let`. Without `@Observable` on the store, SwiftUI has no way to
+/// learn that `items` changed.
+///
+/// The bug that hides this: every *drop* is followed by
+/// `state.transition(to: .open(.shelf))`, and `AppState` is observable —
+/// so the view is rebuilt by the state change and appears to track the
+/// store. The menu bar's "Clear Shelf" performs no transition, so an open
+/// shelf keeps showing items whose files are already in the Trash.
+///
+/// `withObservationTracking` is the same mechanism SwiftUI uses, so this
+/// tests the real question rather than a proxy for it.
+@MainActor
+struct ShelfStoreObservationTests {
+
+    private func makeStore() throws -> ShelfStore {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotchShelfObs-\(UUID().uuidString)")
+        return try ShelfStore(directory: directory)
+    }
+
+    @Test func addingAnItemNotifiesObservers() throws {
+        let store = try makeStore()
+        var notified = false
+
+        withObservationTracking {
+            _ = store.items
+        } onChange: {
+            notified = true
+        }
+
+        try store.add(.text("hello"), now: Date())
+
+        #expect(notified, "a shelf view reading items must be told when one is added")
+    }
+
+    /// The path with no accompanying state transition — the one that is
+    /// visibly broken today.
+    @Test func clearingNotifiesObservers() throws {
+        let store = try makeStore()
+        try store.add(.text("hello"), now: Date())
+
+        var notified = false
+        withObservationTracking {
+            _ = store.items
+        } onChange: {
+            notified = true
+        }
+
+        try store.clear()
+
+        #expect(notified, "clearing from the menu bar must refresh an open shelf")
+    }
+
+    @Test func removingAnItemNotifiesObservers() throws {
+        let store = try makeStore()
+        let item = try store.add(.text("hello"), now: Date())
+
+        var notified = false
+        withObservationTracking {
+            _ = store.items
+        } onChange: {
+            notified = true
+        }
+
+        try store.remove(item.id)
+
+        #expect(notified)
+    }
+}
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `swift test --filter ShelfStoreObservationTests`
+Expected: FAIL — all three, because `withObservationTracking` never fires for a non-observable type.
+
+This failure is the bug report. Confirm all three fail before changing anything.
+
+- [ ] **Step 3: Make the store observable**
+
+In `Sources/CreativeNotchCore/Shelf/ShelfStore.swift`, add the import and the macro:
+
+```swift
+import Foundation
+import Observation
+```
+
+```swift
+/// `@Observable` so a view reading `items` is told when they change.
+/// Without it the shelf appeared to work only because every drop is
+/// followed by a state transition that rebuilt the view anyway — and
+/// "Clear Shelf" from the menu bar, which performs no transition, left
+/// thumbnails on screen for files already in the Trash.
+@MainActor
+@Observable
+public final class ShelfStore {
+```
+
+`Observation` is not a UI framework, so `CorePurityTests` is unaffected.
+
+- [ ] **Step 4: Correct the comment in `AppState`**
+
+In `Sources/CreativeNotchUI/NotchRootView.swift`, the `shelf` property's comment currently claims the store publishes its own changes, which only became true in the previous step. Tidy the doubled-up comment left there:
+
+```swift
+    /// Set once at install. `@ObservationIgnored` because the store
+    /// publishes its own changes — it is `@Observable`, so the view
+    /// redraws from the store rather than from this reference, and
+    /// re-assigning it must not invalidate a view.
+    @ObservationIgnored
+    public var shelf: ShelfStore?
+```
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `swift test --filter ShelfStoreObservationTests`
+Expected: PASS, 3 tests.
+
+- [ ] **Step 6: Run the full suite**
+
+Run: `swift test`
+Expected: PASS, 224 tests. No existing test should change behaviour — `@Observable` adds notification, it does not alter `items`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add Sources/CreativeNotchCore/Shelf/ShelfStore.swift Sources/CreativeNotchUI/NotchRootView.swift Tests/CreativeNotchCoreTests/ShelfStoreObservationTests.swift
+git commit -m "fix: make ShelfStore observable so an open shelf redraws"
+```
 
 ---
 
@@ -239,7 +423,7 @@ Then change `case .didWake: isAsleep = false` to also set `isLocked = false`. Bu
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 230 tests.
+Expected: PASS, 233 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -495,7 +679,7 @@ Change `acceptsText` to `byteCount < maxTextBytes`. Build, run again. Expected: 
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 243 tests.
+Expected: PASS, 246 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -523,7 +707,7 @@ The one behaviour worth arguing about is **promotion**. Copying something alread
 - Consumes: `ClipboardContent`, `ClipboardLimits` (Task 2).
 - Produces:
   - `struct ClipboardEntry: Identifiable, Equatable, Sendable` with `let id: UUID`, `let content: ClipboardContent`, `var addedAt: Date`, and `init(id:content:addedAt:)`
-  - `@MainActor @Observable final class ClipboardStore` with `static let capacity = 50`, `init()`, `private(set) var entries: [ClipboardEntry]`, `@discardableResult func record(_ content: ClipboardContent, now: Date) -> ClipboardEntry?`, `func clear()`
+  - `@MainActor @Observable final class ClipboardStore` with `static let capacity = 50`, `static let maxTotalBytes = 100_000_000`, `init()`, `private(set) var entries: [ClipboardEntry]`, `var totalBytes: Int`, `@discardableResult func record(_ content: ClipboardContent, now: Date) -> ClipboardEntry?`, `func clear()`
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -711,6 +895,73 @@ struct ClipboardStoreTests {
         #expect(store.entries.count == ClipboardStore.capacity)
     }
 
+    // MARK: - The byte budget
+
+    /// A count cap alone bounds the ring at `capacity × maxImageBytes` —
+    /// 500 MB. That is the number this budget exists to replace, and it
+    /// holds however well or badly anything compresses.
+    @Test func theBudgetIsWhatTheSpecSays() {
+        #expect(ClipboardStore.maxTotalBytes == 100_000_000)
+    }
+
+    @Test func totalBytesSumsTheRing() {
+        let store = ClipboardStore()
+        store.record(.text("abc"), now: date(0))
+        store.record(.image(Data(repeating: 0, count: 1000), ext: "png"), now: date(1))
+
+        #expect(store.totalBytes == 1003)
+    }
+
+    @Test func anEmptyRingCostsNothing() {
+        #expect(ClipboardStore().totalBytes == 0)
+    }
+
+    /// Twenty 9 MB images is 180 MB under the count cap alone. The budget
+    /// evicts oldest-first until the ring is back under it.
+    @Test func theOldestEntriesAreEvictedToStayUnderBudget() {
+        let store = ClipboardStore()
+        let nineMB = 9_000_000
+
+        for i in 0..<20 {
+            var bytes = Data(repeating: 0, count: nineMB)
+            bytes[0] = UInt8(i)   // distinct, so nothing promotes
+            store.record(.image(bytes, ext: "png"), now: date(TimeInterval(i)))
+        }
+
+        #expect(store.totalBytes <= ClipboardStore.maxTotalBytes)
+        #expect(store.entries.count < 20)
+        // The newest survived; the oldest did not.
+        #expect(store.entries.first?.content.byteCount == nineMB)
+        #expect(store.entries.count == ClipboardStore.maxTotalBytes / nineMB)
+    }
+
+    /// Text never approaches the budget, so a text-only ring is governed
+    /// by the count cap exactly as before.
+    @Test func aTextOnlyRingIsUnaffectedByTheBudget() {
+        let store = ClipboardStore()
+        for i in 0..<ClipboardStore.capacity {
+            store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
+        }
+
+        #expect(store.entries.count == ClipboardStore.capacity)
+    }
+
+    /// The entry just copied is never the one evicted. It cannot happen
+    /// while the per-entry cap is far below the budget, but a future
+    /// change to either number must not turn `record` into a no-op that
+    /// silently discards what the user just did.
+    @Test func theEntryJustRecordedIsNeverEvicted() throws {
+        let store = ClipboardStore()
+        let nineMB = 9_000_000
+
+        for i in 0..<30 {
+            var bytes = Data(repeating: 0, count: nineMB)
+            bytes[0] = UInt8(i)
+            let entry = try #require(store.record(.image(bytes, ext: "png"), now: date(TimeInterval(i))))
+            #expect(store.entries.first?.id == entry.id)
+        }
+    }
+
     // MARK: - Clearing
 
     @Test func clearingEmptiesTheRing() {
@@ -826,8 +1077,26 @@ public final class ClipboardStore {
 
     public static let capacity = 50
 
+    /// The ceiling on everything the ring holds, together.
+    ///
+    /// A count cap alone bounds this at `capacity × maxImageBytes` — half
+    /// a gigabyte, resident for the life of the process. That is a real
+    /// number rather than a pathological one: an uncompressed retina
+    /// screenshot is tens of megabytes, and this app is aimed at people
+    /// who copy them all day.
+    ///
+    /// Transcoding to PNG at capture (see `NSPasteboard.clipboardCapture`)
+    /// makes the typical entry roughly a tenth of that. This is the
+    /// guarantee that holds even when it doesn't — a screenshot of noise
+    /// compresses to nothing at all.
+    public static let maxTotalBytes = 100_000_000
+
     /// Newest first.
     public private(set) var entries: [ClipboardEntry] = []
+
+    public var totalBytes: Int {
+        entries.reduce(0) { $0 + $1.content.byteCount }
+    }
 
     public init() {}
 
@@ -861,7 +1130,7 @@ public final class ClipboardStore {
 
         let entry = ClipboardEntry(id: UUID(), content: content, addedAt: now)
         entries.insert(entry, at: 0)
-        evictBeyondCapacity()
+        evictBeyondLimits()
         return entry
     }
 
@@ -871,8 +1140,21 @@ public final class ClipboardStore {
 
     /// Eviction happens only after an insert, never on a timer: a ring can
     /// only grow when something is added to it.
-    private func evictBeyondCapacity() {
+    ///
+    /// Two limits, both oldest-first. The count cap is what the spec
+    /// describes; the byte budget is what actually bounds memory, since
+    /// fifty entries of wildly different sizes is not a fixed cost.
+    ///
+    /// The `count > 1` guard means the entry just recorded is never the
+    /// one evicted. It is unreachable while the per-entry cap is far below
+    /// the budget — but without it, raising `maxImageBytes` past
+    /// `maxTotalBytes` some day would turn `record` into a no-op that
+    /// silently discarded exactly what the user had just copied.
+    private func evictBeyondLimits() {
         while entries.count > Self.capacity {
+            entries.removeLast()
+        }
+        while entries.count > 1, totalBytes > Self.maxTotalBytes {
             entries.removeLast()
         }
     }
@@ -882,7 +1164,7 @@ public final class ClipboardStore {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `swift test --filter ClipboardStoreTests`
-Expected: PASS, 20 tests.
+Expected: PASS, 25 tests.
 
 - [ ] **Step 5: Prove the tests bite**
 
@@ -890,12 +1172,16 @@ Delete the promotion branch so every record inserts a fresh entry. Build, run `s
 
 Change promotion to leave `addedAt` alone. Build, run again. Expected: `promotionRefreshesTheTimestamp` fails. Revert.
 
-Change `evictBeyondCapacity` to `removeFirst()`. Build, run again. Expected: `theOldestEntryIsEvictedBeyondCapacity` fails. Revert.
+Change both loops in `evictBeyondLimits` to `removeFirst()`. Build, run again. Expected: `theOldestEntryIsEvictedBeyondCapacity` fails. Revert.
+
+Delete the byte-budget loop from `evictBeyondLimits`. Build, run again. Expected: `theOldestEntriesAreEvictedToStayUnderBudget` fails. Revert.
+
+Change the byte-budget loop's guard from `entries.count > 1` to `!entries.isEmpty` and temporarily set `maxTotalBytes = 1000`. Build, run again. Expected: `theEntryJustRecordedIsNeverEvicted` fails. Revert both.
 
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 263 tests.
+Expected: PASS, 271 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1081,7 +1367,7 @@ Change `>= idleAfter` to `> idleAfter`. Build, run again. Expected: `theBackOffB
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 273 tests.
+Expected: PASS, 281 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1234,14 +1520,76 @@ struct PasteboardClipboardTests {
         #expect(pb.clipboardCapture() == .image(data, ext: "png"))
     }
 
-    /// Screenshots and many apps put TIFF on the pasteboard, not PNG.
-    @Test func tiffDataIsCapturedWhenThereIsNoPNG() throws {
+    /// macOS screenshots reach the pasteboard as TIFF, and `NSPasteboard`
+    /// TIFF is **uncompressed** — roughly `width × height × 4` bytes. A
+    /// 14" MacBook Pro full-screen grab is about 24 MB that way, which
+    /// would blow straight through the 10 MB cap and be silently dropped.
+    /// The same image as PNG is a couple of megabytes.
+    ///
+    /// So TIFF is re-encoded before the cap is applied, and what lands in
+    /// the ring is always PNG.
+    @Test func tiffIsTranscodedToPNG() throws {
         let pb = makePasteboard()
-        let image = NSImage(size: NSSize(width: 2, height: 2))
+        let image = NSImage(size: NSSize(width: 8, height: 8))
+        image.lockFocus()
+        NSColor.blue.setFill()
+        NSRect(x: 0, y: 0, width: 8, height: 8).fill()
+        image.unlockFocus()
         let tiff = try #require(image.tiffRepresentation)
         pb.setData(tiff, forType: .tiff)
 
-        #expect(pb.clipboardCapture() == .image(tiff, ext: "tiff"))
+        let captured = try #require(pb.clipboardCapture())
+        guard case .image(let data, let ext) = captured else {
+            Issue.record("expected an image")
+            return
+        }
+
+        #expect(ext == "png")
+        #expect(data != tiff)
+        // A PNG signature, so this is genuinely re-encoded rather than
+        // TIFF bytes relabelled.
+        #expect(data.prefix(8) == Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
+    }
+
+    /// The point of transcoding: a large flat image is far over the cap as
+    /// TIFF and comfortably under it as PNG. Judged after re-encoding, it
+    /// is kept — judged before, it would have been thrown away.
+    @Test func aLargeScreenshotSurvivesBecauseItIsTranscoded() throws {
+        // 1600×1600 × 4 bytes ≈ 10.2 MB of TIFF, just over the cap.
+        let image = NSImage(size: NSSize(width: 1600, height: 1600))
+        image.lockFocus()
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: 1600, height: 1600).fill()
+        image.unlockFocus()
+
+        let tiff = try #require(image.tiffRepresentation)
+        #expect(tiff.count > ClipboardLimits.maxImageBytes)
+
+        let pb = makePasteboard()
+        pb.setData(tiff, forType: .tiff)
+
+        let captured = try #require(pb.clipboardCapture())
+        #expect(captured.byteCount < ClipboardLimits.maxImageBytes)
+    }
+
+    /// PNG already on the pasteboard is taken as-is. Re-encoding it would
+    /// cost time and gain nothing.
+    @Test func existingPNGIsNotReEncoded() {
+        let pb = makePasteboard()
+        let data = pngData()
+        pb.setData(data, forType: .png)
+        pb.setData(Data([0x4D, 0x4D]), forType: .tiff)
+
+        #expect(pb.clipboardCapture() == .image(data, ext: "png"))
+    }
+
+    /// Undecodable bytes claiming to be TIFF must yield nothing rather
+    /// than crashing or storing garbage.
+    @Test func unreadableImageDataIsIgnored() {
+        let pb = makePasteboard()
+        pb.setData(Data([0x00, 0x01, 0x02, 0x03]), forType: .tiff)
+
+        #expect(pb.clipboardCapture() == nil)
     }
 
     /// An image and its alt text are often both present. The image is the
@@ -1362,8 +1710,16 @@ public extension NSPasteboard {
     /// 3. **Images before text**, because an image and its alt text are
     ///    often both present and the image is what was copied.
     ///
-    /// Sizes are checked against the raw `Data` rather than after building
-    /// an `NSImage`, so an over-cap screenshot is never decoded.
+    /// Images are always stored as PNG. `NSPasteboard` TIFF is
+    /// uncompressed — roughly `width × height × 4` bytes, so a 14"
+    /// MacBook Pro screenshot arrives as about 24 MB. Judged at that size
+    /// it would fail the 10 MB cap and be silently dropped, which is the
+    /// wrong answer for the single most common thing this app will be
+    /// asked to remember. Re-encoded first, the same image is a couple of
+    /// megabytes and is kept.
+    ///
+    /// The cap is therefore applied to what the ring will actually hold,
+    /// not to what the pasteboard happened to hand over.
     func clipboardCapture() -> ClipboardContent? {
         let available = types ?? []
         guard !available.contains(where: { Self.skippedTypes.contains($0) }) else { return nil }
@@ -1373,10 +1729,16 @@ public extension NSPasteboard {
             return nil
         }
 
-        for (type, ext) in [(NSPasteboard.PasteboardType.png, "png"),
-                            (NSPasteboard.PasteboardType.tiff, "tiff")] {
-            guard let data = data(forType: type) else { continue }
-            let content = ClipboardContent.image(data, ext: ext)
+        // PNG already on the pasteboard is taken as-is: re-encoding it
+        // would cost time and gain nothing.
+        if let png = data(forType: .png) {
+            let content = ClipboardContent.image(png, ext: "png")
+            return ClipboardLimits.accepts(content) ? content : nil
+        }
+
+        if let tiff = data(forType: .tiff) {
+            guard let png = Self.pngData(fromTIFF: tiff) else { return nil }
+            let content = ClipboardContent.image(png, ext: "png")
             return ClipboardLimits.accepts(content) ? content : nil
         }
 
@@ -1386,6 +1748,21 @@ public extension NSPasteboard {
         }
 
         return nil
+    }
+
+    /// Re-encodes uncompressed pasteboard TIFF as PNG.
+    ///
+    /// Runs on the main actor, where a large image costs on the order of
+    /// 50–150 ms. That is acceptable because image copies are rare — a
+    /// few a minute at the very most — but it is the thread driving the
+    /// notch animation, so if it ever hitches visibly this is the thing to
+    /// move off it. Measure before assuming it does.
+    ///
+    /// Returns `nil` for bytes that do not decode, so undecodable data
+    /// yields no entry rather than a garbage one.
+    static func pngData(fromTIFF tiff: Data) -> Data? {
+        guard let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .png, properties: [:])
     }
 
     /// Puts an entry back on the pasteboard, and does nothing else.
@@ -1412,7 +1789,7 @@ public extension NSPasteboard {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `swift test --filter PasteboardClipboardTests`
-Expected: PASS, 17 tests.
+Expected: PASS, 20 tests.
 
 - [ ] **Step 5: Prove the tests bite**
 
@@ -1420,12 +1797,16 @@ Move the skip-type guard to *after* the image and text reads. Build, run `swift 
 
 Delete the file-URL guard. Build, run again. Expected: `copiedFilesAreLeftToTheShelf` fails. Revert.
 
+Change the TIFF branch to store `tiff` directly as `.image(tiff, ext: "tiff")` instead of transcoding — the pre-review behaviour. Build, run again. Expected: `tiffIsTranscodedToPNG` and `aLargeScreenshotSurvivesBecauseItIsTranscoded` fail. Revert.
+
+In `clipboardCapture`, apply `ClipboardLimits.accepts` to the TIFF bytes *before* transcoding. Build, run again. Expected: `aLargeScreenshotSurvivesBecauseItIsTranscoded` fails — the exact bug the transcode exists to prevent. Revert.
+
 Delete `clearContents()` from `write`. Build, run again. Expected: `writingReplacesTheWholePasteboard` fails. Revert.
 
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 290 tests.
+Expected: PASS, 301 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -1654,7 +2035,7 @@ Delete the leading `stop()` in `start()`. Build, run again. Expected: `startingT
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 297 tests.
+Expected: PASS, 308 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -2175,7 +2556,7 @@ In `start`, delete `lastChangeCount = pasteboard.changeCount`. Build, run again.
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 318 tests.
+Expected: PASS, 329 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -2397,7 +2778,7 @@ Delete `activity.stop()` from `stop()`. Build, run again. Expected: `stoppingSto
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 325 tests.
+Expected: PASS, 336 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -2610,7 +2991,7 @@ Add `.hud` to `PanelTabBar.visible`. Build, run again. Expected: `onlyTabsWithCo
 - [ ] **Step 7: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 333 tests.
+Expected: PASS, 344 tests.
 
 - [ ] **Step 8: Commit**
 
@@ -2897,7 +3278,7 @@ Change `collapsed.count > maxCharacters` to `>=`. Build, run again. Expected: `t
 - [ ] **Step 7: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 340 tests.
+Expected: PASS, 351 tests.
 
 - [ ] **Step 8: Commit**
 
@@ -2912,12 +3293,12 @@ git commit -m "feat: render the clipboard history and paste entries back"
 
 The last task: lifecycle in `AppDelegate`, a clear item in the menu bar, and the documentation that says the module exists.
 
-`MenuBarController`'s initialiser gains two arguments, so `MenuBarControllerTests` must be updated in the same commit — the build will not compile otherwise.
+`MenuBarController`'s initialiser gains two arguments, so `MenuBarShelfTests` must be updated in the same commit — the build will not compile otherwise.
 
 **Files:**
 - Modify: `Sources/CreativeNotchUI/MenuBarController.swift`
 - Modify: `Sources/CreativeNotchUI/AppDelegate.swift`
-- Modify: `Tests/CreativeNotchUITests/MenuBarControllerTests.swift`
+- Modify: `Tests/CreativeNotchUITests/MenuBarShelfTests.swift`
 - Modify: `Tests/CreativeNotchCoreTests/CorePurityTests.swift`
 - Modify: `README.md`
 - Create: `Tests/CreativeNotchUITests/ClipboardWiringTests.swift`
@@ -3164,7 +3545,7 @@ In `Tests/CreativeNotchCoreTests/CorePurityTests.swift`, extend the assertions:
 - [ ] **Step 7: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 345 tests.
+Expected: PASS, 356 tests.
 
 - [ ] **Step 8: Prove the wiring tests bite**
 
@@ -3211,9 +3592,13 @@ git commit -m "feat: wire clipboard history into the app and the menu bar"
 ## Definition of done
 
 - [ ] `swift build` succeeds with no warnings.
-- [ ] `swift test` passes; the suite has grown from 221 to roughly 345 tests.
+- [ ] `swift test` passes; the suite has grown from 221 to roughly 356 tests.
 - [ ] `CorePurityTests` passes, and its recursion anchors include `ClipboardStore.swift`.
 - [ ] `ClipboardStoreTests.theStoreNeverTouchesTheFileSystem` passes — nothing captured reaches disk.
+- [ ] The ring holds at most `ClipboardStore.maxTotalBytes`, verified by `theOldestEntriesAreEvictedToStayUnderBudget`.
+- [ ] A full-screen retina screenshot copied to the clipboard is captured, not silently dropped. Verify by hand: ⌘⇧⌃4, select the whole screen, then open the clipboard tab.
+- [ ] Every image entry in the ring is PNG — nothing stores raw pasteboard TIFF.
+- [ ] Clearing the shelf from the menu bar while the panel is open on the shelf tab visibly empties it (Task 0).
 - [ ] No test file references `NSPasteboard.general`.
 - [ ] No `Task.sleep` was added to any test.
 - [ ] Exactly one repeating timer exists in the codebase, owned by `ClipboardPoller`.
@@ -3231,5 +3616,6 @@ git commit -m "feat: wire clipboard history into the app and the menu bar"
 - **Persistence.** Not deferred — refused. In-memory only is the security property the module is built around.
 - **Rich text, RTF, or file promises.** Plain text and raster images only. Anything else is captured as its plain-text representation or not at all.
 - **A synthesized paste keystroke.** Would require Accessibility, contradicting spec section 6.
-- **Making `ShelfStore` `@Observable`.** `ClipboardStore` is; `ShelfStore` is not, and `AppState.shelf`'s comment already claims the store "publishes its own changes", which is not true today. That is a pre-existing gap in the shelf module, and fixing it belongs in a shelf commit rather than hiding inside this one. Worth raising as a follow-up.
 - **Low Power Mode as an observed notification.** Read per tick instead; cheaper than the bookkeeping and it cannot drift.
+- **Moving the PNG transcode off the main actor.** It runs there today, at roughly 50–150 ms for a large image. Image copies are rare enough that this should not be visible; if it turns out to be, that is the thing to move, and it needs a measurement first rather than a guess.
+- **Downscaling stored images.** The byte budget evicts whole entries instead. A two-tier scheme — full data for the newest few, thumbnails behind them — would hold more history for the same memory, but it is a materially more complex data structure and nothing has asked for it.
