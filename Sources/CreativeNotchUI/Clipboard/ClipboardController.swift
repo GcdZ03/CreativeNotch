@@ -15,7 +15,6 @@ public final class ClipboardController {
     /// Internal rather than private so the lifecycle is provable, the way
     /// `HUDController` exposes its three observers.
     let poller: ClipboardPoller
-    let activity = SystemActivityObserver()
 
     private let pasteboard: NSPasteboard
 
@@ -29,16 +28,20 @@ public final class ClipboardController {
         poller.onCapture = { [weak self] content in
             self?.store.record(content, now: Date())
         }
-        activity.onChange = { [weak self] activity in
-            self?.poller.setActivity(activity, now: Date().timeIntervalSince1970)
-        }
-        activity.start()
         poller.start(now: Date().timeIntervalSince1970)
     }
 
     public func stop() {
         poller.stop()
-        activity.stop()
+    }
+
+    /// The activity gate reaches the poller through here rather than
+    /// through an observer this type owns. Spec section 4.7 puts the gate
+    /// in one place; `AppDelegate` holds it and fans it out, so the media
+    /// module and this one cannot disagree about whether the screen is
+    /// locked.
+    public func setActivity(_ activity: SystemActivity, now: TimeInterval) {
+        poller.setActivity(activity, now: now)
     }
 
     /// Puts an entry back on the pasteboard. That is the whole action —

@@ -49,6 +49,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Internal rather than private so the wiring is provable.
     private(set) var clipboard: ClipboardController?
 
+    /// One observer for the whole app. Internal rather than private so the
+    /// fan-out is provable — `SystemActivityFanOutTests` asserts there is
+    /// exactly one registration set.
+    let activity = SystemActivityObserver()
+
     /// Overridable so the peek slot's timing is testable without a real
     /// clock or real sleeps -- a test advances this instead of waiting out
     /// the TTL, the same reason `dismissGrace` and `growthDelay` exist.
@@ -172,6 +177,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hud.start()
         self.hud = hud
 
+        activity.start()
         clipboard?.start()
     }
 
@@ -179,6 +185,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         removeScreenObservers()
         hud?.stop()
         clipboard?.stop()
+        activity.stop()
     }
 
     public func showOnboarding() {
@@ -225,6 +232,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.clipboard = clipboardStore
         state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
         self.clipboard = clipboard
+
+        // Spec section 4.7: the sleep/lock gate is enforced once, here, and
+        // fanned out to every consumer — never registered a second time
+        // inside a module. Adding a second consumer later is a one-line
+        // addition to this closure, not a second observer.
+        activity.onChange = { [weak self] state in
+            guard let self else { return }
+            let now = Date().timeIntervalSince1970
+            self.clipboard?.setActivity(state, now: now)
+        }
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the

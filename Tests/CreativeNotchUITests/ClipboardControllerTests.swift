@@ -47,7 +47,7 @@ struct ClipboardControllerTests {
     @Test func lockingTheScreenStopsEntriesReachingTheRing() {
         let h = makeHarness()
         h.controller.start()
-        h.controller.activity.handle(.screenLocked)
+        h.controller.setActivity(.locked, now: 1)
 
         h.copy("while locked")
         h.controller.poller.tick(now: 1)
@@ -60,8 +60,8 @@ struct ClipboardControllerTests {
     @Test func unlockingResumesCapture() {
         let h = makeHarness()
         h.controller.start()
-        h.controller.activity.handle(.screenLocked)
-        h.controller.activity.handle(.screenUnlocked)
+        h.controller.setActivity(.locked, now: 1)
+        h.controller.setActivity(.active, now: 2)
 
         h.copy("after unlock")
         h.controller.poller.tick(now: 2)
@@ -69,12 +69,13 @@ struct ClipboardControllerTests {
         #expect(h.controller.store.entries.map(\.content) == [.text("after unlock")])
     }
 
-    @Test func stoppingStopsBoth() {
+    /// The activity gate is no longer this type's to stop -- `AppDelegate`
+    /// owns the observer now (spec section 4.7). What `stop()` still owns
+    /// is the poller, so that is what this asserts.
+    @Test func stoppingStopsThePoller() {
         let h = makeHarness()
         h.controller.start()
         h.controller.stop()
-
-        #expect(h.controller.activity.tokenCount == 0)
 
         h.copy("after stop")
         h.controller.poller.tick(now: 1)
