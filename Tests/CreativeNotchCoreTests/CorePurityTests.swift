@@ -79,6 +79,16 @@ struct CorePurityTests {
         }
     }
 
+    /// **This check is line-based.** It scans one physical line (split on
+    /// `;`) at a time, so it cannot see an `import` whose module name lands
+    /// on a following line -- e.g. `import` and `AppKit` separated by a
+    /// line break, however that got past `swift build` formatting-wise.
+    /// That is a known, deliberate limit, not a fifth silent hole: this
+    /// check has already failed four times in four different ways, each
+    /// silently, and a previous report claimed every legal spelling was
+    /// caught when two were not. Stated here so the next person doesn't
+    /// have to rediscover the boundary by mutation, and so nobody repeats
+    /// the claim of completeness this comment is deliberately not making.
     @Test func theCoreImportsNoUIFramework() throws {
         let banned = ["AppKit", "SwiftUI", "UIKit", "Cocoa"]
         var offences: [String] = []
@@ -116,10 +126,35 @@ struct CorePurityTests {
         banned: [String],
         offences: inout [String]
     ) throws {
+        var text = String(statement)
+
+        // Strip block comments *before* tokenizing, and before cutting a
+        // trailing `//` comment below. `/* c */ import AppKit` tokenized
+        // first has `/*` as its leading token, which is not "import" --
+        // the guard on `tokens.first == "import"` then returned early and
+        // let a genuine import hide behind the comment. Only a block
+        // comment that opens and closes on this same line/statement is
+        // removed here, consistent with this check being line-based (see
+        // the doc comment on `theCoreImportsNoUIFramework`): one that
+        // opens without closing has everything from `/*` onward dropped,
+        // since none of it can be trusted as real code on this line.
+        //
+        // Done ahead of the `//` cut, not after: a block comment can
+        // itself contain `//` (e.g. `/* see http://x */ import AppKit`),
+        // and cutting at the first `//` before removing the block comment
+        // would chop the import off along with it.
+        while let start = text.range(of: "/*") {
+            if let end = text.range(of: "*/", range: start.upperBound..<text.endIndex) {
+                text.removeSubrange(start.lowerBound..<end.upperBound)
+            } else {
+                text = String(text[..<start.lowerBound])
+                break
+            }
+        }
+
         // Cut a trailing comment from the raw text *before* tokenizing —
         // `import AppKit//comment` has no whitespace to split on, so a
         // token-level check for a `//`-prefixed token would miss it.
-        var text = String(statement)
         if let commentRange = text.range(of: "//") {
             text = String(text[..<commentRange.lowerBound])
         }
