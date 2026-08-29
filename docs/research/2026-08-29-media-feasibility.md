@@ -30,10 +30,11 @@ metadata deferred to its own spike, spec, and plan.
 identifier of the process asking**. Every MediaRemote symbol resolves for
 anyone; what differs is what the daemon answers.
 
-All eight probed symbols resolved under `dlopen`/`dlsym` regardless of
+All nine probed symbols resolved under `dlopen`/`dlsym` regardless of
 signing: `MRMediaRemoteSendCommand`,
 `MRMediaRemoteGetNowPlayingInfo`,
 `MRMediaRemoteGetNowPlayingApplicationIsPlaying`,
+`MRMediaRemoteGetNowPlayingApplicationPID`,
 `MRMediaRemoteRegisterForNowPlayingNotifications`,
 `MRMediaRemoteGetNowPlayingClient`, and the
 `kMRMediaRemoteNowPlayingInfo{Title,Artist,ArtworkData}` constants.

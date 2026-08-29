@@ -37,6 +37,7 @@ struct MediaControlsView: View {
                     Image(systemName: button.symbol)
                         .font(.system(size: 13))
                         .foregroundStyle(.white.opacity(0.85))
+                        .frame(width: 28, height: 24)
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

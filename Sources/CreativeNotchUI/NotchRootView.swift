@@ -80,7 +80,11 @@ public final class AppState {
     /// Set once at install from `MediaRemoteBridge.isAvailable`. Buttons
     /// that resolve to nothing would look identical to working ones and
     /// silently do nothing, which is worse than not offering them.
-    @ObservationIgnored
+    ///
+    /// Not `@ObservationIgnored`: unlike `shelf` / `clipboard`, which
+    /// publish their own changes, this is a plain `Bool` that `body` reads
+    /// directly — it needs Observation's tracking to invalidate the view
+    /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
     /// A list, not a single closure.
@@ -226,6 +230,7 @@ public struct NotchRootView: View {
                         PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
                         openContent(for: tab)
                     }
+                    .frame(maxHeight: .infinity, alignment: .top)
 
                 case .receiving:
                     Text("Drop here")

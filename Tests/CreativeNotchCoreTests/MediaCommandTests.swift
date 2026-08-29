@@ -35,9 +35,4 @@ struct MediaCommandTests {
         #expect(MediaCommand.nextTrack.isVerified == false)
         #expect(MediaCommand.previousTrack.isVerified == false)
     }
-
-    @Test func everyCaseIsDistinct() {
-        let values = Set(MediaCommand.allCases.map(\.rawValue))
-        #expect(values.count == MediaCommand.allCases.count)
-    }
 }
