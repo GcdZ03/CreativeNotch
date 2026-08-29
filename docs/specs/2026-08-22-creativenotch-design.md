@@ -347,9 +347,52 @@ technique (BSD-3) is viable and requires no SIP changes.
   user-initiated.
 - Artwork cached by track identity; documented as arriving late or never.
 
-**Risk:** the adapter does not explicitly claim macOS 26 testing. The
-mechanism is confirmed present, but this needs one runtime test before
-anything depends on it.
+> **Risk closed 2026-08-29** by
+> [`docs/research/2026-08-29-media-feasibility.md`](../research/2026-08-29-media-feasibility.md).
+> Both halves above are confirmed on macOS 26.6.2 — and they fall on
+> opposite sides of the no-dependencies rule, which splits the module in
+> two.
+
+**The module ships in two parts.**
+
+**Part one — transport controls. Verified, and built first.**
+`MRMediaRemoteSendCommand` works from an **ad-hoc-signed** binary, ground-
+truthed against a real player: `pause` and `togglePlayPause` both took
+effect in both directions. No helper, no subprocess, no third-party code,
+so the no-dependencies rule is untouched. `nextTrack` and `previousTrack`
+are the same call with a different constant and are expected to behave
+identically, but were not sent — doing so moves the user's queue position
+— so they are inferred rather than proven.
+
+Two traps recorded by the spike, both of which produced wrong conclusions
+before they were understood:
+
+- `SendCommand` returns `true` for commands that are **ignored**, and for
+  nonsense command ids. It means "dispatched", not "obeyed"; there is no
+  in-process success signal.
+- The now-playing client is frequently **not the obvious app** — a browser
+  tab holding the media session will outrank a running music app.
+
+**Part two — metadata. Gated, and deferred to its own spike, spec and
+plan.** An ad-hoc-signed process gets nothing: not the track fields, not
+even `MRMediaRemoteGetNowPlayingApplicationPID`, which answers `0` rather
+than the real pid. The `com.apple.*` helper route is genuinely required.
+
+Metadata is deferred rather than dropped because it is the only part of
+this application that needs a subprocess, and the only part that puts the
+no-dependencies rule in play — either by vendoring the BSD-3 adapter or by
+writing an equivalent bridge. It deserves the same spike → spec → plan
+treatment every other module got, rather than riding along with a
+fifty-line feature that carries none of that risk.
+
+⚠️ Its spike must start by verifying an assumption this one did **not**
+test: that a dylib *loaded into* the perl process inherits the exemption,
+i.e. that the daemon checks the main executable's identity rather than the
+loaded code. The entire helper approach rests on it.
+
+Until part two exists, `PeekArbiter.setNowPlaying` and the
+`.peek(.nowPlaying)` case stay dormant: `TrackSnapshot` needs a title and
+artist, which is exactly what part one cannot obtain.
 
 ## 6. Permissions
 
