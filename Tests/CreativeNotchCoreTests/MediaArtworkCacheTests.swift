@@ -65,12 +65,21 @@ struct MediaArtworkCacheTests {
         #expect(cache.artwork(for: TrackIdentity(payload: payload())) == art)
     }
 
-    /// Replays the exact sequence the spike measured.
+    /// Replays the exact sequence the spike measured, then goes one step
+    /// further.
+    ///
+    /// The observed run itself ends on an artwork-present emission, so
+    /// asserting right after it proves nothing about the never-clear rule —
+    /// the last `absorb` call would restock the artwork regardless of
+    /// whether omission clears it. The assertion only becomes load-bearing
+    /// once it lands after an omission, so one further no-artwork payload is
+    /// absorbed past the measured sequence before checking.
     @Test func theObservedFlapSequenceKeepsTheArtwork() {
         var cache = MediaArtworkCache()
         for present in [true, false, false, true, true, false, true] {
             cache.absorb(payload(artwork: present ? art : nil))
         }
+        cache.absorb(payload(artwork: nil))
         #expect(cache.artwork(for: TrackIdentity(payload: payload())) == art)
     }
 
