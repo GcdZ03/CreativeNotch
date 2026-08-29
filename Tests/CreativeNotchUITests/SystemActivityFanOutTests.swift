@@ -61,6 +61,15 @@ struct SystemActivityFanOutTests {
         clipboard.start()
 
         delegate.activity.handle(.screenLocked)
+
+        // Without this, "resumed correctly" and "was never suspended in
+        // the first place" are indistinguishable: `poller.start()` leaves
+        // `scheduledInterval` at `activeInterval` by default, so a deleted
+        // fan-out would let the post-unlock assertion below pass
+        // vacuously. Asserting the suspension actually happened first is
+        // what makes the resume assertion mean anything.
+        #expect(clipboard.poller.scheduledInterval == nil)
+
         delegate.activity.handle(.screenUnlocked)
 
         #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
