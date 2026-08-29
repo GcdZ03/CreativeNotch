@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-386-brightgreen" alt="386 tests">
+  <img src="https://img.shields.io/badge/tests-394-brightgreen" alt="394 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -239,7 +239,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 386 tests, ~1s, no window server needed
+swift test           # 394 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -265,8 +265,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   162 tests
-  CreativeNotchUITests/     224 tests
+  CreativeNotchCoreTests/   169 tests
+  CreativeNotchUITests/     225 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
