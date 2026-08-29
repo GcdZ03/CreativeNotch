@@ -852,6 +852,7 @@ Two small pure policies, batched because each is a handful of lines and neither 
 **Files:**
 - Create: `Sources/CreativeNotchCore/Media/MediaCoalescer.swift`
 - Create: `Sources/CreativeNotchCore/Media/HelperBackoff.swift`
+- **Modify: `Sources/CreativeNotchCore/Media/MediaPayload.swift`** — Step 3 adds `snapshot` to the type Task 2 created. This is in scope for this task; nothing else in that file changes.
 - Create: `Tests/CreativeNotchCoreTests/MediaCoalescerTests.swift`
 - Create: `Tests/CreativeNotchCoreTests/HelperBackoffTests.swift`
 
@@ -1344,11 +1345,14 @@ struct MediaHelperProcessTests {
         #expect(lines == ["rest"])
     }
 
-    /// In a test run or under `swift run` there is no app bundle, so the
-    /// paths are absent and the module must report unavailable rather than
-    /// spawning something wrong.
-    @Test func availabilityFollowsTheBundledPaths() {
-        #expect(MediaHelperProcess.isAvailable == (MediaHelperProcess.bundledPaths != nil))
+    /// Under `swift test` there is no app bundle, so the paths cannot
+    /// resolve and the module MUST report unavailable. This is what
+    /// guarantees the suite never spawns a helper — an earlier draft
+    /// asserted `isAvailable == (bundledPaths != nil)`, which compares the
+    /// implementation to itself and cannot fail. Do not restore that.
+    @Test func theHelperIsUnavailableOutsideAnAppBundle() {
+        #expect(MediaHelperProcess.isAvailable == false)
+        #expect(MediaHelperProcess.bundledPaths == nil)
     }
 
     @Test func aFreshHelperIsNotRunning() {
@@ -1384,7 +1388,7 @@ Expected: PASS, 6 tests.
 
 Remove the `buffer.reset()` from `stop()`. Build, run the tests. Expected: `stoppingDiscardsAPartialLine` fails. Revert.
 
-Make `bundledPaths` return a tuple unconditionally. Build, run again. Expected: `availabilityFollowsTheBundledPaths` still passes (both sides move together), so **this mutation does not bite** — say so in your report rather than claiming otherwise.
+Make `bundledPaths` return a hardcoded tuple unconditionally, as if the paths always resolved. Build, run again. Expected: `theHelperIsUnavailableOutsideAnAppBundle` fails on both assertions — which is the point: that mutation is precisely the bug that would let the suite spawn a real helper.
 
 - [ ] **Step 6: Confirm no test spawns a process**
 
