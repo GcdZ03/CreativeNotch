@@ -26,6 +26,15 @@ cp "$BIN" "$APP/Contents/MacOS/CreativeNotch"
 cp "$ROOT/Resources/Info.plist" "$APP/Contents/Info.plist"
 cp "$ROOT/Resources/AppIcon.icns" "$APP/Contents/Resources/AppIcon.icns"
 
+# The media bridge goes in Frameworks/, not Resources/. codesign seals
+# Frameworks/ as nested *code*; a dylib in Resources/ is sealed as an
+# opaque resource, and loading it later breaks signature validation.
+# Nothing links it -- the perl helper dlopens it at runtime.
+mkdir -p "$APP/Contents/Frameworks"
+cp "$(swift build -c "$CONFIG" --show-bin-path)/libCreativeNotchMediaBridge.dylib" \
+   "$APP/Contents/Frameworks/libCreativeNotchMediaBridge.dylib"
+cp "$ROOT/Resources/media-helper.pl" "$APP/Contents/Resources/media-helper.pl"
+
 # One version string, not two. Info.plist carries a placeholder and the
 # real value comes from CoreInfo -- they used to be maintained by hand in
 # both places, which is a drift waiting to happen. (Follow-up F9.)
@@ -55,6 +64,11 @@ if [ -z "$IDENTITY" ]; then
   fi
 fi
 echo "signing identity: $IDENTITY"
+
+# Inside out: nested code must be signed BEFORE the bundle containing it,
+# or the outer signature seals unsigned code and --deep --strict fails.
+codesign -s "$IDENTITY" --force --timestamp=none \
+  "$APP/Contents/Frameworks/libCreativeNotchMediaBridge.dylib"
 codesign -s "$IDENTITY" --force --timestamp=none "$APP"
 codesign -dv "$APP" 2>&1 | grep -E 'Identifier|Signature'
 
