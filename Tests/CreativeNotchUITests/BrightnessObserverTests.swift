@@ -96,12 +96,24 @@ struct BrightnessObserverTests {
     /// happens to have a readable backlight.
     @Test func currentLevelAlwaysQueriesTheMainDisplayNotTheCallbacksZero() {
         _ = BrightnessObserver().currentLevel()
-        // `currentLevel()` only ever sets `lastQueriedDisplay` past the
-        // same symbol lookup `theDisplayServicesSymbolsResolve` checks —
-        // this fails whenever that does, for the identical reason.
+
+        // The precondition -- symbol resolution -- is soft, for the same
+        // reason `theDisplayServicesSymbolsResolve` is. But the actual
+        // proposition under test here, that `currentLevel()` queried
+        // `CGMainDisplayID()` and not the callback's unusable `0`, must be
+        // asserted hard once that precondition holds: putting it inside
+        // `expectOrKnownHardwareIssue` too made this test pass unconditionally
+        // -- `withKnownIssue(isIntermittent: true)` swallows a failing
+        // condition exactly as readily as a passing one -- so a regression
+        // back to querying `0` went undetected with the suite reporting
+        // green.
+        let ok = BrightnessObserver.symbolsAvailable
         expectOrKnownHardwareIssue(
-            BrightnessObserver.lastQueriedDisplay == CGMainDisplayID(),
+            ok,
             "Depends on the same DisplayServices symbol resolution as theDisplayServicesSymbolsResolve"
         )
+        if ok {
+            #expect(BrightnessObserver.lastQueriedDisplay == CGMainDisplayID())
+        }
     }
 }
