@@ -45,6 +45,26 @@ struct MediaArtworkCacheTests {
         #expect(a != c)
     }
 
+    /// Title and artist are decoded straight from JSON, so either may
+    /// legally contain the U+001F separator the fallback key uses to join
+    /// them. A bare `"ta:\(title)\(sep)\(artist)"` concatenation would let
+    /// title "A<sep>B" / artist "C" produce the identical key to title "A"
+    /// / artist "B<sep>C" — two different tracks colliding on one
+    /// identity. The key must disambiguate this, not just make it unlikely.
+    @Test func aSeparatorInsideTheTitleCannotForgeACollisionWithADifferentArtist() {
+        let titleContainsSeparator = MediaPayload.decode(
+            line: "{\"title\":\"A\\u001fB\",\"artist\":\"C\",\"album\":\"\",\"playing\":true}"
+        )!
+        let artistContainsSeparator = MediaPayload.decode(
+            line: "{\"title\":\"A\",\"artist\":\"B\\u001fC\",\"album\":\"\",\"playing\":true}"
+        )!
+
+        let a = TrackIdentity(payload: titleContainsSeparator)
+        let b = TrackIdentity(payload: artistContainsSeparator)
+
+        #expect(a != b)
+    }
+
     // MARK: - The rule this type exists for
 
     @Test func artworkIsRememberedForTheTrack() {
