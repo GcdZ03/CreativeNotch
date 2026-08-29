@@ -33,6 +33,15 @@ public final class AppState {
         fileprivate let id: UUID
     }
 
+    /// Set once at install.
+    ///
+    /// `@ObservationIgnored` because the store publishes its own changes —
+    /// it is `@Observable`, so the view redraws from the store rather than
+    /// from this reference, and re-assigning it must not invalidate a
+    /// view.
+    @ObservationIgnored
+    public var shelf: ShelfStore?
+
     /// A list, not a single closure.
     ///
     /// It was one closure, which meant the second registration silently
@@ -44,12 +53,6 @@ public final class AppState {
     ///
     /// `@ObservationIgnored` because it is wiring, not observable state:
     /// registering must never invalidate a SwiftUI view.
-    /// Set once at install. `@ObservationIgnored` because the store
-    /// publishes its own changes; re-assigning this must not invalidate a
-    /// view.
-    @ObservationIgnored
-    public var shelf: ShelfStore?
-
     @ObservationIgnored
     private var observers: [(token: ObserverToken, handler: (Change) -> Void)] = []
 

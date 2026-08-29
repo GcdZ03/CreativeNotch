@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// The shelf's contents and every file operation on them.
 ///
@@ -9,7 +10,17 @@ import Foundation
 /// `@MainActor` because every caller is: the drop target, the view, and the
 /// menu bar item. File I/O on the main actor is acceptable at this scale —
 /// twenty items, and disk is touched only on add or remove.
+///
+/// `@Observable` so a view reading `items` is told when they change.
+/// Without it the shelf only appeared to work: every drop is followed by
+/// `state.transition(to: .open(.shelf))`, and `AppState` *is* observable,
+/// so the view was rebuilt by the state change rather than by the store.
+/// "Clear Shelf" from the menu bar performs no transition, and left
+/// thumbnails on screen for files already in the Trash.
+///
+/// `Observation` is not a UI framework, so `CorePurityTests` is unaffected.
 @MainActor
+@Observable
 public final class ShelfStore {
 
     public static let capacity = 20
