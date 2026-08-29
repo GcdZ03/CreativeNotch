@@ -16,15 +16,24 @@ struct ShelfView: View {
                 .font(.system(size: 13, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.5))
         } else {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(store.items) { item in
-                        ShelfItemView(item: item, size: itemSize)
-                            .draggable(item.url)
+            // The width is read so the row can be *centred when it fits*,
+            // to line up with the media controls and the tab bar above it,
+            // which are both centred. `minWidth` is a floor, not a size:
+            // once the items are wider than the panel the natural width
+            // wins and the row scrolls as before. Setting the width
+            // outright would centre a full shelf by clipping it instead.
+            GeometryReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(store.items) { item in
+                            ShelfItemView(item: item, size: itemSize)
+                                .draggable(item.url)
+                        }
                     }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .frame(minWidth: proxy.size.width, alignment: .center)
                 }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 12)
             }
         }
     }
