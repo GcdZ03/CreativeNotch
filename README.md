@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-356-brightgreen" alt="356 tests">
+  <img src="https://img.shields.io/badge/tests-359-brightgreen" alt="359 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -38,8 +38,8 @@ Everything else follows from it. Hover uses an `NSTrackingArea` on the panel
 instead of a global monitor. Screen following listens for notifications
 instead of tracking the cursor. The one subsystem that genuinely cannot
 avoid polling — clipboard history, because `NSPasteboard` has no change
-notification — will be gated centrally on system activity rather than
-trusted to behave.
+notification — is gated centrally on system activity rather than trusted to
+behave.
 
 This is a personal tool built for its author's own Macs. It is not
 distributed, not sold, and not on the App Store.
@@ -48,7 +48,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. Two of the four modules are built.**
+**The foundation is complete. Three of the four modules are built.**
 
 | | |
 |---|---|
@@ -69,6 +69,12 @@ The system HUD is the second. It shows volume and brightness feedback
 wherever macOS gives none — Control Center, Siri, another app — and stays
 silent for the physical keys, which macOS already covers with its own
 overlay.
+
+Clipboard history is the third, and the only one that genuinely polls. Fifty
+entries of text and images, in memory only and gone on quit, with the
+pasteboard types password managers use to opt out honoured before any
+content is read. It backs off when nothing is happening and suspends
+entirely while the screen is locked or the machine is asleep.
 
 ---
 
@@ -160,9 +166,9 @@ defaults delete com.gcdz.creativenotch        # only exists after onboarding
 Also remove CreativeNotch from **System Settings → Privacy & Security →
 Accessibility** if you granted it.
 
-Once the file shelf module lands it will store copies under
-`~/Library/Application Support/CreativeNotch` — nothing creates that
-directory today.
+The file shelf keeps its copies in
+`~/Library/Application Support/CreativeNotch`. Removing the app leaves that
+directory in place; delete it too if you want the stashed files gone.
 
 ## Usage
 
@@ -177,12 +183,14 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Press the volume or brightness keys | Apple's own HUD appears; the notch stays silent |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
-| Click the notch | Opens the full panel |
+| Click the notch | Opens the full panel, on the tab you used last |
+| Switch to the Clipboard tab | Shows what you have copied, newest first |
+| Click a clipboard entry | Puts it back on the clipboard, ready to paste |
 | Click it again | Closes it |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
-| Menu bar icon | Accessibility status, Quit |
+| Menu bar icon | Accessibility status, Clear Shelf, Clear Clipboard, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path.
@@ -197,7 +205,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 356 tests, ~1s, no window server needed
+swift test           # 359 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -224,7 +232,7 @@ Sources/
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
   CreativeNotchCoreTests/   147 tests
-  CreativeNotchUITests/     209 tests
+  CreativeNotchUITests/     212 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit

@@ -38,7 +38,23 @@ fi
 /usr/bin/sed -i '' "s/__VERSION__/$VERSION/" "$APP/Contents/Info.plist"
 echo "version $VERSION"
 
-IDENTITY="${CODESIGN_IDENTITY:--}"
+# Prefer the local dev identity whenever it exists, rather than defaulting
+# to ad-hoc. Ad-hoc's designated requirement is the code hash, so every
+# rebuild revokes Accessibility — and because that fallback was silent, a
+# rebuild in a shell that happened not to export CODESIGN_IDENTITY dropped
+# the grant with nothing on screen to say so. An explicit CODESIGN_IDENTITY
+# still wins; ad-hoc is now only ever chosen out loud.
+IDENTITY="${CODESIGN_IDENTITY:-}"
+if [ -z "$IDENTITY" ]; then
+  if security find-identity -v -p codesigning 2>/dev/null | grep -q '"CreativeNotch Dev"'; then
+    IDENTITY="CreativeNotch Dev"
+  else
+    IDENTITY="-"
+    echo "warning: signing ad-hoc — Accessibility will be revoked on every rebuild." >&2
+    echo "         run Scripts/setup-signing.sh once to fix this permanently." >&2
+  fi
+fi
+echo "signing identity: $IDENTITY"
 codesign -s "$IDENTITY" --force --timestamp=none "$APP"
 codesign -dv "$APP" 2>&1 | grep -E 'Identifier|Signature'
 

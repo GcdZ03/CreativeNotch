@@ -53,23 +53,37 @@ struct VolumeObserverTests {
         let observer = VolumeObserver()
         #expect(observer.registrationCount == 0)
 
-        observer.start()
         // A host with no output device legitimately registers nothing, so
-        // only assert the relationship, not a specific count.
+        // the precondition is asserted softly and everything that only
+        // means something when it held is asserted hard, below. The
+        // earlier shape — `afterStart >= registrationCount` — was
+        // trivially true whenever the final count was 0, which is to say
+        // always: it passed with `start()` gutted entirely.
+        let hasDevice = observer.deviceProvider() != 0
+
+        observer.start()
         let afterStart = observer.registrationCount
 
         observer.stop()
         #expect(observer.registrationCount == 0)
-        #expect(afterStart >= observer.registrationCount)
+
+        expectOrKnownHardwareIssue(hasDevice, "no default output device on this host")
+        if hasDevice { #expect(afterStart > 0) }
     }
 
     @Test func startingTwiceDoesNotStackRegistrations() {
         let observer = VolumeObserver()
+        let hasDevice = observer.deviceProvider() != 0
+
         observer.start()
         let afterFirst = observer.registrationCount
         observer.start()
         #expect(observer.registrationCount == afterFirst)
         observer.stop()
+
+        // Without this, the equality above holds vacuously at 0 == 0.
+        expectOrKnownHardwareIssue(hasDevice, "no default output device on this host")
+        if hasDevice { #expect(afterFirst > 0) }
     }
 
     /// Reading the level must not depend on having started observing.
@@ -103,5 +117,43 @@ struct VolumeObserverTests {
 
         #expect(observer.isWatchingForDefaultDeviceChanges)
         #expect(observer.isRunning == false)   // no device: nothing else could start
+    }
+
+    /// The regression this fixes: `start()` moved the system-listener
+    /// registration ahead of the `guard device != 0` check, but `stop()`
+    /// still opened with `guard isRunning else { return }` -- a guard whose
+    /// invariant that move broke. A device-less `start()` leaves
+    /// `isRunning == false` while the system listener is installed, so the
+    /// old `stop()` no-oped and leaked it.
+    @Test func stopTearsDownTheSystemListenerEvenAfterADeviceLessStart() {
+        let observer = VolumeObserver()
+        observer.deviceProvider = { AudioDeviceID(0) }
+        observer.start()
+        #expect(observer.isWatchingForDefaultDeviceChanges)   // sanity: precondition holds
+
+        observer.stop()
+
+        #expect(observer.isWatchingForDefaultDeviceChanges == false)
+    }
+
+    /// Worse than a leak: because the old `stop()` left the system listener
+    /// installed, a later default-device change would fire it and call
+    /// `self.stop(); self.start()` -- and if a device now existed, `start()`
+    /// would flip `isRunning` back to `true`, resurrecting an observer the
+    /// caller believed was stopped. `simulateDefaultDeviceChange()` fires
+    /// the exact block CoreAudio would, without needing a real device
+    /// change on demand.
+    @Test func stopPreventsADeviceChangeFromResurrectingTheObserver() {
+        let observer = VolumeObserver()
+        var device = AudioDeviceID(0)
+        observer.deviceProvider = { device }
+        observer.start()             // device-less: isRunning stays false
+        observer.stop()               // must tear down the system listener
+
+        device = AudioDeviceID(9999)  // pretend a default device now exists
+        observer.simulateDefaultDeviceChange()
+
+        #expect(observer.isRunning == false)
+        #expect(observer.isWatchingForDefaultDeviceChanges == false)
     }
 }
