@@ -29,15 +29,21 @@ struct HelperBackoffTests {
         #expect(HelperBackoff.delay(forAttempt: 99) == nil)
     }
 
-    /// Guards the cap even though the doubling sequence does not reach it
-    /// within five attempts — the cap must hold if `maxAttempts` is ever
-    /// raised.
-    @Test func theDelayNeverExceedsTheCap() {
-        for attempt in 1...HelperBackoff.maxAttempts {
-            if let d = HelperBackoff.delay(forAttempt: attempt) {
-                #expect(d <= HelperBackoff.cap)
-            }
-        }
+    /// The unclamped sequence would reach 32s at attempt 6; the ceiling brings
+    /// it back to 30s. The test directly exercises the ceiling because with
+    /// maxAttempts == 5 the attempt-bounded API never reaches the cap.
+    @Test func theClampingFunctionEnforcesTheCap() {
+        #expect(HelperBackoff.clamped(64) == 30)
+        #expect(HelperBackoff.clamped(30) == 30)
+        #expect(HelperBackoff.clamped(16) == 16)
+        #expect(HelperBackoff.clamped(1) == 1)
+    }
+
+    /// Proves the ceiling exists because it is needed: the unclamped doubling
+    /// would exceed the cap if maxAttempts were ever raised.
+    @Test func theExponentialSequenceExceedsTheCapAtAttemptSix() {
+        #expect(HelperBackoff.exponentialDelay(forAttempt: 5) == 16)
+        #expect(HelperBackoff.exponentialDelay(forAttempt: 6) == 32)
     }
 
     @Test func attemptZeroOrNegativeIsNonsenseAndYieldsNil() {
