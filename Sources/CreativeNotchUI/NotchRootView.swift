@@ -230,6 +230,15 @@ public struct NotchRootView: View {
                         PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
                         openContent(for: tab)
                     }
+                    // Top-aligned, but *below the anchor* — not at the
+                    // panel's absolute top. `panelFrame` puts the panel's
+                    // top edge at `anchor.rect.maxY`, so its first band is
+                    // the hardware notch (or, on a pill Mac, the menu bar
+                    // it sits under). Pinning to the true top hid the media
+                    // row behind the notch entirely while leaving the tab
+                    // bar just low enough to still show — the panel looked
+                    // like the module had not shipped.
+                    .padding(.top, app.anchor.rect.height)
                     .frame(maxHeight: .infinity, alignment: .top)
 
                 case .receiving:
