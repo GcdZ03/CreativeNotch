@@ -231,15 +231,16 @@ struct MediaRemoteBridgeTests {
         )
     }
 
-    /// Availability must not depend on having sent anything first, and
-    /// must be stable across reads — the handle is resolved once and
-    /// cached, so a second read that disagreed would mean the cache is
-    /// being rebuilt per call.
-    @Test func availabilityIsStableAcrossReads() {
-        #expect(MediaRemoteBridge.isAvailable == MediaRemoteBridge.isAvailable)
-    }
 }
 ```
+
+This suite has exactly one test, and that is correct rather than thin. The
+type has two surfaces: `isAvailable`, tested above, and `send`, which the
+global constraints forbid the suite from calling. An extra assertion here
+would have to be contrived — an earlier draft of this plan carried
+`#expect(isAvailable == isAvailable)`, which is tautological against a
+`static let` and cannot fail. Do not add it back, and do not invent a
+substitute. Coverage for `send` lives in the spike and in Task 4 Step 9.
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
@@ -311,7 +312,7 @@ public enum MediaRemoteBridge {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `swift test --filter MediaRemoteBridgeTests`
-Expected: PASS, 2 tests.
+Expected: PASS, 1 test.
 
 - [ ] **Step 5: Prove the test bites**
 
@@ -322,7 +323,7 @@ Then verify the resolution is real rather than vacuous: temporarily add `#expect
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 381 tests.
+Expected: PASS, 380 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -487,7 +488,7 @@ Change the `.nextTrack` row's command to `.previousTrack` — the copy-paste sli
 - [ ] **Step 6: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 386 tests.
+Expected: PASS, 385 tests.
 
 - [ ] **Step 7: Commit**
 
@@ -653,7 +654,7 @@ In `Tests/CreativeNotchCoreTests/CorePurityTests.swift`, add to `expectedInSubdi
 - [ ] **Step 7: Run the full suite**
 
 Run: `swift test`
-Expected: PASS, 389 tests.
+Expected: PASS, 388 tests.
 
 - [ ] **Step 8: Prove the wiring tests bite**
 
@@ -704,7 +705,7 @@ git commit -m "feat: wire media transport controls into the panel"
 ## Definition of done
 
 - [ ] `swift build` succeeds with no warnings.
-- [ ] `swift test` passes; the suite has grown from 375 to roughly 389 tests.
+- [ ] `swift test` passes; the suite has grown from 375 to roughly 388 tests.
 - [ ] `CorePurityTests` passes with `MediaCommand.swift` among its recursion anchors.
 - [ ] No test sends a real media command — `MediaRemoteBridge.send` appears in no test file.
 - [ ] No new `Timer`, monitor, or subprocess exists. The clipboard poller is still the only timer in the codebase.
