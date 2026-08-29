@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 155
+swift test                              # all 221
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -88,8 +88,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI. Everything with behaviour.
   CreativeNotch/       18-line executable.
 Tests/
-  CreativeNotchCoreTests/   63 tests
-  CreativeNotchUITests/     92 tests
+  CreativeNotchCoreTests/   86 tests
+  CreativeNotchUITests/     135 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
@@ -174,6 +174,13 @@ pass `.main` or do not use it.
 fake diverges from the real thing, and those are the cases that can lose a
 file. `ShelfStore` takes `now` as a parameter, like `PeekArbiter`, so the
 7-day purge is testable without waiting a week.
+
+**`HUDAttribution` and `HUDCoalescer` take time as a parameter too**, like
+`PeekArbiter`. `HUDAttribution.isKeyDriven(changeAt:lastKeyAt:)` and
+`HUDCoalescer.accept(_:at:)` are pure functions of the timestamps they are
+given — never `Date()` internally — so the whole HUD decision path (coalesce
+duplicates, attribute to a keypress, decide whether to peek) is testable
+without a keyboard, real audio hardware, or a sleep.
 
 **`removeItem` must never appear in the shelf module.** Removal is
 `trashItem`, always.

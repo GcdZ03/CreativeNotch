@@ -224,9 +224,9 @@ a drag has none and lasts until cleared.
 a clock. That is what makes TTL expiry testable without sleeping. Do not
 replace it with `Date()`.
 
-`PeekArbiter` is complete and tested but **not yet wired to anything** —
-`AppDelegate.peek()` currently fabricates a placeholder. Plan 1 is its first
-consumer.
+`PeekArbiter` is wired: the HUD is its first consumer, and
+`AppDelegate.peek()` no longer fabricates a placeholder `TrackSnapshot`
+(closes follow-up **F8**).
 
 ## Fullscreen
 
@@ -263,8 +263,10 @@ will need to hop. This is documented in the source too.
 
 ## Permissions
 
-Accessibility is needed for exactly two things: global key events (HUD) and
-drag detection (shelf). Clipboard and the shelf's drop target need nothing.
+Accessibility is needed for exactly one thing: `MediaKeyMonitor` detecting
+volume and brightness keypresses, so the HUD knows when to stay quiet. The
+file shelf's drag detection and drop target both work through AppKit's own
+drag events and need nothing; clipboard needs nothing either.
 
 Requested during first-launch onboarding, re-checkable from the menu bar.
 The "has it been granted yet?" refresh is driven by
@@ -279,7 +281,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-86 tests, all headless. `swift test` takes
+221 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -337,6 +339,52 @@ exactly as the cursor moves into the panel it just opened.
 
 No global monitor and no permission: AppKit already delivers dragging events to
 the window under the cursor.
+
+## The system HUD
+
+Observes the **value**, not the keypress. `VolumeObserver` watches CoreAudio
+and `BrightnessObserver` watches the private `DisplayServices` framework;
+neither is TCC-gated, and both catch a change whatever caused it — Control
+Center, Siri, another app, or the keys. Apple's own HUD only appears for the
+keys, so this is what fills the gap everywhere else.
+
+Attribution is a separate, pure decision (`HUDAttribution`, in
+`CreativeNotchCore`): a level change within 0.25s of a detected keypress is
+assumed to be Apple's HUD already covering it, and the notch stays silent.
+`HUDCoalescer` sits in front of it, because CoreAudio fires its volume
+listener twice per change; letting both through would flicker the pill and
+restart the peek TTL twice.
+
+Two gotchas cost real debugging time and are worth restating here:
+
+- **CoreAudio fires its volume-change listener twice per change.**
+  `HUDCoalescer` exists solely to absorb the duplicate.
+- **The brightness callback's `CGDirectDisplayID` argument is always `0`**,
+  not a valid display — the signature circulated online is wrong. Reading
+  brightness with that ID returns status 1000 and writes nothing, which
+  degrades silently to `nil`, indistinguishable from a host with no
+  readable brightness at all. `BrightnessObserver` always reads with
+  `CGMainDisplayID()` instead, and records the ID it last queried
+  (`BrightnessObserver.lastQueriedDisplay`) so a regression back to the
+  callback's `0` is provable from a test rather than only from a silent
+  `nil` on real hardware.
+
+`MediaKeyMonitor` is the **one admitted always-installed global monitor** in
+the project. The no-polling rule exists to stop monitors that fire
+continuously; this one fires only a few dozen times a day, on physical
+keypresses, and it exists purely to detect *that a keypress happened* for
+attribution — the level change itself is read from CoreAudio/DisplayServices,
+not from the key event. A session `CGEventTap` does the listening, not
+`NSEvent.addGlobalMonitorForEvents`: instrumenting a live app showed the
+`NSEvent` monitor delivers **zero** system-defined events on macOS 26, even
+with Accessibility granted. Unlike that old monitor — which always returned a
+token and only had its *delivery* gated by Accessibility — `CGEventTapCreate`
+itself genuinely **fails** without Accessibility granted, returning no tap at
+all. Either way `onKey` never fires, so without Accessibility, attribution
+**fails open**: `HUDAttribution` never sees a key timestamp to correlate
+against, and the notch reacts to every change, including ones caused by the
+keys. That is doubled feedback (Apple's HUD and the notch both showing), not
+silence — silence would be indistinguishable from the module being broken.
 
 ## Deliberately absent
 

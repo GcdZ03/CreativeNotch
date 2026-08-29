@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-155-brightgreen" alt="155 tests">
+  <img src="https://img.shields.io/badge/tests-221-brightgreen" alt="221 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -48,7 +48,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. None of the four modules are built yet.**
+**The foundation is complete. Two of the four modules are built.**
 
 | | |
 |---|---|
@@ -57,14 +57,18 @@ distributed, not sold, and not on the App Store.
 | ✅ Follows the focused screen | Built |
 | ✅ Menu bar item, first-launch onboarding | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
+| ✅ **System HUD** — volume and brightness in the notch, alongside Apple's | Built |
 | ⬜ Media controls | Planned |
-
 | ⬜ Clipboard history | Planned |
-| ⬜ System HUD replacement | Planned |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
 back out anywhere later.
+
+The system HUD is the second. It shows volume and brightness feedback
+wherever macOS gives none — Control Center, Siri, another app — and stays
+silent for the physical keys, which macOS already covers with its own
+overlay.
 
 ---
 
@@ -136,13 +140,14 @@ immediately.
 ### Permissions
 
 On first launch an onboarding window explains that **Accessibility** access is
-needed, and why:
+needed, and why: to notice when you press the volume or brightness keys, so
+the HUD can stay quiet for them and leave Apple's own overlay alone.
 
-- global key events, so the HUD can show volume and brightness in the notch
-- drag detection, so the file shelf can open as a drop target
-
-Clipboard history and the shelf's drop area work without it. You can skip the
-prompt and grant it later from the menu bar item.
+Nothing else needs it. The file shelf's drag detection and drop target both
+work through AppKit's own drag events, and clipboard history needs no
+permission either. Without Accessibility the HUD still works, but it reacts
+to the keys too — doubled feedback, not silence. You can skip the prompt and
+grant it later from the menu bar item.
 
 ### Uninstalling
 
@@ -167,6 +172,9 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 |---|---|
 | Pause on the notch for ~300 ms | Peeks open |
 | Move away | Collapses |
+| Change volume from Control Center, Siri, or another app | Peeks a speaker icon and level bar |
+| Change brightness from Control Center or another app | Peeks a sun icon and level bar |
+| Press the volume or brightness keys | Apple's own HUD appears; the notch stays silent |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel |
@@ -189,7 +197,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 155 tests, ~1s, no window server needed
+swift test           # 221 tests, ~1s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -215,8 +223,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   63 tests
-  CreativeNotchUITests/     92 tests
+  CreativeNotchCoreTests/   86 tests
+  CreativeNotchUITests/     135 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -238,12 +246,11 @@ In build order. Each module gets its own spec and plan before any code.
    `org.nspasteboard.ConcealedType` filtered so password managers never
    land on disk. The only subsystem that genuinely polls, and the reason
    `SystemActivity` exists.
-3. **Media** — now-playing metadata and transport controls.
-4. **System HUD** — volume and brightness in the notch, **alongside**
-   Apple's rather than replacing it. Apple's HUD only appears for the
-   physical keys, so the notch covers what it ignores: Control Center,
-   Siri, the menu bar slider, other apps. See
-   [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md).
+2. **Media** — now-playing metadata and transport controls.
+
+The system HUD has already shipped — see
+[`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md)
+for the design.
 
 Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
 battery architecture), iCloud sync, a synthetic black notch on notchless
@@ -267,7 +274,7 @@ Before module work starts, see
 | [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |
-| [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | Why the HUD is deferred, and what was proven |
+| [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | The feasibility spike behind the HUD module, and what it proved |
 
 ---
 

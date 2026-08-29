@@ -166,6 +166,9 @@ public struct NotchRootView: View {
                         .font(.system(size: 13, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))
 
+                case .peek(.hud(let event)):
+                    HUDView(kind: event.kind)
+
                 default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))

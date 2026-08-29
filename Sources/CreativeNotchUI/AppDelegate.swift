@@ -41,6 +41,27 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     public let state = AppState()
     private let onboarding = OnboardingController()
 
+    // MARK: - HUD (F8)
+
+    private var hud: HUDController?
+    private var arbiter = PeekArbiter()
+
+    /// Overridable so the peek slot's timing is testable without a real
+    /// clock or real sleeps -- a test advances this instead of waiting out
+    /// the TTL, the same reason `dismissGrace` and `growthDelay` exist.
+    var now: () -> TimeInterval = { Date().timeIntervalSince1970 }
+
+    /// How long the HUD occupies the peek slot before this re-checks the
+    /// arbiter. Mirrors `PeekArbiter.hudTTL`.
+    public static let defaultHUDTTLDelay: Duration = .milliseconds(1500)
+
+    /// Overridable so tests need not wait out the real 1.5 seconds.
+    var hudTTLDelay: Duration = AppDelegate.defaultHUDTTLDelay
+
+    /// Exposed so tests can await the real re-evaluation instead of
+    /// sleeping and hoping, exactly like `graceTask`.
+    private(set) var hudTTLTask: Task<Void, Never>?
+
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
@@ -141,10 +162,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observeScreenChanges()
 
         onboarding.showIfNeeded()
+
+        let hud = HUDController { [weak self] kind in self?.showHUD(kind) }
+        hud.start()
+        self.hud = hud
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
+        hud?.stop()
     }
 
     public func showOnboarding() {
@@ -178,20 +204,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         shelf = try? ShelfStore(directory: shelfDirectory)
-        try? shelf?.purge(now: Date())
+        _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
 
         container.onDragEntered = { [weak self] in
+            self?.arbiter.setDragActive(true)
             self?.state.transition(to: .receiving)
         }
         container.onDragExited = { [weak self] in
+            self?.arbiter.setDragActive(false)
             self?.state.transition(to: .closed)
         }
         container.onDrop = { [weak self] payloads in
             guard let self, let shelf = self.shelf else {
+                self?.arbiter.setDragActive(false)
                 self?.state.transition(to: .closed)
                 return false
             }
+            // The drag is over the moment a drop lands, whether or not it
+            // is accepted below.
+            defer { self.arbiter.setDragActive(false) }
 
             // Spec section 9: a write that fails refuses the drop rather
             // than half-completing it. Swallowing the error and opening
@@ -319,11 +351,70 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Hover
 
+    /// The dwell opened the notch. What it shows is the arbiter's call.
     private func peek() {
-        guard state.state == .closed else { return }
-        state.transition(to: .peek(.nowPlaying(
-            TrackSnapshot(title: "CreativeNotch", artist: "", isPlaying: true)
-        )))
+        presentPeek()
+    }
+
+    /// A level changed and the HUD decided it is worth showing.
+    ///
+    /// Internal rather than private: the test target reaches it through
+    /// `@testable import` to drive the funnel without a real hardware
+    /// change.
+    func showHUD(_ kind: HUDKind) {
+        presentPeek(recording: kind)
+    }
+
+    /// The only path to a `.peek` state.
+    ///
+    /// `.open` and `.receiving` are deliberate user states -- a passing
+    /// volume change, or a hover dwell that lands mid-drag, must not
+    /// destroy them. Whatever `kind` names is recorded into the arbiter
+    /// first, but what is actually shown is whatever the arbiter then
+    /// decides, never `kind` directly: priority among drag, HUD and
+    /// now-playing is the arbiter's call alone, not the caller's.
+    private func presentPeek(recording kind: HUDKind? = nil) {
+        let now = self.now()
+        if let kind {
+            arbiter.recordHUD(HUDEvent(kind: kind), now: now)
+        }
+
+        switch state.state {
+        case .open, .receiving:
+            return
+        case .closed, .peek:
+            break
+        }
+
+        guard let content = arbiter.content(now: now) else { return }
+        state.transition(to: .peek(content))
+        scheduleHUDTTLReevaluation()
+    }
+
+    /// Re-reads the arbiter once the HUD TTL is expected to have elapsed
+    /// and transitions to whatever it now says -- `.closed` if nothing.
+    /// Mirrors `startDismissGrace`: cancel-and-replace, and exposed as
+    /// `hudTTLTask` so tests can await it instead of sleeping.
+    private func scheduleHUDTTLReevaluation() {
+        hudTTLTask?.cancel()
+        hudTTLTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: self.hudTTLDelay)
+            guard !Task.isCancelled else { return }
+            self.reevaluatePeek()
+        }
+    }
+
+    /// Only acts while still `.peek`: if the user has since opened the
+    /// panel or started a drag, that is a deliberate state this stale
+    /// check must not disturb.
+    private func reevaluatePeek() {
+        guard case .peek = state.state else { return }
+        if let content = arbiter.content(now: self.now()) {
+            state.transition(to: .peek(content))
+        } else {
+            state.transition(to: .closed)
+        }
     }
 
     /// The cursor left the visible shape.
