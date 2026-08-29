@@ -77,11 +77,29 @@ jobs:
             ${{ steps.package.outputs.name }}
             ${{ steps.package.outputs.name }}.sha256
           body: |
-            > **Early release.** The file shelf works: drag a file onto the
-            > notch to stash it, drag it out again later. The other three
-            > modules — clipboard, media, HUD — are **not built yet**. Install
-            > it to watch the project develop, not to replace a notch app you
-            > already use.
+            > **Early release.** Two modules work: the **file shelf** (drag
+            > a file onto the notch to stash it, drag it out later) and the
+            > **system HUD** (volume and brightness shown in the notch).
+            > **Media controls and clipboard history are not built yet.**
+            > Install it to watch the project develop, not to replace a notch
+            > app you already use.
+
+            ## What the HUD does — and deliberately does not do
+
+            It shows volume and brightness **where macOS shows you nothing**:
+            changes from Control Center, from Siri, or from another app.
+
+            When you press the physical volume or brightness keys, the notch
+            stays **silent** and Apple's own HUD appears as it always has.
+            That is the intended behaviour, not a missing feature — the two
+            coexist rather than one replacing the other, so nothing is
+            hidden from you and nothing is shown twice.
+
+            Staying silent for the keys needs **Accessibility** (System
+            Settings → Privacy & Security → Accessibility) so the app can
+            tell a keypress from any other cause. Without it the HUD still
+            works, but you will see both overlays at once when you use the
+            keys.
 
             ## Install
 
