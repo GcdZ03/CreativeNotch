@@ -23,6 +23,17 @@ public final class AppState {
     /// rect and the hit-test rect are both panel-*local*.
     public private(set) var panelFrame: CGRect = .zero
 
+    /// The tab the panel was last opened on.
+    ///
+    /// Reopening returns here rather than always to the shelf. Only
+    /// `.open` touches it: HUD peeks fire constantly, and letting one
+    /// reset the tab would move the panel out from under the user for
+    /// reasons they never see.
+    ///
+    /// Qualified because SwiftUI has a `Tab` of its own, the same reason
+    /// `anchor` spells out `CreativeNotchCore.Anchor`.
+    public private(set) var lastOpenTab: CreativeNotchCore.Tab = .shelf
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -82,6 +93,7 @@ public final class AppState {
     /// callback for an unchanged state cannot leave them stale.
     public func transition(to next: NotchState) {
         guard next != state else { return }
+        if case .open(let tab) = next { lastOpenTab = tab }
         state = next
         notify(.state(next))
     }
