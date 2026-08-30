@@ -18,6 +18,15 @@ struct TimerDisplayTests {
         #expect(TimerDisplay.text(remaining: 1439) == "24m")
     }
 
+    /// The `ceil` in `text` only shows up at fractional remainders: with
+    /// whole seconds `ceil == floor`, so the other rounding tests pass
+    /// under either. At 1440.5s ceiling reads "25m" and floor reads "24m" —
+    /// the display would drop a minute early.
+    @Test func aFractionalRemainderRoundsUpNotDown() {
+        #expect(TimerDisplay.text(remaining: 1440.5) == "25m")
+        #expect(TimerDisplay.text(remaining: 60.5) == "2m")
+    }
+
     @Test func theLastMinuteSwitchesToSeconds() {
         #expect(TimerDisplay.text(remaining: 60) == "1m")
         #expect(TimerDisplay.text(remaining: 59) == "0:59")

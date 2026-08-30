@@ -54,8 +54,11 @@ public struct Countdown: Equatable, Sendable {
         remaining(at: now) <= 0
     }
 
-    /// Idempotent: pausing an already-paused timer must not re-freeze it at
-    /// a later, wrong remainder.
+    /// Idempotent: pausing an already-paused timer does not re-freeze it at
+    /// a later, wrong remainder. That comes from `remaining`'s short-circuit
+    /// on `pausedRemaining` above, which makes the reassignment below a
+    /// no-op; the guard is a second line of defence, in case `remaining`
+    /// ever stops short-circuiting.
     public func paused(at now: Date) -> Countdown {
         guard !isPaused else { return self }
         var copy = self
