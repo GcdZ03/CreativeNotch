@@ -115,4 +115,86 @@ struct MediaHelperProcessTests {
         #expect(lines == ["next line"])
         #expect(helper.discardedLineCount == 1)
     }
+
+    // MARK: - Bounded shutdown (fix round 1: reviewer flagged unbounded
+    // waitUntilExit as an indefinite main-thread hang)
+
+    /// `performBoundedShutdown` is a pure state machine over injected
+    /// closures — no `Process` involved — specifically so the SIGKILL
+    /// escalation path is provably reachable in a test. A helper that
+    /// traps or ignores SIGTERM (the exact scenario the review named)
+    /// must still return in bounded time by escalating.
+    @Test func stopEscalatesToSIGKILLWhenTheProcessIgnoresSIGTERM() {
+        var terminateCalls = 0
+        var waitCalls = 0
+        var forceKillCalls = 0
+
+        MediaHelperProcess.performBoundedShutdown(
+            timeout: 0.001,
+            terminate: { terminateCalls += 1 },
+            waitForExit: { _ in
+                waitCalls += 1
+                // First call simulates SIGTERM being ignored (times out).
+                // Second call simulates SIGKILL taking effect immediately.
+                return waitCalls > 1
+            },
+            forceKill: { forceKillCalls += 1 }
+        )
+
+        #expect(terminateCalls == 1)
+        #expect(forceKillCalls == 1)
+        #expect(waitCalls == 2)
+    }
+
+    /// The complement: a process that exits promptly after SIGTERM must
+    /// NOT be escalated to SIGKILL. Without this, a mutation that always
+    /// force-kills regardless of `waitForExit`'s result would pass the
+    /// test above for the wrong reason.
+    @Test func stopDoesNotEscalateWhenTheProcessExitsPromptly() {
+        var waitCalls = 0
+        var forceKillCalls = 0
+
+        MediaHelperProcess.performBoundedShutdown(
+            timeout: 0.001,
+            terminate: {},
+            waitForExit: { _ in waitCalls += 1; return true },
+            forceKill: { forceKillCalls += 1 }
+        )
+
+        #expect(waitCalls == 1)
+        #expect(forceKillCalls == 0)
+    }
+
+    // MARK: - Stale post-stop delivery (fix round 1: reviewer flagged a
+    // chunk mid-hop to the main actor publishing after stop() returns)
+
+    /// `deliverFromReader` is what the real stdout reader calls after its
+    /// `Task { @MainActor in ... }` hop. A chunk captured by the reader an
+    /// instant before `stop()` runs can still be sitting on that hop when
+    /// `stop()` finishes — this proves such a chunk is dropped rather than
+    /// reaching `onLine` with data from a helper that's already gone.
+    @Test func aChunkStillMidHopWhenStopFinishesIsNotPublished() {
+        let helper = MediaHelperProcess()
+        var lines: [String] = []
+        helper.onLine = { lines.append($0) }
+
+        helper.stop()
+        helper.deliverFromReader("late\n")
+
+        #expect(lines.isEmpty)
+    }
+
+    /// The complement: `deliverFromReader` must still forward a normal
+    /// chunk when the helper has not been stopped, or the guard above
+    /// would be trivially satisfied by a version that never delivers
+    /// anything at all.
+    @Test func deliverFromReaderForwardsNormallyWhenNotStopped() {
+        let helper = MediaHelperProcess()
+        var lines: [String] = []
+        helper.onLine = { lines.append($0) }
+
+        helper.deliverFromReader("fine\n")
+
+        #expect(lines == ["fine"])
+    }
 }
