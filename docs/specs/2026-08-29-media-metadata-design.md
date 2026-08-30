@@ -68,10 +68,18 @@ support an ambient peek: the app would have to already know media had
 started in order to decide to start listening. A peek that can never fire
 is not a feature.
 
-**Measured cost: 2.8 MB resident, 0.0% CPU** — against the app's own 75 MB.
-The helper blocks on a runloop; it is a small resident footprint rather
+**Measured cost: 18.3 MB resident, 0.0% CPU** — against the app's own
+75 MB. The helper blocks on a runloop; it is a resident footprint rather
 than ongoing work, which is what makes this compatible with the project's
 one architectural rule.
+
+An earlier draft of this section claimed 2.8 MB. That figure came from the
+bare `perl` probe during the packaging spike, before the bridge dylib was
+loaded; the shipped helper loads it, and the real cost is roughly six times
+higher. 18.3 MB was measured against the running helper spawned by the
+signed `.app`. The 0.0% CPU is the load-bearing number here — the argument
+for running continuously rests on the helper doing no ongoing work, not on
+it being small — but a figure off by 6x is not one to leave in a spec.
 
 The supervisor guarantees no helper outlives the app, on quit or on crash.
 
