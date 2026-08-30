@@ -7,6 +7,7 @@ public extension CreativeNotchCore.Tab {
         case .shelf:     return "Shelf"
         case .clipboard: return "Clipboard"
         case .hud:       return "HUD"
+        case .power:     return "Power"
         }
     }
 }

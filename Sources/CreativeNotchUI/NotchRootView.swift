@@ -449,6 +449,8 @@ public struct NotchRootView: View {
             // it is unreachable — but `Tab` is exhaustive and the compiler
             // wants a case.
             EmptyView()
+        case .power:
+            EmptyView()
         }
     }
 
