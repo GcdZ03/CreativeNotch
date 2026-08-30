@@ -462,6 +462,18 @@ public struct NotchRootView: View {
                     // its doc comment.
                     Self.nowPlayingPeek(for: app, track: track)
 
+                // Placeholder only: this task (Task 7) wires the completion
+                // into `PeekArbiter`'s priority, not its presentation. A
+                // real completion peek view is Task 8's job. Named
+                // explicitly rather than left to `default` below, for the
+                // same reason `.peek(.nowPlaying)` above is: an unhandled
+                // `PeekContent` case falling through `default` is exactly
+                // how this project's only Critical bug shipped.
+                case .peek(.timerDone):
+                    Text("Timer done")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+
                 default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))

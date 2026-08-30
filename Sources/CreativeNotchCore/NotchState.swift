@@ -28,11 +28,28 @@ public struct HUDEvent: Equatable, Sendable {
     public init(kind: HUDKind) { self.kind = kind }
 }
 
+/// What the completion peek shows: the duration that was set and how late
+/// the timer fired.
+///
+/// Lateness is real, not a defensive placeholder: `Countdown.remaining` is
+/// deliberately unclamped so a machine that sleeps through the deadline and
+/// fires on wake can report exactly how late it was.
+public struct TimerCompletion: Equatable, Sendable {
+    public let duration: TimeInterval
+    public let lateness: TimeInterval
+
+    public init(duration: TimeInterval, lateness: TimeInterval) {
+        self.duration = duration
+        self.lateness = lateness
+    }
+}
+
 /// What occupies the single peek slot.
 public enum PeekContent: Equatable, Sendable {
     case hud(HUDEvent)
     case dragTarget
     case nowPlaying(TrackSnapshot)
+    case timerDone(TimerCompletion)
 }
 
 /// The one state the panel is ever in.
