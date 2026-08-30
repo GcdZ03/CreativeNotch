@@ -20,6 +20,13 @@ elsewhere), `NotificationCenter` and `NSWorkspace` observers, an
 event monitor, cursor-position polling, an audio tap. If you believe you
 need one, you almost certainly need a notification you have not found yet.
 
+**Allowed, with the timer as the precedent:** a *one-shot* scheduled to a
+known future instant, when something the user deliberately started is
+counting down to it. The rule is not "never schedule work" — it is that
+nothing runs when it isn't needed, and a countdown you started is needed by
+definition. What it must not do is schedule anything when no countdown is
+running, or wake more often than the display actually changes.
+
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
 on `SystemActivity` — as is the media helper subprocess, which is the gate's
@@ -547,6 +554,101 @@ Removing the feature made the module cheaper as well as more honest.
 because `.power` is the first tab whose existence depends on the hardware.
 Three of its four facts are meaningless on a Mac mini, and the rule that
 already hid `.hud` hides it there too.
+
+## The timer
+
+A countdown started from the panel, drawn in the trailing ear of the closed
+notch. Two decisions carry the whole module.
+
+### A target date, never a tick count
+
+`Countdown` stores the `Date` it expires at, and every answer is derived from
+that target and a `now` passed in. A tick-counting timer loses time across
+system sleep: its ticks do not fire while the machine is asleep, and it comes
+back believing it is on schedule. Deriving from a stored target makes sleep a
+non-event — on wake the remainder is simply recomputed and is correct.
+
+`remaining(at:)` is deliberately **not** clamped at zero, because a machine
+that slept through a deadline fires on wake and the completion peek reports
+how late it was. Clamping would throw that away.
+
+### Display granularity *is* the redraw schedule
+
+`mm:ss` would cost 1,500 redraws over a 25-minute timer and 5,940 at the
+99-minute cap, each waking the CPU and keeping it out of deeper idle states —
+the exact cost this project exists to avoid.
+
+So `TimerDisplay` shows ceiling minutes above a minute and seconds below it,
+and `nextChange(remaining:)` reports when the text next *differs*. The
+scheduler sleeps until that instant and nothing in between: 25 wakes over a
+25-minute timer's first 24 minutes, 60 in its last, and **zero while paused**.
+
+Ceiling, not floor: a 25-minute timer must read `25m` the moment it starts.
+The trap is the handover — at exactly 60s the text is `1m` and changes one
+second later, not sixty. Get it wrong and every timer's final minute displays
+a frozen `1m` while the seconds run out.
+
+Each wake is a one-shot scheduled to that instant. There is no repeating
+timer; the clipboard poller remains the only one in the project.
+
+### The `SystemActivity` exemption
+
+The timer is the first subsystem deliberately exempt from the central gate,
+and the exemption splits:
+
+- **The deadline is never gated.** A timer whose purpose is to fire while you
+  are not watching cannot be suspended for not being watched.
+- **Redraws are gated.** With the display asleep there is no observer, so
+  `TimerSchedule.nextWake` schedules the deadline itself and nothing before it.
+
+Read the narrower claim carefully: this is *scheduling policy, not a power
+assertion*. `Task.sleep` does not wake sleeping hardware. Screen-off and
+locked fire on time; genuine system sleep fires **on wake**, late, and the
+peek says how late. Firing at the right wall-clock moment on a sleeping Mac
+would need `IOPMSchedulePowerEvent`, which this app deliberately does not use.
+
+### Why the trailing ear
+
+The countdown shares the trailing slot with the now-playing badge and
+outranks it while running. The leading ear was considered and rejected: on a
+notched Mac that is the **app menu bar**, which grows *rightward, toward the
+notch*, so a menu-heavy app expands directly into it. Status items on the
+right cluster at the far edge and grow *leftward*, so the space beside the
+notch is the last place they reach. Neither is detectable — there is no API
+for another application's menu extents any more than for its status items.
+
+`NotchShape.badgeSlot(countdown:nowPlaying:at:)` returns which badge owns the
+slot, and the slot carries its own width. That is one answer, not two: an
+earlier form returned a width and left the view comparing it to a constant to
+decide *which* badge to draw, which made two independent constants
+load-bearing as distinct values. Identity inferred from a measurement is the
+same defect class as two derivations of one rectangle.
+
+The width is **fixed**, not fitted to the current string. A width that
+tracked the text would resize the closed notch every time a digit dropped —
+visually jittery, and worse, it would re-run the drawn/hit-test/hover sync on
+every change, turning a once-a-minute redraw into a once-a-minute geometry
+update.
+
+### The trap that nearly shipped
+
+At a display-change wake the `Countdown` value is **unchanged** — same
+`target`, and it is `Equatable`. Only the wall clock moved, and
+`remaining(at:)` takes that as a parameter precisely so it is not part of the
+value.
+
+Swift's `@Observable` macro emits an equality guard for every `Equatable`
+stored property, so every one of those republishes was dropped. The timer ran,
+fired, chimed and peeked on time — and the number in the ear stayed frozen at
+whatever it read when the countdown started. No crash, no log line, and no
+failing test, because every test asserted *values* rather than
+*notifications*.
+
+`AppState.countdown` is therefore computed over a deliberately
+non-`Equatable` box. `nowPlaying` keeps the dedupe on purpose: an equal
+`TrackSnapshot` renders identically. If you are tempted to "simplify" the box
+away, `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what stops
+you.
 
 ## Deliberately absent
 

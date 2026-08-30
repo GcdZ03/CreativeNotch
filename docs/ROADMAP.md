@@ -1,20 +1,24 @@
 # Roadmap
 
-Five modules are planned. **None of them is implemented.** Nothing in this
+Four modules are planned. **None of them is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
 
-The sixth, **battery and power state**, shipped on 2026-08-30 and its entry
-has been removed. See `docs/plans/2026-08-30-battery.md` and
-`docs/research/2026-08-30-battery-estimate-noise.md`.
+Two of the original six have shipped, both on 2026-08-30, and their entries
+have been removed:
+
+- **Battery and power state** — `docs/plans/2026-08-30-battery.md`,
+  `docs/research/2026-08-30-battery-estimate-noise.md`.
+- **Timer** — `docs/specs/2026-08-30-timer-design.md`,
+  `docs/plans/2026-08-30-timer.md`.
 
 Every module in this project so far has gone spec → plan → implementation,
 and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all five have to answer
+## The constraint all four have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -25,51 +29,28 @@ A feature is not blocked by being expensive; it is blocked by being expensive
 *while nobody is looking at it*. The question for each module below is
 therefore always the same: what wakes it, and what does it cost when idle?
 
-`SystemActivity` is the central gate. It has three consumers: the clipboard
-poller, the media helper, and the power module. The first two are *suspended*
-when the screen locks or the machine sleeps. The third is not — it is
-entirely notification-driven, so it costs nothing while idle and suspending
-it would only mean missing the charger moving while the lid was shut. What
-the gate suppresses there is the peek, not the observer.
+`SystemActivity` is the central gate, and it now has four consumers that
+join it in three different ways:
 
-That distinction is the useful precedent battery leaves behind: joining the
-gate does not have to mean being switched off. Any new subsystem with a
-runtime cost joins it; a subsystem with no runtime cost joins it only for
-what it *draws*.
+- **Clipboard poller** and **media helper** are *suspended* outside
+  `.active`. Their output is only worth producing while somebody can see it.
+- **The power module** is not suspended. It is entirely notification-driven,
+  so it costs nothing idle, and suspending it would only mean missing the
+  charger moving while the lid was shut. What the gate suppresses there is
+  the peek, not the observer.
+- **The timer** is the third shape, and the sharpest: its *redraws* are
+  gated and its *deadline* never is. A countdown's whole purpose is to fire
+  while nobody is watching, which is the one thing the gate exists to
+  suppress. Outside `.active` it schedules the deadline itself and nothing
+  before it.
 
----
-
-## 1. Timer
-
-**What it is.** A countdown started from the panel, with the remaining time
-visible in the closed notch — the same ambient-badge slot the now-playing
-badge uses.
-
-**Its tension with the one rule is real, and resolvable.** A running timer
-genuinely needs a timer. But the rule is not "never schedule work"; it is
-"nothing runs when it isn't needed", and a countdown the user deliberately
-started is needed by definition. The rule it must not break is the inverse:
-**nothing scheduled when no timer is running.**
-
-**The thing to get right.** Two things, both of which have bitten this
-project's HUD:
-
-- **Redraw rate is not tick rate.** A timer that redraws the badge every
-  second for an hour is 3,600 redraws. The display only needs to change when
-  the visible text changes, and a countdown showing minutes changes 60 times,
-  not 3,600. Decide the display granularity first, then schedule to it.
-- **Sleep breaks wall-clock arithmetic.** A timer that counts ticks loses
-  time across sleep. Store the target `Date`, compute the remainder from it,
-  and treat the tick purely as a redraw prompt — then a machine that slept
-  through the deadline fires correctly on wake instead of finishing an hour
-  late.
-
-**Needs a spike:** no, but it needs a decision on what happens when a timer
-finishes while the screen is locked.
+The useful precedent those two leave behind: joining the gate does not have
+to mean being switched off. Ask what the subsystem *costs* when idle and what
+it *draws* when nobody is looking, and gate those separately.
 
 ---
 
-## 2. Screen recording, microphone and camera in use
+## 1. Screen recording, microphone and camera in use
 
 **What it is.** An ambient indicator when something is capturing — the
 privacy tell, in the notch, next to the hardware it is about.
@@ -103,7 +84,7 @@ screen recording is in scope at all.
 
 ---
 
-## 3. Launch at login
+## 2. Launch at login
 
 **What it is.** A toggle that registers the app to start with the session.
 
@@ -127,7 +108,7 @@ install script's path and the ad-hoc signature.
 
 ---
 
-## 4. Global hotkey
+## 3. Global hotkey
 
 **What it is.** A key combination that opens the panel from anywhere.
 
@@ -157,14 +138,14 @@ set, is the same failure mode as the login item above.
 
 ---
 
-## 5. Preferences
+## 4. Preferences
 
 **What it is.** A settings surface: enable or disable individual modules,
 and adjust the values currently compiled in — dwell delay, clipboard
 retention and poll interval, HUD peek duration, which peeks are allowed to
 interrupt.
 
-**This is the module the other five depend on.** Launch-at-login and the
+**This is the module the others depend on.** Launch-at-login and the
 global hotkey both need somewhere to live, and every module above adds
 another thing worth turning off.
 
@@ -196,22 +177,23 @@ it is the only one of the five that changes how existing modules are wired.
 
 ## Suggested order
 
-**Battery shipped first, out of this order.** It was listed third, behind
-Preferences, on the grounds that four of the six then-planned modules
-wanted a home in a
-preferences surface. That reasoning holds for the four; it did not hold for
-battery, whose tunables are four documented `static let`s in Core that
-Preferences can read whenever it arrives. The cost the ordering warns about
-is retrofitting module *enable/disable* wiring, which is a different thing
-from retrofitting a constant.
+**Battery and the timer both shipped ahead of this order**, which was
+originally Preferences-first on the grounds that four of the six then-planned
+modules wanted a home in a preferences surface.
 
-1. **Preferences**, because the remaining four want a home in it, and
+That reasoning still holds for what remains, and it did not hold for either
+of the two that shipped. Battery's tunables are four documented `static let`s
+in Core; the timer's are its 99-minute cap and its badge width. Preferences
+can read all of them whenever it arrives. The cost the ordering warns about
+is retrofitting module *enable/disable* wiring, which is a different thing
+from retrofitting a constant — and neither module made that harder.
+
+1. **Preferences**, because the remaining three want a home in it, and
    because retrofitting module enable/disable is more expensive than
    building for it.
 2. **Launch at login** and **global hotkey** — small, self-contained, and
    they validate the preferences surface with real settings.
-3. **Timer**, which needs the ambient badge slot the media module built.
-4. **Capture indicators**, last, because it is the only one that might come
+3. **Capture indicators**, last, because it is the only one that might come
    back from its spike smaller than planned.
 
 ## Still deliberately not planned

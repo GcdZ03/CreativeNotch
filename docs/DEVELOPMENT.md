@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 629
+swift test                              # all 739
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -102,8 +102,8 @@ Sources/
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
 Tests/
-  CreativeNotchCoreTests/     224 tests
-  CreativeNotchUITests/       313 tests
+  CreativeNotchCoreTests/     313 tests
+  CreativeNotchUITests/       426 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above

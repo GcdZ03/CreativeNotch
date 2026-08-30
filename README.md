@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-537-brightgreen" alt="537 tests">
+  <img src="https://img.shields.io/badge/tests-739-brightgreen" alt="739 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -61,6 +61,7 @@ distributed, not sold, and not on the App Store.
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
 | ✅ **Media metadata** — now-playing title, artist, artwork, and an ambient badge | Done |
+| ✅ **Timer** — a countdown, counting down in the notch | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -239,6 +240,12 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
+| Switch to the Timer tab | Presets, or type your own up to 99 minutes |
+| Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
+| Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
+| Pause it | The countdown dims, and stops redrawing entirely |
+| Let it finish | The notch peeks and chimes once, and stays until you click it |
+| Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Accessibility status, Clear Shelf, Clear Clipboard, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
@@ -254,7 +261,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 537 tests, ~1s, no window server needed
+swift test           # 739 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -280,8 +287,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   224 tests
-  CreativeNotchUITests/     313 tests
+  CreativeNotchCoreTests/   313 tests
+  CreativeNotchUITests/     426 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -297,26 +304,29 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped, and the first of the six
-planned since — battery and power state. The remaining five are not built:
+Every module on the *original* roadmap has shipped, and two of the six
+planned since. The remaining four are not built:
 
 | | |
 |---|---|
 | **Battery and power state** — level, charging state, Low Power Mode | **Shipped** |
+| **Timer** — a countdown, counting down in the notch | **Shipped** |
 | **Preferences** — turn modules off, change the values that are compiled in today | Planned |
 | **Launch at login** | Planned |
 | **Global hotkey** — open the panel from anywhere | Planned |
-| **Timer** — a countdown, counting down in the notch | Planned |
 | **Capture indicators** — microphone, camera, and screen recording in use | Planned |
 
-Battery shipped first, out of the suggested order — it needed no preferences
-surface to be useful, and its tunables are documented constants that
-Preferences can read later. Preferences comes next, because the remaining
-four want somewhere to live and because retrofitting module enable/disable
-costs more than building for it. Capture indicators come last: microphone and camera are reachable
-through CoreAudio and CoreMediaIO property listeners, but **no public API
-reports that another app is recording the screen**, so that third part may
-not be buildable at all.
+Battery and the timer both shipped ahead of the suggested order, which put
+Preferences first. Neither needed a preferences surface to be useful, and
+both have tunables that are documented constants Preferences can read later —
+the cost that ordering warns about is retrofitting module *enable/disable*
+wiring, which is a different thing from retrofitting a constant.
+
+Preferences comes next, because the remaining three want somewhere to live.
+Capture indicators come last: microphone and camera are reachable through
+CoreAudio and CoreMediaIO property listeners, but **no public API reports
+that another app is recording the screen**, so that third part may not be
+buildable at all.
 
 The one that is not merely unbuilt but genuinely unsettled is preferences,
 for an architectural reason: turning a module off has to *stop its
@@ -368,6 +378,8 @@ Before module work starts, see
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
 | [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module |
 | [`docs/specs/2026-08-29-media-metadata-design.md`](docs/specs/2026-08-29-media-metadata-design.md) | The media metadata module |
+| [`docs/specs/2026-08-30-timer-design.md`](docs/specs/2026-08-30-timer-design.md) | The timer module |
+| [`docs/plans/2026-08-30-timer.md`](docs/plans/2026-08-30-timer.md) | How the timer was built |
 | [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |
