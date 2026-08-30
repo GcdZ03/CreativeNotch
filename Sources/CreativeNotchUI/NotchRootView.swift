@@ -99,6 +99,16 @@ public final class AppState {
     /// tracking if it is ever written after install.
     public var hasBattery: Bool = false
 
+    /// Current power state, set by `PowerController`. Observable, like
+    /// `nowPlaying`: a plain value the panel reads directly.
+    public internal(set) var power: PowerSnapshot?
+
+    /// The estimate the gate is willing to stand behind, which is not the
+    /// same thing as the one in `power`. Held separately rather than
+    /// overwriting `power.estimateMinutes` so the raw reading and the
+    /// trusted one never get confused for each other.
+    public internal(set) var powerEstimate: Int?
+
     /// Set by `MediaController`. Observable — unlike `shelf` and
     /// `clipboard`, which are `@Observable` stores that publish their own
     /// changes, this is a plain value the header reads directly.
@@ -281,6 +291,17 @@ public struct NotchRootView: View {
         )
     }
 
+    /// The power peek exactly as `body` builds it, arguments and all.
+    ///
+    /// Static for the same reason `nowPlayingPeek(for:track:)` is: it lets
+    /// a test read the `notchGap` this view *supplies* without rendering.
+    /// Proving the gap through a render is a documented trap — switching
+    /// the anchor changes the drawn panel shape as well as the content, so
+    /// the images differ whether or not the gap was honoured.
+    static func powerPeek(for app: AppState, event: PowerEvent) -> PowerPeekView {
+        PowerPeekView(event: event, notchGap: notchGap(for: app.anchor))
+    }
+
     public var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear
@@ -379,6 +400,13 @@ public struct NotchRootView: View {
                 // was never once drawn. Text comes from
                 // `NowPlayingLabel.text(for:)`, the same function the
                 // panel header uses, so the two cannot drift apart.
+                // A real case rather than a fall-through to `default`.
+                // That fall-through is bug C2: `.peek(.nowPlaying)` hit
+                // `default` and drew the literal string "CreativeNotch"
+                // over playing music for a whole module's development.
+                case .peek(.power(let event)):
+                    Self.powerPeek(for: app, event: event)
+
                 case .peek(.nowPlaying(let track)):
                     // Same notch-gap treatment `HUDView` gets above, from
                     // the same named function: on a notched Mac the middle
@@ -465,7 +493,7 @@ public struct NotchRootView: View {
             // wants a case.
             EmptyView()
         case .power:
-            EmptyView()
+            PowerView(snapshot: app.power, estimateMinutes: app.powerEstimate)
         }
     }
 
