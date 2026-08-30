@@ -51,9 +51,28 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
 
     /// The part of this payload the rest of the app models.
     ///
-    /// `isPlaying` comes from the payload's own playback rate rather than
-    /// from notification ordering — the spike saw `playing` lag the real
-    /// state in the first notifications after a change.
+    /// `isPlaying` is whatever the bridge measured, never inferred here.
+    ///
+    /// ⚠️ It does NOT come from the payload's playback rate, despite what
+    /// the spike expected. Task 6's manual verification found
+    /// `kMRMediaRemoteNowPlayingInfoPlaybackRate` inverted for Spotify on
+    /// macOS 26.6.2 — published as 1 while PAUSED and absent while
+    /// PLAYING, correct in 1 of 5 samples. The bridge therefore queries
+    /// `MRMediaRemoteGetNowPlayingApplicationIsPlaying`, which was correct
+    /// in 5 of 5, and keeps the rate only as a fallback. Both are fresh
+    /// XPC queries, so the spike's real point still holds: the value never
+    /// depends on notification ordering, which was seen to lag reality.
+    ///
+    /// Provisional: that inversion is a measurement of one player on one
+    /// OS build, and only manual verification can confirm or overturn it.
+    /// Do not "restore" the bridge to the playback rate on the strength of
+    /// the header docs alone — re-measure first.
+    ///
+    /// `contentID` is decoded because the wire format carries it, and is
+    /// deliberately unused. `TrackIdentity` was moved off it after the
+    /// helper was measured changing it on every play/pause for the same
+    /// track; wiring it back into identity re-introduces the artwork
+    /// flicker the cache exists to prevent.
     ///
     /// A payload with no title describes no track: that is how "nothing is
     /// playing" arrives, and it becomes `nil` rather than an empty header.

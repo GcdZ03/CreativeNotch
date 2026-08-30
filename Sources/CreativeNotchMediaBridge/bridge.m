@@ -198,9 +198,22 @@ static dispatch_source_t gStdinSource;
 /// so without this a helper outlives the app that spawned it and keeps
 /// reading the user's media forever. The parent holds the write end of our
 /// stdin; when the parent dies the pipe closes and read() here returns 0.
-static void CNExitWhenStdinCloses(dispatch_queue_t queue) {
+///
+/// ⚠️ The watchdog gets its OWN serial queue, and it must keep it. DO NOT
+/// merge it onto the emit queue as a tidy-up: `CNEmit` calls a *blocking*
+/// `fwrite`/`fflush` on stdout, and a shared serial queue would sit behind
+/// that write. A parent that signals shutdown by closing our stdin while
+/// no longer draining our stdout would then wedge us — the write blocks on
+/// a full pipe forever and the EOF handler that would have exited us never
+/// gets to run. Separate queues mean the watchdog can always fire, whatever
+/// the emit side is doing.
+static void CNExitWhenStdinCloses(void) {
+    // Static for the same ARC reason as gStdinSource below.
+    static dispatch_queue_t watchdogQueue;
+    watchdogQueue = dispatch_queue_create("com.gcdz.creativenotch.media-bridge.stdin",
+                                          DISPATCH_QUEUE_SERIAL);
     gStdinSource =
-        dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, queue);
+        dispatch_source_create(DISPATCH_SOURCE_TYPE_READ, STDIN_FILENO, 0, watchdogQueue);
     if (gStdinSource == NULL) {
         CNLog("could not watch stdin; refusing to run unsupervised");
         exit(1);
@@ -255,7 +268,7 @@ void cn_media_stream(void *interp_unused, void *cv_unused) {
         queue = dispatch_queue_create("com.gcdz.creativenotch.media-bridge",
                                       DISPATCH_QUEUE_SERIAL);
 
-        CNExitWhenStdinCloses(queue);
+        CNExitWhenStdinCloses();
 
         // Push, not polling: MediaRemote posts to the local notification
         // centre once we register. One user action produces about six

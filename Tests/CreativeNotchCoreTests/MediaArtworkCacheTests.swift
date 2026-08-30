@@ -50,23 +50,42 @@ struct MediaArtworkCacheTests {
         #expect(a != c)
     }
 
+    /// Guards the TITLE length prefix specifically, and nothing else.
+    ///
     /// Title, artist, and album are decoded straight from JSON, so any of
     /// them may legally contain the U+001F separator the key uses to join
-    /// them. A bare `"ta:\(title)\(sep)\(artist)\(sep)\(album)"`
-    /// concatenation would let title "A<sep>B" / artist "C" produce the
-    /// identical key to title "A" / artist "B<sep>C" (same album both
-    /// times) — two different tracks colliding on one identity. The key
-    /// must disambiguate this, not just make it unlikely.
+    /// them — and a field may just as legally contain a run of characters
+    /// that *looks* like another field's length header.
+    ///
+    /// ⚠️ Choosing this pair takes care. The obvious one — title "A<sep>B"
+    /// / artist "C" against title "A" / artist "B<sep>C" — does NOT test
+    /// the title prefix at all: the ARTIST prefix separates those two on
+    /// its own, so the test still passes with the title prefix deleted.
+    /// It was vacuous for exactly that reason and was replaced.
+    ///
+    /// This pair forges the whole tail of the key inside the album, which
+    /// carries no prefix of its own, so only the title prefix can tell the
+    /// two apart:
+    ///
+    ///   ("A", "B", "2<sep>CD<sep>E")  -> ta:1<sep>A<sep>1<sep>B<sep>2<sep>CD<sep>E
+    ///   ("A<sep>1<sep>B", "CD", "E")  -> ta:5<sep>A<sep>1<sep>B<sep>2<sep>CD<sep>E
+    ///
+    /// Everything after the leading count is byte-identical; the counts (1
+    /// vs 5) are the only thing keeping them apart. Delete the title
+    /// length prefix and these two tracks collide on one identity — and
+    /// this test fails, as verified by mutation.
     @Test func aSeparatorInsideTheTitleCannotForgeACollisionWithADifferentArtist() {
-        let titleContainsSeparator = MediaPayload.decode(
-            line: "{\"title\":\"A\\u001fB\",\"artist\":\"C\",\"album\":\"\",\"playing\":true}"
+        // ("A", "B", "2\u{1F}CD\u{1F}E")
+        let albumForgesTheTail = MediaPayload.decode(
+            line: "{\"title\":\"A\",\"artist\":\"B\",\"album\":\"2\\u001fCD\\u001fE\",\"playing\":true}"
         )!
-        let artistContainsSeparator = MediaPayload.decode(
-            line: "{\"title\":\"A\",\"artist\":\"B\\u001fC\",\"album\":\"\",\"playing\":true}"
+        // ("A\u{1F}1\u{1F}B", "CD", "E")
+        let titleForgesTheHead = MediaPayload.decode(
+            line: "{\"title\":\"A\\u001f1\\u001fB\",\"artist\":\"CD\",\"album\":\"E\",\"playing\":true}"
         )!
 
-        let a = TrackIdentity(payload: titleContainsSeparator)
-        let b = TrackIdentity(payload: artistContainsSeparator)
+        let a = TrackIdentity(payload: albumForgesTheTail)
+        let b = TrackIdentity(payload: titleForgesTheHead)
 
         #expect(a != b)
     }
