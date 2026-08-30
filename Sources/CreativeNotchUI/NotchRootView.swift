@@ -87,6 +87,18 @@ public final class AppState {
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
+    /// Whether this Mac has an internal battery.
+    ///
+    /// Set once at install from `PowerObserver.hasBattery`. Defaults to
+    /// `false` so anything constructing a bare `AppState` — every test
+    /// that does not care about power — gets the shape that shows less,
+    /// rather than the one that promises a tab with nothing behind it.
+    ///
+    /// Not `@ObservationIgnored`: like `showsMediaControls`, it is a
+    /// plain `Bool` that `body` reads directly and needs Observation's
+    /// tracking if it is ever written after install.
+    public var hasBattery: Bool = false
+
     /// Set by `MediaController`. Observable — unlike `shelf` and
     /// `clipboard`, which are `@Observable` stores that publish their own
     /// changes, this is a plain value the header reads directly.
@@ -321,7 +333,10 @@ public struct NotchRootView: View {
                 case .open(let tab):
                     VStack(spacing: 0) {
                         mediaBar
-                        PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
+                        PanelTabBar(
+                            selected: tab,
+                            hasBattery: app.hasBattery
+                        ) { app.transition(to: .open($0)) }
                         openContent(for: tab)
                     }
                     // Top-aligned, but *below the anchor* — not at the
