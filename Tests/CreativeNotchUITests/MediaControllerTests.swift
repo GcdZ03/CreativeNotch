@@ -185,32 +185,48 @@ struct MediaControllerTests {
 
     /// The supervisor promises that a helper which ran healthily and died
     /// much later gets a fresh attempt budget rather than tripping the
-    /// crash-loop cap. The controller used to latch `noteHealthy()` behind
-    /// a "have I ever seen a line" flag, so it fired exactly once in the
-    /// controller's life: five crashes spread over five days degraded the
-    /// module as if they had been a tight loop.
-    @Test func aHealthyRunBetweenCrashesRestoresTheAttemptBudget() {
+    /// crash-loop cap. This used to be provable by the mere presence of a
+    /// line — first because of a once-ever latch, then (the regression
+    /// this replaces) because `noteHealthy()` reset on ANY line, which
+    /// made the cap unreachable by a genuine crash loop. The reset is now
+    /// gated on duration: driven through `handle(line:)`, exactly as a
+    /// real decoded payload would, with a fake clock standing in for wall
+    /// time so nothing here sleeps.
+    @Test func aRunThatOutlastsItsBackoffDelayRestoresTheAttemptBudgetThroughHandleLine() {
         let c = MediaController()
         c.supervisor.startHelper = {}
         c.supervisor.stopHelper = {}
         var pending: (@MainActor () -> Void)?
-        c.supervisor.scheduleRetry = { _, work in pending = work }
+        var scheduled: [TimeInterval] = []
+        c.supervisor.scheduleRetry = { delay, work in
+            scheduled.append(delay)
+            pending = work
+        }
+        final class Clock { var value: TimeInterval = 0 }
+        let clock = Clock()
+        c.supervisor.now = { clock.value }
 
         // The helper starts, works, and then dies four times — one short
-        // of the cap.
+        // of the cap — each respawn dying the instant it reports in, so
+        // none of these earns a reset.
         c.handle(line: line(title: "First"))
         for _ in 1..<HelperBackoff.maxAttempts {
             c.supervisor.helperExited(status: 1)
+            clock.value += scheduled.last!
             pending?()
         }
         #expect(c.supervisor.attempt == HelperBackoff.maxAttempts - 1)
 
-        // It comes back and proves itself again. THIS is the line the
-        // latch used to swallow.
+        // This time the respawned helper actually stays up — past the
+        // delay it was made to wait for — before its line arrives. THIS
+        // is the line the old "any line" reset got right for the wrong
+        // reason; the duration check requires it to actually be true.
+        clock.value += HelperBackoff.delay(forAttempt: c.supervisor.attempt)! + 1
         c.handle(line: line(title: "Second"))
         #expect(c.supervisor.attempt == 0)
 
-        // So four more deaths, days later, must not degrade the module.
+        // So the full budget is back: four more instant deaths, days
+        // later, must not degrade the module.
         for _ in 1..<HelperBackoff.maxAttempts {
             c.supervisor.helperExited(status: 1)
             pending?()
@@ -218,5 +234,39 @@ struct MediaControllerTests {
 
         #expect(c.supervisor.isDegraded == false)
         #expect(c.snapshot?.title == "Second")
+    }
+
+    /// THE REGRESSION, reached through `handle(line:)` rather than
+    /// `noteHealthy()` directly: a helper whose every (re)spawn decodes
+    /// and reports its startup line before dying must still reach
+    /// degradation. Before this fix, every decodable line reset the
+    /// attempt budget unconditionally, so `HelperBackoff.maxAttempts` was
+    /// unreachable — this is precisely the "spawn, emit, crash, forever"
+    /// loop the review flagged.
+    @Test func aHelperThatAlwaysReportsInBeforeDyingStillDegradesThroughHandleLine() {
+        let c = MediaController()
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        var pending: (@MainActor () -> Void)?
+        var scheduled: [TimeInterval] = []
+        c.supervisor.scheduleRetry = { delay, work in
+            scheduled.append(delay)
+            pending = work
+        }
+        final class Clock { var value: TimeInterval = 0 }
+        let clock = Clock()
+        c.supervisor.now = { clock.value }
+
+        for _ in 1...(HelperBackoff.maxAttempts + 1) {
+            // The just-(re)spawned helper decodes and reports its startup
+            // line immediately, then dies — no time passes in between.
+            c.handle(line: line(title: "Startup"))
+            c.supervisor.helperExited(status: 1)
+            if let waited = scheduled.last { clock.value += waited }
+            pending?()
+        }
+
+        #expect(c.supervisor.isDegraded)
+        #expect(c.snapshot == nil, "degrading must clear the header")
     }
 }

@@ -123,17 +123,15 @@ public final class MediaController {
     func handle(line: String) {
         guard let payload = MediaPayload.decode(line: line) else { return }
 
-        // The helper produced a decodable line, so it is healthy. Every
-        // line, unconditionally — see `MediaHelperSupervisor.noteHealthy()`:
-        // a long-lived helper that dies much later is not the fifth
-        // failure of a crash loop and is owed a fresh attempt budget.
-        //
-        // This used to latch on a `hasSeenHealthyLine` flag, which meant
-        // `noteHealthy()` fired exactly once in the controller's life and
-        // the supervisor's contract was honoured only until the first
-        // crash: five crashes spread over five days would then degrade the
-        // module as if they had been a tight loop. `attempt = 0` is a
-        // single store — there is nothing to save by skipping it.
+        // Every decodable line reports in here, unconditionally — but
+        // whether that resets the attempt budget is `noteHealthy()`'s
+        // decision, not this call site's. It used to be: this controller
+        // tried to encode "is the helper healthy" itself (first a
+        // once-ever latch, then "any line at all"), and got it wrong both
+        // times — see `MediaHelperSupervisor.noteHealthy()`'s doc comment
+        // for why neither works. That judgement now lives entirely in the
+        // supervisor, which is what actually knows when the current
+        // helper was spawned.
         supervisor.noteHealthy()
 
         // Absorb artwork into the cache BEFORE coalescing. See this

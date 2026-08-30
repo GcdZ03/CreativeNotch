@@ -37,8 +37,24 @@ public final class MediaHelperSupervisor {
     /// main-actor one is not.
     public var scheduleRetry: (TimeInterval, @escaping @MainActor () -> Void) -> Void
 
+    /// Injected the same way `AppDelegate.now` and `ClipboardPoller`'s
+    /// `isLowPowerMode` are: a closure rather than a parameter threaded
+    /// through `start()`/`noteHealthy()`, because those two must keep
+    /// their existing call sites (`MediaController` and `AppDelegate`
+    /// call them with no `now:` argument) and because `noteHealthy()`
+    /// needs to compare against a spawn time recorded by an *earlier*
+    /// call, not one passed in by its own caller. Tests replace this to
+    /// move time without sleeping; nothing here reads `Date()` directly.
+    public var now: () -> TimeInterval = { Date().timeIntervalSince1970 }
+
     public private(set) var attempt = 0
     public private(set) var isDegraded = false
+
+    /// When the currently-running helper was (re)started, per `now()`.
+    /// `nil` until the first `startHelper()` call. Used by `noteHealthy()`
+    /// to turn "a line arrived" into "the helper has been up long enough
+    /// to matter" — see that method's doc comment.
+    private var startedAt: TimeInterval?
 
     /// Set by `stop()` so the exit that follows is recognized as
     /// deliberate rather than a crash.
@@ -88,6 +104,7 @@ public final class MediaHelperSupervisor {
 
     public func start() {
         stoppedDeliberately = false
+        startedAt = now()
         startHelper()
     }
 
@@ -103,10 +120,39 @@ public final class MediaHelperSupervisor {
         stopHelper()
     }
 
-    /// The helper produced a line, so it is healthy — a long-lived helper
-    /// dying much later is not the fifth failure of a crash loop, and
-    /// should get a fresh attempt budget rather than tripping the cap.
+    /// The helper produced a line — but a line alone does not mean
+    /// "healthy". Two failure modes sit on either side of this method and
+    /// neither is correct:
+    ///
+    /// - Latching "healthy" once for the controller's whole lifetime (the
+    ///   original bug) meant a long-lived helper that crashed once, early,
+    ///   never got the budget back — five crashes spread across five days
+    ///   looked identical to five crashes in five seconds, and degraded a
+    ///   perfectly fine module.
+    /// - Resetting on *any* line (the regression this replaces) is worse:
+    ///   `bridge.m` emits one line immediately on spawn, so a helper that
+    ///   emits its startup line and then dies immediately resets the
+    ///   budget every single time — spawn, emit, crash, wait, spawn, emit,
+    ///   crash, forever. `HelperBackoff.maxAttempts` becomes unreachable
+    ///   and the crash loop this whole module exists to stop from burning
+    ///   power runs undetected.
+    ///
+    /// The fix is a DURATION notion of healthy: the helper earns a fresh
+    /// budget only once it has stayed up longer than the backoff delay
+    /// that was spent waiting for it — i.e. `HelperBackoff.delay(forAttempt:
+    /// attempt)`, the same delay `helperExited(status:)` used to schedule
+    /// this very spawn. That is strictly longer than the near-instant gap
+    /// between spawn and the startup line, so a crash-loop line can never
+    /// pass it, while a helper that genuinely runs for a while still does.
+    /// When there is no such delay (`attempt == 0`, nothing has failed
+    /// yet) there is nothing to protect against, so this resets
+    /// unconditionally — the same no-op it always was in that case.
     public func noteHealthy() {
+        guard let startedAt, let requiredUptime = HelperBackoff.delay(forAttempt: attempt) else {
+            attempt = 0
+            return
+        }
+        guard now() - startedAt > requiredUptime else { return }
         attempt = 0
     }
 
@@ -129,6 +175,10 @@ public final class MediaHelperSupervisor {
         let generation = retryGeneration
         scheduleRetry(delay) { [weak self] in
             guard let self, self.retryGeneration == generation else { return }
+            // Recorded here, not just in `start()`: `noteHealthy()` measures
+            // uptime of the CURRENT spawn, and a retry restarts the helper
+            // without going through `start()`.
+            self.startedAt = self.now()
             self.startHelper()
         }
     }

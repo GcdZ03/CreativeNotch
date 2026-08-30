@@ -17,6 +17,8 @@ struct MediaHelperSupervisorTests {
         var scheduled: [TimeInterval] = []
         var pending: (@MainActor () -> Void)?
         var degraded = false
+        /// Moved by hand rather than by sleeping — see `MediaHelperSupervisor.now`.
+        var clock: TimeInterval = 0
     }
 
     private func makeSupervisor() -> (MediaHelperSupervisor, Box) {
@@ -29,6 +31,7 @@ struct MediaHelperSupervisorTests {
             box.pending = work
         }
         s.onDegraded = { box.degraded = true }
+        s.now = { box.clock }
         return (s, box)
     }
 
@@ -84,16 +87,72 @@ struct MediaHelperSupervisorTests {
         #expect(box.scheduled.count == HelperBackoff.maxAttempts)
     }
 
-    /// A helper that ran fine and then died much later is not the fifth
-    /// failure of a crash loop; the counter resets on a healthy run.
-    @Test func aSuccessfulRunResetsTheAttemptCount() {
-        let (s, _) = makeSupervisor()
-        s.start()
-        s.helperExited(status: 1)
-        #expect(s.attempt == 1)
+    // MARK: - Duration-based "healthy" (regression fix)
+    //
+    // `noteHealthy()` used to reset on any decodable line, unconditionally.
+    // `bridge.m` emits one line immediately on spawn, so that made
+    // `HelperBackoff.maxAttempts` unreachable: a helper that emits its
+    // startup line and dies right away, every retry, reset the budget
+    // every time and never degraded. The fix is a DURATION notion of
+    // healthy — see `MediaHelperSupervisor.noteHealthy()`'s doc comment.
 
+    /// THE REGRESSION. A helper that reports in immediately on every
+    /// single (re)spawn and then dies must still reach degradation, even
+    /// though real wall-clock time (1s, 2s, 4s, 8s, 16s — 31s of it by the
+    /// last iteration) genuinely passes between retries. That last part
+    /// matters: it proves the "healthy" clock is anchored to the CURRENT
+    /// spawn, not to the original `start()` — if `startedAt` were not
+    /// refreshed on every retry, the cumulative 31s would look like more
+    /// than enough uptime and this loop would spuriously earn a reset,
+    /// never degrading either, just for a subtler reason.
+    @Test func aLineEmittedImmediatelyOnEverySpawnDoesNotPreventDegradation() {
+        let (s, box) = makeSupervisor()
+        s.start()
+
+        for _ in 1...(HelperBackoff.maxAttempts + 1) {
+            // The helper that was just (re)spawned reports in immediately,
+            // then dies — no time passes between its spawn and this pair,
+            // exactly as `bridge.m` does when the helper is failing.
+            s.noteHealthy()
+            s.helperExited(status: 1)
+            if let waited = box.scheduled.last { box.clock += waited }
+            box.pending?()
+        }
+
+        #expect(s.isDegraded)
+        #expect(box.degraded)
+    }
+
+    /// A helper that survives past the delay it was made to wait for,
+    /// before reporting in, gets the crash-loop cap reset — it is not the
+    /// Nth failure of a tight loop, it is a helper that recovered.
+    @Test func aRunThatOutlastsItsBackoffDelayGetsAFreshAttemptBudget() {
+        let (s, box) = makeSupervisor()
+        s.start()
+
+        // Four failures, one short of the cap, each dying the instant it
+        // is respawned — like the crash loop above, so none of these
+        // earns a reset.
+        for _ in 1..<HelperBackoff.maxAttempts {
+            s.helperExited(status: 1)
+            box.clock += box.scheduled.last!
+            box.pending?()
+        }
+        #expect(s.attempt == HelperBackoff.maxAttempts - 1)
+
+        // This time the respawned helper actually stays up — past the
+        // delay it was made to wait for — before its line arrives.
+        box.clock += HelperBackoff.delay(forAttempt: s.attempt)! + 1
         s.noteHealthy()
-        #expect(s.attempt == 0)
+        #expect(s.attempt == 0, "a helper that outlived its backoff delay must get a fresh budget")
+
+        // So the full budget is back: four more instant deaths must not
+        // degrade it.
+        for _ in 1..<HelperBackoff.maxAttempts {
+            s.helperExited(status: 1)
+            box.pending?()
+        }
+        #expect(s.isDegraded == false)
     }
 
     /// A deliberate stop must not look like a crash and trigger a restart.
