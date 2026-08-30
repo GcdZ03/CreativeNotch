@@ -16,14 +16,6 @@ import CreativeNotchCore
 @MainActor
 struct NowPlayingBadgeTests {
 
-    private static let notched = ScreenMetrics(
-        frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
-        safeAreaTopInset: 38,
-        auxiliaryTopLeftWidth: 620,
-        auxiliaryTopRightWidth: 620,
-        menuBarHeight: 38
-    )
-
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
     /// 230 + 34, written out. Spelling it `230 +
     /// NotchGeometry.nowPlayingBadgeWidth` made every assertion below hold
@@ -36,14 +28,11 @@ struct NowPlayingBadgeTests {
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
     private static let paused  = TrackSnapshot(title: "Song", artist: "Band", isPlaying: false)
 
-    /// The growth lag has its own suite; these tests are about the shape,
-    /// so the delay is switched off and every sync is synchronous.
-    private func makeDelegate() -> AppDelegate {
-        let delegate = AppDelegate()
-        delegate.growthDelay = .zero
-        delegate.install(metrics: Self.notched)
-        return delegate
-    }
+    /// `NotchedDelegate.make` — the same screen and the same switched-off
+    /// growth lag `TimerBadgeTests` and `TimerWiringTests` build on, so the
+    /// widths the three suites pin are comparable by construction rather
+    /// than by coincidence.
+    private func makeDelegate() -> AppDelegate { NotchedDelegate.make() }
 
     // MARK: - The shape
 

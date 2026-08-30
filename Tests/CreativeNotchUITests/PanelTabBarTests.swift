@@ -9,8 +9,15 @@ struct PanelTabBarTests {
     /// `.hud` stays in the `Tab` enum — `PeekArbiter` and `AppDelegate`
     /// both reference it — but HUD history does not exist, and a tab that
     /// opens onto a placeholder is worse than no tab.
+    ///
+    /// `.timer` is the opposite case and so it is listed: `TimerTabView`
+    /// is real content with a real controller behind it. Left out, the
+    /// whole timer module would be unreachable from the UI — every task in
+    /// it dead code — and nothing else in the suite would notice. That is
+    /// why this array is pinned by literal here rather than merely
+    /// spot-checked with `contains`.
     @Test func onlyTabsWithContentAreShown() {
-        #expect(PanelTabBar.visible == [.shelf, .clipboard])
+        #expect(PanelTabBar.visible == [.shelf, .clipboard, .timer])
         #expect(PanelTabBar.visible.contains(.hud) == false)
     }
 
@@ -20,6 +27,7 @@ struct PanelTabBarTests {
         }
         #expect(Tab.shelf.title == "Shelf")
         #expect(Tab.clipboard.title == "Clipboard")
+        #expect(Tab.timer.title == "Timer")
     }
 
     // MARK: - Last-tab memory

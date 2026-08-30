@@ -25,7 +25,13 @@ struct PanelTabBar: View {
     /// `.hud` stays in the `Tab` enum because `PeekArbiter` and
     /// `AppDelegate` reference it, but HUD history is not built. A tab
     /// that opens onto a placeholder is worse than no tab.
-    static let visible: [CreativeNotchCore.Tab] = [.shelf, .clipboard]
+    ///
+    /// `.timer` is here because the opposite now holds for it: the tab has
+    /// real content (`TimerTabView`), a real controller behind it, and a
+    /// badge in the ear. Left out, every part of the timer module would be
+    /// unreachable — the whole feature would ship invisible, which is the
+    /// same failure the clipboard had before this switcher existed.
+    static let visible: [CreativeNotchCore.Tab] = [.shelf, .clipboard, .timer]
 
     let selected: CreativeNotchCore.Tab
     let onSelect: (CreativeNotchCore.Tab) -> Void

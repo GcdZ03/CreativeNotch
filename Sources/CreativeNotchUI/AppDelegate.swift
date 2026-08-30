@@ -56,6 +56,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `clipboard`.
     private(set) var media: MediaController?
 
+    /// Internal rather than private for the same reason `media` is: the
+    /// module is only "wired" if a test can reach the controller the app
+    /// actually built and drive it.
+    private(set) var timer: TimerController?
+
+    /// The finish alert, behind an injection point.
+    ///
+    /// Not called directly for one reason only: a test that drives the
+    /// finish path would otherwise make the machine audibly chime, and the
+    /// suite must stay silent. The default *is* the real chime, so
+    /// production wiring is this line and nothing else.
+    var playChime: () -> Void = TimerChime.play
+
     /// One observer for the whole app. Internal rather than private so the
     /// fan-out is provable — `SystemActivityFanOutTests` asserts there is
     /// exactly one registration set.
@@ -251,6 +264,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             let now = Date().timeIntervalSince1970
             self.clipboard?.setActivity(state, now: now)
             self.media?.setActivity(state)
+
+            // The timer is deliberately NOT suspended here the way the
+            // poller and the helper above are, and the difference is the
+            // point rather than an oversight. Their output is only worth
+            // producing while somebody can see it, so outside `.active`
+            // they stop. A timer's whole purpose is to fire while nobody
+            // is watching: `setActive` changes only how often it wakes to
+            // *redraw* the ear — see `TimerSchedule.nextWake`, where
+            // inactive schedules the deadline itself and nothing before
+            // it. It never changes whether the deadline fires. Three
+            // subsystems on one fan-out with one deliberately different
+            // behaviour is exactly the shape a later "consistency fix"
+            // breaks, so: do not make this a `stop()`.
+            self.timer?.setActive(state == .active)
         }
 
         // Publishes into `AppState` for the panel header and feeds the
@@ -269,6 +296,38 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.nowPlayingDidChange(snapshot)
         }
         self.media = media
+
+        // Built here rather than at launch, like the shelf, the clipboard
+        // ring and the media controller: the wiring path has to be
+        // testable without putting a window on screen. Constructing one
+        // schedules nothing — `TimerController` spawns its first one-shot
+        // only when `start(duration:)` is called from the tab.
+        let timer = TimerController()
+
+        // `[weak self]` for the same reason `media.onChange` uses it: the
+        // controller holds these closures, so a strong capture would be a
+        // controller keeping its owner alive. The bodies are methods
+        // rather than inline closures so a test can drive the real publish
+        // and finish paths with no scheduler running.
+        timer.onChange = { [weak self] countdown in
+            self?.countdownDidChange(countdown)
+        }
+        timer.onFinished = { [weak self] countdown in
+            self?.timerDidFinish(countdown)
+        }
+
+        // The tab's four verbs, routed through `AppState` in the style of
+        // `onPasteClipboard` and `onMediaCommand`. `[weak timer]` rather
+        // than `[weak self]`: `AppState` outlives nothing here, but the
+        // closures are held by the state which the delegate owns, and the
+        // delegate owns the controller — capturing it strongly would close
+        // the cycle.
+        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
+        state.onPauseTimer = { [weak timer] in timer?.pause() }
+        state.onResumeTimer = { [weak timer] in timer?.resume() }
+        state.onCancelTimer = { [weak timer] in timer?.cancel() }
+
+        self.timer = timer
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
@@ -411,6 +470,46 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         arbiter.setNowPlaying(snapshot)
         syncTrackingRect()
         reevaluatePeek()
+    }
+
+    /// The countdown ticked, started, paused or was cancelled.
+    ///
+    /// Internal rather than private so a test can drive the real publish
+    /// path without a running scheduler — the same seam
+    /// `nowPlayingDidChange` opens for the helper.
+    ///
+    /// The re-sync is not optional, and this is the second place in the
+    /// file that has to say so. The badge changes the closed notch's
+    /// width, and `AppState`'s funnel does not fire for a countdown tick —
+    /// it carries state and geometry, and a tick is neither. Without the
+    /// call below, the drawn rect carries a badge the hit-test region and
+    /// the hover tracking rect know nothing about, and the trailing 44pt
+    /// of a *visible* countdown drops clicks straight through to the menu
+    /// bar and never registers hover. `TimerBadgeTests` pins the 274 that
+    /// results.
+    func countdownDidChange(_ countdown: Countdown?) {
+        state.countdown = countdown
+        syncTrackingRect()
+    }
+
+    /// The deadline passed.
+    ///
+    /// Internal for the same reason `countdownDidChange` is.
+    func timerDidFinish(_ countdown: Countdown) {
+        // Measured, never assumed zero: the machine may have slept through
+        // the deadline, and "finished 2h ago" is only true because this
+        // reads the clock. `remaining` is deliberately unclamped for
+        // exactly this, so negate it and floor at zero.
+        let lateness = -countdown.remaining(at: Date())
+        arbiter.recordTimerFinished(
+            TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
+            now: self.now()
+        )
+        playChime()
+        // The existing peek path, not a second one: it already declines to
+        // interrupt `.open` and `.receiving`, and it is what makes the
+        // arbiter — rather than this caller — decide what is shown.
+        presentPeek()
     }
 
     /// Moves the accepted region toward the drawn one.
@@ -593,6 +692,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+
+        // Opening the panel is acknowledgement. Without this the finished
+        // timer sits in the arbiter for the rest of its ten-minute TTL and
+        // reappears on the next hover, long after the user has dealt with
+        // it — and it outranks the HUD, so volume feedback would be
+        // swallowed by it too. Cleared here rather than at the tap site
+        // because every route to `.open` — the notch tap, a drop, a
+        // restored tab — comes through the funnel and lands right here,
+        // which is the same argument that put the outside-click monitor
+        // in this method.
+        arbiter.dismissTimerDone()
 
         // Already armed -- switching tabs must not stack monitors.
         guard outsideClickToken == nil else { return }

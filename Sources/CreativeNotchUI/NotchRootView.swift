@@ -75,6 +75,25 @@ public final class AppState {
     @ObservationIgnored
     public var onMediaCommand: ((MediaCommand) -> Void)?
 
+    /// How the timer tab reaches `TimerController`.
+    ///
+    /// Closures rather than a controller reference, for the same reason
+    /// `onMediaCommand` is one: it keeps the scheduler — a thing that
+    /// wakes the machine — out of anything a test or a preview
+    /// constructs, and leaves the view layer no way to start or stop it
+    /// beyond the four verbs below.
+    @ObservationIgnored
+    public var onStartTimer: ((TimeInterval) -> Void)?
+
+    @ObservationIgnored
+    public var onPauseTimer: (() -> Void)?
+
+    @ObservationIgnored
+    public var onResumeTimer: (() -> Void)?
+
+    @ObservationIgnored
+    public var onCancelTimer: (() -> Void)?
+
     /// Whether to show the media row at all.
     ///
     /// Set once at install from `MediaRemoteBridge.isAvailable`. Buttons
@@ -93,10 +112,52 @@ public final class AppState {
     public internal(set) var nowPlaying: TrackSnapshot?
     public internal(set) var nowPlayingArtwork: Data?
 
+    /// The observed storage behind `countdown`, whose entire job is to
+    /// **not** be `Equatable`.
+    ///
+    /// Do not conform it, and do not collapse it back into a plain stored
+    /// `Countdown?`. Swift's `@Observable` macro emits an equality guard in
+    /// the generated setter of every `Equatable` stored property, so
+    /// assigning a value equal to the one already there notifies nobody.
+    /// For `nowPlaying` that is right and free: a `TrackSnapshot` renders
+    /// identically whenever it compares equal, so a skipped redraw is a
+    /// redraw that would have changed nothing.
+    ///
+    /// A countdown is the one value in this file where that reasoning
+    /// fails. `TimerSchedule` wakes the controller at the exact instant
+    /// `TimerDisplay.text` starts reading differently, and republishes a
+    /// `Countdown` whose `target`, `duration` and `pausedRemaining` are all
+    /// unchanged — because what changed is the wall clock, and the wall
+    /// clock is not part of the value. `remaining(at:)` takes `now` as a
+    /// parameter precisely so it is not. Under the compiler's guard, every
+    /// one of those wakes is dropped: the timer keeps running, still fires
+    /// on time, still chimes, still peeks — and the number in the ear stays
+    /// frozen at whatever it read when the countdown started. No crash, no
+    /// log line, and no failing test that asserts values rather than
+    /// notifications.
+    ///
+    /// Routing the assignment through a non-`Equatable` box is what makes
+    /// the mutation unconditional again.
+    /// `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what
+    /// bites a change to any of this.
+    private struct CountdownPublication {
+        var countdown: Countdown?
+    }
+
+    private var countdownPublication = CountdownPublication(countdown: nil)
+
     /// Set by `TimerController`. Observable for the same reason
     /// `nowPlaying` is: a plain value that `body` reads directly, rather
     /// than an `@Observable` store that publishes its own changes.
-    public internal(set) var countdown: Countdown?
+    ///
+    /// Computed over `countdownPublication` rather than stored — see that
+    /// property for why the indirection is load-bearing and not
+    /// ceremony. Reading here tracks the box, and writing replaces it, so
+    /// callers and `body` see an ordinary property either way.
+    public internal(set) var countdown: Countdown? {
+        get { countdownPublication.countdown }
+        set { countdownPublication = CountdownPublication(countdown: newValue) }
+    }
 
     /// A list, not a single closure.
     ///
@@ -550,20 +611,18 @@ public struct NotchRootView: View {
             // wants a case.
             EmptyView()
         case .timer:
-            // `PanelTabBar.visible` does not offer this tab yet either —
-            // wiring real start/pause/resume/cancel behaviour through
-            // `AppState` is a later task's job (`TimerController` does not
-            // exist yet). The closures below are no-ops rather than calls
-            // into `AppState`, so this task adds no state `AppState` does
-            // not already carry (`countdown`, set by a controller that
-            // does not exist yet either) and starts nothing on its own.
+            // Through `AppState`, never to a controller this view holds —
+            // the same routing `onPasteClipboard` and `onMediaCommand`
+            // use. Optional-chained, so a state nobody wired (a preview,
+            // a test) renders the tab and does nothing rather than
+            // trapping.
             TimerTabView(
                 countdown: app.countdown,
                 now: now,
-                onStart: { _ in },
-                onPause: {},
-                onResume: {},
-                onCancel: {}
+                onStart: { app.onStartTimer?($0) },
+                onPause: { app.onPauseTimer?() },
+                onResume: { app.onResumeTimer?() },
+                onCancel: { app.onCancelTimer?() }
             )
         }
     }

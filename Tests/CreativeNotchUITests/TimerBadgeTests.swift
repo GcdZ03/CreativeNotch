@@ -28,14 +28,6 @@ import CreativeNotchCore
 @MainActor
 struct TimerBadgeTests {
 
-    private static let notched = ScreenMetrics(
-        frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
-        safeAreaTopInset: 38,
-        auxiliaryTopLeftWidth: 620,
-        auxiliaryTopRightWidth: 620,
-        menuBarHeight: 38
-    )
-
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
 
     /// 230 + 44, written out. Spelling it `230 +
@@ -61,19 +53,16 @@ struct TimerBadgeTests {
     }
 
     /// The countdown is set *before* `install`, which seeds the accepted
-    /// region from `visibleRect()` directly. There is no countdown re-sync
-    /// hook on `AppDelegate` yet — the scheduler that will need one is a
-    /// later task — so seeding at install is how a test reaches the badged
-    /// state without inventing behaviour the app does not have.
+    /// region from `visibleRect()` directly — reaching the badged state
+    /// without a scheduler running.
     ///
-    /// The growth lag has its own suite; the delay is switched off so every
-    /// sync here is synchronous, as in `NowPlayingBadgeTests`.
+    /// This suite pins the shape. `TimerWiringTests` pins the same 274
+    /// through the real `countdownDidChange` re-sync, which is the path the
+    /// running app actually takes; both are needed, because seeding at
+    /// install cannot catch a missing re-sync and the re-sync test cannot
+    /// catch a badge that was never in `visibleRect`.
     private func makeDelegate(countdown: Countdown? = nil) -> AppDelegate {
-        let delegate = AppDelegate()
-        delegate.growthDelay = .zero
-        delegate.state.countdown = countdown
-        delegate.install(metrics: Self.notched)
-        return delegate
+        NotchedDelegate.make(countdown: countdown)
     }
 
     // MARK: - One derivation, three consumers
