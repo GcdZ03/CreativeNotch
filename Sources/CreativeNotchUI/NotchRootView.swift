@@ -261,6 +261,26 @@ public struct NotchRootView: View {
                         notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
                     )
 
+                // A peek is a glance, not a panel: one truncating line, no
+                // artwork. The spec excludes artwork here deliberately —
+                // the cache can legitimately be empty at the moment the
+                // peek fires, and a tile that appears a beat later would
+                // shove the text sideways on the closed notch.
+                //
+                // Without this case the state fell through to `default`
+                // and drew the literal string "CreativeNotch" over playing
+                // music — the ambient peek this whole module exists for
+                // was never once drawn. Text comes from
+                // `NowPlayingLabel.text(for:)`, the same function the
+                // panel header uses, so the two cannot drift apart.
+                case .peek(.nowPlaying(let track)):
+                    Text(NowPlayingLabel.text(for: track))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .padding(.horizontal, 14)
+
                 default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))

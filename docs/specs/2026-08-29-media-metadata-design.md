@@ -107,9 +107,42 @@ read cannot reveal this.
 six lines. They must be coalesced, following `HUDCoalescer`, which exists
 for the identical problem in CoreAudio.
 
-**`playbackRate` is the source of truth for playing state**, not
-notification arrival or ordering — the spike saw `playing` lag the real
-state in the first notifications after a change.
+**Playing state comes from a direct query, not from `playbackRate`.**
+`bridge.m` calls `MRMediaRemoteGetNowPlayingApplicationIsPlaying` and
+publishes its answer as `playing`.
+
+> ~~`playbackRate` is the source of truth for playing state, not
+> notification arrival or ordering — the spike saw `playing` lag the real
+> state in the first notifications after a change.~~
+>
+> **Superseded during task 6.** The half that still holds is *why* the rule
+> existed: notification arrival and ordering are not trustworthy, so
+> playing state must be read, never inferred. What did not survive is
+> *what* to read. Task 6's by-hand verification found
+> `kMRMediaRemoteNowPlayingInfoPlaybackRate` inverted for Spotify on macOS
+> 26.6.2 — published as `1` while PAUSED and absent while PLAYING, and
+> correct in only 1 of 5 samples. A rate that lies is worse than no rate:
+> it would show a pause button over paused music.
+>
+> ⚠️ **Observed, not proven. Pending live confirmation.** This is one
+> player, on one machine, on one OS build, measured in a single session,
+> and the inversion has no explanation — it may be a Spotify bug, a macOS
+> 26 change, or an artefact of how the spike sampled. The shipped code
+> takes the safer of two unproven readings; it does not claim the rate
+> field is universally wrong. Confirm against a live player (and at least
+> one non-Spotify client) before treating this as settled, and record the
+> result here.
+
+**Track identity is title + artist + album, and never `contentID`.**
+`TrackIdentity` is what the artwork cache is keyed by, so it must be stable
+for as long as one song is one song. `contentID` looked like the obvious
+key — it is an identifier, supplied by the player — but task 6 measured it
+*changing on every play/pause of an unchanged track*. Keyed by that, the
+cache would miss on every pause and the album art would vanish and reappear
+with the transport, which is the very flicker the never-clear rule above
+exists to prevent. The text triple is duller and stable. Its known
+weakness — two different recordings sharing all three fields collide — is a
+far rarer and far quieter failure than one that fires on every pause.
 
 **Artwork does not belong in `TrackSnapshot`.** That type is `Equatable`
 and lives inside `PeekArbiter`; carrying 138 KB of `Data` would make every
@@ -168,3 +201,6 @@ skipped.
   be empty when it fires.
 - **Reading the now-playing client's bundle identity** to show an app icon.
   Available through the helper, but not worth the surface in v1.
+- **`contentID` as track identity.** Present in every payload and still
+  decoded into `MediaPayload`, but deliberately not part of `TrackIdentity`
+  — it was measured changing on every play/pause. See section 6.

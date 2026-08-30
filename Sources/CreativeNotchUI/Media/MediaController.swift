@@ -43,7 +43,6 @@ public final class MediaController {
 
     private var coalescer = MediaCoalescer()
     private var artworkCache = MediaArtworkCache()
-    private var hasSeenHealthyLine = false
 
     /// Identity of the currently-published `snapshot`, computed from the
     /// full payload (title, artist, AND album) at the moment it was
@@ -54,12 +53,38 @@ public final class MediaController {
     /// tracks released under different album names.
     private var currentIdentity: TrackIdentity?
 
-    public init() {}
+    public init() {
+        // Wired in `init`, not `start()`, because `setActivity(.active)`
+        // reaches the supervisor without passing through `start()` — and a
+        // degrade nobody publishes leaves a stale header on screen for the
+        // rest of the session.
+        supervisor.onDegraded = { [weak self] in self?.degrade() }
+    }
 
     public func start() {
-        hasSeenHealthyLine = false
         supervisor.onLine = { [weak self] line in self?.handle(line: line) }
         supervisor.start()
+    }
+
+    /// The helper has failed its way past the retry cap and will not be
+    /// started again: publish "nothing playing".
+    ///
+    /// Without this the last snapshot stayed on screen forever — the panel
+    /// kept a header for a track that may have ended hours ago, and hover
+    /// kept peeking it, because nothing else ever clears `snapshot`. Spec
+    /// section 5 is explicit that a degraded module shows no header.
+    ///
+    /// The coalescer is reset rather than asked: it would otherwise dedupe
+    /// this `nil` against an earlier published `nil` and swallow the very
+    /// update that clears the screen. Resetting also means a later restart
+    /// — a new `MediaController`, or the activity gate cycling — republishes
+    /// its first snapshot instead of comparing it against a dead helper's
+    /// last one.
+    func degrade() {
+        coalescer = MediaCoalescer()
+        snapshot = nil
+        currentIdentity = nil
+        onChange?(nil)
     }
 
     public func stop() {
@@ -98,16 +123,18 @@ public final class MediaController {
     func handle(line: String) {
         guard let payload = MediaPayload.decode(line: line) else { return }
 
-        // The helper produced a decodable line, so it is healthy. This
-        // must happen for every line, not just ones that change state —
-        // see `MediaHelperSupervisor.noteHealthy()`'s doc comment: a
-        // long-lived helper that has been silently repeating the same
-        // state for an hour is not owed a crash-loop cap built from
-        // attempts made before it proved itself.
-        if !hasSeenHealthyLine {
-            hasSeenHealthyLine = true
-            supervisor.noteHealthy()
-        }
+        // The helper produced a decodable line, so it is healthy. Every
+        // line, unconditionally — see `MediaHelperSupervisor.noteHealthy()`:
+        // a long-lived helper that dies much later is not the fifth
+        // failure of a crash loop and is owed a fresh attempt budget.
+        //
+        // This used to latch on a `hasSeenHealthyLine` flag, which meant
+        // `noteHealthy()` fired exactly once in the controller's life and
+        // the supervisor's contract was honoured only until the first
+        // crash: five crashes spread over five days would then degrade the
+        // module as if they had been a tight loop. `attempt = 0` is a
+        // single store — there is nothing to save by skipping it.
+        supervisor.noteHealthy()
 
         // Absorb artwork into the cache BEFORE coalescing. See this
         // type's doc comment for why the order cannot be swapped.

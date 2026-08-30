@@ -198,3 +198,129 @@ struct MediaHelperProcessTests {
         #expect(lines == ["fine"])
     }
 }
+
+/// Stands in for `Process` in the stdin tests below.
+///
+/// The rule "no `Process` in this file" is what makes the whole module
+/// safe to test, but it also hid the branch's worst bug: the line that
+/// assigns `standardInput` was simply absent, and nothing in 471 tests
+/// could see the absence. `MediaHelperProcess.attachStandardIO` takes this
+/// protocol so that assignment is observable without a real process.
+private final class FakeProcessIO: HelperProcessIO {
+    var standardInput: Any?
+    var standardOutput: Any?
+    var standardError: Any?
+}
+
+/// The child's stdin — the contract `bridge.m` documents and the Swift side
+/// did not honour.
+///
+/// The bug these exist for: `standardInput` was never set, so the child
+/// inherited the app's fd 0. In a shipped `.app` (launched by `open` or
+/// launchd) that is `/dev/null`, which reads EOF immediately, so the
+/// bridge's stdin watchdog called `exit(0)` within milliseconds of every
+/// spawn and the supervisor degraded permanently. Launched from a terminal
+/// fd 0 is a tty, so it survived — which is why every by-hand check passed
+/// and the feature still never worked for a user.
+@MainActor
+struct MediaHelperStandardInputTests {
+
+    /// Whether the pipe's read end is at EOF, from the child's point of
+    /// view, without blocking.
+    ///
+    /// `FileHandle.fileDescriptor` raises an Objective-C exception once
+    /// closed (it crashes the whole test process, not just one test), and
+    /// `readDataToEndOfFile()` would block forever if the fix regressed —
+    /// a hung suite instead of a red test. `poll` with a zero timeout
+    /// answers the only question that matters: does the reader see the
+    /// write end as gone? Nothing ever writes into this pipe, so any
+    /// readable or hung-up event means EOF.
+    static func readEndSeesEOF(_ pipe: Pipe) -> Bool {
+        var descriptor = pollfd(
+            fd: pipe.fileHandleForReading.fileDescriptor,
+            events: Int16(POLLIN),
+            revents: 0
+        )
+        return poll(&descriptor, 1, 0) > 0
+    }
+
+    @Test func aFreshHelperHoldsNoStdinPipe() {
+        #expect(MediaHelperProcess().stdinPipe == nil)
+    }
+
+    /// The assignment itself. Delete `target.standardInput = stdin` and
+    /// this is the test that goes red.
+    @Test func attachingStandardIOGivesTheChildAPipeForItsStdin() {
+        let helper = MediaHelperProcess()
+        let fake = FakeProcessIO()
+
+        helper.attachStandardIO(to: fake, stdout: Pipe(), stderr: Pipe())
+
+        #expect(fake.standardInput is Pipe)
+    }
+
+    /// A pipe handed to the child and then dropped on the floor would be
+    /// closed by ARC the instant `start()` returned — an EOF at spawn time,
+    /// which is the very failure being fixed. The parent must hold the
+    /// write end open for the child's whole life.
+    @Test func theStdinPipeIsRetainedByTheHelperNotJustHandedOver() throws {
+        let helper = MediaHelperProcess()
+        let fake = FakeProcessIO()
+
+        helper.attachStandardIO(to: fake, stdout: Pipe(), stderr: Pipe())
+
+        let retained = try #require(helper.stdinPipe)
+        #expect(fake.standardInput as AnyObject === retained)
+        // The child's view: nothing readable and no hangup, because the
+        // parent still holds the write end. This is the exact condition
+        // `bridge.m`'s watchdog blocks on, so asserting it is asserting
+        // "the helper stays alive".
+        #expect(Self.readEndSeesEOF(retained) == false)
+    }
+
+    /// stdout and stderr must survive the refactor that introduced the
+    /// stdin pipe — losing the stdout pipe would silently end the feed.
+    @Test func attachingStandardIOAlsoWiresStdoutAndStderr() {
+        let helper = MediaHelperProcess()
+        let fake = FakeProcessIO()
+        let out = Pipe()
+        let err = Pipe()
+
+        helper.attachStandardIO(to: fake, stdout: out, stderr: err)
+
+        #expect(fake.standardOutput as AnyObject === out)
+        #expect(fake.standardError as AnyObject === err)
+    }
+
+    /// `stop()` must actually close the write end. Merely releasing the
+    /// reference would usually do it, but "usually" depends on nobody else
+    /// holding the pipe — and the EOF is what tells the child to exit, so
+    /// its timing cannot be left to whoever drops the last reference.
+    @Test func stoppingClosesTheChildsStdinAndReleasesThePipe() throws {
+        let helper = MediaHelperProcess()
+        let fake = FakeProcessIO()
+        helper.attachStandardIO(to: fake, stdout: Pipe(), stderr: Pipe())
+        let pipe = try #require(helper.stdinPipe)
+
+        helper.stop()
+
+        #expect(helper.stdinPipe == nil)
+        // And now the child's read end is at EOF — the signal `bridge.m`
+        // exits on. Nothing is ever written into this pipe, so a readable
+        // or hung-up read end can only mean the write end is gone.
+        #expect(Self.readEndSeesEOF(pipe))
+    }
+
+    /// Closing twice must not trap. `stop()` is called on quit, on the
+    /// activity gate, and by the supervisor — including on a helper that
+    /// was already stopped.
+    @Test func closingStandardInputTwiceIsHarmless() {
+        let helper = MediaHelperProcess()
+        helper.attachStandardIO(to: FakeProcessIO(), stdout: Pipe(), stderr: Pipe())
+
+        helper.stop()
+        helper.stop()
+
+        #expect(helper.stdinPipe == nil)
+    }
+}

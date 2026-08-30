@@ -74,4 +74,48 @@ struct SystemActivityFanOutTests {
 
         #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
     }
+
+    /// The media leg of the fan-out. Deleting `self.media?.setActivity(state)`
+    /// from `AppDelegate` left all 471 tests green — the helper kept running
+    /// through lock and sleep, reading now-playing state nobody could see,
+    /// and nothing failed. The counter stands in for the real
+    /// `stopHelper`, so no process is involved either way.
+    @Test func lockingStopsTheMediaHelper() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let media = try #require(delegate.media)
+        var stops = 0
+        var starts = 0
+        media.supervisor.stopHelper = { stops += 1 }
+        media.supervisor.startHelper = { starts += 1 }
+
+        delegate.activity.handle(.screenLocked)
+
+        #expect(stops == 1)
+        #expect(starts == 0)
+    }
+
+    /// And it comes back. Without this, a fan-out that stopped the helper
+    /// and never restarted it would pass the test above while leaving the
+    /// feature dead for the rest of the session.
+    @Test func unlockingStartsTheMediaHelperAgain() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let media = try #require(delegate.media)
+        var stops = 0
+        var starts = 0
+        media.supervisor.stopHelper = { stops += 1 }
+        media.supervisor.startHelper = { starts += 1 }
+
+        delegate.activity.handle(.screenLocked)
+        #expect(stops == 1, "not suspended is indistinguishable from resumed")
+
+        delegate.activity.handle(.screenUnlocked)
+
+        #expect(starts == 1)
+    }
 }

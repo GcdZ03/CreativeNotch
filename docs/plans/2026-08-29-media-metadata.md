@@ -32,7 +32,8 @@ Each comes from observed behaviour. Getting any of them wrong produces a visible
 
 1. **Artwork is cached by track identity and NEVER cleared because a payload omits it.** For one unchanged song, consecutive emissions reported artwork sizes `138061 → 0 → 0 → 138061 → 138061 → 0 → 138061`. Clearing on omission flickers the album art several times per play/pause.
 2. **One user action emits about six notifications.** They must be coalesced.
-3. **`playbackRate` is the source of truth for playing state**, not notification arrival or ordering.
+3. **Playing state is read directly, never inferred** from notification arrival or ordering. ~~`playbackRate` is the source of truth for playing state.~~ **Superseded during task 6:** `bridge.m` calls `MRMediaRemoteGetNowPlayingApplicationIsPlaying` instead, because the rate field measured *inverted* for Spotify on macOS 26.6.2 — `1` while PAUSED, absent while PLAYING, correct in 1 of 5 samples. ⚠️ **Observed, not proven** — one player, one machine, one session, no explanation — and **pending a live confirmation** (see the spec, section 6). The reason the rule exists is unchanged; only the field changed.
+4. **Track identity is title + artist + album, never `contentID`.** Added during task 6, not from the spike: `contentID` was measured changing on every play/pause of an unchanged track, which would make the artwork cache miss on every pause and flicker the cover — the exact failure rule 1 exists to prevent.
 
 ## File Structure
 
@@ -623,6 +624,11 @@ struct MediaArtworkCacheTests {
 
     // MARK: - Identity
 
+    // ⚠️ Superseded: this test asserts the `contentID`-first identity that
+    // was NOT built. `contentID` was measured changing on every play/pause,
+    // so identity became title+artist+album and this test was replaced by
+    // one asserting that two payloads differing only in `contentID` are the
+    // same track. See the note on `TrackIdentity` above.
     @Test func contentIDIdentifiesTheTrack() {
         let a = TrackIdentity(payload: payload(title: "X", id: "same"))
         let b = TrackIdentity(payload: payload(title: "Y", id: "same"))
@@ -729,6 +735,33 @@ Expected: FAIL — `cannot find 'TrackIdentity' in scope`.
 - [ ] **Step 3: Write `TrackIdentity`**
 
 Create `Sources/CreativeNotchCore/Media/TrackIdentity.swift`:
+
+> ⚠️ **Superseded during implementation — this snippet is not what
+> shipped.** Two changes, both forced by later measurement:
+>
+> 1. **`contentID` is not used at all.** Task 6's helper measured it
+>    changing on *every play/pause of an unchanged track*. Preferring it
+>    would churn identity on every pause, miss the artwork cache, and blank
+>    the album cover — precisely the flicker rule 1 exists to prevent. The
+>    accepted trade-off is that two recordings sharing title, artist and
+>    album collide; that is rarer and quieter than a flicker on every
+>    pause. `contentID` is still decoded into `MediaPayload`, just not used
+>    for identity.
+> 2. **Album joins the key, and each variable-length field is
+>    length-prefixed.** Title, artist and album come straight from JSON and
+>    may legally contain U+001F themselves, so a bare separator-joined
+>    string is ambiguous: title `"A\u{1F}B"` / artist `"C"` and title
+>    `"A"` / artist `"B\u{1F}C"` produce the same key. A UTF-8 byte-count
+>    prefix per field pins each boundary.
+>
+> As shipped:
+>
+> ```swift
+> key = "ta:\(title.utf8.count)\u{1F}\(title)\u{1F}\(artist.utf8.count)\u{1F}\(artist)\u{1F}\(payload.album)"
+> ```
+>
+> The original design below is kept for the reasoning it records, not as
+> an instruction.
 
 ```swift
 import Foundation
@@ -1137,7 +1170,7 @@ Create `Sources/CreativeNotchMediaBridge/bridge.m`. Requirements, each with its 
 - Register for notifications, then observe `kMRMediaRemoteNowPlayingInfoDidChangeNotification` and `kMRMediaRemoteNowPlayingApplicationIsPlayingDidChangeNotification`.
 - Emit one JSON object per line on **stdout**, `fflush` after each. Diagnostics go to **stderr** only.
 - **Escape JSON properly.** Build the object with `NSJSONSerialization`, not `printf`. Titles contain quotes, backslashes, newlines and emoji; a hand-rolled formatter produces invalid JSON on real music.
-- `playing` comes from `kMRMediaRemoteNowPlayingInfoPlaybackRate > 0`.
+- ~~`playing` comes from `kMRMediaRemoteNowPlayingInfoPlaybackRate > 0`.~~ **Superseded during this task:** `playing` comes from `MRMediaRemoteGetNowPlayingApplicationIsPlaying`. Measured by hand against Spotify on macOS 26.6.2, the rate field was inverted — published as `1` while PAUSED and absent while PLAYING, correct in 1 of 5 samples — and a rate that lies would draw a pause button over paused music. ⚠️ **Observed, not proven:** one player, one machine, one session, no explanation for the inversion, and not independently confirmed. **Pending a live check** against a running player, ideally a non-Spotify one.
 - `artwork` is base64 of `kMRMediaRemoteNowPlayingInfoArtworkData`, omitted entirely when absent.
 - Emit once immediately on start, so a freshly spawned helper reports current state rather than waiting for a change.
 - Run `CFRunLoopRun()` — **indefinitely**. The spike's 12-second bound was scaffolding and must not survive.

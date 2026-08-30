@@ -63,6 +63,31 @@ public final class MediaHelperProcess {
     private var stdoutPipe: Pipe?
     private var stderrPipe: Pipe?
 
+    /// The child's stdin, held for as long as the helper runs.
+    ///
+    /// This is not decoration and it is not optional. `bridge.m` watches
+    /// its stdin for EOF and calls `exit(0)` the moment it reads zero
+    /// bytes — that watchdog is the *only* thing guaranteeing no helper
+    /// outlives the app (spec section 4), because a crashed parent runs no
+    /// cleanup code. Both directions of that contract depend on this
+    /// process owning the write end:
+    ///
+    /// - Leave it unset and the child inherits OUR fd 0. A `.app` launched
+    ///   by `open` or launchd has fd 0 = `/dev/null`, which is readable and
+    ///   immediately at EOF, so the watchdog fires within milliseconds of
+    ///   every spawn, the supervisor burns its whole backoff budget, and
+    ///   the feature never works in a shipped app. It survives only when
+    ///   run from a terminal, where fd 0 is a tty — which is exactly why
+    ///   every by-hand check passed.
+    /// - Inherited-tty stdin is the mirror-image failure: nothing closes on
+    ///   our death, so no EOF ever arrives and the helper genuinely does
+    ///   outlive us.
+    ///
+    /// Retaining the `Pipe` keeps its write end open for the process's
+    /// lifetime; closing it (`closeStandardInput`) is what delivers the
+    /// EOF. Do not "tidy" this into a local in `start()`.
+    private(set) var stdinPipe: Pipe?
+
     public init() {}
 
     /// The helper's script and dylib as they ship inside the app bundle,
@@ -106,8 +131,7 @@ public final class MediaHelperProcess {
 
         let stdoutPipe = Pipe()
         let stderrPipe = Pipe()
-        process.standardOutput = stdoutPipe
-        process.standardError = stderrPipe
+        attachStandardIO(to: process, stdout: stdoutPipe, stderr: stderrPipe)
 
         // `readabilityHandler` fires on a background queue, never the
         // main actor. Hop over explicitly rather than touching `self`
@@ -140,6 +164,10 @@ public final class MediaHelperProcess {
         } catch {
             stdoutPipe.fileHandleForReading.readabilityHandler = nil
             stderrPipe.fileHandleForReading.readabilityHandler = nil
+            // Nothing was spawned, so nothing is owed an EOF — but the
+            // pipe must not be left behind for a later `stop()` to close
+            // on behalf of a process that never existed.
+            closeStandardInput()
             return
         }
 
@@ -167,6 +195,13 @@ public final class MediaHelperProcess {
     /// why "confirmed gone" is itself bounded rather than an unbounded
     /// `waitUntilExit()`.
     public func stop() {
+        // First, and unconditionally: the child is documented to exit on
+        // stdin EOF, so give it the chance to leave on its own before
+        // signals get involved. Unconditional because a helper that was
+        // configured but never successfully spawned must not leave a
+        // dangling write end behind either.
+        closeStandardInput()
+
         if let process {
             // This is a deliberate stop, not an unexpected death — don't
             // also fire onExit for it.
@@ -218,6 +253,37 @@ public final class MediaHelperProcess {
         buffer.reset()
     }
 
+    /// Points the child's three standard streams at pipes we own, and
+    /// retains the stdin pipe.
+    ///
+    /// Split out of `start()` and written against a protocol rather than
+    /// `Process` for one reason: `start()` cannot run under `swift test`
+    /// (there is no app bundle, so `bundledPaths` is `nil`) and no test in
+    /// this module may construct a `Process`. Without this seam the single
+    /// most consequential line in the file — `standardInput` — would be
+    /// unprovable, which is precisely how it came to be missing.
+    func attachStandardIO(to target: any HelperProcessIO, stdout: Pipe, stderr: Pipe) {
+        let stdin = Pipe()
+        target.standardInput = stdin
+        target.standardOutput = stdout
+        target.standardError = stderr
+        stdinPipe = stdin
+    }
+
+    /// Closes the write end of the child's stdin — the EOF `bridge.m`'s
+    /// watchdog is waiting for — and drops the pipe.
+    ///
+    /// Explicit rather than relying on deinit: releasing the last
+    /// reference would close the descriptor too, but *when* the child
+    /// learns we are done is the entire point, and that must not depend on
+    /// whether some other object still holds the pipe.
+    func closeStandardInput() {
+        // Throws if it is already closed; there is nothing to do about
+        // that and nothing to report.
+        try? stdinPipe?.fileHandleForWriting.close()
+        stdinPipe = nil
+    }
+
     /// Sends SIGTERM, waits up to `timeout` for exit, and escalates to
     /// SIGKILL if the process is still alive afterward.
     ///
@@ -249,6 +315,11 @@ public final class MediaHelperProcess {
     private func handleUnexpectedExit(status: Int32) {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
+        // The child is already gone, so this is not about EOF any more —
+        // it is about not leaking a file descriptor pair per crash. The
+        // supervisor restarts after a crash, and a helper that dies four
+        // times before degrading would otherwise strand four write ends.
+        closeStandardInput()
         process = nil
         stdoutPipe = nil
         stderrPipe = nil
@@ -293,3 +364,18 @@ public final class MediaHelperProcess {
         }
     }
 }
+
+/// The slice of `Process` that `MediaHelperProcess.attachStandardIO`
+/// configures.
+///
+/// A protocol, not `Process` itself, so the stdin assignment is testable
+/// without spawning or even constructing a process — see
+/// `attachStandardIO`. `Process` already declares all three as `Any?`, so
+/// it conforms with an empty extension.
+protocol HelperProcessIO: AnyObject {
+    var standardInput: Any? { get set }
+    var standardOutput: Any? { get set }
+    var standardError: Any? { get set }
+}
+
+extension Process: HelperProcessIO {}

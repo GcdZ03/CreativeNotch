@@ -71,4 +71,33 @@ struct NowPlayingTests {
 
         #expect(delegate.arbiter.content(now: 0) == nil)
     }
+
+    /// Spec section 5: once the helper degrades the panel shows no header —
+    /// and the peek must go with it. The arbiter keeps whatever it was last
+    /// told, so a snapshot left behind there would keep peeking a track
+    /// hours after the helper stopped existing. Driven through the
+    /// supervisor's real exit path, so it also proves `onDegraded` is
+    /// actually wired rather than merely assignable.
+    @Test func degradingClearsTheHeaderAndThePeek() throws {
+        let delegate = makeDelegate()
+        let media = try #require(delegate.media)
+        media.supervisor.startHelper = {}
+        media.supervisor.stopHelper = {}
+        var pending: (@MainActor () -> Void)?
+        media.supervisor.scheduleRetry = { _, work in pending = work }
+
+        media.handle(line: #"{"title":"X","artist":"Y","album":"","playing":true,"contentID":"i"}"#)
+        #expect(delegate.state.nowPlaying != nil)
+        #expect(delegate.arbiter.content(now: 0) != nil)
+
+        for _ in 1...(HelperBackoff.maxAttempts + 1) {
+            media.supervisor.helperExited(status: 1)
+            pending?()
+        }
+
+        #expect(media.supervisor.isDegraded)
+        #expect(delegate.state.nowPlaying == nil)
+        #expect(delegate.state.nowPlayingArtwork == nil)
+        #expect(delegate.arbiter.content(now: 0) == nil)
+    }
 }

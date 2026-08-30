@@ -259,10 +259,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `applicationDidFinishLaunching` / `applicationWillTerminate` —
         // building the wiring here must not spawn the helper.
         let media = MediaController()
-        media.onChange = { [weak self] snapshot in
+        // `[weak media]` matters as much as `[weak self]`: `media` holds
+        // this closure and the closure reaches back for the artwork, so a
+        // strong capture would be a controller that keeps itself alive —
+        // the same reason `onPasteClipboard` above captures its controller
+        // weakly.
+        media.onChange = { [weak self, weak media] snapshot in
             guard let self else { return }
             self.state.nowPlaying = snapshot
-            self.state.nowPlayingArtwork = snapshot.flatMap { media.artwork(for: $0) }
+            self.state.nowPlayingArtwork = snapshot.flatMap { media?.artwork(for: $0) }
             self.arbiter.setNowPlaying(snapshot)
             self.reevaluatePeek()
         }

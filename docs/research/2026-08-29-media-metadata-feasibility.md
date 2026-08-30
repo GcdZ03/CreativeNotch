@@ -105,8 +105,31 @@ cleared because a payload omits it.** A naïve implementation flickers the
 album art several times per play/pause.
 
 Related: `playing` lagged the real state in the first notifications after
-a change, so the payload's own `kMRMediaRemoteNowPlayingInfoPlaybackRate`
-is the source of truth, not notification ordering or arrival time.
+a change, so playing state must be *read*, not inferred from notification
+ordering or arrival time.
+
+> **Correction, from task 6's implementation (2026-08-29).** This section
+> originally named `kMRMediaRemoteNowPlayingInfoPlaybackRate` as that
+> source of truth. It is not what shipped. Re-measured by hand against
+> Spotify on macOS 26.6.2, the rate field was *inverted*: published as `1`
+> while PAUSED and absent while PLAYING, agreeing with reality in 1 of 5
+> samples. `bridge.m` therefore calls
+> `MRMediaRemoteGetNowPlayingApplicationIsPlaying` and publishes its
+> answer instead.
+>
+> ⚠️ **Observed, not proven.** One player, one machine, one OS build, one
+> session, and no explanation for the inversion — it could be a Spotify
+> bug, a macOS 26 change, or an artefact of how it was sampled. It has not
+> been independently confirmed, and this document should not be read as
+> establishing that the rate field is wrong in general. **Pending a live
+> check** against a running player, ideally including a non-Spotify
+> client. The original finding above (arrival order is untrustworthy)
+> stands regardless; only the choice of field changed.
+
+**`contentID` is not a stable track identity.** Also measured during task
+6: it changed on *every play/pause of an unchanged track*. Anything keyed
+by it — the artwork cache in particular — would miss on every pause. The
+shipped `TrackIdentity` is title + artist + album.
 
 ## 7. Packaging — verified end to end
 

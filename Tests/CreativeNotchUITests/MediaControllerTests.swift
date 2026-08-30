@@ -132,4 +132,91 @@ struct MediaControllerTests {
 
         #expect(c.snapshot == nil)
     }
+
+    // MARK: - Degrading (final review I3)
+
+    /// Spec section 5: once the helper has failed past its retry cap the
+    /// panel shows no header. Nothing else ever clears `snapshot`, so
+    /// before this the panel kept the last track forever — for a song that
+    /// may have ended hours ago — and hover kept peeking it. Driven
+    /// through the supervisor's real exit path rather than by calling
+    /// `degrade()` directly, because the bug was the missing `onDegraded`
+    /// assignment, not the clearing.
+    @Test func degradingClearsWhatIsOnScreen() {
+        let c = MediaController()
+        var published: [TrackSnapshot?] = []
+        c.onChange = { published.append($0) }
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        var pending: (@MainActor () -> Void)?
+        c.supervisor.scheduleRetry = { _, work in pending = work }
+
+        c.handle(line: line(title: "Redbone"))
+        #expect(c.snapshot?.title == "Redbone")
+
+        for _ in 1...(HelperBackoff.maxAttempts + 1) {
+            c.supervisor.helperExited(status: 1)
+            pending?()
+        }
+
+        #expect(c.supervisor.isDegraded)
+        #expect(c.snapshot == nil)
+        #expect(published.last == .some(nil), "the clear must be published, not just stored")
+    }
+
+    /// A degrade that only cleared `snapshot` without resetting the
+    /// coalescer would swallow the *next* clear (`nil` deduped against
+    /// `nil`) and, worse, drop the first snapshot of any later run that
+    /// happened to match the dead helper's last one.
+    @Test func aTrackPublishesAgainAfterADegrade() {
+        let c = MediaController()
+        var published: [TrackSnapshot?] = []
+        c.onChange = { published.append($0) }
+
+        c.handle(line: line(title: "Redbone"))
+        c.degrade()
+        c.handle(line: line(title: "Redbone"))
+
+        #expect(published.count == 3)
+        #expect(published.last??.title == "Redbone")
+    }
+
+    // MARK: - Fresh attempt budget (final review I4)
+
+    /// The supervisor promises that a helper which ran healthily and died
+    /// much later gets a fresh attempt budget rather than tripping the
+    /// crash-loop cap. The controller used to latch `noteHealthy()` behind
+    /// a "have I ever seen a line" flag, so it fired exactly once in the
+    /// controller's life: five crashes spread over five days degraded the
+    /// module as if they had been a tight loop.
+    @Test func aHealthyRunBetweenCrashesRestoresTheAttemptBudget() {
+        let c = MediaController()
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        var pending: (@MainActor () -> Void)?
+        c.supervisor.scheduleRetry = { _, work in pending = work }
+
+        // The helper starts, works, and then dies four times — one short
+        // of the cap.
+        c.handle(line: line(title: "First"))
+        for _ in 1..<HelperBackoff.maxAttempts {
+            c.supervisor.helperExited(status: 1)
+            pending?()
+        }
+        #expect(c.supervisor.attempt == HelperBackoff.maxAttempts - 1)
+
+        // It comes back and proves itself again. THIS is the line the
+        // latch used to swallow.
+        c.handle(line: line(title: "Second"))
+        #expect(c.supervisor.attempt == 0)
+
+        // So four more deaths, days later, must not degrade the module.
+        for _ in 1..<HelperBackoff.maxAttempts {
+            c.supervisor.helperExited(status: 1)
+            pending?()
+        }
+
+        #expect(c.supervisor.isDegraded == false)
+        #expect(c.snapshot?.title == "Second")
+    }
 }
