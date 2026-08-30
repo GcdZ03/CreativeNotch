@@ -1,0 +1,62 @@
+import Foundation
+
+/// Where the machine is drawing power from.
+///
+/// Two cases, not three: IOKit also reports a UPS type, which this app
+/// does not read. An external UPS is not what the notch is for, and
+/// pretending to support one by mapping it onto `.wall` would report a
+/// desktop as plugged in while its battery backup discharges.
+public enum PowerSource: String, Equatable, Sendable {
+    case battery, wall
+}
+
+/// The machine's power state at one instant, as a plain value.
+///
+/// This is the boundary. Above it, every decision in this module is pure
+/// logic over this struct and runs headlessly — including on CI machines
+/// and desktops with no battery at all. Below it, `PowerObserver` is the
+/// only thing that touches IOKit.
+///
+/// `level` is whole percent because that is what IOKit reports and what
+/// the panel shows; converting to a fraction and back would invent
+/// precision that never existed, and both low-battery thresholds are
+/// stated in whole percent.
+public struct PowerSnapshot: Equatable, Sendable {
+
+    public var level: Int
+    public var source: PowerSource
+    public var isCharging: Bool
+
+    /// Minutes remaining, or `nil` when IOKit is still calculating.
+    ///
+    /// The raw dictionary uses `-1` for "Still Calculating the Time"
+    /// (`IOPSKeys.h`, `kIOPSTimeToEmptyKey`). That sentinel is converted
+    /// to an absence exactly once, in `PowerObserver`, so nothing above
+    /// this line can mistake it for a duration. It is not the only reason
+    /// an estimate goes unshown — see `BatteryEstimateGate`, which
+    /// distrusts plenty of values IOKit reports confidently.
+    public var estimateMinutes: Int?
+
+    public var isLowPowerMode: Bool
+
+    public init(
+        level: Int,
+        source: PowerSource,
+        isCharging: Bool,
+        estimateMinutes: Int?,
+        isLowPowerMode: Bool
+    ) {
+        self.level = level
+        self.source = source
+        self.isCharging = isCharging
+        self.estimateMinutes = estimateMinutes
+        self.isLowPowerMode = isLowPowerMode
+    }
+
+    /// Whether the charger is attached.
+    ///
+    /// Derived from the source, never from `isCharging`: a machine sitting
+    /// at 100% on wall power is plugged in and not charging, and deriving
+    /// one from the other shows "on battery" with the cable in your hand.
+    public var isPluggedIn: Bool { source == .wall }
+}
