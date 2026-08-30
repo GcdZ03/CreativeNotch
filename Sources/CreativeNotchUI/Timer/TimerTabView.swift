@@ -1,8 +1,15 @@
 import SwiftUI
 import CreativeNotchCore
 
-/// Idle: presets and a custom field. Running: the remaining time and
+/// Idle: presets and a click-only stepper. Running: the remaining time and
 /// pause / resume / cancel.
+///
+/// The stepper is not a stylistic choice. `NotchPanel` overrides
+/// `canBecomeKey` to `false` so opening the notch never steals focus from
+/// whatever you are working in — and a window that cannot become key cannot
+/// give keyboard focus to a `TextField`. An earlier version of this view had
+/// one; it rendered, and swallowed every keystroke. Every control here must
+/// be reachable by mouse alone.
 ///
 /// The presets are **replaced**, not merely disabled, while a timer runs.
 /// One timer at a time is the model, and a visible preset button would
@@ -24,7 +31,7 @@ struct TimerTabView: View {
     /// kitchen-timer cases without opening the custom field.
     private static let presets: [Int] = [5, 10, 25]
 
-    @State private var customMinutes: String = ""
+    @State private var customMinutes: Int = 15
 
     var body: some View {
         if let countdown {
@@ -42,30 +49,45 @@ struct TimerTabView: View {
                         .buttonStyle(.borderedProminent)
                 }
             }
-            HStack(spacing: 6) {
-                TextField("minutes", text: $customMinutes)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 90)
-                Button("Start") { startCustom() }
-                    .disabled(parsedCustom == nil)
+            HStack(spacing: 12) {
+                stepButton("minus", disabled: customMinutes == TimerStepper.minimum) {
+                    customMinutes = TimerStepper.decrement(customMinutes)
+                }
+
+                // Monospaced digits and a fixed width, so the Start button
+                // does not shuffle sideways as the number changes.
+                Text("\(customMinutes)m")
+                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(0.95))
+                    .frame(width: 46)
+                    .accessibilityLabel("\(customMinutes) minutes")
+
+                stepButton("plus", disabled: customMinutes == TimerStepper.maximum) {
+                    customMinutes = TimerStepper.increment(customMinutes)
+                }
+
+                Button("Start") { onStart(TimeInterval(customMinutes) * 60) }
+                    .buttonStyle(.bordered)
             }
         }
     }
 
-    /// Parsed once and reused, so the button's enabled state and the action
-    /// cannot disagree about whether the input is valid.
-    private var parsedCustom: TimeInterval? {
-        guard let minutes = Int(customMinutes.trimmingCharacters(in: .whitespaces)),
-              minutes > 0,
-              TimeInterval(minutes) * 60 <= Countdown.maxDuration
-        else { return nil }
-        return TimeInterval(minutes) * 60
-    }
-
-    private func startCustom() {
-        guard let duration = parsedCustom else { return }
-        onStart(duration)
-        customMinutes = ""
+    /// Disabled at the ends rather than silently clamping, so a button that
+    /// will not move says so before it is clicked.
+    private func stepButton(
+        _ symbol: String,
+        disabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 22, height: 22)
+        }
+        .buttonStyle(.bordered)
+        .disabled(disabled)
+        .accessibilityLabel(symbol == "plus" ? "Longer" : "Shorter")
     }
 
     private func running(_ countdown: Countdown) -> some View {
