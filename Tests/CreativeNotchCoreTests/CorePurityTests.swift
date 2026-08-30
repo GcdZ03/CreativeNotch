@@ -80,6 +80,10 @@ struct CorePurityTests {
             "ClipboardStore.swift",
             "MediaCommand.swift",
             "MediaPayload.swift",
+            "PowerSnapshot.swift",
+            "BatteryEstimateGate.swift",
+            "LowBatteryArming.swift",
+            "PowerLabel.swift",
         ]
         for name in expectedInSubdirectories {
             #expect(names.contains(name), "expected recursive scan to find \(name)")

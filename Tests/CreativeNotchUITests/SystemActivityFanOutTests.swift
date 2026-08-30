@@ -118,4 +118,61 @@ struct SystemActivityFanOutTests {
 
         #expect(starts == 1)
     }
+
+    /// The power leg of the fan-out.
+    ///
+    /// Deleting `self.media?.setActivity(state)` once left all 471 tests
+    /// green while the helper ran on through lock and sleep. This is the
+    /// same assertion for the power module: the peek must fall silent
+    /// behind a lock screen, and only the fan-out makes it.
+    @Test func lockingSilencesThePowerPeek() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let power = try #require(delegate.power)
+
+        var events: [PowerEvent] = []
+        power.onEvent = { events.append($0) }
+
+        power.apply(Self.snapshot(source: .battery), now: 100)
+        power.apply(Self.snapshot(source: .wall), now: 200)
+
+        // Without this the assertion below could pass because the peek
+        // never fired at all, rather than because the lock silenced it.
+        #expect(events == [.pluggedIn(level: 66)])
+
+        delegate.activity.handle(.screenLocked)
+        power.apply(Self.snapshot(source: .battery), now: 300)
+
+        #expect(events == [.pluggedIn(level: 66)])
+    }
+
+    @Test func unlockingRestoresThePowerPeek() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let power = try #require(delegate.power)
+
+        var events: [PowerEvent] = []
+        power.onEvent = { events.append($0) }
+
+        power.apply(Self.snapshot(source: .battery), now: 100)
+        delegate.activity.handle(.screenLocked)
+        power.apply(Self.snapshot(source: .wall), now: 200)
+        #expect(events.isEmpty)
+
+        delegate.activity.handle(.screenUnlocked)
+        power.apply(Self.snapshot(source: .battery), now: 300)
+
+        #expect(events == [.unplugged(level: 66)])
+    }
+
+    private static func snapshot(source: PowerSource) -> PowerSnapshot {
+        PowerSnapshot(
+            level: 66, source: source, isCharging: false,
+            estimateMinutes: 400, isLowPowerMode: false
+        )
+    }
 }

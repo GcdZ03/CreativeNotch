@@ -254,4 +254,23 @@ struct PowerControllerTests {
         #expect(recorder.snapshots.count == 2)
         #expect(recorder.snapshots.map(\.level) == [66, 65])
     }
+
+    // MARK: - Lifecycle
+
+    /// `start()` has to actually register, and `stop()` has to undo it.
+    ///
+    /// The `power?.start()` line in `AppDelegate` itself is covered by
+    /// running the real app, as the clipboard, media and HUD start lines
+    /// are — no test in this suite drives
+    /// `applicationDidFinishLaunching`. This pins the half that can be
+    /// pinned headlessly.
+    @Test func startingBeginsObservingAndStoppingEnds() {
+        let controller = PowerController()
+
+        controller.start()
+        #expect(controller.isObserving)
+
+        controller.stop()
+        #expect(controller.isObserving == false)
+    }
 }

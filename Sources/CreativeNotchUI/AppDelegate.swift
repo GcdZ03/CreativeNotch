@@ -56,6 +56,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `clipboard`.
     private(set) var media: MediaController?
 
+    /// Internal rather than private so the lifecycle and the fan-out are
+    /// provable, like `clipboard` and `media`.
+    private(set) var power: PowerController?
+
     /// One observer for the whole app. Internal rather than private so the
     /// fan-out is provable — `SystemActivityFanOutTests` asserts there is
     /// exactly one registration set.
@@ -72,6 +76,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Overridable so tests need not wait out the real 1.5 seconds.
     var hudTTLDelay: Duration = AppDelegate.defaultHUDTTLDelay
+
+    /// How long a power peek occupies the slot before this re-checks the
+    /// arbiter. Mirrors `PeekArbiter.powerTTL`.
+    public static let defaultPowerTTLDelay: Duration = .milliseconds(3000)
+
+    /// Overridable for the same reason `hudTTLDelay` is.
+    var powerTTLDelay: Duration = AppDelegate.defaultPowerTTLDelay
 
     /// Exposed so tests can await the real re-evaluation instead of
     /// sleeping and hoping, exactly like `graceTask`.
@@ -187,6 +198,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         activity.start()
         clipboard?.start()
         media?.start()
+        power?.start()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
@@ -194,6 +206,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hud?.stop()
         clipboard?.stop()
         media?.stop()
+        power?.stop()
         activity.stop()
     }
 
@@ -251,6 +264,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             let now = Date().timeIntervalSince1970
             self.clipboard?.setActivity(state, now: now)
             self.media?.setActivity(state)
+            // The promised one-line addition. Note what it does *not* do:
+            // `PowerController.setActivity` suppresses peeks and leaves
+            // the observer running, because a notification-driven source
+            // costs nothing idle and suspending it would mean missing the
+            // charger moving while the lid is shut.
+            self.power?.setActivity(state)
         }
 
         // Publishes into `AppState` for the panel header and feeds the
@@ -269,6 +288,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.nowPlayingDidChange(snapshot)
         }
         self.media = media
+
+        // Publishes into `AppState` for the power tab, and into the
+        // arbiter for the peek. Starting and stopping stays in
+        // `applicationDidFinishLaunching` / `applicationWillTerminate`,
+        // like the clipboard and media controllers — building the wiring
+        // here must not register an IOKit callback.
+        let power = PowerController()
+        power.onSnapshot = { [weak self] snapshot, estimate in
+            self?.powerDidChange(snapshot, estimate: estimate)
+        }
+        power.onEvent = { [weak self] event in
+            self?.showPowerPeek(event)
+        }
+        self.power = power
+        // Read once: a machine does not grow a battery, and a tab that
+        // opens onto three meaningless rows is worse than no tab.
+        state.hasBattery = power.hasBattery
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
@@ -491,6 +527,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         presentPeek(recording: kind)
     }
 
+    /// Current power state into the panel.
+    ///
+    /// A method rather than a closure body so a test can drive the real
+    /// publish path without an IOKit callback — the same reason
+    /// `nowPlayingDidChange` is one.
+    func powerDidChange(_ snapshot: PowerSnapshot, estimate: Int?) {
+        state.power = snapshot
+        state.powerEstimate = estimate
+        // `hasBattery` is set at install, but the first snapshot is the
+        // first proof there is one. A machine whose battery reads as
+        // absent at launch and present a moment later would otherwise
+        // never show the tab.
+        state.hasBattery = true
+    }
+
+    /// A power event into the peek slot.
+    ///
+    /// Recorded into the arbiter and then *asked* what to show, never
+    /// shown directly — priority against a HUD peek or a drag is the
+    /// arbiter's call alone, exactly as it is for `showHUD`.
+    func showPowerPeek(_ event: PowerEvent) {
+        let now = self.now()
+        arbiter.recordPower(event, now: now)
+        presentPeek()
+    }
+
     /// The only path to a `.peek` state.
     ///
     /// `.open` and `.receiving` are deliberate user states -- a passing
@@ -514,18 +576,54 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard let content = arbiter.content(now: now) else { return }
         state.transition(to: .peek(content))
-        scheduleHUDTTLReevaluation()
+        schedulePeekReevaluation(for: content)
     }
 
-    /// Re-reads the arbiter once the HUD TTL is expected to have elapsed
-    /// and transitions to whatever it now says -- `.closed` if nothing.
-    /// Mirrors `startDismissGrace`: cancel-and-replace, and exposed as
-    /// `hudTTLTask` so tests can await it instead of sleeping.
-    private func scheduleHUDTTLReevaluation() {
+    /// Re-reads the arbiter once the showing content's TTL is expected to
+    /// have elapsed, and transitions to whatever it now says -- `.closed`
+    /// if nothing. Mirrors `startDismissGrace`: cancel-and-replace, and
+    /// exposed as `hudTTLTask` so tests can await it instead of sleeping.
+    ///
+    /// The delay follows the content, which it did not have to before this
+    /// module: with one TTL in the app, one constant was the whole story.
+    /// A power peek lives twice as long as a HUD one, so a fixed 1.5s
+    /// re-check would fire while the power peek was still live, find the
+    /// arbiter still returning it, transition to the state it was already
+    /// in — and never look again. The notch would stay open until some
+    /// unrelated event moved it.
+    /// Which TTL a given peek is re-checked on.
+    ///
+    /// Static and internal so a test can read the choice directly. Proving
+    /// it through timing does not work: a test that shrinks both delays to
+    /// zero — which is what every test here does, to avoid real sleeps —
+    /// cannot tell the two apart, and swapping them leaves the suite
+    /// green. This is the same reason `NotchRootView.nowPlayingPeek` is a
+    /// static builder rather than an inline expression.
+    static func reevaluationDelay(
+        for content: PeekContent,
+        hud: Duration,
+        power: Duration
+    ) -> Duration {
+        switch content {
+        case .hud:   return hud
+        case .power: return power
+        // `.nowPlaying` and `.dragTarget` have no expiry of their own —
+        // they end when the track stops or the drag does. The delay is
+        // irrelevant for them; `reevaluatePeek` does not reschedule.
+        case .nowPlaying, .dragTarget:
+            return hud
+        }
+    }
+
+    private func schedulePeekReevaluation(for content: PeekContent) {
+        let delay = Self.reevaluationDelay(
+            for: content, hud: hudTTLDelay, power: powerTTLDelay
+        )
+
         hudTTLTask?.cancel()
         hudTTLTask = Task { @MainActor [weak self] in
             guard let self else { return }
-            try? await Task.sleep(for: self.hudTTLDelay)
+            try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
             self.reevaluatePeek()
         }
@@ -538,6 +636,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard case .peek = state.state else { return }
         if let content = arbiter.content(now: self.now()) {
             state.transition(to: .peek(content))
+            // Something transient may still be live underneath the one
+            // that just lapsed — a HUD peek fired while a power peek was
+            // showing expires first and reveals it. Without this the
+            // revealed peek would never be re-checked. It terminates
+            // because every transient source strictly expires; ambient
+            // content reached here simply stays until its own source
+            // changes.
+            switch content {
+            case .hud, .power: schedulePeekReevaluation(for: content)
+            case .nowPlaying, .dragTarget: break
+            }
         } else {
             state.transition(to: .closed)
         }

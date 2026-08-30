@@ -42,6 +42,12 @@ public final class PowerController {
     public func start() { observer.start() }
     public func stop() { observer.stop() }
 
+    /// Whether the observer is registered.
+    ///
+    /// Internal, for the lifecycle proof — the same reason
+    /// `PowerObserver.registrationCount` is.
+    var isObserving: Bool { observer.registrationCount > 0 }
+
     /// The lock and sleep gate, fanned out from `AppDelegate`.
     ///
     /// Note what this does *not* do: it does not stop the observer. A
