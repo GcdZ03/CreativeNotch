@@ -61,12 +61,32 @@ public enum NotchShape {
         )
     }
 
+    /// Whether the ambient now-playing badge is showing.
+    ///
+    /// The one place that question is answered. The drawn shape, the
+    /// hit-test region and the hover tracking rect all have to agree about
+    /// whether the badge is there, and a second spelling of
+    /// `isPlaying == true` somewhere else is the same "two derivations of
+    /// one thing" that produced this project's only Critical bug.
+    ///
+    /// Paused media is not playing media: the badge answers "is something
+    /// playing", so a badge over a paused track would be a lie.
+    public static func showsBadge(nowPlaying: TrackSnapshot?) -> Bool {
+        nowPlaying?.isPlaying == true
+    }
+
     /// Panel-local, bottom-left origin, y increasing upward — matching an
     /// unflipped `NSView`.
+    ///
+    /// `badge` is defaulted so the three consumers that must agree — the
+    /// drawn rect, the hit test and the hover tracking rect — all widen
+    /// from this one function rather than each adding the badge's width
+    /// themselves.
     public static func visibleRect(
         presentation: Presentation,
         anchor: Anchor,
-        panelFrame: CGRect
+        panelFrame: CGRect,
+        badge: Bool = false
     ) -> CGRect {
         let local = CGRect(
             x: anchor.rect.minX - panelFrame.minX,
@@ -77,7 +97,25 @@ public enum NotchShape {
 
         switch presentation {
         case .closed:
-            return local
+            // A closed notch's rect *is* the camera housing, so the badge
+            // cannot live inside it — it grows into the right ear, which
+            // is menu bar. Trailing side only: status items cluster at the
+            // far right, so the space immediately beside the notch is
+            // nearly always empty, and the left ear holds the app menus.
+            //
+            // A pill is not grown. There is no camera housing to avoid —
+            // the pill is drawn black and its closed rect shows nothing at
+            // all today, so the badge simply renders inside it. Growing it
+            // would put an asymmetric stub on a floating rounded widget
+            // for no reason, exactly as `.peek` leaves the pill's centred
+            // slab alone.
+            guard badge, anchor.isNotch else { return local }
+            return CGRect(
+                x: local.minX,
+                y: local.minY,
+                width: local.width + NotchGeometry.nowPlayingBadgeWidth,
+                height: local.height
+            )
 
         case .peek:
             // On real hardware the peek grows sideways into the ears and

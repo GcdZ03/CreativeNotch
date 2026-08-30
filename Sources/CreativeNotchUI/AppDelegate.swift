@@ -259,17 +259,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `applicationDidFinishLaunching` / `applicationWillTerminate` —
         // building the wiring here must not spawn the helper.
         let media = MediaController()
-        // `[weak media]` matters as much as `[weak self]`: `media` holds
-        // this closure and the closure reaches back for the artwork, so a
-        // strong capture would be a controller that keeps itself alive —
-        // the same reason `onPasteClipboard` above captures its controller
-        // weakly.
-        media.onChange = { [weak self, weak media] snapshot in
-            guard let self else { return }
-            self.state.nowPlaying = snapshot
-            self.state.nowPlayingArtwork = snapshot.flatMap { media?.artwork(for: $0) }
-            self.arbiter.setNowPlaying(snapshot)
-            self.reevaluatePeek()
+        // `[weak self]` matters: `media` holds this closure, and the work
+        // it does reaches back through `self` for the artwork — a strong
+        // capture would be a controller keeping its owner alive, the same
+        // reason `onPasteClipboard` above captures its controller weakly.
+        // The body is a method rather than a closure so a test can drive
+        // the real publish path without a running helper.
+        media.onChange = { [weak self] snapshot in
+            self?.nowPlayingDidChange(snapshot)
         }
         self.media = media
 
@@ -368,12 +365,48 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The currently-drawn region, panel-local. Both the hit test and the
     /// hover tracking rect read it, so there is exactly one derivation.
+    ///
+    /// `badge:` is passed here rather than added to the result, so the two
+    /// consumers of this rect and the view's own `drawnRect` all widen by
+    /// the badge through the same tested function.
     private func visibleRect() -> CGRect {
         NotchShape.visibleRect(
             presentation: state.state.presentation,
             anchor: currentAnchor,
-            panelFrame: currentFrame
+            panelFrame: currentFrame,
+            badge: isShowingNowPlayingBadge
         )
+    }
+
+    /// Whether the closed notch is currently carrying the now-playing
+    /// badge, and is therefore one badge wider than the anchor.
+    ///
+    /// Reads `NotchShape.showsBadge` rather than spelling the rule out
+    /// again, so this and `NotchRootView` cannot disagree about when the
+    /// badge is there. Internal so a test can assert the source of the
+    /// flag directly.
+    var isShowingNowPlayingBadge: Bool {
+        NotchShape.showsBadge(nowPlaying: state.nowPlaying)
+    }
+
+    /// What is playing changed.
+    ///
+    /// Internal rather than private so a test can drive the real publish
+    /// path — including the badge re-sync below — without a running
+    /// helper process.
+    ///
+    /// The re-sync is not optional: `AppState`'s funnel fires on state and
+    /// geometry changes only, and starting or stopping playback is
+    /// neither, yet it changes the closed shape. Without this the drawn
+    /// rect would carry a badge the hit-test region and the tracking rect
+    /// knew nothing about — clicks on it falling through to the menu bar
+    /// behind, and hover never firing over it.
+    func nowPlayingDidChange(_ snapshot: TrackSnapshot?) {
+        state.nowPlaying = snapshot
+        state.nowPlayingArtwork = snapshot.flatMap { media?.artwork(for: $0) }
+        arbiter.setNowPlaying(snapshot)
+        syncTrackingRect()
+        reevaluatePeek()
     }
 
     /// Moves the accepted region toward the drawn one.

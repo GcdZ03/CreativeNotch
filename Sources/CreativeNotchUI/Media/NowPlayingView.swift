@@ -39,26 +39,57 @@ enum NowPlayingLabel {
 /// there is nothing to avoid and the single centred line is correct.
 struct NowPlayingPeekView: View {
     let track: TrackSnapshot
+    var artwork: Data?
     var notchGap: CGFloat = 0
 
     var body: some View {
         if notchGap > 0 {
             HStack(spacing: 0) {
-                text(track.title, weight: .semibold, opacity: 0.95)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.trailing, 12)
+                HStack(spacing: 7) {
+                    cover
+                    text(track.title, weight: .semibold, opacity: 0.95)
+                }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, 10)
 
                 Color.clear.frame(width: notchGap)
 
                 text(track.artist, weight: .regular, opacity: 0.6)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 12)
+                    .padding(.leading, 10)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(NowPlayingLabel.text(for: track))
         } else {
-            text(NowPlayingLabel.text(for: track), weight: .medium, opacity: 0.9)
-                .padding(.horizontal, 14)
+            HStack(spacing: 7) {
+                cover
+                text(NowPlayingLabel.text(for: track), weight: .medium, opacity: 0.9)
+            }
+            .padding(.horizontal, 14)
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel(NowPlayingLabel.text(for: track))
+        }
+    }
+
+    /// A 16pt cover, and nothing when there is none.
+    ///
+    /// The panel header reserves a blank tile so its text cannot shift
+    /// sideways when artwork lands late. The peek does the opposite and
+    /// omits it, because the peek is transient — it appears, is read, and
+    /// goes. There is no "later" for the text to shift in, and an empty
+    /// grey square in a glance is worse than no square at all.
+    @ViewBuilder
+    private var cover: some View {
+        if let artwork, let image = NSImage(data: artwork) {
+            Image(nsImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 3, style: .continuous)
+                        .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
+                }
         }
     }
 

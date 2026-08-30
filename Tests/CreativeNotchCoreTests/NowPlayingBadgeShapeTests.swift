@@ -1,0 +1,145 @@
+import Testing
+import CoreGraphics
+@testable import CreativeNotchCore
+
+/// The ambient now-playing badge widens the *closed* shape, because a
+/// closed notch's rect is the camera housing and anything drawn inside it
+/// is invisible.
+///
+/// The width lives in `visibleRect` and nowhere else: the drawn rect, the
+/// hit-test region and the hover tracking rect all read this one function,
+/// and a badge that widened only one of them would either swallow menu bar
+/// clicks or drop clicks on itself through to whatever is behind.
+struct NowPlayingBadgeShapeTests {
+
+    // A real 14" MacBook: 179pt notch, 32pt menu bar.
+    private let notch = Anchor.notch(CGRect(x: 646, y: 924, width: 179, height: 32))
+    private let pill = Anchor.pill(CGRect(x: 500, y: 900, width: 180, height: 32))
+    private let panel = CGRect(x: 425, y: 696, width: 620, height: 260)
+
+    private func closed(_ anchor: Anchor, badge: Bool) -> CGRect {
+        NotchShape.visibleRect(
+            presentation: .closed, anchor: anchor, panelFrame: panel, badge: badge
+        )
+    }
+
+    // MARK: - Nothing playing changes nothing
+
+    /// Pinned to literals, not to `closed(notch, badge: false)` compared
+    /// against itself: the whole promise is that a Mac with nothing
+    /// playing gets byte-identical geometry to before this feature existed.
+    @Test func theClosedNotchWithoutTheBadgeIsExactlyTheAnchor() {
+        let r = closed(notch, badge: false)
+        #expect(r == CGRect(x: 221, y: 228, width: 179, height: 32))
+    }
+
+    /// The defaulted parameter must default to *off*. Existing callers
+    /// that never heard of the badge keep the shape they had.
+    @Test func omittingTheBadgeIsTheSameAsAskingForNoBadge() {
+        let implicit = NotchShape.visibleRect(
+            presentation: .closed, anchor: notch, panelFrame: panel
+        )
+        #expect(implicit == closed(notch, badge: false))
+    }
+
+    // MARK: - The badge grows the trailing side, and only that
+
+    /// "Wider" is not enough: a rect that grew off the *leading* side is
+    /// also wider, and would put the badge under the app menus while the
+    /// notch itself slid left. The origin must not move.
+    @Test func theBadgeGrowsTheClosedNotchOnTheTrailingSideOnly() {
+        let base = closed(notch, badge: false)
+        let badged = closed(notch, badge: true)
+
+        #expect(badged.minX == base.minX)
+        #expect(badged.minY == base.minY)
+        #expect(badged.height == base.height)
+        #expect(badged.width == base.width + NotchGeometry.nowPlayingBadgeWidth)
+        #expect(badged.maxX == base.maxX + NotchGeometry.nowPlayingBadgeWidth)
+    }
+
+    /// The grown strip is on the right of the notch and nowhere else: a
+    /// point just past the notch's trailing edge is inside the badged rect
+    /// and outside the plain one, and its mirror image on the leading side
+    /// is outside both.
+    @Test func onlyThePointsTrailingTheNotchAreNewlyCaptured() {
+        let base = closed(notch, badge: false)
+        let badged = closed(notch, badge: true)
+        let y = base.midY
+
+        let justTrailing = CGPoint(x: base.maxX + 4, y: y)
+        #expect(badged.contains(justTrailing))
+        #expect(!base.contains(justTrailing))
+
+        let justLeading = CGPoint(x: base.minX - 4, y: y)
+        #expect(!badged.contains(justLeading))
+        #expect(!base.contains(justLeading))
+    }
+
+    /// The badge only exists on the closed notch. A peek or an open panel
+    /// asked for it must be untouched, or hovering a badge would jump the
+    /// shape by 34pt for no reason.
+    @Test func theBadgeChangesNoOtherPresentation() {
+        for presentation in [NotchShape.Presentation.peek, .expanded] {
+            let plain = NotchShape.visibleRect(
+                presentation: presentation, anchor: notch, panelFrame: panel, badge: false
+            )
+            let badged = NotchShape.visibleRect(
+                presentation: presentation, anchor: notch, panelFrame: panel, badge: true
+            )
+            #expect(plain == badged, "\(presentation) must ignore the badge")
+        }
+    }
+
+    /// The badge is drawn inside the window, so it has to fit in it —
+    /// the same guarantee `thePeekFitsInsideThePanel` makes for the peek.
+    @Test func theBadgedClosedRectFitsInsideThePanel() {
+        let r = closed(notch, badge: true)
+        #expect(r.minX >= 0)
+        #expect(r.maxX <= panel.width)
+    }
+
+    /// The intrusion is menu bar, taken for as long as music plays, so it
+    /// has to stay far smaller than a peek's ear — which is transient.
+    @Test func theBadgeIsMuchNarrowerThanAPeekEar() {
+        #expect(NotchGeometry.nowPlayingBadgeWidth > 0)
+        #expect(NotchGeometry.nowPlayingBadgeWidth < NotchGeometry.peekEarWidth / 2)
+    }
+
+    // MARK: - A notchless Mac
+
+    /// A pill has no camera housing to draw around and no menu bar
+    /// underneath it, and its closed rect currently shows nothing at all —
+    /// so the badge renders inside it and the geometry does not move.
+    @Test func aPillIsNotGrownByTheBadge() {
+        #expect(closed(pill, badge: true) == closed(pill, badge: false))
+        #expect(closed(pill, badge: true) == CGRect(x: 75, y: 204, width: 180, height: 32))
+    }
+
+    // MARK: - The flag itself
+
+    @Test func playingMediaShowsTheBadge() {
+        let track = TrackSnapshot(title: "t", artist: "a", isPlaying: true)
+        #expect(NotchShape.showsBadge(nowPlaying: track))
+    }
+
+    /// The badge answers "is something playing". Over a paused track it
+    /// would be a lie, so paused media shows nothing.
+    @Test func pausedMediaShowsNoBadge() {
+        let track = TrackSnapshot(title: "t", artist: "a", isPlaying: false)
+        #expect(!NotchShape.showsBadge(nowPlaying: track))
+    }
+
+    @Test func nothingPlayingShowsNoBadge() {
+        #expect(!NotchShape.showsBadge(nowPlaying: nil))
+    }
+
+    /// The end-to-end shape of the paused case: the flag is false, so the
+    /// closed rect is the untouched anchor.
+    @Test func aPausedTrackLeavesTheClosedNotchExactlyAsItWas() {
+        let paused = TrackSnapshot(title: "t", artist: "a", isPlaying: false)
+        let r = closed(notch, badge: NotchShape.showsBadge(nowPlaying: paused))
+        #expect(r == closed(notch, badge: false))
+        #expect(r.width == 179)
+    }
+}

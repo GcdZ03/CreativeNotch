@@ -14,6 +14,19 @@ public enum NotchGeometry {
     /// or a readable bar without crowding the menu bar items either side.
     public static let peekEarWidth: CGFloat = 110
 
+    /// How far the ambient now-playing badge extends past the trailing
+    /// edge of a physical notch.
+    ///
+    /// Deliberately a fraction of `peekEarWidth`, and deliberately on one
+    /// side only. The closed notch's own rect *is* the camera housing, so
+    /// a badge drawn inside it would be invisible — it has to grow into
+    /// the right ear, which is the menu bar. Unlike a peek, which appears
+    /// for a moment and goes, this sits there for as long as music plays,
+    /// so every point of it is menu-bar real estate taken permanently.
+    /// 34pt holds a 22pt cover with 6pt either side and stops well short
+    /// of where status items cluster at the far right.
+    public static let nowPlayingBadgeWidth: CGFloat = 34
+
     /// Approximates the radius of the hardware notch's bottom corners.
     ///
     /// The closed panel covers the notch's bounding box, but the cutout

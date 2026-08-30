@@ -170,15 +170,21 @@ public struct NotchRootView: View {
     /// hit test uses — rather than from a second `switch` over the
     /// presentation. Two independent derivations of one rectangle is the
     /// exact shape of this project's only Critical bug. (Follow-up F5.)
+    ///
+    /// `badge` is handed straight to `visibleRect` rather than widening
+    /// the result here: the badge grows the shape in exactly one place,
+    /// which is the same place the hit test and the tracking rect read.
     static func drawnRect(
         state: NotchState,
         anchor: CreativeNotchCore.Anchor,
-        panelFrame: CGRect
+        panelFrame: CGRect,
+        badge: Bool = false
     ) -> CGRect {
         let visible = NotchShape.visibleRect(
             presentation: state.presentation,
             anchor: anchor,
-            panelFrame: panelFrame
+            panelFrame: panelFrame,
+            badge: badge
         )
         return CGRect(
             x: visible.minX,
@@ -188,8 +194,33 @@ public struct NotchRootView: View {
         )
     }
 
-    private var drawn: CGRect {
-        Self.drawnRect(state: app.state, anchor: app.anchor, panelFrame: app.panelFrame)
+    /// The drawn rect for a whole `AppState` — the exact derivation `body`
+    /// uses, including the badge flag.
+    ///
+    /// Static and internal rather than a private computed property so a
+    /// test can compare *this* against the region `AppDelegate` accepts
+    /// clicks and hover in, without rendering a view. Comparing against a
+    /// rect the test derives itself would only prove the test agrees with
+    /// itself.
+    static func drawnRect(for app: AppState) -> CGRect {
+        drawnRect(
+            state: app.state,
+            anchor: app.anchor,
+            panelFrame: app.panelFrame,
+            badge: NotchShape.showsBadge(nowPlaying: app.nowPlaying)
+        )
+    }
+
+    private var drawn: CGRect { Self.drawnRect(for: app) }
+
+    /// Whether the ambient now-playing badge is showing.
+    ///
+    /// `NotchShape.showsBadge` rather than a second `isPlaying == true`
+    /// here: `AppDelegate` asks the same function for the hit-test and
+    /// hover rects, so the shape that is drawn and the shape that accepts
+    /// clicks cannot disagree about whether the badge exists.
+    private var showsBadge: Bool {
+        NotchShape.showsBadge(nowPlaying: app.nowPlaying)
     }
 
     public var body: some View {
@@ -226,7 +257,20 @@ public struct NotchRootView: View {
             .overlay {
                 switch app.state {
                 case .closed:
-                    EmptyView()
+                    // Trailing-aligned, so it lands exactly in the region
+                    // `visibleRect` grew for it on a notch — and inside
+                    // the pill's own trailing edge on a notchless Mac,
+                    // where nothing grew because nothing had to.
+                    if showsBadge {
+                        NowPlayingBadgeView(artwork: app.nowPlayingArtwork)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .trailing
+                            )
+                    } else {
+                        EmptyView()
+                    }
 
                 case .open(let tab):
                     VStack(spacing: 0) {
@@ -275,6 +319,7 @@ public struct NotchRootView: View {
                     // it. Zero on a pill Mac and on external displays.
                     NowPlayingPeekView(
                         track: track,
+                        artwork: app.nowPlayingArtwork,
                         notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
                     )
 
