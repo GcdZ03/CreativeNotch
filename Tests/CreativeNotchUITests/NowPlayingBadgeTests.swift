@@ -53,7 +53,7 @@ struct NowPlayingBadgeTests {
 
         delegate.nowPlayingDidChange(Self.playing)
 
-        #expect(delegate.isShowingNowPlayingBadge)
+        #expect(delegate.currentBadgeWidth == NotchGeometry.nowPlayingBadgeWidth)
         #expect(delegate.acceptedRect == Self.badgedRect)
         // Stated separately from the equality above so a rect that grew
         // the wrong way cannot pass as merely "wider".
@@ -67,7 +67,7 @@ struct NowPlayingBadgeTests {
         let delegate = makeDelegate()
         delegate.nowPlayingDidChange(Self.paused)
 
-        #expect(!delegate.isShowingNowPlayingBadge)
+        #expect(delegate.currentBadgeWidth == 0)
         #expect(delegate.acceptedRect == Self.closedRect)
         #expect(delegate.hoverView?.trackingRect == Self.closedRect)
         #expect(NotchRootView.drawnRect(for: delegate.state).width == Self.closedRect.width)

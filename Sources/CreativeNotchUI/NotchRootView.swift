@@ -93,6 +93,11 @@ public final class AppState {
     public internal(set) var nowPlaying: TrackSnapshot?
     public internal(set) var nowPlayingArtwork: Data?
 
+    /// Set by `TimerController`. Observable for the same reason
+    /// `nowPlaying` is: a plain value that `body` reads directly, rather
+    /// than an `@Observable` store that publishes its own changes.
+    public internal(set) var countdown: Countdown?
+
     /// A list, not a single closure.
     ///
     /// It was one closure, which meant the second registration silently
@@ -171,20 +176,21 @@ public struct NotchRootView: View {
     /// presentation. Two independent derivations of one rectangle is the
     /// exact shape of this project's only Critical bug. (Follow-up F5.)
     ///
-    /// `badge` is handed straight to `visibleRect` rather than widening
-    /// the result here: the badge grows the shape in exactly one place,
-    /// which is the same place the hit test and the tracking rect read.
+    /// `badgeWidth` is handed straight to `visibleRect` rather than
+    /// widening the result here: the badge grows the shape in exactly one
+    /// place, which is the same place the hit test and the tracking rect
+    /// read.
     static func drawnRect(
         state: NotchState,
         anchor: CreativeNotchCore.Anchor,
         panelFrame: CGRect,
-        badge: Bool = false
+        badgeWidth: CGFloat = 0
     ) -> CGRect {
         let visible = NotchShape.visibleRect(
             presentation: state.presentation,
             anchor: anchor,
             panelFrame: panelFrame,
-            badge: badge
+            badgeWidth: badgeWidth
         )
         return CGRect(
             x: visible.minX,
@@ -195,7 +201,7 @@ public struct NotchRootView: View {
     }
 
     /// The drawn rect for a whole `AppState` — the exact derivation `body`
-    /// uses, including the badge flag.
+    /// uses, including the badge width.
     ///
     /// Static and internal rather than a private computed property so a
     /// test can compare *this* against the region `AppDelegate` accepts
@@ -207,7 +213,9 @@ public struct NotchRootView: View {
             state: app.state,
             anchor: app.anchor,
             panelFrame: app.panelFrame,
-            badge: NotchShape.showsBadge(nowPlaying: app.nowPlaying)
+            badgeWidth: NotchShape.badgeWidth(
+                countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
+            )
         )
     }
 
@@ -215,12 +223,19 @@ public struct NotchRootView: View {
 
     /// Whether the ambient now-playing badge is showing.
     ///
-    /// `NotchShape.showsBadge` rather than a second `isPlaying == true`
+    /// `NotchShape.badgeWidth` rather than a second `isPlaying == true`
     /// here: `AppDelegate` asks the same function for the hit-test and
     /// hover rects, so the shape that is drawn and the shape that accepts
     /// clicks cannot disagree about whether the badge exists.
+    ///
+    /// Compared against the *media* width, not against zero: the slot is
+    /// shared, and a running timer owns it. `> 0` would put the album
+    /// cover inside the countdown's slot. `theTimerSlotIsWiderThanTheMediaSlot`
+    /// pins the two widths apart so this comparison stays decidable.
     private var showsBadge: Bool {
-        NotchShape.showsBadge(nowPlaying: app.nowPlaying)
+        NotchShape.badgeWidth(
+            countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
+        ) == NotchGeometry.nowPlayingBadgeWidth
     }
 
     /// The horizontal band a centred peek has to leave empty, because on a

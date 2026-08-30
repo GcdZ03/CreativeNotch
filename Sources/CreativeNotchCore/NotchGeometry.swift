@@ -27,6 +27,19 @@ public enum NotchGeometry {
     /// of where status items cluster at the far right.
     public static let nowPlayingBadgeWidth: CGFloat = 34
 
+    /// How far the countdown extends past the trailing edge of a notch.
+    ///
+    /// Wider than `nowPlayingBadgeWidth` because it holds text rather than
+    /// a square cover: `TimerDisplay.widestText` is `"0:00"` at 12pt
+    /// rounded, which needs roughly 32pt, plus 6pt either side.
+    ///
+    /// Fixed, not fitted to the current string. A width that tracked the
+    /// text would resize the closed notch every time a digit dropped —
+    /// visually jittery, and worse, it would re-run the drawn/hit-test/
+    /// hover sync on every change, turning a once-a-minute redraw into a
+    /// once-a-minute geometry update.
+    public static let timerBadgeWidth: CGFloat = 44
+
     /// Approximates the radius of the hardware notch's bottom corners.
     ///
     /// The closed panel covers the notch's bounding box, but the cutout

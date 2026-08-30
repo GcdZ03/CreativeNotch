@@ -1,4 +1,5 @@
 import CoreGraphics
+import Foundation
 
 /// The visible region of the panel, in panel-local coordinates.
 ///
@@ -61,32 +62,42 @@ public enum NotchShape {
         )
     }
 
-    /// Whether the ambient now-playing badge is showing.
+    /// How wide the trailing badge slot is, or zero for no badge.
     ///
-    /// The one place that question is answered. The drawn shape, the
-    /// hit-test region and the hover tracking rect all have to agree about
-    /// whether the badge is there, and a second spelling of
-    /// `isPlaying == true` somewhere else is the same "two derivations of
-    /// one thing" that produced this project's only Critical bug.
+    /// One function, because "is there a badge and how wide is it" is one
+    /// decision. Two spellings of it would drift exactly as two spellings
+    /// of the rect would — and the drawn rect, the hit test and the hover
+    /// tracking rect all derive from the width this returns.
     ///
-    /// Paused media is not playing media: the badge answers "is something
-    /// playing", so a badge over a paused track would be a lie.
-    public static func showsBadge(nowPlaying: TrackSnapshot?) -> Bool {
-        nowPlaying?.isPlaying == true
+    /// A running or paused timer owns the slot; media gets it back when the
+    /// timer finishes or is cancelled. Paused *media* is not playing media,
+    /// so it shows nothing — the badge answers "is something playing".
+    public static func badgeWidth(
+        countdown: Countdown?,
+        nowPlaying: TrackSnapshot?,
+        at now: Date
+    ) -> CGFloat {
+        if let countdown, !countdown.hasFinished(at: now) {
+            return NotchGeometry.timerBadgeWidth
+        }
+        if nowPlaying?.isPlaying == true {
+            return NotchGeometry.nowPlayingBadgeWidth
+        }
+        return 0
     }
 
     /// Panel-local, bottom-left origin, y increasing upward — matching an
     /// unflipped `NSView`.
     ///
-    /// `badge` is defaulted so the three consumers that must agree — the
-    /// drawn rect, the hit test and the hover tracking rect — all widen
+    /// `badgeWidth` is defaulted so the three consumers that must agree —
+    /// the drawn rect, the hit test and the hover tracking rect — all widen
     /// from this one function rather than each adding the badge's width
     /// themselves.
     public static func visibleRect(
         presentation: Presentation,
         anchor: Anchor,
         panelFrame: CGRect,
-        badge: Bool = false
+        badgeWidth: CGFloat = 0
     ) -> CGRect {
         let local = CGRect(
             x: anchor.rect.minX - panelFrame.minX,
@@ -109,11 +120,11 @@ public enum NotchShape {
             // would put an asymmetric stub on a floating rounded widget
             // for no reason, exactly as `.peek` leaves the pill's centred
             // slab alone.
-            guard badge, anchor.isNotch else { return local }
+            guard badgeWidth > 0, anchor.isNotch else { return local }
             return CGRect(
                 x: local.minX,
                 y: local.minY,
-                width: local.width + NotchGeometry.nowPlayingBadgeWidth,
+                width: local.width + badgeWidth,
                 height: local.height
             )
 

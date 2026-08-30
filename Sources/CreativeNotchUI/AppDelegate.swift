@@ -366,27 +366,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The currently-drawn region, panel-local. Both the hit test and the
     /// hover tracking rect read it, so there is exactly one derivation.
     ///
-    /// `badge:` is passed here rather than added to the result, so the two
-    /// consumers of this rect and the view's own `drawnRect` all widen by
-    /// the badge through the same tested function.
+    /// `badgeWidth:` is passed here rather than added to the result, so the
+    /// two consumers of this rect and the view's own `drawnRect` all widen
+    /// by the badge through the same tested function.
     private func visibleRect() -> CGRect {
         NotchShape.visibleRect(
             presentation: state.state.presentation,
             anchor: currentAnchor,
             panelFrame: currentFrame,
-            badge: isShowingNowPlayingBadge
+            badgeWidth: currentBadgeWidth
         )
     }
 
-    /// Whether the closed notch is currently carrying the now-playing
-    /// badge, and is therefore one badge wider than the anchor.
+    /// How much wider than the anchor the closed notch currently is,
+    /// because it is carrying a badge — zero when it is carrying none.
     ///
-    /// Reads `NotchShape.showsBadge` rather than spelling the rule out
+    /// Reads `NotchShape.badgeWidth` rather than spelling the rule out
     /// again, so this and `NotchRootView` cannot disagree about when the
-    /// badge is there. Internal so a test can assert the source of the
-    /// flag directly.
-    var isShowingNowPlayingBadge: Bool {
-        NotchShape.showsBadge(nowPlaying: state.nowPlaying)
+    /// badge is there or how wide it is. Internal so a test can assert the
+    /// source of the width directly.
+    var currentBadgeWidth: CGFloat {
+        NotchShape.badgeWidth(
+            countdown: state.countdown, nowPlaying: state.nowPlaying, at: Date()
+        )
     }
 
     /// What is playing changed.
@@ -439,15 +441,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // click on something not yet drawn — but unlike a panel expansion,
         // the badge has no spring to wait for. `NotchRootView`'s animation
         // is keyed on `app.state`, which does not change when playback
-        // starts, so the extra 34pt snaps into place the moment the
+        // starts, so the extra width snaps into place the moment the
         // snapshot publishes. Lagging here would not buy a safety margin;
         // it would make a badge the user can already see ignore clicks and
         // hover for `growthDelay`.
         //
-        // Scoped to the closed shape *with* the badge showing, so a real
+        // Scoped to the closed shape *with* a badge showing, so a real
         // presentation change — which does spring — keeps its lag.
-        if case .closed = state.state,
-           NotchShape.showsBadge(nowPlaying: state.nowPlaying) {
+        if case .closed = state.state, currentBadgeWidth > 0 {
             acceptRect(target)
             return
         }
