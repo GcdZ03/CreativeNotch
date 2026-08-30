@@ -103,11 +103,6 @@ public final class AppState {
     /// `nowPlaying`: a plain value the panel reads directly.
     public internal(set) var power: PowerSnapshot?
 
-    /// The estimate the gate is willing to stand behind, which is not the
-    /// same thing as the one in `power`. Held separately rather than
-    /// overwriting `power.estimateMinutes` so the raw reading and the
-    /// trusted one never get confused for each other.
-    public internal(set) var powerEstimate: Int?
 
     /// Set by `MediaController`. Observable — unlike `shelf` and
     /// `clipboard`, which are `@Observable` stores that publish their own
@@ -493,7 +488,7 @@ public struct NotchRootView: View {
             // wants a case.
             EmptyView()
         case .power:
-            PowerView(snapshot: app.power, estimateMinutes: app.powerEstimate)
+            PowerView(snapshot: app.power)
         }
     }
 

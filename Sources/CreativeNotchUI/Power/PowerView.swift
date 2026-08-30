@@ -1,18 +1,20 @@
 import SwiftUI
 import CreativeNotchCore
 
-/// The power tab: four facts, and nothing that needs a timer to stay true.
+/// The power tab: what the machine is doing, and whether Low Power Mode is
+/// on.
+///
+/// It showed a time-remaining estimate too, and no longer does. That row
+/// was the module's whole difficulty — a settling window, an agreement
+/// rule, a quantisation floor — and both of the bugs found by actually
+/// running the app were in it. What is left needs no gate, no clock and no
+/// calibration: every value here is a fact IOKit states outright.
 ///
 /// Every string comes from `PowerLabel`, which the peek also reads, so the
 /// panel and the notch cannot disagree about what the machine is doing.
 struct PowerView: View {
 
     let snapshot: PowerSnapshot?
-
-    /// The estimate `BatteryEstimateGate` is willing to stand behind.
-    /// `nil` renders as "Estimating…" rather than hiding the row — see
-    /// `PowerLabel.timeRemaining`.
-    let estimateMinutes: Int?
 
     var body: some View {
         if let snapshot {
@@ -31,18 +33,6 @@ struct PowerView: View {
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                 }
-
-                row(
-                    PowerLabel.timeRemainingTitle(
-                        source: snapshot.source,
-                        isCharging: snapshot.isCharging
-                    ),
-                    PowerLabel.timeRemainingValue(
-                        minutes: estimateMinutes,
-                        source: snapshot.source,
-                        isCharging: snapshot.isCharging
-                    )
-                )
 
                 row("Low Power Mode", snapshot.isLowPowerMode ? "On" : "Off")
             }

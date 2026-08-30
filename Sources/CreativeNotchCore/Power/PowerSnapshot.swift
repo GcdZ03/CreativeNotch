@@ -21,6 +21,12 @@ public enum PowerSource: String, Equatable, Sendable {
 /// the panel shows; converting to a fraction and back would invent
 /// precision that never existed, and both low-battery thresholds are
 /// stated in whole percent.
+///
+/// There is deliberately no time-remaining estimate here. It was built,
+/// shipped, and removed: see "Deliberately not built" in
+/// `docs/plans/2026-08-30-battery.md`. Its absence is what lets
+/// `PowerObserver.read()` drop most of IOKit's notifications, because the
+/// estimate was the field that changed on nearly every one of them.
 public struct PowerSnapshot: Equatable, Sendable {
 
     public var level: Int
@@ -37,15 +43,6 @@ public struct PowerSnapshot: Equatable, Sendable {
     /// and confuses in the other.
     public var isCharged: Bool
 
-    /// Minutes remaining, or `nil` when IOKit is still calculating.
-    ///
-    /// The raw dictionary uses `-1` for "Still Calculating the Time"
-    /// (`IOPSKeys.h`, `kIOPSTimeToEmptyKey`). That sentinel is converted
-    /// to an absence exactly once, in `PowerObserver`, so nothing above
-    /// this line can mistake it for a duration. It is not the only reason
-    /// an estimate goes unshown — see `BatteryEstimateGate`, which
-    /// distrusts plenty of values IOKit reports confidently.
-    public var estimateMinutes: Int?
 
     public var isLowPowerMode: Bool
 
@@ -54,14 +51,12 @@ public struct PowerSnapshot: Equatable, Sendable {
         source: PowerSource,
         isCharging: Bool,
         isCharged: Bool = false,
-        estimateMinutes: Int?,
         isLowPowerMode: Bool
     ) {
         self.level = level
         self.source = source
         self.isCharging = isCharging
         self.isCharged = isCharged
-        self.estimateMinutes = estimateMinutes
         self.isLowPowerMode = isLowPowerMode
     }
 

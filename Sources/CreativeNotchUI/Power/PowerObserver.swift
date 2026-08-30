@@ -17,11 +17,14 @@ import CreativeNotchCore
 /// the one rule actually asks for.
 ///
 /// Note what the calibration probe measured: the IOKit notification fires
-/// on *estimate drift*, not only on plug and unplug — fourteen times in
-/// eighteen minutes on a machine sitting still on battery. Nothing here
-/// filters that. `read()` drops callbacks that carry no change at all,
-/// `PowerController` decides what is worth speaking about, and
-/// `BatteryEstimateGate` decides what is worth believing.
+/// on *estimate drift*, not only on plug and unplug — 43 times in 39
+/// minutes on a machine sitting still on battery.
+///
+/// Since the time-remaining estimate was removed, that drift is no longer
+/// part of the snapshot, so `read()` drops nearly all of those callbacks
+/// as carrying nothing new. What used to be the noisiest field is now
+/// simply not read, and the module wakes its consumers only when the level,
+/// the source, the charging state or Low Power Mode actually changes.
 @MainActor
 public final class PowerObserver {
 
@@ -183,38 +186,12 @@ public final class PowerObserver {
         // negation of charging, and 100% is not the threshold.
         let charged = description[kIOPSIsChargedKey] as? Bool ?? false
 
-        // On wall power IOKit publishes time-to-full instead of
-        // time-to-empty; the panel shows whichever applies. `-1` is
-        // "Still Calculating" (`IOPSKeys.h`), and every negative value is
-        // treated the same way — a sentinel that changes shape in a
-        // future macOS must not become a negative duration on screen.
-        //
-        // The charging key has a *second* not-applicable convention, and
-        // it is not negative. Plugged in with nothing charging, IOKit
-        // reports `Time to Full Charge = 0`, meaning "not applicable" —
-        // measured on a real machine at 55% with the charger attached.
-        // Filtering only negatives let that through as a real estimate and
-        // the panel read "Until full: 0 min".
-        //
-        // Zero cannot simply be rejected everywhere: zero minutes *to
-        // empty* is a legitimate and rather important reading. It is the
-        // charging key specifically that is meaningless when nothing is
-        // charging, so the guard is on the state, not on the value.
-        let estimate: Int?
-        if source == .wall {
-            let raw = charging ? description[kIOPSTimeToFullChargeKey] as? Int : nil
-            estimate = (raw ?? -1) >= 0 ? raw : nil
-        } else {
-            let raw = description[kIOPSTimeToEmptyKey] as? Int
-            estimate = (raw ?? -1) >= 0 ? raw : nil
-        }
 
         return PowerSnapshot(
             level: Int((Double(current) / Double(maximum) * 100).rounded()),
             source: source,
             isCharging: charging,
             isCharged: charged,
-            estimateMinutes: estimate,
             isLowPowerMode: isLowPowerMode
         )
     }

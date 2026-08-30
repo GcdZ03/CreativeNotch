@@ -295,8 +295,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // like the clipboard and media controllers — building the wiring
         // here must not register an IOKit callback.
         let power = PowerController()
-        power.onSnapshot = { [weak self] snapshot, estimate in
-            self?.powerDidChange(snapshot, estimate: estimate)
+        power.onSnapshot = { [weak self] snapshot in
+            self?.powerDidChange(snapshot)
         }
         power.onEvent = { [weak self] event in
             self?.showPowerPeek(event)
@@ -532,9 +532,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// A method rather than a closure body so a test can drive the real
     /// publish path without an IOKit callback — the same reason
     /// `nowPlayingDidChange` is one.
-    func powerDidChange(_ snapshot: PowerSnapshot, estimate: Int?) {
+    func powerDidChange(_ snapshot: PowerSnapshot) {
         state.power = snapshot
-        state.powerEstimate = estimate
         // `hasBattery` is set at install, but the first snapshot is the
         // first proof there is one. A machine whose battery reads as
         // absent at launch and present a moment later would otherwise

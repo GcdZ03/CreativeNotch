@@ -9,14 +9,14 @@ struct PowerSnapshotTests {
         level: Int = 50,
         source: PowerSource = .battery,
         isCharging: Bool = false,
-        estimateMinutes: Int? = 120,
+        isCharged: Bool = false,
         isLowPowerMode: Bool = false
     ) -> PowerSnapshot {
         PowerSnapshot(
             level: level,
             source: source,
             isCharging: isCharging,
-            estimateMinutes: estimateMinutes,
+            isCharged: isCharged,
             isLowPowerMode: isLowPowerMode
         )
     }
@@ -31,18 +31,12 @@ struct PowerSnapshotTests {
         #expect(snapshot(source: .battery, isCharging: false).isPluggedIn == false)
     }
 
-    /// `nil` is IOKit's documented "Still Calculating" (-1 in the raw
-    /// dictionary), and it must survive as an absence rather than as a
-    /// number. A snapshot that reports `-1` minutes is how "-1 minutes
-    /// remaining" reaches the panel.
-    @Test func anUnknownEstimateIsAbsentRatherThanNegative() {
-        #expect(snapshot(estimateMinutes: nil).estimateMinutes == nil)
-    }
 
     @Test func snapshotsCompareByValue() {
         #expect(snapshot() == snapshot())
         #expect(snapshot(level: 50) != snapshot(level: 51))
-        #expect(snapshot(estimateMinutes: 120) != snapshot(estimateMinutes: nil))
         #expect(snapshot(isLowPowerMode: false) != snapshot(isLowPowerMode: true))
+        #expect(snapshot(isCharging: false) != snapshot(isCharging: true))
+        #expect(snapshot(isCharged: false) != snapshot(isCharged: true))
     }
 }

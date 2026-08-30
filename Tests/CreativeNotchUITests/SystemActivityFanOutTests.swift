@@ -135,15 +135,15 @@ struct SystemActivityFanOutTests {
         var events: [PowerEvent] = []
         power.onEvent = { events.append($0) }
 
-        power.apply(Self.snapshot(source: .battery), now: 100)
-        power.apply(Self.snapshot(source: .wall), now: 200)
+        power.apply(Self.snapshot(source: .battery))
+        power.apply(Self.snapshot(source: .wall))
 
         // Without this the assertion below could pass because the peek
         // never fired at all, rather than because the lock silenced it.
         #expect(events == [.pluggedIn(level: 66)])
 
         delegate.activity.handle(.screenLocked)
-        power.apply(Self.snapshot(source: .battery), now: 300)
+        power.apply(Self.snapshot(source: .battery))
 
         #expect(events == [.pluggedIn(level: 66)])
     }
@@ -158,13 +158,13 @@ struct SystemActivityFanOutTests {
         var events: [PowerEvent] = []
         power.onEvent = { events.append($0) }
 
-        power.apply(Self.snapshot(source: .battery), now: 100)
+        power.apply(Self.snapshot(source: .battery))
         delegate.activity.handle(.screenLocked)
-        power.apply(Self.snapshot(source: .wall), now: 200)
+        power.apply(Self.snapshot(source: .wall))
         #expect(events.isEmpty)
 
         delegate.activity.handle(.screenUnlocked)
-        power.apply(Self.snapshot(source: .battery), now: 300)
+        power.apply(Self.snapshot(source: .battery))
 
         #expect(events == [.unplugged(level: 66)])
     }
@@ -172,7 +172,7 @@ struct SystemActivityFanOutTests {
     private static func snapshot(source: PowerSource) -> PowerSnapshot {
         PowerSnapshot(
             level: 66, source: source, isCharging: false,
-            estimateMinutes: 400, isLowPowerMode: false
+            isLowPowerMode: false
         )
     }
 }

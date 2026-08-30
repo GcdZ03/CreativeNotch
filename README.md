@@ -302,7 +302,7 @@ planned since — battery and power state. The remaining five are not built:
 
 | | |
 |---|---|
-| **Battery and power state** — level, charging, time remaining, Low Power Mode | **Shipped** |
+| **Battery and power state** — level, charging state, Low Power Mode | **Shipped** |
 | **Preferences** — turn modules off, change the values that are compiled in today | Planned |
 | **Launch at login** | Planned |
 | **Global hotkey** — open the panel from anywhere | Planned |

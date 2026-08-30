@@ -8,9 +8,14 @@ import CreativeNotchCore
 ///
 /// The conversion is tested against dictionaries shaped like the ones
 /// `docs/research/2026-08-30-battery-estimate-noise.md` recorded from a
-/// real machine. The notification registration is tested by counting what
-/// `start` and `stop` leave behind — moving a real charger by hand is not
-/// something a test suite can do.
+/// real machine. The notification registration is tested by delivery and
+/// by asking the run loop — moving a real charger by hand is not something
+/// a test suite can do.
+///
+/// The time-remaining keys are no longer read at all. Every test that
+/// covered `Time to Empty`, the `-1` sentinel, and the `0`-means-not-
+/// applicable convention on `Time to Full Charge` went with them; that
+/// behaviour is recorded in the research note rather than in code.
 @MainActor
 struct PowerObserverTests {
 
@@ -19,7 +24,6 @@ struct PowerObserverTests {
         max: Int = 100,
         state: String = kIOPSBatteryPowerValue,
         charging: Bool = false,
-        timeToEmpty: Int = 435,
         type: String = kIOPSInternalBatteryType
     ) -> [String: Any] {
         [
@@ -28,118 +32,7 @@ struct PowerObserverTests {
             kIOPSMaxCapacityKey: max,
             kIOPSPowerSourceStateKey: state,
             kIOPSIsChargingKey: charging,
-            kIOPSTimeToEmptyKey: timeToEmpty,
         ]
-    }
-
-    // MARK: - The sentinel
-
-    /// IOKit documents -1 as "Still Calculating the Time" (`IOPSKeys.h`).
-    /// It is converted to an absence exactly here, so nothing above this
-    /// line can render it as a duration.
-    @Test func theStillCalculatingSentinelBecomesNil() {
-        let snapshot = PowerObserver.snapshot(
-            from: description(timeToEmpty: -1), isLowPowerMode: false
-        )
-
-        #expect(snapshot != nil)
-        #expect(snapshot?.estimateMinutes == nil)
-    }
-
-    @Test func anOrdinaryEstimateSurvives() {
-        let snapshot = PowerObserver.snapshot(
-            from: description(timeToEmpty: 435), isLowPowerMode: false
-        )
-
-        #expect(snapshot?.estimateMinutes == 435)
-    }
-
-    /// Any negative value, not only -1. A sentinel that changes shape in
-    /// a future macOS must not become a negative duration on screen.
-    @Test func anyNegativeEstimateIsAbsent() {
-        let snapshot = PowerObserver.snapshot(
-            from: description(timeToEmpty: -999), isLowPowerMode: false
-        )
-
-        #expect(snapshot?.estimateMinutes == nil)
-    }
-
-    /// A missing key is an absent estimate, not a crash and not a zero.
-    @Test func aMissingEstimateKeyIsAbsent() {
-        var d = description()
-        d.removeValue(forKey: kIOPSTimeToEmptyKey)
-
-        #expect(PowerObserver.snapshot(from: d, isLowPowerMode: false)?
-            .estimateMinutes == nil)
-    }
-
-    /// On wall power IOKit publishes time-to-full instead of
-    /// time-to-empty. Reading the wrong key leaves the panel permanently
-    /// "Estimating…" while charging — the module half-working in the way
-    /// least likely to be noticed.
-    @Test func chargingReadsTimeToFullRatherThanTimeToEmpty() {
-        var d = description(state: kIOPSACPowerValue, charging: true)
-        d[kIOPSTimeToFullChargeKey] = 42
-
-        #expect(PowerObserver.snapshot(from: d, isLowPowerMode: false)?
-            .estimateMinutes == 42)
-    }
-
-    /// Plugged in but not charging: IOKit reports `Time to Full Charge`
-    /// as **0**, meaning "not applicable", not "zero minutes away".
-    ///
-    /// Measured on a real machine — the probe caught exactly this while
-    /// the charger was attached at 55% and nothing was charging:
-    /// `state=AC Power charging=false toEmpty=0 toFull=0`. Filtering only
-    /// *negative* values lets that 0 through, and the panel reads
-    /// "Until full: 0 min".
-    ///
-    /// Zero is a legitimate time-to-empty — a battery about to die — so
-    /// the fix cannot simply reject zero everywhere. It is the *charging*
-    /// key that is meaningless when nothing is charging.
-    @Test func pluggedInButNotChargingHasNoEstimate() {
-        var d = description(state: kIOPSACPowerValue, charging: false)
-        d[kIOPSTimeToFullChargeKey] = 0
-
-        let snapshot = PowerObserver.snapshot(from: d, isLowPowerMode: false)
-
-        #expect(snapshot?.source == .wall)
-        #expect(snapshot?.estimateMinutes == nil)
-    }
-
-    /// And not even a positive one. If nothing is charging there is no
-    /// time-to-full to report, whatever number is left in the dictionary.
-    @Test func aStaleTimeToFullIsIgnoredWhenNotCharging() {
-        var d = description(state: kIOPSACPowerValue, charging: false)
-        d[kIOPSTimeToFullChargeKey] = 42
-
-        #expect(PowerObserver.snapshot(from: d, isLowPowerMode: false)?
-            .estimateMinutes == nil)
-    }
-
-    /// Zero minutes *to empty* is a real reading and must survive — it is
-    /// the most urgent one the module can carry.
-    @Test func zeroMinutesToEmptyIsARealReading() {
-        let snapshot = PowerObserver.snapshot(
-            from: description(timeToEmpty: 0), isLowPowerMode: false
-        )
-
-        #expect(snapshot?.estimateMinutes == 0)
-    }
-
-    /// "Full and finished" and "plugged in but not taking charge" are
-    /// different states that both have `Is Charging = 0`. Without reading
-    /// `Is Charged`, a machine sitting at 100% is reported as "Not
-    /// charging", which reads as a fault rather than as success.
-    @Test func chargedIsReadSeparatelyFromCharging() {
-        var full = description(state: kIOPSACPowerValue, charging: false)
-        full[kIOPSIsChargedKey] = true
-
-        var stalled = description(state: kIOPSACPowerValue, charging: false)
-        stalled[kIOPSIsChargedKey] = false
-
-        #expect(PowerObserver.snapshot(from: full, isLowPowerMode: false)?.isCharged == true)
-        #expect(PowerObserver.snapshot(from: stalled, isLowPowerMode: false)?.isCharged == false)
     }
 
     // MARK: - Source

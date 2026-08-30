@@ -33,12 +33,11 @@ struct PowerWiringTests {
         level: Int = 66,
         source: PowerSource = .battery,
         isCharging: Bool = false,
-        estimateMinutes: Int? = 400,
         isLowPowerMode: Bool = false
     ) -> PowerSnapshot {
         PowerSnapshot(
             level: level, source: source, isCharging: isCharging,
-            estimateMinutes: estimateMinutes, isLowPowerMode: isLowPowerMode
+            isLowPowerMode: isLowPowerMode
         )
     }
 
@@ -64,22 +63,12 @@ struct PowerWiringTests {
     @Test func aSnapshotReachesTheAppState() {
         let delegate = makeDelegate()
 
-        delegate.powerDidChange(snapshot(level: 42), estimate: 120)
+        delegate.powerDidChange(snapshot(level: 42, isCharging: true))
 
         #expect(delegate.state.power?.level == 42)
-        #expect(delegate.state.powerEstimate == 120)
+        #expect(delegate.state.power?.isCharging == true)
     }
 
-    /// The trusted estimate is held separately from the raw one, so a
-    /// suppressed estimate does not quietly overwrite what IOKit said.
-    @Test func aSuppressedEstimateLeavesTheSnapshotIntact() {
-        let delegate = makeDelegate()
-
-        delegate.powerDidChange(snapshot(estimateMinutes: 400), estimate: nil)
-
-        #expect(delegate.state.powerEstimate == nil)
-        #expect(delegate.state.power?.estimateMinutes == 400)
-    }
 
     /// The first snapshot is proof of a battery. A machine that reports
     /// none at install and one a moment later would otherwise never show
@@ -88,7 +77,7 @@ struct PowerWiringTests {
         let delegate = makeDelegate()
         delegate.state.hasBattery = false
 
-        delegate.powerDidChange(snapshot(), estimate: nil)
+        delegate.powerDidChange(snapshot())
 
         #expect(delegate.state.hasBattery)
     }

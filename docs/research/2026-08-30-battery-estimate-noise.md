@@ -1,5 +1,12 @@
 # Calibrating the battery time-remaining estimate
 
+> **The estimate is no longer displayed.** It was built on these
+> measurements, shipped, and then removed — see "Built, then removed" in
+> `docs/plans/2026-08-30-battery.md`. This note is kept because its
+> findings are about IOKit's behaviour, not about this app's UI, and they
+> are what anyone reconsidering the feature would otherwise have to
+> rediscover. Findings 1, 6 and 7 still describe live code.
+
 **Date:** 2026-08-30
 **Machine:** M-series MacBook, macOS 26.5, internal battery, discharging from 68% to 57%.
 **Duration:** 55 minutes, 653 samples, including one plug/unplug pair.

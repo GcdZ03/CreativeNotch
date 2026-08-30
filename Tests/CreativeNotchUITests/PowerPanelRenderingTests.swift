@@ -4,32 +4,33 @@ import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
 
-/// That the *panel* draws the estimate it was given.
+/// That the *panel* draws what it was given.
 ///
-/// `PowerLabelTests` proves the string is right and `PowerWiringTests`
-/// proves `AppState.powerEstimate` is set. Neither proves the panel reads
-/// it: `NotchRootView` could pass `nil`, or `estimateMinutes:` could be
-/// wired to the raw `snapshot.estimateMinutes` instead of the trusted one,
-/// and every other test in this suite would stay green. That is the same
-/// gap that let the now-playing peek ship undrawn.
+/// `PowerLabelTests` proves the strings are right and `PowerWiringTests`
+/// proves `AppState.power` is set. Neither proves the panel reads it:
+/// `NotchRootView` could pass a constant and every other test in this
+/// suite would stay green. That is the same gap that let the now-playing
+/// peek ship undrawn.
 @MainActor
 struct PowerPanelRenderingTests {
 
-    private static func panelPixels(estimate: Int?) -> Data? {
+    private static func panelPixels(
+        level: Int = 54,
+        source: PowerSource = .battery,
+        isCharging: Bool = false,
+        isCharged: Bool = false,
+        isLowPowerMode: Bool = false
+    ) -> Data? {
         let state = AppState()
         state.hasBattery = true
         state.power = PowerSnapshot(
-            level: 54, source: .battery, isCharging: false,
-            // Deliberately different from `estimate`: if the panel renders
-            // this instead of the trusted value, the two cases below draw
-            // identically and the test fails.
-            estimateMinutes: 999, isLowPowerMode: false
+            level: level, source: source, isCharging: isCharging,
+            isCharged: isCharged, isLowPowerMode: isLowPowerMode
         )
-        state.powerEstimate = estimate
         // Geometry matters: with the default zero `panelFrame` the panel
         // draws at zero size and clips its whole content away, so every
-        // variant renders the same handful of bytes and the comparison
-        // below passes vacuously. The first draft of this test did exactly
+        // variant renders the same handful of bytes and the comparisons
+        // below pass vacuously. An earlier draft of this file did exactly
         // that and "reproduced" a bug that was not there.
         state.setGeometry(
             anchor: .pill(CGRect(x: 100, y: 0, width: 200, height: 32)),
@@ -49,21 +50,27 @@ struct PowerPanelRenderingTests {
         return bitmap.representation(using: .png, properties: [:])
     }
 
-    /// A trusted estimate must look different from a suppressed one.
-    @Test func thePanelDrawsATrustedEstimate() throws {
-        let shown = try #require(Self.panelPixels(estimate: 249))
-        let estimating = try #require(Self.panelPixels(estimate: nil))
-
-        #expect(shown != estimating)
+    @Test func thePanelDrawsTheLevel() throws {
+        #expect(try #require(Self.panelPixels(level: 54))
+                != #require(Self.panelPixels(level: 91)))
     }
 
-    /// And different estimates draw differently, so the panel is rendering
-    /// the value rather than a constant.
-    @Test func differentEstimatesDrawDifferently() throws {
-        let a = try #require(Self.panelPixels(estimate: 249))
-        let b = try #require(Self.panelPixels(estimate: 61))
+    /// The four states must be visually distinct, or the panel cannot tell
+    /// the user that charging finished rather than never started.
+    @Test func everyChargingStateDrawsDifferently() throws {
+        let onBattery = try #require(Self.panelPixels(source: .battery))
+        let charging = try #require(
+            Self.panelPixels(source: .wall, isCharging: true))
+        let notCharging = try #require(
+            Self.panelPixels(source: .wall, isCharging: false))
+        let charged = try #require(
+            Self.panelPixels(source: .wall, isCharging: false, isCharged: true))
 
-        #expect(a != b)
+        #expect(Set([onBattery, charging, notCharging, charged]).count == 4)
+    }
+
+    @Test func lowPowerModeIsDrawn() throws {
+        #expect(try #require(Self.panelPixels(isLowPowerMode: true))
+                != #require(Self.panelPixels(isLowPowerMode: false)))
     }
 }
-

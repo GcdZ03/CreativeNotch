@@ -81,7 +81,6 @@ struct CorePurityTests {
             "MediaCommand.swift",
             "MediaPayload.swift",
             "PowerSnapshot.swift",
-            "BatteryEstimateGate.swift",
             "LowBatteryArming.swift",
             "PowerLabel.swift",
         ]

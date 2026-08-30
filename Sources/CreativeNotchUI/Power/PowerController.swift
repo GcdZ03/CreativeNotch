@@ -17,15 +17,12 @@ public final class PowerController {
     /// Something worth interrupting for.
     public var onEvent: ((PowerEvent) -> Void)?
 
-    /// Current truth for the panel, with the estimate the gate is willing
-    /// to stand behind — `nil` when it is not willing to stand behind any,
-    /// which the panel renders as "Estimating…".
-    public var onSnapshot: ((PowerSnapshot, Int?) -> Void)?
+    /// Current truth for the panel.
+    public var onSnapshot: ((PowerSnapshot) -> Void)?
 
     public var hasBattery: Bool { observer.hasBattery }
 
     private let observer = PowerObserver()
-    private var gate = BatteryEstimateGate()
     private var arming = LowBatteryArming()
     private var previous: PowerSnapshot?
     private var activity: SystemActivity = .active
@@ -35,7 +32,7 @@ public final class PowerController {
             // `[weak self]`: the observer holds this closure, and a strong
             // capture would be a component keeping its owner alive — the
             // same reason `media.onChange` in `AppDelegate` is weak.
-            self?.apply(snapshot, now: Date().timeIntervalSince1970)
+            self?.apply(snapshot)
         }
     }
 
@@ -61,20 +58,15 @@ public final class PowerController {
 
     /// The whole decision path, from one snapshot.
     ///
-    /// Internal and time-injected so the entire module can be driven by a
-    /// test without IOKit, a clock, or a charger being moved by hand.
-    func apply(_ snapshot: PowerSnapshot, now: TimeInterval) {
+    /// Internal so the entire module can be driven by a test without
+    /// IOKit or a charger being moved by hand. It takes no clock: with the
+    /// time-remaining estimate gone, nothing here is time-dependent.
+    func apply(_ snapshot: PowerSnapshot) {
         defer { previous = snapshot }
 
-        // The transition is recorded *before* the estimate is judged. The
-        // other order measures the first post-transition reading against
-        // the window that closed before it, and shows it at the exact
-        // moment it is least trustworthy.
         let sourceChanged = previous.map { $0.source != snapshot.source } ?? false
-        if sourceChanged { gate.noteTransition(at: now) }
 
-        let trusted = gate.accept(estimateMinutes: snapshot.estimateMinutes, now: now)
-        onSnapshot?(snapshot, trusted)
+        onSnapshot?(snapshot)
 
         // Arming is advanced whatever the activity, so a threshold
         // genuinely crossed behind a lock screen is spent rather than

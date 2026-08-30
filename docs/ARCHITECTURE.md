@@ -514,20 +514,32 @@ not replayed**: a peek is an interruption timed to a moment, and replaying
 panel still shows current truth on unlock, because the panel reads the
 snapshot rather than the event.
 
-### The estimate is not to be trusted, and the sentinel is not enough
+### There is no time-remaining estimate, and that is the interesting part
 
-IOKit documents `-1` as "Still Calculating" — and then reports wildly
-swinging values *confidently*, as ordinary integers. Filtering the sentinel
-alone leaves the bug the roadmap named: a number jumping from 1:20 to 4:55
-and back reads as a broken app.
+The module shipped with one and it was removed. The roadmap asked for it,
+it was built — a settling window, an agreement rule over consecutive
+readings, a quantisation floor — and every one of those parts was needed,
+because IOKit's estimate is genuinely awful: it swings 55% over an hour,
+reports "not applicable" as `0` on one key and `-1` on another, and
+quantises into 5- and 10-minute steps that make a relative tolerance
+useless at the low end. `docs/research/2026-08-30-battery-estimate-noise.md`
+records all of it.
 
-`BatteryEstimateGate` adds a settling window after any power-source
-transition and an agreement requirement outside it — two consecutive
-readings within a relative tolerance. Tolerance is *relative* because five
-minutes of disagreement on a two-hour estimate is noise and the same five
-minutes on an eight-minute estimate is the difference between "shut down
-now" and "finish the paragraph". Measured figures and their basis are in
-`docs/research/2026-08-30-battery-estimate-noise.md`.
+Both bugs found by actually running the app were in that row, and neither
+was catchable by the tests, because the tests asserted against dictionaries
+written from assumptions about IOKit's conventions rather than IOKit's real
+ones.
+
+What replaced it is the state line — charging, not charging, fully charged,
+on battery — which IOKit states outright and cannot be wrong about. The
+panel now needs no gate, no clock, and no calibrated constant.
+
+**The second-order benefit is the one that matters here.** The estimate was
+the field that changed on nearly every IOKit notification — 43 in 39
+minutes on an idle machine. With it gone, `PowerObserver.read()` drops
+almost all of those callbacks as carrying nothing new, so the module wakes
+its consumers only when something a person could notice actually changes.
+Removing the feature made the module cheaper as well as more honest.
 
 ### The tab is machine-dependent
 
