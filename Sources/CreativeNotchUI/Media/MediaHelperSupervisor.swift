@@ -53,6 +53,22 @@ public final class MediaHelperSupervisor {
     /// app relaunches.
     private var stoppedDeliberately = false
 
+    /// Bumped by every `stop()`. A retry closure captures the generation
+    /// current at the moment it was scheduled and checks it again before
+    /// acting, so a `stop()` that lands while a retry is still pending
+    /// invalidates it.
+    ///
+    /// Without this, a retry scheduled before `stop()` fires later
+    /// anyway and calls `startHelper()` directly — resurrecting the
+    /// helper against an explicit stop. Worse, because that path
+    /// bypasses `start()`, `stoppedDeliberately` is never reset back to
+    /// `false`, so the NEXT real crash of that resurrected helper is
+    /// then silently swallowed as if it were another deliberate stop,
+    /// never restarted. Do not remove this as redundant with
+    /// `stoppedDeliberately` — that flag alone stops a *new* exit from
+    /// being misread, but does nothing about a retry already in flight.
+    private var retryGeneration = 0
+
     private let helperProcess: MediaHelperProcess?
 
     public init() {
@@ -80,6 +96,10 @@ public final class MediaHelperSupervisor {
         // (directly, in tests, or via the wrapped process's own
         // termination handler) must see it already set.
         stoppedDeliberately = true
+        // Invalidates any retry scheduled before this call — see
+        // `retryGeneration`'s doc comment for why a pending retry must
+        // not be allowed to outlive a stop.
+        retryGeneration += 1
         stopHelper()
     }
 
@@ -106,8 +126,10 @@ public final class MediaHelperSupervisor {
             return
         }
 
+        let generation = retryGeneration
         scheduleRetry(delay) { [weak self] in
-            self?.startHelper()
+            guard let self, self.retryGeneration == generation else { return }
+            self.startHelper()
         }
     }
 }

@@ -106,4 +106,36 @@ struct MediaHelperSupervisorTests {
         #expect(box.scheduled.isEmpty)
         #expect(box.stops == 1)
     }
+
+    /// A retry already scheduled before `stop()` must not outlive it —
+    /// otherwise the helper comes back after an explicit stop, and
+    /// because that resurrection bypasses `start()`, the next genuine
+    /// crash of it would be misread as another deliberate shutdown.
+    @Test func stoppingCancelsAPendingRetry() {
+        let (s, box) = makeSupervisor()
+        s.start()
+        s.helperExited(status: 1)   // schedules a retry
+        s.stop()                     // must invalidate it
+        box.pending?()                // fire the stale retry anyway
+
+        #expect(box.starts == 1, "a stale retry must not resurrect the helper after stop()")
+    }
+
+    /// The other half of the same bug: proving the cancellation above
+    /// does not also disable retries permanently. After a stop and a
+    /// later legitimate `start()`, a genuine crash must still be
+    /// scheduled for retry, not silently swallowed.
+    @Test func aGenuineCrashAfterRestartingFollowingAStopIsStillHandled() {
+        let (s, box) = makeSupervisor()
+        s.start()
+        s.helperExited(status: 1)
+        s.stop()
+        box.pending?()
+
+        box.scheduled.removeAll()
+        s.start()
+        s.helperExited(status: 1)
+
+        #expect(box.scheduled.count == 1, "a crash after a legitimate restart must still be retried")
+    }
 }
