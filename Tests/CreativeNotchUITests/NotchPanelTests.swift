@@ -4,11 +4,19 @@ import CreativeNotchUI
 
 /// `NotchPanel`'s configuration carries the spec's most load-bearing
 /// claim: the panel disappears over fullscreen apps *because*
-/// `.fullScreenAuxiliary` is absent from `collectionBehavior`, and it
-/// never steals focus *because* `canBecomeKey`/`canBecomeMain` stay
-/// false. Both are invisible one-line properties with no runtime symptom
-/// in a headless test other than their own values, so they are asserted
-/// directly.
+/// `.fullScreenAuxiliary` is absent from `collectionBehavior`, and it never
+/// activates the app *because* of `.nonactivatingPanel` and
+/// `canBecomeMain == false`. These are invisible one-line properties with no
+/// runtime symptom in a headless test other than their own values, so they
+/// are asserted directly.
+///
+/// `canBecomeKey` was `false` too until the timer's custom-minutes field
+/// arrived — the first control in the project that needs a keyboard. The
+/// guarantee it was standing in for was never "cannot become key"; it was
+/// "never takes the frontmost app's *activation*", and that is
+/// `.nonactivatingPanel`'s job. Becoming key costs the frontmost app its
+/// insertion point and nothing else, and `AppDelegate.syncKeyWindow` spends
+/// even that on one tab only.
 @MainActor
 struct NotchPanelTests {
 
@@ -26,10 +34,26 @@ struct NotchPanelTests {
         #expect(makePanel().collectionBehavior == [.canJoinAllSpaces, .stationary, .ignoresCycle])
     }
 
-    @Test func panelNeverTakesFocusFromTheFrontmostApp() {
+    /// The guarantee that actually matters, and the one that has not
+    /// changed: opening the notch never makes CreativeNotch the active
+    /// application. `.nonactivatingPanel` is what delivers it — drop that
+    /// flag and every panel open would pull the menu bar out from under
+    /// whatever you were using.
+    @Test func panelNeverActivatesTheApp() {
         let panel = makePanel()
-        #expect(panel.canBecomeKey == false)
-        #expect(panel.canBecomeMain == false)
         #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(panel.canBecomeMain == false)
+    }
+
+    /// Key is permitted, and deliberately so: without it the timer's
+    /// custom-minutes field renders and then swallows every keystroke,
+    /// which is exactly what shipped once.
+    ///
+    /// This asserts the capability only. *When* it is spent is
+    /// `AppDelegate.syncKeyWindow`'s decision and is tested there —
+    /// splitting the two is what keeps this from becoming a test that
+    /// merely restates the implementation.
+    @Test func panelCanTakeKeyboardFocusForTheOneControlThatNeedsIt() {
+        #expect(makePanel().canBecomeKey)
     }
 }

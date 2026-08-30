@@ -450,6 +450,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self.syncTrackingRect()
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
+                self.syncKeyWindow(for: newState)
             }
         }
 
@@ -810,6 +811,36 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// change routes through `AppState.transition(to:)`, so there is no
     /// path that can open the panel without arming this, or close it and
     /// leave a monitor running.
+    /// Takes keyboard focus only for the one tab that accepts typing.
+    ///
+    /// The panel *can* become key (see `NotchPanel`), but it should not do
+    /// so casually: while it holds focus, whatever you were writing in
+    /// loses its insertion point. Peeks are ambient and frequent, and the
+    /// shelf and clipboard tabs are click-only, so none of them touch it.
+    ///
+    /// `resignKey` rather than a stored "previous window": AppKit returns
+    /// key to whoever had it, and tracking that ourselves would be a second
+    /// derivation of state the window server already owns.
+    ///
+    /// Deliberately keyed on the *tab*, not on `.open`. Making every open
+    /// steal the cursor would be a regression for the three surfaces that
+    /// never needed it.
+    /// Pure, so the rule is testable without a window server — `makeKey`
+    /// on an offscreen panel in a headless suite proves nothing.
+    static func shouldTakeKey(for state: NotchState) -> Bool {
+        if case .open(.timer) = state { return true }
+        return false
+    }
+
+    func syncKeyWindow(for newState: NotchState) {
+        guard let panel else { return }
+        if Self.shouldTakeKey(for: newState) {
+            panel.makeKey()
+        } else if panel.isKeyWindow {
+            panel.resignKey()
+        }
+    }
+
     private func syncDismissAffordances(for newState: NotchState) {
         guard case .open = newState else {
             cancelDismissGrace()

@@ -387,4 +387,33 @@ struct TimerWiringTests {
         #expect(try #require(timer.scheduledWake) <= 60)
         #expect(abs(try #require(timer.scheduledWake) - 60) < 1)
     }
+
+    // MARK: keyboard focus
+
+    /// The panel *can* become key, so that the timer's custom-minutes field
+    /// is typable at all. This is the rule for when that is actually spent.
+    ///
+    /// Focus is not free: while the panel holds it, whatever the person was
+    /// writing in loses its insertion point. The three other surfaces are
+    /// click-only and must not pay that.
+    @Test func onlyTheTimerTabTakesKeyboardFocus() {
+        #expect(AppDelegate.shouldTakeKey(for: .open(.timer)))
+
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.shelf)))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.clipboard)))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.hud)))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.power)))
+    }
+
+    /// Peeks are ambient and fire constantly — a HUD peek on every volume
+    /// change stealing the cursor would make the app unusable.
+    @Test func noPeekOrClosedStateTakesKeyboardFocus() {
+        #expect(!AppDelegate.shouldTakeKey(for: .closed))
+        #expect(!AppDelegate.shouldTakeKey(for: .receiving))
+        #expect(!AppDelegate.shouldTakeKey(for: .peek(.dragTarget)))
+        #expect(!AppDelegate.shouldTakeKey(for: .peek(.hud(HUDEvent(kind: .volume(0.5))))))
+        #expect(!AppDelegate.shouldTakeKey(
+            for: .peek(.timerDone(TimerCompletion(duration: 60, lateness: 0)))
+        ))
+    }
 }

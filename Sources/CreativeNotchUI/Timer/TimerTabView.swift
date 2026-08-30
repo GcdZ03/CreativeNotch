@@ -4,12 +4,17 @@ import CreativeNotchCore
 /// Idle: presets and a click-only stepper. Running: the remaining time and
 /// pause / resume / cancel.
 ///
-/// The stepper is not a stylistic choice. `NotchPanel` overrides
-/// `canBecomeKey` to `false` so opening the notch never steals focus from
-/// whatever you are working in — and a window that cannot become key cannot
-/// give keyboard focus to a `TextField`. An earlier version of this view had
-/// one; it rendered, and swallowed every keystroke. Every control here must
-/// be reachable by mouse alone.
+/// Two ways to reach the same number, sharing one value: the stepper for a
+/// couple of clicks, the field for an exact figure.
+///
+/// The field is the only control in the project that needs the keyboard, and
+/// it is the reason `NotchPanel.canBecomeKey` is `true` and
+/// `AppDelegate.syncKeyWindow` makes the panel key on this tab alone. An
+/// earlier version shipped a field while the panel could never become key:
+/// it rendered, and swallowed every keystroke.
+///
+/// The stepper stays, and is not a fallback. It is the faster path for the
+/// common case, and it is the only one that works if focus is ever refused.
 ///
 /// The presets are **replaced**, not merely disabled, while a timer runs.
 /// One timer at a time is the model, and a visible preset button would
@@ -49,28 +54,45 @@ struct TimerTabView: View {
                         .buttonStyle(.borderedProminent)
                 }
             }
-            HStack(spacing: 12) {
+            HStack(spacing: 8) {
                 stepButton("minus", disabled: customMinutes == TimerStepper.minimum) {
                     customMinutes = TimerStepper.decrement(customMinutes)
                 }
 
-                // Monospaced digits and a fixed width, so the Start button
-                // does not shuffle sideways as the number changes.
-                Text("\(customMinutes)m")
-                    .font(.system(size: 15, weight: .medium, design: .rounded))
+                // Bound to the same `customMinutes` the stepper edits, so
+                // there is one value rather than two views arguing about it:
+                // stepping updates the field, typing moves what the steppers
+                // step from.
+                //
+                // The clamp is what stops a typed 500 reaching `Countdown`,
+                // which would reject it and leave Start silently doing
+                // nothing — a dead button being the worst of the options.
+                TextField("", value: $customMinutes, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 54)
+                    .multilineTextAlignment(.center)
                     .monospacedDigit()
-                    .foregroundStyle(.white.opacity(0.95))
-                    .frame(width: 46)
-                    .accessibilityLabel("\(customMinutes) minutes")
+                    .onSubmit { start() }
+                    .onChange(of: customMinutes) { _, typed in
+                        customMinutes = min(
+                            TimerStepper.maximum,
+                            max(TimerStepper.minimum, typed)
+                        )
+                    }
+                    .accessibilityLabel("Minutes")
 
                 stepButton("plus", disabled: customMinutes == TimerStepper.maximum) {
                     customMinutes = TimerStepper.increment(customMinutes)
                 }
 
-                Button("Start") { onStart(TimeInterval(customMinutes) * 60) }
+                Button("Start", action: start)
                     .buttonStyle(.bordered)
             }
         }
+    }
+
+    private func start() {
+        onStart(TimeInterval(customMinutes) * 60)
     }
 
     /// Disabled at the ends rather than silently clamping, so a button that
