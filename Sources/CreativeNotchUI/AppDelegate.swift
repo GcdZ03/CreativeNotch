@@ -433,6 +433,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // The badge widens the *closed* shape, and it does so for the same
+        // reason `.receiving` is exempt: what the lag protects against is
+        // not there. The grow-late rule exists so the app never accepts a
+        // click on something not yet drawn — but unlike a panel expansion,
+        // the badge has no spring to wait for. `NotchRootView`'s animation
+        // is keyed on `app.state`, which does not change when playback
+        // starts, so the extra 34pt snaps into place the moment the
+        // snapshot publishes. Lagging here would not buy a safety margin;
+        // it would make a badge the user can already see ignore clicks and
+        // hover for `growthDelay`.
+        //
+        // Scoped to the closed shape *with* the badge showing, so a real
+        // presentation change — which does spring — keeps its lag.
+        if case .closed = state.state,
+           NotchShape.showsBadge(nowPlaying: state.nowPlaying) {
+            acceptRect(target)
+            return
+        }
+
         // Shrinking, or the lag disabled: apply now and stay synchronous,
         // so callers that do not care about the animation need not await.
         guard area(of: target) > area(of: acceptedRect), growthDelay > .zero else {

@@ -56,10 +56,12 @@ struct PeekRenderingTests {
     /// changes the drawn panel *shape*, so the two images differed whether
     /// or not the text respected the gap. Rendering the peek view directly
     /// is what isolates the only variable that matters.
-    private static func peekViewPixels(notchGap: CGFloat) -> Data? {
+    private static func peekViewPixels(notchGap: CGFloat, artwork: Data? = nil) -> Data? {
         let renderer = ImageRenderer(
-            content: NowPlayingPeekView(track: Self.playing, notchGap: notchGap)
-                .frame(width: 400, height: 32)
+            content: NowPlayingPeekView(
+                track: Self.playing, artwork: artwork, notchGap: notchGap
+            )
+            .frame(width: 400, height: 32)
         )
         renderer.scale = 1
         guard
@@ -137,5 +139,37 @@ struct PeekRenderingTests {
         )))
 
         #expect(withArtist != withoutArtist)
+    }
+
+    /// The peek carries a cover too, and it has to survive on both of
+    /// `NowPlayingPeekView`'s layouts — the split one that reads around a
+    /// physical notch, and the single centred line everywhere else. Delete
+    /// `cover` from either branch and that branch renders the same image
+    /// with artwork as without.
+    ///
+    /// Rendered directly rather than through `NotchRootView`, for the
+    /// reason `peekViewPixels` gives above: only the artwork changes
+    /// between these two, so a difference can only come from the cover.
+    @Test func thePeekDrawsItsCoverInTheNotchedLayout() throws {
+        let bare = try #require(Self.peekViewPixels(notchGap: 179))
+        let withCover = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.red))
+
+        #expect(bare != withCover)
+    }
+
+    @Test func thePeekDrawsItsCoverInTheCentredLayout() throws {
+        let bare = try #require(Self.peekViewPixels(notchGap: 0))
+        let withCover = try #require(Self.peekViewPixels(notchGap: 0, artwork: SolidArtwork.red))
+
+        #expect(bare != withCover)
+    }
+
+    /// And it is the track's own art, not a fixed tile that appears
+    /// whenever the cache is non-empty.
+    @Test func thePeekCoverIsTheArtworkItWasHanded() throws {
+        let red = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.red))
+        let blue = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.blue))
+
+        #expect(red != blue)
     }
 }

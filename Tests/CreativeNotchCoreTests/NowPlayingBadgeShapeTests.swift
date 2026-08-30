@@ -91,12 +91,18 @@ struct NowPlayingBadgeShapeTests {
         }
     }
 
-    /// The badge is drawn inside the window, so it has to fit in it —
-    /// the same guarantee `thePeekFitsInsideThePanel` makes for the peek.
-    @Test func theBadgedClosedRectFitsInsideThePanel() {
-        let r = closed(notch, badge: true)
-        #expect(r.minX >= 0)
-        #expect(r.maxX <= panel.width)
+    /// The width itself, pinned to the number.
+    ///
+    /// Every other assertion here is written as `base.width +
+    /// NotchGeometry.nowPlayingBadgeWidth`, so all of them hold for
+    /// whatever the constant happens to be — the production code handing
+    /// the test the value it is checked against. This one does not. 34pt
+    /// is menu bar taken for as long as music plays, and it is exactly the
+    /// room `NowPlayingBadgeView`'s 22pt cover needs with 6pt gutters:
+    /// `BadgeRenderingTests` pins that split against the drawn pixels, so
+    /// moving this number without moving the tile fails there too.
+    @Test func theBadgeIsThirtyFourPointsWide() {
+        #expect(NotchGeometry.nowPlayingBadgeWidth == 34)
     }
 
     /// The intrusion is menu bar, taken for as long as music plays, so it

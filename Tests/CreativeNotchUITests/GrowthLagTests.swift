@@ -24,6 +24,11 @@ struct GrowthLagTests {
 
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
     private static let openRect   = CGRect(x: 0, y: 0, width: 620, height: 260)
+    /// 230 + the badge's 34, written out rather than derived from the
+    /// constant the production code uses. See `NowPlayingBadgeTests`.
+    private static let badgedRect = CGRect(x: 195, y: 222, width: 264, height: 38)
+
+    private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
     /// Awaits the pending growth rather than sleeping past it. Sleeping
     /// raced the scheduler — green locally, red on a loaded CI runner.
@@ -130,6 +135,53 @@ struct GrowthLagTests {
         let delegate = makeDelegate()
         delegate.state.transition(to: .receiving)
         // No await: the drop area is available the moment the drag arrives.
+        #expect(delegate.acceptedRect == Self.openRect)
+    }
+
+    /// The ambient now-playing badge is the second exemption, for the same
+    /// reason.
+    ///
+    /// The lag exists so the app never accepts a click on something not yet
+    /// drawn. The badge is drawn at once: `NotchRootView`'s spring is keyed
+    /// on `app.state`, which does not change when playback starts, so the
+    /// extra 34pt snaps in the moment the snapshot publishes. A lag here
+    /// would be a dead zone rather than a margin — a visible badge deaf to
+    /// clicks and hover for a third of a second.
+    @Test func theBadgeWidensTheAcceptedRegionImmediately() {
+        let delegate = makeDelegate()
+
+        delegate.nowPlayingDidChange(Self.playing)
+        // No await: the badge is already on screen.
+        #expect(delegate.acceptedRect == Self.badgedRect)
+        #expect(delegate.hoverView?.trackingRect == Self.badgedRect)
+    }
+
+    /// The same thing said in clicks, through the real hit test.
+    @Test func aClickOnTheBadgeLandsWithoutWaitingForTheLag() throws {
+        let delegate = makeDelegate()
+        let host = try #require(delegate.hostView)
+
+        // Mid-strip: past the notch's trailing edge at x 425, inside the
+        // badge, level with the notch band.
+        let onBadge = NSPoint(x: 440, y: 240)
+        #expect(host.hitTest(onBadge) == nil)
+
+        delegate.nowPlayingDidChange(Self.playing)
+        #expect(host.hitTest(onBadge) != nil)
+    }
+
+    /// And the exemption is scoped to the badge, not handed to everything
+    /// that happens while music plays: opening the panel still springs, so
+    /// it still lags.
+    @Test func aClickOpenedPanelStillLagsWhileMusicPlays() async {
+        let delegate = makeDelegate()
+        delegate.nowPlayingDidChange(Self.playing)
+        #expect(delegate.acceptedRect == Self.badgedRect)
+
+        delegate.state.transition(to: .open(.shelf))
+        #expect(delegate.acceptedRect == Self.badgedRect)
+
+        await settle(delegate)
         #expect(delegate.acceptedRect == Self.openRect)
     }
 

@@ -197,10 +197,25 @@ skipped.
 
 - **Scrubbing, a position bar, volume, per-app routing.** All need write
   access or continuous position polling.
-- **Artwork on the peek.** The peek is small, and the cache may legitimately
-  be empty when it fires.
 - **Reading the now-playing client's bundle identity** to show an app icon.
   Available through the helper, but not worth the surface in v1.
 - **`contentID` as track identity.** Present in every payload and still
   decoded into `MediaPayload`, but deliberately not part of `TrackIdentity`
   — it was measured changing on every play/pause. See section 6.
+
+### Reversed after the fact
+
+- **Artwork on the peek** — listed here until 2026-08-30 as *"The peek is
+  small, and the cache may legitimately be empty when it fires."*
+
+  **Reversed on the user's direct request**, made after they saw the shipped
+  panel; that request post-dates this spec. Recorded rather than deleted,
+  because the reasoning that stood here was not wrong so much as answered:
+  an empty cache draws **nothing** on the peek — `NowPlayingPeekView.cover`
+  omits the tile entirely rather than reserving a placeholder — so "the
+  cache may legitimately be empty" costs a peek nothing at all.
+
+  What remains true is the second-order effect: artwork that lands *after*
+  a peek is already on screen shifts its title sideways. That is accepted,
+  not fixed — see the comment on `NowPlayingPeekView.cover`, which records
+  the trade-off so the next reader does not "fix" it back.

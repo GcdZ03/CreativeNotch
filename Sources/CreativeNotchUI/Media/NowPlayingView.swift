@@ -50,13 +50,13 @@ struct NowPlayingPeekView: View {
                     text(track.title, weight: .semibold, opacity: 0.95)
                 }
                 .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 10)
+                .padding(.trailing, 12)
 
                 Color.clear.frame(width: notchGap)
 
                 text(track.artist, weight: .regular, opacity: 0.6)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.leading, 10)
+                    .padding(.leading, 12)
             }
             .accessibilityElement(children: .combine)
             .accessibilityLabel(NowPlayingLabel.text(for: track))
@@ -71,13 +71,24 @@ struct NowPlayingPeekView: View {
         }
     }
 
-    /// A 16pt cover, and nothing when there is none.
+    /// A 16pt cover, and nothing at all when there is none.
     ///
     /// The panel header reserves a blank tile so its text cannot shift
-    /// sideways when artwork lands late. The peek does the opposite and
-    /// omits it, because the peek is transient — it appears, is read, and
-    /// goes. There is no "later" for the text to shift in, and an empty
-    /// grey square in a glance is worse than no square at all.
+    /// sideways when artwork lands late. The peek deliberately does the
+    /// opposite and omits it, because a peek is transient: an empty grey
+    /// square in a glance reads worse than no square at all.
+    ///
+    /// **The shift that buys is accepted, not overlooked.**
+    /// `MediaController` republishes when artwork arrives after the
+    /// snapshot it belongs to, so `app.nowPlayingArtwork` genuinely can
+    /// change while a peek is on screen — and when it does, the tile
+    /// appears and moves the title 23pt sideways mid-glance. That is the
+    /// known cost of not reserving space, and it was weighed against the
+    /// alternative: a grey placeholder on *every* peek, including the many
+    /// whose art was already cached and never needed one. A rare shift
+    /// beats a permanent blank. Do not "fix" this by reserving the tile
+    /// without revisiting that trade-off first. (Spec section 10,
+    /// "Reversed after the fact".)
     @ViewBuilder
     private var cover: some View {
         if let artwork, let image = NSImage(data: artwork) {

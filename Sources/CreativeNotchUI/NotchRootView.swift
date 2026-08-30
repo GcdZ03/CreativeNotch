@@ -300,11 +300,17 @@ public struct NotchRootView: View {
                         notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
                     )
 
-                // A peek is a glance, not a panel: one truncating line, no
-                // artwork. The spec excludes artwork here deliberately —
-                // the cache can legitimately be empty at the moment the
-                // peek fires, and a tile that appears a beat later would
-                // shove the text sideways on the closed notch.
+                // A peek is a glance, not a panel: one truncating line,
+                // plus a 16pt cover when there is one to show.
+                //
+                // Artwork here was a stated non-goal in section 10 of the
+                // spec, reversed on the user's request after they saw the
+                // shipped panel. The spec is amended rather than silently
+                // contradicted: see "Reversed after the fact" there. Its
+                // stated reason — that the cache can legitimately be empty
+                // when a peek fires — is answered by
+                // `NowPlayingPeekView.cover`, which in that case draws
+                // nothing at all rather than a placeholder tile.
                 //
                 // Without this case the state fell through to `default`
                 // and drew the literal string "CreativeNotch" over playing

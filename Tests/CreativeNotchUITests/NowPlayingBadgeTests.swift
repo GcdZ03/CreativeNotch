@@ -25,9 +25,13 @@ struct NowPlayingBadgeTests {
     )
 
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
-    private static let badgedRect = CGRect(
-        x: 195, y: 222, width: 230 + NotchGeometry.nowPlayingBadgeWidth, height: 38
-    )
+    /// 230 + 34, written out. Spelling it `230 +
+    /// NotchGeometry.nowPlayingBadgeWidth` made every assertion below hold
+    /// for whatever the constant happened to be — the production code
+    /// handing the test the number it is checked against. The width is
+    /// menu-bar real estate taken for as long as music plays, so it is
+    /// pinned here and in `NowPlayingBadgeShapeTests`.
+    private static let badgedRect = CGRect(x: 195, y: 222, width: 264, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
     private static let paused  = TrackSnapshot(title: "Song", artist: "Band", isPlaying: false)
@@ -112,7 +116,7 @@ struct NowPlayingBadgeTests {
 
         // And it is genuinely the badged shape, so this cannot pass with
         // all three agreeing on the un-badged one.
-        #expect(drawn.width == 230 + NotchGeometry.nowPlayingBadgeWidth)
+        #expect(drawn.width == 264)
     }
 
     /// The same agreement with nothing playing, which is the regression
