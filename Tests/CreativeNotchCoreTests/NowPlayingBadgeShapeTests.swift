@@ -128,32 +128,35 @@ struct NowPlayingBadgeShapeTests {
         #expect(badged == CGRect(x: 75, y: 204, width: 180, height: 32))
     }
 
-    // MARK: - The width itself
+    // MARK: - Who takes the slot, and how wide it then is
 
     @Test func playingMediaShowsTheBadge() {
         let track = TrackSnapshot(title: "t", artist: "a", isPlaying: true)
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: track, at: now)
-                == NotchGeometry.nowPlayingBadgeWidth)
+        let slot = NotchShape.badgeSlot(countdown: nil, nowPlaying: track, at: now)
+        #expect(slot == .nowPlaying)
+        #expect(slot.width == NotchGeometry.nowPlayingBadgeWidth)
     }
 
     /// The badge answers "is something playing". Over a paused track it
     /// would be a lie, so paused media shows nothing.
     @Test func pausedMediaShowsNoBadge() {
         let track = TrackSnapshot(title: "t", artist: "a", isPlaying: false)
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: track, at: now) == 0)
+        let slot = NotchShape.badgeSlot(countdown: nil, nowPlaying: track, at: now)
+        #expect(slot == BadgeSlot.none)
+        #expect(slot.width == 0)
     }
 
     @Test func nothingPlayingShowsNoBadge() {
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: nil, at: now) == 0)
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: nil, at: now) == BadgeSlot.none)
     }
 
-    /// The end-to-end shape of the paused case: the width is zero, so the
-    /// closed rect is the untouched anchor.
+    /// The end-to-end shape of the paused case: the slot is empty, so its
+    /// width is zero and the closed rect is the untouched anchor.
     @Test func aPausedTrackLeavesTheClosedNotchExactlyAsItWas() {
         let paused = TrackSnapshot(title: "t", artist: "a", isPlaying: false)
-        let r = closed(notch, badgeWidth: NotchShape.badgeWidth(
+        let r = closed(notch, badgeWidth: NotchShape.badgeSlot(
             countdown: nil, nowPlaying: paused, at: now
-        ))
+        ).width)
         #expect(r == closed(notch, badgeWidth: 0))
         #expect(r.width == 179)
     }

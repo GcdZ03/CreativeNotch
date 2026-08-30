@@ -381,14 +381,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// How much wider than the anchor the closed notch currently is,
     /// because it is carrying a badge — zero when it is carrying none.
     ///
-    /// Reads `NotchShape.badgeWidth` rather than spelling the rule out
-    /// again, so this and `NotchRootView` cannot disagree about when the
-    /// badge is there or how wide it is. Internal so a test can assert the
-    /// source of the width directly.
+    /// Reads `NotchShape.badgeSlot` rather than spelling the rule out
+    /// again, so this and `NotchRootView` cannot disagree about which
+    /// badge is there or how wide it is. A width and not the slot itself
+    /// because that is all the three rects need — `visibleRect` grows by
+    /// a number and stays ignorant of which badge asked. Internal so a
+    /// test can assert the source of the width directly.
     var currentBadgeWidth: CGFloat {
-        NotchShape.badgeWidth(
+        NotchShape.badgeSlot(
             countdown: state.countdown, nowPlaying: state.nowPlaying, at: Date()
-        )
+        ).width
     }
 
     /// What is playing changed.

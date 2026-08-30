@@ -78,10 +78,11 @@ struct BadgeRenderingTests {
     // MARK: - Rendering
 
     private static func closedNotch(
-        nowPlaying: TrackSnapshot?, artwork: Data?
+        countdown: Countdown? = nil, nowPlaying: TrackSnapshot?, artwork: Data?
     ) -> NSBitmapImageRep? {
         let state = AppState()
         state.setGeometry(anchor: .notch(Self.anchor), panelFrame: Self.panel)
+        state.countdown = countdown
         state.nowPlaying = nowPlaying
         state.nowPlayingArtwork = artwork
 
@@ -97,9 +98,20 @@ struct BadgeRenderingTests {
         return NSBitmapImageRep(data: tiff)
     }
 
-    private static func pixels(nowPlaying: TrackSnapshot?, artwork: Data?) -> Data? {
-        closedNotch(nowPlaying: nowPlaying, artwork: artwork)?
+    private static func pixels(
+        countdown: Countdown? = nil, nowPlaying: TrackSnapshot?, artwork: Data?
+    ) -> Data? {
+        closedNotch(countdown: countdown, nowPlaying: nowPlaying, artwork: artwork)?
             .representation(using: .png, properties: [:])
+    }
+
+    /// A countdown that is still running whenever it is read.
+    ///
+    /// Started from the wall clock rather than a fixed instant because
+    /// `NotchRootView` reads `Date()` itself; 25 minutes is longer than
+    /// any render here takes.
+    private static func running() -> Countdown {
+        Countdown(duration: 1500, startingAt: Date())!
     }
 
     /// The bounding box of every pixel carrying `marker`'s hue, in the
@@ -197,5 +209,41 @@ struct BadgeRenderingTests {
         let image = try #require(Self.closedNotch(nowPlaying: Self.paused, artwork: SolidArtwork.red))
 
         #expect(Self.paintedBox(image, .systemRed) == nil)
+    }
+
+    // MARK: - The slot is shared, and the timer owns it
+
+    /// The slot holds one badge, and while a timer runs that badge is the
+    /// timer's — so the album cover must not be painted, even though media
+    /// is playing and its artwork is cached.
+    ///
+    /// The only test that bites the mistake the identity exists to
+    /// prevent. `NotchRootView` branches on `slot == .nowPlaying`; widen
+    /// that to `slot != BadgeSlot.none` — which is what a width-based
+    /// `> 0` amounts to — and the cover lands in the countdown's 44pt slot
+    /// with every other test in the suite still green, because nothing
+    /// else renders a closed notch with a countdown set.
+    @Test func aRunningTimerKeepsTheAlbumCoverOutOfTheSlot() throws {
+        let image = try #require(Self.closedNotch(
+            countdown: Self.running(), nowPlaying: Self.playing, artwork: SolidArtwork.red
+        ))
+
+        #expect(Self.paintedBox(image, .systemRed) == nil)
+    }
+
+    /// The vacuity guard for the test above: the countdown really does
+    /// reach the view. Without this, a `countdown` that never arrived
+    /// would make "no cover was painted" pass for the wrong reason.
+    ///
+    /// The difference is the shape — 230 + 44 rather than 230 + 34 — and
+    /// the cover's absence. It says the countdown changed the render; it
+    /// does not say what changed, which is what the assertion above is for.
+    @Test func aRunningTimerChangesTheClosedNotch() throws {
+        let timed = try #require(Self.pixels(
+            countdown: Self.running(), nowPlaying: Self.playing, artwork: SolidArtwork.red
+        ))
+        let media = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
+
+        #expect(timed != media)
     }
 }

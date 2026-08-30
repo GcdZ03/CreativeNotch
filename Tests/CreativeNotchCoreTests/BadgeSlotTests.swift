@@ -12,53 +12,70 @@ struct BadgeSlotTests {
         Countdown(duration: 1500, startingAt: t0)!
     }
 
+    // MARK: - Who owns the slot
+    //
+    // Asserted as identities, not widths. Which badge is showing is what
+    // the view needs, and a width can only answer it by being compared
+    // against a constant — which is exactly what this module stopped
+    // doing.
+
     @Test func nothingActiveMeansNoBadge() {
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: nil, at: t0) == 0)
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: nil, at: t0) == BadgeSlot.none)
     }
 
-    @Test func playingMediaAloneGivesTheMediaWidth() {
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: playing, at: t0)
-                == NotchGeometry.nowPlayingBadgeWidth)
+    @Test func playingMediaAloneTakesTheSlot() {
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, at: t0) == .nowPlaying)
     }
 
     @Test func pausedMediaAloneGivesNoBadge() {
-        #expect(NotchShape.badgeWidth(countdown: nil, nowPlaying: paused, at: t0) == 0)
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: paused, at: t0) == BadgeSlot.none)
     }
 
-    @Test func aRunningTimerAloneGivesTheTimerWidth() {
-        #expect(NotchShape.badgeWidth(countdown: running(), nowPlaying: nil, at: t0)
-                == NotchGeometry.timerBadgeWidth)
+    @Test func aRunningTimerAloneTakesTheSlot() {
+        #expect(NotchShape.badgeSlot(countdown: running(), nowPlaying: nil, at: t0) == .timer)
     }
 
     /// The rule from the spec: the timer owns the slot while it runs.
     @Test func aRunningTimerOutranksPlayingMedia() {
-        #expect(NotchShape.badgeWidth(countdown: running(), nowPlaying: playing, at: t0)
-                == NotchGeometry.timerBadgeWidth)
+        #expect(NotchShape.badgeSlot(countdown: running(), nowPlaying: playing, at: t0) == .timer)
     }
 
     /// And gives it back, rather than keeping the slot forever.
     @Test func aFinishedTimerReturnsTheSlotToMedia() {
         let later = t0.addingTimeInterval(2000)
-        #expect(NotchShape.badgeWidth(countdown: running(), nowPlaying: playing, at: later)
-                == NotchGeometry.nowPlayingBadgeWidth)
+        #expect(NotchShape.badgeSlot(countdown: running(), nowPlaying: playing, at: later)
+                == .nowPlaying)
     }
 
     @Test func aFinishedTimerWithNoMediaShowsNothing() {
         let later = t0.addingTimeInterval(2000)
-        #expect(NotchShape.badgeWidth(countdown: running(), nowPlaying: nil, at: later) == 0)
+        #expect(NotchShape.badgeSlot(countdown: running(), nowPlaying: nil, at: later)
+                == BadgeSlot.none)
     }
 
     /// A paused timer still occupies the slot — it is still a timer you
     /// set, just not counting.
     @Test func aPausedTimerKeepsTheSlot() {
         let c = running().paused(at: t0.addingTimeInterval(100))
-        #expect(NotchShape.badgeWidth(countdown: c, nowPlaying: playing,
-                                      at: t0.addingTimeInterval(5000))
-                == NotchGeometry.timerBadgeWidth)
+        #expect(NotchShape.badgeSlot(countdown: c, nowPlaying: playing,
+                                     at: t0.addingTimeInterval(5000))
+                == .timer)
+    }
+
+    // MARK: - How wide each slot is
+
+    /// The widths themselves, where the width is the claim. Nothing else
+    /// in this suite reads them: the identity is what the view branches
+    /// on, and the width is only what the shape grows by.
+    @Test func eachSlotReservesItsOwnWidth() {
+        #expect(BadgeSlot.none.width == 0)
+        #expect(BadgeSlot.nowPlaying.width == NotchGeometry.nowPlayingBadgeWidth)
+        #expect(BadgeSlot.timer.width == NotchGeometry.timerBadgeWidth)
     }
 
     /// The timer badge has to hold a wider string than a 22pt cover.
     @Test func theTimerSlotIsWiderThanTheMediaSlot() {
+        #expect(BadgeSlot.timer.width > BadgeSlot.nowPlaying.width)
         #expect(NotchGeometry.timerBadgeWidth > NotchGeometry.nowPlayingBadgeWidth)
     }
 

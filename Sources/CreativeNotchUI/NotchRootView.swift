@@ -200,8 +200,8 @@ public struct NotchRootView: View {
         )
     }
 
-    /// The drawn rect for a whole `AppState` — the exact derivation `body`
-    /// uses, including the badge width.
+    /// The drawn rect for a whole `AppState` — the derivation `body` uses,
+    /// badge width and all, with the slot read here rather than handed in.
     ///
     /// Static and internal rather than a private computed property so a
     /// test can compare *this* against the region `AppDelegate` accepts
@@ -209,33 +209,46 @@ public struct NotchRootView: View {
     /// rect the test derives itself would only prove the test agrees with
     /// itself.
     static func drawnRect(for app: AppState) -> CGRect {
+        drawnRect(for: app, badge: NotchShape.badgeSlot(
+            countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
+        ))
+    }
+
+    /// The same derivation for a slot that has already been decided.
+    ///
+    /// `body` calls this one, passing the slot it also draws the content
+    /// from, so the width the shape grows by and the badge that lands in
+    /// it cannot come from two different readings of the clock.
+    static func drawnRect(for app: AppState, badge slot: BadgeSlot) -> CGRect {
         drawnRect(
             state: app.state,
             anchor: app.anchor,
             panelFrame: app.panelFrame,
-            badgeWidth: NotchShape.badgeWidth(
-                countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
-            )
+            badgeWidth: slot.width
         )
     }
 
-    private var drawn: CGRect { Self.drawnRect(for: app) }
-
-    /// Whether the ambient now-playing badge is showing.
+    /// Which badge owns the trailing slot.
     ///
-    /// `NotchShape.badgeWidth` rather than a second `isPlaying == true`
+    /// `NotchShape.badgeSlot` rather than a second `isPlaying == true`
     /// here: `AppDelegate` asks the same function for the hit-test and
     /// hover rects, so the shape that is drawn and the shape that accepts
     /// clicks cannot disagree about whether the badge exists.
     ///
-    /// Compared against the *media* width, not against zero: the slot is
-    /// shared, and a running timer owns it. `> 0` would put the album
-    /// cover inside the countdown's slot. `theTimerSlotIsWiderThanTheMediaSlot`
-    /// pins the two widths apart so this comparison stays decidable.
-    private var showsBadge: Bool {
-        NotchShape.badgeWidth(
+    /// An identity, not a width. The width alone cannot say *which* badge
+    /// is showing without being compared against a constant — `> 0` would
+    /// put the album cover inside the countdown's slot, and comparing
+    /// against `nowPlayingBadgeWidth` would make two independent constants
+    /// load-bearing as distinct values.
+    ///
+    /// The only clock read in this view, and `body` binds it once: at the
+    /// instant a timer finishes, two reads microseconds apart disagree,
+    /// and the slot's width and its content would come from different
+    /// answers.
+    private var badgeSlot: BadgeSlot {
+        NotchShape.badgeSlot(
             countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
-        ) == NotchGeometry.nowPlayingBadgeWidth
+        )
     }
 
     /// The horizontal band a centred peek has to leave empty, because on a
@@ -285,9 +298,14 @@ public struct NotchRootView: View {
     }
 
     public var body: some View {
+        // Bound once, then used for both the width the shape grows by and
+        // the badge drawn inside it. Asking `badgeSlot` again for the
+        // content would read the clock again with it.
+        let slot = badgeSlot
+        let drawn = Self.drawnRect(for: app, badge: slot)
         ZStack(alignment: .topLeading) {
             Color.clear
-            shape
+            shape(badge: slot)
                 .frame(width: drawn.width, height: drawn.height)
                 .offset(x: drawn.minX, y: drawn.minY)
         }
@@ -312,7 +330,9 @@ public struct NotchRootView: View {
         ))
     }
 
-    private var shape: some View {
+    /// Takes the slot rather than reading it, so the content it draws and
+    /// the width `body` grew the frame by are the same answer.
+    private func shape(badge slot: BadgeSlot) -> some View {
         backgroundShape
             .fill(.black)
             .overlay {
@@ -322,7 +342,7 @@ public struct NotchRootView: View {
                     // `visibleRect` grew for it on a notch — and inside
                     // the pill's own trailing edge on a notchless Mac,
                     // where nothing grew because nothing had to.
-                    if showsBadge {
+                    if slot == .nowPlaying {
                         NowPlayingBadgeView(artwork: app.nowPlayingArtwork)
                             .frame(
                                 maxWidth: .infinity,

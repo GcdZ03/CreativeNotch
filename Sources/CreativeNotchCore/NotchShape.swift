@@ -1,6 +1,27 @@
 import CoreGraphics
 import Foundation
 
+/// What occupies the trailing badge slot, if anything.
+///
+/// An identity rather than a width, because the width alone cannot say
+/// *which* badge is showing without comparing it to a constant — and that
+/// makes two independent constants load-bearing as distinct values. The
+/// drawn content and the reserved width must come from one answer.
+public enum BadgeSlot: Equatable, Sendable {
+    case none
+    case nowPlaying
+    case timer
+
+    /// How far the closed notch grows for this slot.
+    public var width: CGFloat {
+        switch self {
+        case .none:       return 0
+        case .nowPlaying: return NotchGeometry.nowPlayingBadgeWidth
+        case .timer:      return NotchGeometry.timerBadgeWidth
+        }
+    }
+}
+
 /// The visible region of the panel, in panel-local coordinates.
 ///
 /// The window is always the full expanded size, so everything outside this
@@ -62,28 +83,24 @@ public enum NotchShape {
         )
     }
 
-    /// How wide the trailing badge slot is, or zero for no badge.
+    /// Which badge owns the trailing slot.
     ///
-    /// One function, because "is there a badge and how wide is it" is one
-    /// decision. Two spellings of it would drift exactly as two spellings
-    /// of the rect would — and the drawn rect, the hit test and the hover
-    /// tracking rect all derive from the width this returns.
+    /// One function, because "which badge is showing" and "how wide is the
+    /// slot" are one decision. Two spellings of it would drift exactly as
+    /// two spellings of the rect would — and the drawn rect, the hit test
+    /// and the hover tracking rect all derive from `.width`.
     ///
-    /// A running or paused timer owns the slot; media gets it back when the
-    /// timer finishes or is cancelled. Paused *media* is not playing media,
-    /// so it shows nothing — the badge answers "is something playing".
-    public static func badgeWidth(
+    /// A running or paused timer owns the slot; media takes it back when the
+    /// timer finishes or is cancelled. Paused *media* shows nothing: the
+    /// badge answers "is something playing".
+    public static func badgeSlot(
         countdown: Countdown?,
         nowPlaying: TrackSnapshot?,
         at now: Date
-    ) -> CGFloat {
-        if let countdown, !countdown.hasFinished(at: now) {
-            return NotchGeometry.timerBadgeWidth
-        }
-        if nowPlaying?.isPlaying == true {
-            return NotchGeometry.nowPlayingBadgeWidth
-        }
-        return 0
+    ) -> BadgeSlot {
+        if let countdown, !countdown.hasFinished(at: now) { return .timer }
+        if nowPlaying?.isPlaying == true { return .nowPlaying }
+        return .none
     }
 
     /// Panel-local, bottom-left origin, y increasing upward — matching an
