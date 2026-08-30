@@ -216,10 +216,27 @@ it and leaves a monitor running.
 
 ### Peek arbitration
 
-One slot, three competitors. `PeekArbiter` resolves them: **drag > HUD >
-now-playing**. Transient content preempts ambient content and then falls
-back, the same model as the iPhone Dynamic Island. The HUD has a 1.5 s TTL;
-a drag has none and lasts until cleared.
+One slot, four competitors. `PeekArbiter` resolves them: **drag > HUD >
+power > now-playing**. Transient content preempts ambient content and then
+falls back, the same model as the iPhone Dynamic Island. The HUD has a 1.5 s
+TTL, power has 3 s; a drag has none and lasts until cleared.
+
+Power sits between the two for a reason. A HUD peek answers a key the user
+pressed a fraction of a second ago, and preempting it makes their own
+keypress feel dropped. Now-playing is ambient wallpaper and yields to
+anything. Power is unsolicited but consequential, which is exactly the
+middle.
+
+**Two TTLs mean the re-evaluation delay has to follow the content.** With one
+TTL in the app, `AppDelegate` could re-read the arbiter after a single fixed
+delay. A 3 s power peek re-checked after 1.5 s finds the arbiter still
+returning it, transitions to the state it is already in, and is never looked
+at again — the notch stays open until something unrelated moves it. So
+`AppDelegate.reevaluationDelay(for:hud:power:)` picks the delay, and
+`reevaluatePeek` reschedules when what it reveals is itself transient. It
+terminates because every transient source strictly expires; ambient content
+is never rescheduled, which is what stops this being a timer that runs for
+as long as music plays.
 
 `content(now:)` takes the current time as a *parameter* rather than reading
 a clock. That is what makes TTL expiry testable without sleeping. Do not
@@ -472,12 +489,60 @@ The badge is **static**. A looping equaliser would redraw continuously for
 as long as music played, and the clipboard poller remains the only timer in
 the project.
 
+## Battery and power state
+
+The first module that needs **no exception to the one rule at all**.
+`IOPSNotificationCreateRunLoopSource` fires on power-source change and
+`NSProcessInfo.processInfoPowerStateDidChange` covers Low Power Mode. Both
+are notifications; there is no timer, no poller, and no permission prompt.
+
+`PowerObserver` is the only file in the project that touches IOKit, and it
+is deliberately stupid — it converts a `CFDictionary` into a `PowerSnapshot`
+and nothing else. Every judgement is a pure, time-injected type in Core:
+`BatteryEstimateGate`, `LowBatteryArming`, `PowerLabel`.
+
+### Joining the activity gate without being switched off
+
+`PowerController.setActivity` suppresses **peeks** and leaves the observer
+running. This is the first consumer to do that, and the distinction is worth
+keeping: a registered run-loop source that never fires costs nothing, and
+suspending it would mean missing the charger being plugged in while the lid
+was shut — the state would then be wrong on wake, which is worse than an
+unseen callback. Transitions that happen behind a lock screen are **dropped,
+not replayed**: a peek is an interruption timed to a moment, and replaying
+"unplugged" ten minutes later is a notification, which this app is not. The
+panel still shows current truth on unlock, because the panel reads the
+snapshot rather than the event.
+
+### The estimate is not to be trusted, and the sentinel is not enough
+
+IOKit documents `-1` as "Still Calculating" — and then reports wildly
+swinging values *confidently*, as ordinary integers. Filtering the sentinel
+alone leaves the bug the roadmap named: a number jumping from 1:20 to 4:55
+and back reads as a broken app.
+
+`BatteryEstimateGate` adds a settling window after any power-source
+transition and an agreement requirement outside it — two consecutive
+readings within a relative tolerance. Tolerance is *relative* because five
+minutes of disagreement on a two-hour estimate is noise and the same five
+minutes on an eight-minute estimate is the difference between "shut down
+now" and "finish the paragraph". Measured figures and their basis are in
+`docs/research/2026-08-30-battery-estimate-noise.md`.
+
+### The tab is machine-dependent
+
+`PanelTabBar.visible(hasBattery:)` was a `static let` and is now a function,
+because `.power` is the first tab whose existence depends on the hardware.
+Three of its four facts are meaningless on a Mac mini, and the rule that
+already hid `.hud` hides it there too.
+
 ## Deliberately absent
 
 - ~~**`SystemActivity`**~~ — shipped. It arrived with the clipboard module
-  and now gates two subsystems: the clipboard poller and the media helper
-  subprocess. Any future subsystem with a runtime cost joins it rather than
-  managing its own lifecycle.
+  and now gates three subsystems: the clipboard poller, the media helper
+  subprocess, and the power module. The first two are suspended outside
+  `.active`; the third only stops *drawing*. Any future subsystem with a
+  runtime cost joins it rather than managing its own lifecycle.
 - **An audio visualiser** — named in the category as a top CPU cost. It
   contradicts the one rule.
 - **iCloud sync** — would require the paid Developer Program.

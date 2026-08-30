@@ -1,16 +1,20 @@
 # Roadmap
 
-Six modules are planned. **None of them is implemented.** Nothing in this
+Five modules are planned. **None of them is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
+
+The sixth, **battery and power state**, shipped on 2026-08-30 and its entry
+has been removed. See `docs/plans/2026-08-30-battery.md` and
+`docs/research/2026-08-30-battery-estimate-noise.md`.
 
 Every module in this project so far has gone spec → plan → implementation,
 and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all six have to answer
+## The constraint all five have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -21,40 +25,21 @@ A feature is not blocked by being expensive; it is blocked by being expensive
 *while nobody is looking at it*. The question for each module below is
 therefore always the same: what wakes it, and what does it cost when idle?
 
-`SystemActivity` is the central gate. It currently has two consumers, the
-clipboard poller and the media helper, and it suspends both when the screen
-locks or the machine sleeps. Any new subsystem with a runtime cost joins it.
+`SystemActivity` is the central gate. It has three consumers: the clipboard
+poller, the media helper, and the power module. The first two are *suspended*
+when the screen locks or the machine sleeps. The third is not — it is
+entirely notification-driven, so it costs nothing while idle and suspending
+it would only mean missing the charger moving while the lid was shut. What
+the gate suppresses there is the peek, not the observer.
+
+That distinction is the useful precedent battery leaves behind: joining the
+gate does not have to mean being switched off. Any new subsystem with a
+runtime cost joins it; a subsystem with no runtime cost joins it only for
+what it *draws*.
 
 ---
 
-## 1. Battery and power state
-
-**What it is.** Charge level, charging or discharging, time remaining, and
-Low Power Mode — in the panel, and as an ambient peek on the state changes
-worth interrupting for (plugged in, unplugged, low battery).
-
-**Why it is the easiest of the six.** It needs no polling and no permission.
-`IOPSNotificationCreateRunLoopSource` fires a callback when the power source
-changes, and `NSProcessInfo.processInfoPowerStateDidChange` covers Low Power
-Mode. Both are notification-driven, which is exactly the shape the one rule
-asks for.
-
-There is already precedent: the clipboard poller reads
-`isLowPowerModeEnabled` to floor its interval at 2s, so the app has a live
-consumer of power state today.
-
-**The thing to get right.** Time-remaining estimates from IOKit are noisy —
-they swing wildly for the first minutes after a plug/unplug and while the
-system recalibrates. Showing a number that jumps from "1:20" to "4:55" and
-back reads as a broken app rather than an honest estimate. The HUD's ambient
-light sensor problem is the same shape and the same answer: decide what
-counts as signal, document the threshold, and stay silent below it.
-
-**Needs a spike:** no. The APIs are public and documented.
-
----
-
-## 2. Timer
+## 1. Timer
 
 **What it is.** A countdown started from the panel, with the remaining time
 visible in the closed notch — the same ambient-badge slot the now-playing
@@ -84,7 +69,7 @@ finishes while the screen is locked.
 
 ---
 
-## 3. Screen recording, microphone and camera in use
+## 2. Screen recording, microphone and camera in use
 
 **What it is.** An ambient indicator when something is capturing — the
 privacy tell, in the notch, next to the hardware it is about.
@@ -118,7 +103,7 @@ screen recording is in scope at all.
 
 ---
 
-## 4. Launch at login
+## 3. Launch at login
 
 **What it is.** A toggle that registers the app to start with the session.
 
@@ -142,7 +127,7 @@ install script's path and the ad-hoc signature.
 
 ---
 
-## 5. Global hotkey
+## 4. Global hotkey
 
 **What it is.** A key combination that opens the panel from anywhere.
 
@@ -172,7 +157,7 @@ set, is the same failure mode as the login item above.
 
 ---
 
-## 6. Preferences
+## 5. Preferences
 
 **What it is.** A settings surface: enable or disable individual modules,
 and adjust the values currently compiled in — dwell delay, clipboard
@@ -205,20 +190,28 @@ something forever. Decide what an unset key means before the first release
 that reads it.
 
 **Needs a spike:** no, but it needs a spec more than any of the others —
-it is the only one of the six that changes how existing modules are wired.
+it is the only one of the five that changes how existing modules are wired.
 
 ---
 
 ## Suggested order
 
-1. **Preferences**, because four of the others want a home in it, and
+**Battery shipped first, out of this order.** It was listed third, behind
+Preferences, on the grounds that four of the six then-planned modules
+wanted a home in a
+preferences surface. That reasoning holds for the four; it did not hold for
+battery, whose tunables are four documented `static let`s in Core that
+Preferences can read whenever it arrives. The cost the ordering warns about
+is retrofitting module *enable/disable* wiring, which is a different thing
+from retrofitting a constant.
+
+1. **Preferences**, because the remaining four want a home in it, and
    because retrofitting module enable/disable is more expensive than
    building for it.
 2. **Launch at login** and **global hotkey** — small, self-contained, and
    they validate the preferences surface with real settings.
-3. **Battery**, the easiest genuinely new module.
-4. **Timer**, which needs the ambient badge slot the media module built.
-5. **Capture indicators**, last, because it is the only one that might come
+3. **Timer**, which needs the ambient badge slot the media module built.
+4. **Capture indicators**, last, because it is the only one that might come
    back from its spike smaller than planned.
 
 ## Still deliberately not planned
