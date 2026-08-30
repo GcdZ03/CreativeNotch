@@ -76,16 +76,41 @@ struct TimerDisplayTests {
         #expect(TimerDisplay.nextChange(remaining: -5) == nil)
     }
 
-    /// Whatever `nextChange` returns must actually land on a different
-    /// string, at every scale. If this ever fails the schedule is either
-    /// waking too early (wasted redraw) or too late (stale display).
-    @Test func everyScheduledWakeLandsOnADifferentString() throws {
+    /// Every scheduled wake lands on the *first* instant the string changes,
+    /// at every scale — which is four separate claims, all of them needed.
+    ///
+    /// `before != after` alone catches only a wake that is too **early**: a
+    /// delay that is far too long still lands on a different string, so a
+    /// schedule that overshot the deadline or skipped an entire minute
+    /// passed this loop while the display sat frozen. Both were live
+    /// mutations that survived a green suite.
+    ///
+    /// So the wake is pinned from both sides:
+    ///
+    /// - `delay > 0` — never a wake in the past.
+    /// - `delay <= remaining` — never past the deadline. A timer over ~33
+    ///   minutes could overshoot by a second and still land on `"0:00"`,
+    ///   which differs from `"34m"` and satisfies the inequality below.
+    /// - `before != after` — the wake really is a change.
+    /// - the text is *still* `before` a hair earlier — the wake is the
+    ///   change's first instant, not a late one. This is the assertion that
+    ///   catches a skipped boundary: a delay long enough to jump a minute
+    ///   means the string had already changed before we woke.
+    ///
+    /// The epsilon is safe on this grid: `remaining - delay` is an exact
+    /// integer boundary, and the string is constant across the whole
+    /// interval above it.
+    @Test func everyScheduledWakeIsTheFirstInstantTheStringChanges() throws {
         for remaining in stride(from: 0.5, through: Countdown.maxDuration, by: 0.5) {
             let delay = try #require(TimerDisplay.nextChange(remaining: remaining))
             let before = TimerDisplay.text(remaining: remaining)
             let after = TimerDisplay.text(remaining: remaining - delay)
             #expect(before != after, "no change at \(remaining) after \(delay)")
             #expect(delay > 0, "non-positive delay at \(remaining)")
+            #expect(delay <= remaining,
+                    "wakes \(delay - remaining)s past the deadline at \(remaining)")
+            #expect(TimerDisplay.text(remaining: remaining - delay + 0.001) == before,
+                    "text already changed before the wake at \(remaining) after \(delay)")
         }
     }
 
@@ -94,5 +119,23 @@ struct TimerDisplayTests {
             #expect(TimerDisplay.text(remaining: remaining).count
                     <= TimerDisplay.widestText.count)
         }
+    }
+
+    /// `widestText` sizes a fixed-width badge, so it must be a string this
+    /// format can actually emit — not merely one of the right length. The
+    /// format produces "NNm" and "0:SS" and nothing else, so a plausible
+    /// wrong value like "1:11" is caught here rather than by eye.
+    ///
+    /// Kept alongside the count test above, which says something different:
+    /// that nothing the format emits is *longer*. Neither implies the other,
+    /// and neither is the rendering-width claim `widestText` ultimately
+    /// makes — `CreativeNotchCore` links no UI framework and cannot measure
+    /// text, so that assertion belongs in a UI test.
+    @Test func theWidestTextIsSomethingTheFormatCanProduce() {
+        let produced = Set(
+            stride(from: 0.0, through: Countdown.maxDuration, by: 0.5)
+                .map { TimerDisplay.text(remaining: $0) }
+        )
+        #expect(produced.contains(TimerDisplay.widestText))
     }
 }

@@ -165,8 +165,26 @@ public final class AppState {
 public struct NotchRootView: View {
     @Bindable var app: AppState
 
-    public init(app: AppState) {
+    /// The instant the badge slot is decided at, or `nil` to read the wall
+    /// clock once per `body` evaluation.
+    ///
+    /// Threaded rather than read inside the view, the way every function in
+    /// `CreativeNotchCore` takes its `now`: it is what lets a test pin the
+    /// instant and prove the reserved width and the drawn content come from
+    /// *one* reading of it. A second, unpinned read anywhere in `body` then
+    /// shows up as a disagreement rather than as a race nobody can
+    /// reproduce.
+    ///
+    /// Optional, and defaulted to `nil` rather than to `Date()`: a stored
+    /// `Date` defaulted at initialisation would freeze the slot for the
+    /// app's lifetime, because `AppDelegate` builds this view exactly once,
+    /// at install. A countdown started an hour later would then never stop
+    /// showing. `nil` keeps the live per-evaluation read.
+    let now: Date?
+
+    public init(app: AppState, now: Date? = nil) {
         self.app = app
+        self.now = now
     }
 
     /// The drawn region, in the top-left-origin space SwiftUI lays out in.
@@ -208,10 +226,11 @@ public struct NotchRootView: View {
     /// clicks and hover in, without rendering a view. Comparing against a
     /// rect the test derives itself would only prove the test agrees with
     /// itself.
-    static func drawnRect(for app: AppState) -> CGRect {
-        drawnRect(for: app, badge: NotchShape.badgeSlot(
-            countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
-        ))
+    ///
+    /// `now` is defaulted rather than stored, so every call reads the clock
+    /// afresh unless a caller pins it.
+    static func drawnRect(for app: AppState, now: Date = Date()) -> CGRect {
+        drawnRect(for: app, badge: badgeSlot(for: app, at: now))
     }
 
     /// The same derivation for a slot that has already been decided.
@@ -241,13 +260,18 @@ public struct NotchRootView: View {
     /// against `nowPlayingBadgeWidth` would make two independent constants
     /// load-bearing as distinct values.
     ///
-    /// The only clock read in this view, and `body` binds it once: at the
-    /// instant a timer finishes, two reads microseconds apart disagree,
-    /// and the slot's width and its content would come from different
-    /// answers.
-    private var badgeSlot: BadgeSlot {
+    /// Takes `now` rather than reading it. The same decision is read from
+    /// three places — here, `AppDelegate.currentBadgeWidth`, and whatever
+    /// `now` `drawnRect(for:now:)` is handed — so this view cannot claim to
+    /// hold the only clock read, and an earlier version of this comment
+    /// that said so was wrong. What it *can* guarantee is that `body` reads
+    /// the clock at most once and hands that single value to everything
+    /// below it: at the instant a timer finishes, two reads microseconds
+    /// apart disagree, and the slot's width and its content would come from
+    /// different answers.
+    static func badgeSlot(for app: AppState, at now: Date) -> BadgeSlot {
         NotchShape.badgeSlot(
-            countdown: app.countdown, nowPlaying: app.nowPlaying, at: Date()
+            countdown: app.countdown, nowPlaying: app.nowPlaying, at: now
         )
     }
 
@@ -298,10 +322,13 @@ public struct NotchRootView: View {
     }
 
     public var body: some View {
-        // Bound once, then used for both the width the shape grows by and
-        // the badge drawn inside it. Asking `badgeSlot` again for the
-        // content would read the clock again with it.
-        let slot = badgeSlot
+        // At most one clock read per evaluation, and none at all when the
+        // instant was pinned. Everything below derives from this single
+        // value: asking `badgeSlot` again for the content, or calling
+        // `drawnRect(for:)` for the width, would read the clock again with
+        // it.
+        let instant = now ?? Date()
+        let slot = Self.badgeSlot(for: app, at: instant)
         let drawn = Self.drawnRect(for: app, badge: slot)
         ZStack(alignment: .topLeading) {
             Color.clear

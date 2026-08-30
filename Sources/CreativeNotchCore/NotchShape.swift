@@ -110,6 +110,14 @@ public enum NotchShape {
     /// the drawn rect, the hit test and the hover tracking rect — all widen
     /// from this one function rather than each adding the badge's width
     /// themselves.
+    ///
+    /// Any non-positive `badgeWidth` means "no badge", zero and negative
+    /// alike. Documented rather than clamped or trapped: `BadgeSlot.width`
+    /// gates every real caller and can only return 0, 34 or 44, so a clamp
+    /// would be unreachable code asserting nothing, and a trap would add a
+    /// crash path to the closed notch's redraw. The parameter is public and
+    /// defaulted, though, so the rule is stated here rather than left to be
+    /// inferred from the `> 0` below.
     public static func visibleRect(
         presentation: Presentation,
         anchor: Anchor,
@@ -137,6 +145,8 @@ public enum NotchShape {
             // would put an asymmetric stub on a floating rounded widget
             // for no reason, exactly as `.peek` leaves the pill's centred
             // slab alone.
+            //
+            // Non-positive is "no badge" — see the doc comment above.
             guard badgeWidth > 0, anchor.isNotch else { return local }
             return CGRect(
                 x: local.minX,

@@ -77,8 +77,14 @@ struct BadgeRenderingTests {
 
     // MARK: - Rendering
 
+    /// `now` pins the instant the view decides the badge slot at. `nil` —
+    /// the default and what the app itself passes — leaves the view reading
+    /// the wall clock once per `body` evaluation.
     private static func closedNotch(
-        countdown: Countdown? = nil, nowPlaying: TrackSnapshot?, artwork: Data?
+        countdown: Countdown? = nil,
+        now: Date? = nil,
+        nowPlaying: TrackSnapshot?,
+        artwork: Data?
     ) -> NSBitmapImageRep? {
         let state = AppState()
         state.setGeometry(anchor: .notch(Self.anchor), panelFrame: Self.panel)
@@ -87,7 +93,7 @@ struct BadgeRenderingTests {
         state.nowPlayingArtwork = artwork
 
         let renderer = ImageRenderer(
-            content: NotchRootView(app: state)
+            content: NotchRootView(app: state, now: now)
                 .frame(width: Self.panel.width, height: Self.panel.height)
         )
         renderer.scale = 1
@@ -107,9 +113,9 @@ struct BadgeRenderingTests {
 
     /// A countdown that is still running whenever it is read.
     ///
-    /// Started from the wall clock rather than a fixed instant because
-    /// `NotchRootView` reads `Date()` itself; 25 minutes is longer than
-    /// any render here takes.
+    /// Started from the wall clock rather than a fixed instant because the
+    /// tests that use it leave `now` unpinned, so the view reads `Date()`
+    /// itself; 25 minutes is longer than any render here takes.
     private static func running() -> Countdown {
         Countdown(duration: 1500, startingAt: Date())!
     }
@@ -245,5 +251,59 @@ struct BadgeRenderingTests {
         let media = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
 
         #expect(timed != media)
+    }
+
+    // MARK: - One clock read decides the whole frame
+
+    /// A fixed instant in 2001, far enough from any wall clock that a
+    /// countdown running *at* it has finished many times over by `Date()`.
+    /// That gap is the whole mechanism below.
+    private static let pinned = Date(timeIntervalSince1970: 1_000_000_000)
+
+    /// The reserved width and the drawn content come from **one** reading
+    /// of the clock.
+    ///
+    /// This is the invariant `body` was restructured for, and it was held
+    /// in place by a doc comment alone: reverting the width side to a
+    /// second, independent `Date()` read left all 575 tests green, because
+    /// the divergence only shows when two reads microseconds apart straddle
+    /// the instant a timer finishes — not reasonably reachable by waiting.
+    ///
+    /// Pinning `now` makes it reachable. The countdown below has one second
+    /// left at `pinned` and finished twenty years ago by the wall clock, so
+    /// any read `body` takes that is *not* the pinned instant answers
+    /// `.none` and the shape collapses to the bare 230pt notch. The two
+    /// widths differ by exactly `timerBadgeWidth`, so a second read is a
+    /// 44pt error rather than a race.
+    ///
+    /// Measured off the black shape itself rather than off
+    /// `NotchRootView.drawnRect`, which is the *other* derivation and would
+    /// only prove the view agrees with itself. Nothing else is painted into
+    /// a closed notch with no media, so the black bounding box is the
+    /// drawn rect.
+    @Test func theReservedWidthAndTheDrawnContentComeFromOneClockRead() throws {
+        // One second from finishing at `pinned`, and finished exactly at it.
+        let running  = try #require(
+            Countdown(duration: 1500, startingAt: Self.pinned.addingTimeInterval(-1499))
+        )
+        let finished = try #require(
+            Countdown(duration: 1500, startingAt: Self.pinned.addingTimeInterval(-1500))
+        )
+
+        let withTimer = try #require(Self.closedNotch(
+            countdown: running, now: Self.pinned, nowPlaying: nil, artwork: nil
+        ))
+        let without = try #require(Self.closedNotch(
+            countdown: finished, now: Self.pinned, nowPlaying: nil, artwork: nil
+        ))
+
+        let timedBox = try #require(Self.paintedBox(withTimer, .black))
+        let bareBox  = try #require(Self.paintedBox(without, .black))
+
+        // 230 + 44 against 230 flat, both starting at the notch's own
+        // leading edge. Literals for the same reason `drawn` above is one.
+        #expect(timedBox == CGRect(x: 195, y: 0, width: 274, height: 38))
+        #expect(bareBox  == CGRect(x: 195, y: 0, width: 230, height: 38))
+        #expect(timedBox.width - bareBox.width == NotchGeometry.timerBadgeWidth)
     }
 }

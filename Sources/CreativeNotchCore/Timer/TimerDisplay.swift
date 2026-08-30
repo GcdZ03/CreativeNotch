@@ -15,7 +15,12 @@ public enum TimerDisplay {
 
     /// The widest string the format can produce, for sizing the badge once
     /// rather than resizing it as digits drop. `"99m"` and `"0:00"` are
-    /// four and three characters; the seconds form is the wider.
+    /// three and four characters; the seconds form is the wider.
+    ///
+    /// It must be a string this format actually emits, not merely one of
+    /// the right length — `theWidestTextIsSomethingTheFormatCanProduce`
+    /// pins that, because character count alone would accept a narrower
+    /// value the format can never produce.
     public static let widestText = "0:00"
 
     /// Ceiling minutes above a minute, `0:SS` at a minute and below.
