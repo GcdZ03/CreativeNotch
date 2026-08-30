@@ -230,12 +230,7 @@ public struct NotchRootView: View {
 
                 case .open(let tab):
                     VStack(spacing: 0) {
-                        if let nowPlaying = app.nowPlaying {
-                            NowPlayingView(snapshot: nowPlaying, artwork: app.nowPlayingArtwork)
-                        }
-                        if app.showsMediaControls {
-                            MediaControlsView { app.onMediaCommand?($0) }
-                        }
+                        mediaBar
                         PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
                         openContent(for: tab)
                     }
@@ -274,12 +269,14 @@ public struct NotchRootView: View {
                 // `NowPlayingLabel.text(for:)`, the same function the
                 // panel header uses, so the two cannot drift apart.
                 case .peek(.nowPlaying(let track)):
-                    Text(NowPlayingLabel.text(for: track))
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .padding(.horizontal, 14)
+                    // Same notch-gap treatment `HUDView` gets above: on a
+                    // notched Mac the middle of this band is the camera
+                    // housing, and a centred line renders straight behind
+                    // it. Zero on a pill Mac and on external displays.
+                    NowPlayingPeekView(
+                        track: track,
+                        notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
+                    )
 
                 default:
                     Text(label)
@@ -294,6 +291,50 @@ public struct NotchRootView: View {
                 default:     app.transition(to: .open(app.lastOpenTab))
                 }
             }
+    }
+
+    /// What is playing, and the controls for it, as ONE full-width bar.
+    ///
+    /// They were previously two rows: a left-aligned header above centred
+    /// buttons. That put two alignment systems in one panel, left the whole
+    /// right half of the header empty, and floated the transport controls
+    /// away from the track they operate on. A bar that spans the panel does
+    /// not read as "left-aligned" at all, so the centred tab bar below it
+    /// sits in a different register rather than in conflict.
+    ///
+    /// The divider is structure, not decoration: above it is what is
+    /// playing now, below it is what you have stored. Two different
+    /// concerns, and the panel is small enough that the seam has to be
+    /// stated rather than implied by space.
+    @ViewBuilder
+    private var mediaBar: some View {
+        let hasMedia = app.nowPlaying != nil || app.showsMediaControls
+
+        if hasMedia {
+            HStack(spacing: 12) {
+                if let nowPlaying = app.nowPlaying {
+                    NowPlayingView(snapshot: nowPlaying, artwork: app.nowPlayingArtwork)
+                }
+
+                // Keeps the controls hard right when a track is showing,
+                // and lets them sit centred on their own when nothing is
+                // playing — the helper may be starting, degraded, or the
+                // machine simply silent, and transport still works in all
+                // three.
+                Spacer(minLength: 12)
+
+                if app.showsMediaControls {
+                    MediaControlsView { app.onMediaCommand?($0) }
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+
+            Divider()
+                .overlay(.white.opacity(0.10))
+                .padding(.horizontal, 16)
+        }
     }
 
     @ViewBuilder

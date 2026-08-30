@@ -48,6 +48,51 @@ struct PeekRenderingTests {
         return bitmap.representation(using: .png, properties: [:])
     }
 
+    /// Renders `NowPlayingPeekView` on its own, NOT through
+    /// `NotchRootView`.
+    ///
+    /// Going through the root view was the first attempt and it produced a
+    /// test that could not fail: switching the anchor to `.notch` also
+    /// changes the drawn panel *shape*, so the two images differed whether
+    /// or not the text respected the gap. Rendering the peek view directly
+    /// is what isolates the only variable that matters.
+    private static func peekViewPixels(notchGap: CGFloat) -> Data? {
+        let renderer = ImageRenderer(
+            content: NowPlayingPeekView(track: Self.playing, notchGap: notchGap)
+                .frame(width: 400, height: 32)
+        )
+        renderer.scale = 1
+        guard
+            let image = renderer.nsImage,
+            let tiff = image.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: tiff)
+        else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
+    }
+
+    /// A notched Mac must not draw the track down the middle of the band —
+    /// that is where the camera housing is, and the text would sit behind
+    /// it. `HUDView` already learned this the expensive way: a centred slab
+    /// put 72% of its level bar under the notch.
+    ///
+    /// Make `NowPlayingPeekView` ignore `notchGap` and both renders become
+    /// identical, so this fails.
+    @Test func theNowPlayingPeekLaysOutAroundAPhysicalNotch() throws {
+        let notchless = try #require(Self.peekViewPixels(notchGap: 0))
+        let notched = try #require(Self.peekViewPixels(notchGap: 179))
+
+        #expect(notchless != notched)
+    }
+
+    /// And the gap tracks the real notch width rather than being a fixed
+    /// inset — a 14" and a 16" Mac have different notches.
+    @Test func theGapFollowsTheNotchWidth() throws {
+        let narrow = try #require(Self.peekViewPixels(notchGap: 120))
+        let wide = try #require(Self.peekViewPixels(notchGap: 200))
+
+        #expect(narrow != wide)
+    }
+
     /// Without this, "the two images differ" would be worthless: if the
     /// renderer produced noise, every comparison below would pass no matter
     /// what the view did.

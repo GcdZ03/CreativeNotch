@@ -44,6 +44,5 @@ struct MediaControlsView: View {
                 .accessibilityLabel(button.label)
             }
         }
-        .padding(.top, 10)
     }
 }
