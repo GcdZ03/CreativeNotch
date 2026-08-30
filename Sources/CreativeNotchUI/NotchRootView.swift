@@ -332,7 +332,7 @@ public struct NotchRootView: View {
         let drawn = Self.drawnRect(for: app, badge: slot)
         ZStack(alignment: .topLeading) {
             Color.clear
-            shape(badge: slot)
+            shape(badge: slot, at: instant)
                 .frame(width: drawn.width, height: drawn.height)
                 .offset(x: drawn.minX, y: drawn.minY)
         }
@@ -358,8 +358,12 @@ public struct NotchRootView: View {
     }
 
     /// Takes the slot rather than reading it, so the content it draws and
-    /// the width `body` grew the frame by are the same answer.
-    private func shape(badge slot: BadgeSlot) -> some View {
+    /// the width `body` grew the frame by are the same answer. Takes `now`
+    /// for the same reason: the timer's text is `countdown.remaining(at:)`
+    /// of *this* instant, not a fresh `Date()` — a second read here is
+    /// exactly the divergence `theReservedWidthAndTheDrawnContentComeFrom
+    /// OneClockRead` exists to catch.
+    private func shape(badge slot: BadgeSlot, at now: Date) -> some View {
         backgroundShape
             .fill(.black)
             .overlay {
@@ -369,14 +373,36 @@ public struct NotchRootView: View {
                     // `visibleRect` grew for it on a notch — and inside
                     // the pill's own trailing edge on a notchless Mac,
                     // where nothing grew because nothing had to.
-                    if slot == .nowPlaying {
+                    //
+                    // The timer outranks media here for the same reason it
+                    // outranks it in `NotchShape.badgeSlot`: one rule,
+                    // spelled once. If these two disagreed, the slot would
+                    // be sized for one badge and filled with the other —
+                    // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
+                    // test that bites that mistake.
+                    switch slot {
+                    case .timer:
+                        if let countdown = app.countdown {
+                            TimerBadgeView(
+                                text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
+                                isPaused: countdown.isPaused
+                            )
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .trailing
+                            )
+                        } else {
+                            EmptyView()
+                        }
+                    case .nowPlaying:
                         NowPlayingBadgeView(artwork: app.nowPlayingArtwork)
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
                                 alignment: .trailing
                             )
-                    } else {
+                    case .none:
                         EmptyView()
                     }
 
