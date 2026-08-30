@@ -19,6 +19,21 @@ import CreativeNotchCore
 /// `MediaControllerTests.artworkSurvivesPayloadsThatOmitIt`, and the
 /// mutation note in Step 3 of this task's brief.
 ///
+/// Absorbing first is necessary but not sufficient: `TrackSnapshot` has no
+/// artwork field (deliberately — see `currentIdentity`'s doc comment), so
+/// `coalescer.accept` can only ever say the SNAPSHOT changed, never that the
+/// artwork did. A line that repeats an already-published snapshot but is
+/// the first to carry artwork for it would still be dropped as a duplicate,
+/// and the cache would hold the picture forever while nothing ever asked it
+/// to redraw. `handle(line:)` therefore has a second, narrower path for
+/// exactly that case: when `coalescer.accept` says no, it still checks
+/// whether the artwork cached for the identity already on screen differs
+/// from `lastPublishedArtwork`, and republishes the (unchanged) snapshot
+/// only then. This must stay narrow — gated on the identity matching what
+/// is currently published, and on the artwork bytes actually differing —
+/// or it degenerates into "publish on every line", which is the exact
+/// burst-multiplication problem `MediaCoalescer` exists to prevent.
+///
 /// Coalescing here is deliberately **last-arrival-wins**, not
 /// **last-state-wins**. Task 6's review found that the bridge makes two
 /// nested asynchronous XPC calls per notification; its serial queue
@@ -53,6 +68,16 @@ public final class MediaController {
     /// tracks released under different album names.
     private var currentIdentity: TrackIdentity?
 
+    /// The artwork bytes last handed to `onChange` for `currentIdentity`,
+    /// so a later line that finally carries (or changes) artwork for the
+    /// track already on screen can be told apart from one that doesn't.
+    ///
+    /// This is deliberately NOT part of `TrackSnapshot` or `MediaCoalescer`
+    /// — see this type's doc comment. Comparing `Data?` is fine here: it
+    /// runs a handful of times per user action, not in a loop, and `Data`
+    /// equality short-circuits on `count` before touching bytes.
+    private var lastPublishedArtwork: Data?
+
     public init() {
         // Wired in `init`, not `start()`, because `setActivity(.active)`
         // reaches the supervisor without passing through `start()` — and a
@@ -84,6 +109,7 @@ public final class MediaController {
         coalescer = MediaCoalescer()
         snapshot = nil
         currentIdentity = nil
+        lastPublishedArtwork = nil
         onChange?(nil)
     }
 
@@ -139,10 +165,36 @@ public final class MediaController {
         artworkCache.absorb(payload)
 
         let candidate = payload.snapshot
-        guard coalescer.accept(candidate) else { return }
 
-        snapshot = candidate
-        currentIdentity = candidate == nil ? nil : TrackIdentity(payload: payload)
-        onChange?(candidate)
+        if coalescer.accept(candidate) {
+            // The snapshot itself changed (including "started"/"stopped"
+            // transitions) — publish unconditionally, and record whatever
+            // artwork the cache holds for the new identity right now so a
+            // later duplicate line can tell whether artwork changed since.
+            snapshot = candidate
+            currentIdentity = candidate == nil ? nil : TrackIdentity(payload: payload)
+            lastPublishedArtwork = currentIdentity.flatMap { artworkCache.artwork(for: $0) }
+            onChange?(candidate)
+            return
+        }
+
+        // The snapshot is an exact duplicate of what's already published —
+        // title/artist/isPlaying unchanged — so the coalescer alone would
+        // drop this line. But this is exactly the shape the bug report
+        // described: a later line for the SAME track that finally carries
+        // artwork the earlier one omitted. Republish only when the artwork
+        // for the currently-shown identity actually changed, so a burst of
+        // truly-identical lines (same snapshot, same or absent artwork)
+        // still collapses to the one publish the coalescer exists to give.
+        guard let currentIdentity,
+              candidate != nil,
+              TrackIdentity(payload: payload) == currentIdentity
+        else { return }
+
+        let latestArtwork = artworkCache.artwork(for: currentIdentity)
+        guard latestArtwork != lastPublishedArtwork else { return }
+
+        lastPublishedArtwork = latestArtwork
+        onChange?(snapshot)
     }
 }

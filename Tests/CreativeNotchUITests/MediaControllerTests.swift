@@ -85,6 +85,65 @@ struct MediaControllerTests {
         #expect(c.artwork(for: snapshot) == art)
     }
 
+    /// The bug this branch fixes: artwork arriving on a later,
+    /// otherwise-duplicate line must reach the SCREEN, not merely the
+    /// cache. `artworkArrivingOnADuplicateLineIsStillCached` proves the
+    /// cache holds it; this proves `onChange` actually fires with it, by
+    /// reading `artwork(for:)` — the controller's public surface — at the
+    /// moment of the second publish, the same way `AppDelegate` reads it
+    /// inside its own `onChange` closure.
+    @Test func artworkArrivingOnADuplicateLinePublishesToOnChange() throws {
+        let c = MediaController()
+        let art = Data(repeating: 7, count: 256)
+        var artworkAtEachPublish: [Data?] = []
+        c.onChange = { snapshot in
+            artworkAtEachPublish.append(snapshot.flatMap { c.artwork(for: $0) })
+        }
+
+        c.handle(line: line(artwork: nil))
+        c.handle(line: line(artwork: art))
+
+        #expect(artworkAtEachPublish == [nil, art], "the second publish must hand out the artwork, not just cache it")
+    }
+
+    /// A burst of identical lines that all happen to carry the SAME
+    /// artwork must still collapse to one publish. Without the "did the
+    /// artwork actually change" guard, the artwork-republish path added
+    /// for the bug above would fire on every line in a burst — exactly the
+    /// six-notifications-per-tap problem `MediaCoalescer` exists to solve
+    /// — which is precisely what this proves does not happen.
+    @Test func aBurstOfIdenticalLinesWithTheSameArtworkPublishesOnce() {
+        let c = MediaController()
+        let art = Data(repeating: 9, count: 256)
+        var published = 0
+        c.onChange = { _ in published += 1 }
+
+        for _ in 0..<6 { c.handle(line: line(artwork: art)) }
+
+        #expect(published == 1)
+    }
+
+    /// A line with no artwork for a track whose artwork is already cached
+    /// must neither clear the artwork nor spuriously republish. Without
+    /// the "compare against `lastPublishedArtwork`" guard, EVERY
+    /// artwork-omitting duplicate line for an already-illustrated track
+    /// would look like a change from "some artwork" back to "cache still
+    /// has it" and republish forever.
+    @Test func anArtworkOmittingDuplicateLineForAnIllustratedTrackDoesNotRepublish() throws {
+        let c = MediaController()
+        let art = Data(repeating: 5, count: 256)
+        var published = 0
+        c.onChange = { _ in published += 1 }
+
+        c.handle(line: line(artwork: art))
+        c.handle(line: line(artwork: nil))
+        c.handle(line: line(artwork: nil))
+
+        #expect(published == 1, "an artwork-omitting duplicate must not republish once the track is already illustrated")
+        let snapshot = try #require(c.snapshot)
+        #expect(c.artwork(for: snapshot) == art, "the omission must not clear what was already shown")
+    }
+
     @Test func garbageLinesAreIgnored() {
         let c = MediaController()
         c.handle(line: line(title: "Real"))
