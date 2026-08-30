@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 221
+swift test                              # all 629
 swift test --filter NotchGeometryTests  # one suite
 ```
 

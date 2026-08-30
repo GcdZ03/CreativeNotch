@@ -268,3 +268,70 @@ struct PeekNotchGapWiringTests {
         #expect(peek.artwork == SolidArtwork.red)
     }
 }
+
+// MARK: - The power peek
+
+/// The same guarantee the now-playing peek needed, for the same reason.
+///
+/// `NotchRootView` handles `.peek(.power)` as a real `case`. If it were
+/// ever removed, the state would fall through to `default` and the notch
+/// would draw the literal string "CreativeNotch" when the charger was
+/// pulled out — bug C2 again, in a new module. No pure test can see that:
+/// `PowerPeekView` would still be correct, and so would every string in
+/// `PowerLabel`. Only the pixels know whether a `case` exists.
+@MainActor
+struct PowerPeekRenderingTests {
+
+    private static func peekPixels(_ content: PeekContent) -> Data? {
+        let state = AppState()
+        state.transition(to: .peek(content))
+
+        let renderer = ImageRenderer(
+            content: NotchRootView(app: state).frame(width: 400, height: 120)
+        )
+        renderer.scale = 1
+        guard
+            let image = renderer.nsImage,
+            let tiff = image.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: tiff)
+        else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
+    }
+
+    /// The reference has to be a peek that genuinely reaches `default`.
+    ///
+    /// The first draft compared against a HUD peek, which has a `case` of
+    /// its own — so deleting the power `case` still produced two different
+    /// images and this test passed while the bug it exists to catch was
+    /// present. `.dragTarget` is the content that actually falls through,
+    /// which is why `PeekRenderingTests` above names it `appNameFallback`.
+    @Test func aPowerPeekDrawsSomethingOtherThanTheAppName() throws {
+        let power = try #require(Self.peekPixels(.power(.unplugged(level: 66))))
+        let fallback = try #require(Self.peekPixels(.dragTarget))
+
+        #expect(power != fallback)
+    }
+
+    /// And the content actually varies with the event, so the case is
+    /// drawing the event rather than a constant.
+    @Test func differentPowerEventsDrawDifferently() throws {
+        let unplugged = try #require(Self.peekPixels(.power(.unplugged(level: 66))))
+        let low = try #require(
+            Self.peekPixels(.power(.lowBattery(threshold: 20, level: 19)))
+        )
+        let lpm = try #require(Self.peekPixels(.power(.lowPowerMode(enabled: true))))
+
+        #expect(unplugged != low)
+        #expect(unplugged != lpm)
+        #expect(low != lpm)
+    }
+
+    /// The level moves the bar. A peek that drew the same image at 5% and
+    /// 95% would pass every assertion above.
+    @Test func theLevelChangesWhatIsDrawn() throws {
+        let low = try #require(Self.peekPixels(.power(.unplugged(level: 5))))
+        let high = try #require(Self.peekPixels(.power(.unplugged(level: 95))))
+
+        #expect(low != high)
+    }
+}
