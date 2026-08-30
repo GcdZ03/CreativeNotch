@@ -65,6 +65,30 @@ struct PowerLabelTests {
         #expect(PowerLabel.state(source: .battery, isCharging: true) == "On battery")
     }
 
+    // MARK: - Nothing to estimate
+
+    /// Plugged in and not charging is not "estimating" — there is nothing
+    /// to estimate, and there never will be until charging starts. A row
+    /// that says "Estimating…" forever is the same dishonesty as one that
+    /// shows a stale number.
+    @Test func pluggedInAndNotChargingSaysSoRatherThanEstimating() {
+        #expect(PowerLabel.timeRemainingValue(
+            minutes: nil, source: .wall, isCharging: false) == "Not charging")
+    }
+
+    /// While charging, an absent estimate really is still being worked out.
+    @Test func chargingWithNoEstimateIsStillEstimating() {
+        #expect(PowerLabel.timeRemainingValue(
+            minutes: nil, source: .wall, isCharging: true) == "Estimating…")
+    }
+
+    @Test func onBatteryTheValueIsTheDuration() {
+        #expect(PowerLabel.timeRemainingValue(
+            minutes: 135, source: .battery, isCharging: false) == "2:15")
+        #expect(PowerLabel.timeRemainingValue(
+            minutes: nil, source: .battery, isCharging: false) == "Estimating…")
+    }
+
     // MARK: - The row's own title
 
     /// Time remaining and time until full are different questions, and

@@ -85,6 +85,48 @@ struct PowerObserverTests {
             .estimateMinutes == 42)
     }
 
+    /// Plugged in but not charging: IOKit reports `Time to Full Charge`
+    /// as **0**, meaning "not applicable", not "zero minutes away".
+    ///
+    /// Measured on a real machine — the probe caught exactly this while
+    /// the charger was attached at 55% and nothing was charging:
+    /// `state=AC Power charging=false toEmpty=0 toFull=0`. Filtering only
+    /// *negative* values lets that 0 through, and the panel reads
+    /// "Until full: 0 min".
+    ///
+    /// Zero is a legitimate time-to-empty — a battery about to die — so
+    /// the fix cannot simply reject zero everywhere. It is the *charging*
+    /// key that is meaningless when nothing is charging.
+    @Test func pluggedInButNotChargingHasNoEstimate() {
+        var d = description(state: kIOPSACPowerValue, charging: false)
+        d[kIOPSTimeToFullChargeKey] = 0
+
+        let snapshot = PowerObserver.snapshot(from: d, isLowPowerMode: false)
+
+        #expect(snapshot?.source == .wall)
+        #expect(snapshot?.estimateMinutes == nil)
+    }
+
+    /// And not even a positive one. If nothing is charging there is no
+    /// time-to-full to report, whatever number is left in the dictionary.
+    @Test func aStaleTimeToFullIsIgnoredWhenNotCharging() {
+        var d = description(state: kIOPSACPowerValue, charging: false)
+        d[kIOPSTimeToFullChargeKey] = 42
+
+        #expect(PowerObserver.snapshot(from: d, isLowPowerMode: false)?
+            .estimateMinutes == nil)
+    }
+
+    /// Zero minutes *to empty* is a real reading and must survive — it is
+    /// the most urgent one the module can carry.
+    @Test func zeroMinutesToEmptyIsARealReading() {
+        let snapshot = PowerObserver.snapshot(
+            from: description(timeToEmpty: 0), isLowPowerMode: false
+        )
+
+        #expect(snapshot?.estimateMinutes == 0)
+    }
+
     // MARK: - Source
 
     @Test func wallPowerIsRecognised() {

@@ -33,7 +33,11 @@ struct PowerView: View {
 
                 row(
                     PowerLabel.timeRemainingTitle(source: snapshot.source),
-                    PowerLabel.timeRemaining(estimateMinutes)
+                    PowerLabel.timeRemainingValue(
+                        minutes: estimateMinutes,
+                        source: snapshot.source,
+                        isCharging: snapshot.isCharging
+                    )
                 )
 
                 row("Low Power Mode", snapshot.isLowPowerMode ? "On" : "Off")

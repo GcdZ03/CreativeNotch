@@ -2,7 +2,7 @@
 
 **Date:** 2026-08-30
 **Machine:** M-series MacBook, macOS 26.5, internal battery, discharging from 68% to 57%.
-**Duration:** 39.2 minutes, 512 samples.
+**Duration:** 55 minutes, 653 samples, including one plug/unplug pair.
 **Probe:** `2026-08-30-battery-probe.swift`, beside this file. Probes in
 this project are normally throwaway and only their findings are kept; this
 one is committed because the measurement below is *incomplete* and the
@@ -101,27 +101,56 @@ confirms the sentinel is a *transition* phenomenon, and confirms that
 filtering it alone would have left the estimate completely ungated in the
 steady state — where the estimate nonetheless moved 55%.
 
-## What was NOT measured, and what that means
+### 5. A transition, captured late in the session
 
-**No plug/unplug transition was captured.** The machine ran on battery for
-the whole session, so the settling window — how long after a transition
-IOKit's estimate is worthless — has no measurement behind it.
+The session eventually caught one plug/unplug pair, four seconds apart:
 
-`BatteryEstimateGate.settlingWindow` is therefore set to **90 seconds by
-reasoning, not by evidence**, and is the one number in this module that
-should be treated as provisional. Two things limit the damage:
+```
+2828.4s  Battery Power -> AC Power    toEmpty=0   toFull=0  charging=false
+2832.4s  AC Power -> Battery Power    toEmpty=-1
+2945.0s  last -1
+2948.8s  first usable reading: 219 minutes
+```
 
-- The agreement rule is independent of it and is measured. A wrong settling
-  window changes *how long* the panel stays quiet after a transition; it
-  cannot make the panel show a number that two consecutive readings
-  disagree about.
-- Erring long is the safe direction. Too long means a few extra seconds of
-  "Estimating…"; too short means showing a number during recalibration,
-  which is the failure the whole gate exists to prevent.
+- **The `-1` sentinel lasted 113 seconds**, and the first usable reading
+  arrived **116 seconds** after the cable moved. `settlingWindow` is set to
+  **120 s** on that basis. This is **n = 1** — one transition, on one
+  machine, at 55% charge — so it is the weakest number in the module, and
+  erring long is the deliberate direction.
+- On that occasion IOKit's own `-1` covered the entire unreliable period,
+  so the settling window added nothing. It remains insurance against the
+  case the roadmap actually describes: *confident* nonsense rather than an
+  admitted unknown, which no sentinel check can catch.
 
-**To finish this measurement:** run the probe again —
-`swift docs/research/2026-08-30-battery-probe.swift` — then plug and unplug
-the charger a few times with a couple of minutes either side, and look for how long `-1`
+### 6. `Time to Full Charge` has a second not-applicable convention — and it is not negative
+
+The two AC-power samples are the whole finding:
+
+```
+state=AC Power  charging=false  toEmpty=0  toFull=0
+```
+
+Plugged in, at 55%, with nothing charging, IOKit reports **`Time to Full
+Charge = 0`**. That means "not applicable", not "zero minutes away".
+
+The first implementation filtered only *negative* values as unknown, so the
+0 was accepted as a real estimate and the panel read **"Until full: 0
+min"**. This was a shipped bug, found by the user running the app, not by
+the test suite.
+
+Zero cannot simply be rejected everywhere: zero minutes *to empty* is a
+legitimate reading and the most urgent one the module can carry. The guard
+therefore sits on the state rather than on the value — `PowerObserver` does
+not read the charging key at all unless `Is Charging` is true — and
+`PowerLabel.timeRemainingValue` says **"Not charging"** rather than
+"Estimating…", because nothing is being estimated and no amount of waiting
+will produce a number.
+
+## What is still weak
+
+`settlingWindow` rests on a single transition. **To strengthen it:** run the
+probe again — `swift docs/research/2026-08-30-battery-probe.swift` — then
+plug and unplug the charger several times with a couple of minutes either side, and look for how long `-1`
 persists and how long the post-transition readings take to come within
 `agreementTolerance` of each other. Then set `settlingWindow` from that and
 update this section.

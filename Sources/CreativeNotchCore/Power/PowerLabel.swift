@@ -40,6 +40,27 @@ public enum PowerLabel {
         }
     }
 
+    /// The value for the time-remaining row, which depends on whether
+    /// there is anything to estimate at all.
+    ///
+    /// Plugged in and not charging is neither a duration nor a pending
+    /// one: nothing is filling, so no amount of waiting will produce a
+    /// number. Saying "Estimating…" there is the same dishonesty as
+    /// showing a stale value — it promises an answer that is not coming.
+    ///
+    /// This case is not hypothetical. IOKit reports `Time to Full Charge`
+    /// as `0` when nothing is charging, which is "not applicable" rather
+    /// than "zero minutes"; the observer now declines to read it, and this
+    /// is what the panel says instead.
+    public static func timeRemainingValue(
+        minutes: Int?,
+        source: PowerSource,
+        isCharging: Bool
+    ) -> String {
+        if source == .wall && !isCharging { return "Not charging" }
+        return timeRemaining(minutes)
+    }
+
     /// The label for a time-remaining row, which is a different question
     /// depending on which way the charge is going.
     public static func timeRemainingTitle(source: PowerSource) -> String {

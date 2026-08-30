@@ -27,11 +27,24 @@ public struct BatteryEstimateGate: Equatable, Sendable {
 
     /// How long after a power-source transition nothing is shown.
     ///
-    /// MEASURED — see the research note. Do not adjust without repeating
-    /// the measurement; this is the number that decides whether the panel
-    /// is honest in the minutes when someone is most likely to be looking
-    /// at it.
-    public static let settlingWindow: TimeInterval = 90
+    /// MEASURED, but from a single transition (n = 1). On unplugging,
+    /// IOKit returned the `-1` "Still Calculating" sentinel for **113
+    /// seconds**, and the first usable reading arrived **116 seconds**
+    /// after the cable moved. 120s covers that with a little margin.
+    ///
+    /// Erring long is the safe direction: too long costs a few extra
+    /// seconds of "Estimating…", too short shows a number while the
+    /// estimator is still recalibrating, which is the failure this whole
+    /// type exists to prevent.
+    ///
+    /// Worth noting what the same measurement showed about this
+    /// constant's importance: IOKit's own `-1` covered the entire
+    /// unreliable period, so the window added nothing on that occasion.
+    /// It is insurance against the case where IOKit reports confident
+    /// nonsense instead of admitting it does not know — which is exactly
+    /// what `docs/ROADMAP.md` observed and what a sentinel check alone
+    /// cannot catch.
+    public static let settlingWindow: TimeInterval = 120
 
     /// How far two consecutive readings may differ and still be believed,
     /// as a fraction of the larger of the two.

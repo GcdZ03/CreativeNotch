@@ -178,9 +178,26 @@ public final class PowerObserver {
         // "Still Calculating" (`IOPSKeys.h`), and every negative value is
         // treated the same way — a sentinel that changes shape in a
         // future macOS must not become a negative duration on screen.
-        let key = (source == .wall) ? kIOPSTimeToFullChargeKey : kIOPSTimeToEmptyKey
-        let raw = description[key] as? Int
-        let estimate = (raw ?? -1) >= 0 ? raw : nil
+        //
+        // The charging key has a *second* not-applicable convention, and
+        // it is not negative. Plugged in with nothing charging, IOKit
+        // reports `Time to Full Charge = 0`, meaning "not applicable" —
+        // measured on a real machine at 55% with the charger attached.
+        // Filtering only negatives let that through as a real estimate and
+        // the panel read "Until full: 0 min".
+        //
+        // Zero cannot simply be rejected everywhere: zero minutes *to
+        // empty* is a legitimate and rather important reading. It is the
+        // charging key specifically that is meaningless when nothing is
+        // charging, so the guard is on the state, not on the value.
+        let estimate: Int?
+        if source == .wall {
+            let raw = charging ? description[kIOPSTimeToFullChargeKey] as? Int : nil
+            estimate = (raw ?? -1) >= 0 ? raw : nil
+        } else {
+            let raw = description[kIOPSTimeToEmptyKey] as? Int
+            estimate = (raw ?? -1) >= 0 ? raw : nil
+        }
 
         return PowerSnapshot(
             level: Int((Double(current) / Double(maximum) * 100).rounded()),
