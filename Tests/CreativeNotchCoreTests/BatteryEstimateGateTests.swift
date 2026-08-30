@@ -79,17 +79,46 @@ struct BatteryEstimateGateTests {
     }
 
     /// Tolerance is proportional, so the same absolute disagreement is
-    /// noise on a long estimate and a rejection on a short one. The short
-    /// end is the end that matters — it is where a wrong number changes
-    /// what someone does in the next five minutes.
+    /// noise on a long estimate and a rejection on a short one.
     @Test func toleranceIsRelativeNotAbsolute() {
         var wide = BatteryEstimateGate()
         _ = wide.accept(estimateMinutes: 600, now: settled)
         #expect(wide.accept(estimateMinutes: 610, now: settled + 5) == 610)
 
+        // 20 minutes apart on a 30-minute estimate: two quantisation steps,
+        // not one, and 67% of the larger reading.
         var narrow = BatteryEstimateGate()
         _ = narrow.accept(estimateMinutes: 10, now: settled)
-        #expect(narrow.accept(estimateMinutes: 20, now: settled + 5) == nil)
+        #expect(narrow.accept(estimateMinutes: 30, now: settled + 5) == nil)
+    }
+
+    /// One quantisation step is always forgiven, however large it looks in
+    /// relative terms.
+    ///
+    /// IOKit reports the estimate in 5- and 10-minute steps — measured, not
+    /// assumed: 27 of the 36 distinct values the probe saw were exactly one
+    /// of those apart. A single step is the smallest thing the estimator
+    /// can say, so it is not evidence of disagreement. Without this the
+    /// relative rule alone rejects every ordinary step below about an hour
+    /// remaining, and the panel reads "Estimating…" from there to empty —
+    /// silence in the one part of the range worth reporting.
+    @Test func oneQuantisationStepIsForgivenAtTheLowEnd() {
+        var gate = BatteryEstimateGate()
+
+        _ = gate.accept(estimateMinutes: 10, now: settled)
+
+        #expect(gate.accept(estimateMinutes: 20, now: settled + 5) == 20)
+    }
+
+    /// And the floor does not swallow a real disagreement higher up, where
+    /// the relative rule is the tighter of the two.
+    @Test func theFloorDoesNotLoosenTheHighEnd() {
+        var gate = BatteryEstimateGate()
+
+        _ = gate.accept(estimateMinutes: 80, now: settled)
+
+        // 215 minutes apart — the roadmap's own 1:20-to-4:55 swing.
+        #expect(gate.accept(estimateMinutes: 295, now: settled + 5) == nil)
     }
 
     /// A rejected reading is not discarded — it becomes the new candidate.

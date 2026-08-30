@@ -36,14 +36,35 @@ public struct BatteryEstimateGate: Equatable, Sendable {
     /// How far two consecutive readings may differ and still be believed,
     /// as a fraction of the larger of the two.
     ///
-    /// Relative rather than absolute, deliberately. Five minutes of
-    /// disagreement on a two-hour estimate is noise; the same five minutes
-    /// on an eight-minute estimate is the difference between "shut down
-    /// now" and "finish the paragraph". A fixed minute count is far too
-    /// loose at the top of the range and far too strict at the bottom —
-    /// and the bottom is the end where a wrong number changes what
-    /// somebody does next.
+    /// Relative rather than absolute, because five minutes of disagreement
+    /// on a two-hour estimate is noise and the same five minutes on an
+    /// eight-minute estimate is not.
+    ///
+    /// MEASURED. Over 39 minutes of steady discharge, consecutive
+    /// notification-driven readings moved by a median of 3.1% and never by
+    /// more than 4.7%, even while a build pushed the estimate from 7.6
+    /// hours down to 3.4. 10% is a little over double the observed
+    /// worst case, and still rejects the swing the roadmap complains about
+    /// — 1:20 to 4:55 is a 73% disagreement. See
+    /// `docs/research/2026-08-30-battery-estimate-noise.md`.
     public static let agreementTolerance: Double = 0.10
+
+    /// The smallest disagreement that is always forgiven, in minutes.
+    ///
+    /// IOKit does not report a continuous estimate. It quantises, and the
+    /// probe measured the steps: of 36 distinct values seen, 27 were
+    /// exactly 5 or 10 minutes apart. A single step is therefore the
+    /// smallest change the estimator can express, and it is not evidence
+    /// of anything.
+    ///
+    /// This matters because a purely relative tolerance is *too strict* at
+    /// the bottom of the range, which is the opposite of the usual worry.
+    /// One 10-minute step is 4% of four hours and 50% of twenty minutes,
+    /// so a 10% relative rule alone would reject every ordinary step below
+    /// roughly an hour remaining — leaving the panel stuck on
+    /// "Estimating…" from an hour of battery down to empty, exactly where
+    /// the number is worth having.
+    public static let quantisationFloor: Int = 10
 
     /// The last reading, waiting for a second one to agree with it.
     private var candidate: Int?
@@ -107,10 +128,20 @@ public struct BatteryEstimateGate: Equatable, Sendable {
         return now - lastTransition < Self.settlingWindow
     }
 
-    /// Whether two readings agree, proportionally to the larger of them.
+    /// Whether two readings agree: proportionally to the larger of them,
+    /// or within one quantisation step, whichever is more forgiving.
+    ///
+    /// The floor is what keeps the low end usable — see
+    /// `quantisationFloor`. It does mean a 10-to-20-minute disagreement is
+    /// accepted, which sounds careless until you notice that one
+    /// quantisation step is genuinely all IOKit can express there, and the
+    /// alternative is saying nothing at all for the last hour.
     private func agree(_ a: Int, _ b: Int) -> Bool {
+        let difference = abs(a - b)
+        if difference <= Self.quantisationFloor { return true }
+
         let larger = Double(max(a, b))
         guard larger > 0 else { return a == b }
-        return Double(abs(a - b)) / larger <= Self.agreementTolerance
+        return Double(difference) / larger <= Self.agreementTolerance
     }
 }
