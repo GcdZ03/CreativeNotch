@@ -462,17 +462,17 @@ public struct NotchRootView: View {
                     // its doc comment.
                     Self.nowPlayingPeek(for: app, track: track)
 
-                // Placeholder only: this task (Task 7) wires the completion
-                // into `PeekArbiter`'s priority, not its presentation. A
-                // real completion peek view is Task 8's job. Named
-                // explicitly rather than left to `default` below, for the
-                // same reason `.peek(.nowPlaying)` above is: an unhandled
-                // `PeekContent` case falling through `default` is exactly
-                // how this project's only Critical bug shipped.
-                case .peek(.timerDone):
-                    Text("Timer done")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
+                // Same notch-gap treatment the other peeks get: a finished
+                // timer's text must not be drawn behind the camera housing
+                // either. Named explicitly rather than left to `default`
+                // below, for the same reason `.peek(.nowPlaying)` above is:
+                // an unhandled `PeekContent` case falling through `default`
+                // is exactly how this project's only Critical bug shipped.
+                case .peek(.timerDone(let completion)):
+                    TimerDonePeekView(
+                        completion: completion,
+                        notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
+                    )
 
                 default:
                     Text(label)
