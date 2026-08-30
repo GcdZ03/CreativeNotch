@@ -410,7 +410,7 @@ public struct NotchRootView: View {
                     VStack(spacing: 0) {
                         mediaBar
                         PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
-                        openContent(for: tab)
+                        openContent(for: tab, at: now)
                     }
                     // Top-aligned, but *below the anchor* — not at the
                     // panel's absolute top. `panelFrame` puts the panel's
@@ -522,7 +522,7 @@ public struct NotchRootView: View {
     }
 
     @ViewBuilder
-    private func openContent(for tab: CreativeNotchCore.Tab) -> some View {
+    private func openContent(for tab: CreativeNotchCore.Tab, at now: Date) -> some View {
         switch tab {
         case .shelf:
             if let shelf = app.shelf { ShelfView(store: shelf) }
@@ -537,6 +537,22 @@ public struct NotchRootView: View {
             // it is unreachable — but `Tab` is exhaustive and the compiler
             // wants a case.
             EmptyView()
+        case .timer:
+            // `PanelTabBar.visible` does not offer this tab yet either —
+            // wiring real start/pause/resume/cancel behaviour through
+            // `AppState` is a later task's job (`TimerController` does not
+            // exist yet). The closures below are no-ops rather than calls
+            // into `AppState`, so this task adds no state `AppState` does
+            // not already carry (`countdown`, set by a controller that
+            // does not exist yet either) and starts nothing on its own.
+            TimerTabView(
+                countdown: app.countdown,
+                now: now,
+                onStart: { _ in },
+                onPause: {},
+                onResume: {},
+                onCancel: {}
+            )
         }
     }
 

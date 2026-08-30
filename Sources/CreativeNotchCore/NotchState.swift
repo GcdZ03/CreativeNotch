@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Tab: String, CaseIterable, Equatable, Sendable {
-    case shelf, clipboard, hud
+    case shelf, clipboard, hud, timer
 }
 
 public struct TrackSnapshot: Equatable, Sendable {
