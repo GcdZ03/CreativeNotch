@@ -3,7 +3,13 @@
 **Date:** 2026-08-30
 **Machine:** M-series MacBook, macOS 26.5, internal battery, discharging from 68% to 57%.
 **Duration:** 39.2 minutes, 512 samples.
-**Probe:** a throwaway Swift script registering the real
+**Probe:** `2026-08-30-battery-probe.swift`, beside this file. Probes in
+this project are normally throwaway and only their findings are kept; this
+one is committed because the measurement below is *incomplete* and the
+instructions for finishing it need something to point at. It is not built,
+linted, or shipped.
+
+It registers the real
 `IOPSNotificationCreateRunLoopSource` callback and
 `NSProcessInfoPowerStateDidChange`, plus a 5-second timer so the estimate
 could be characterised *between* notifications. The timer is polling, which
@@ -113,9 +119,9 @@ should be treated as provisional. Two things limit the damage:
   "Estimating…"; too short means showing a number during recalibration,
   which is the failure the whole gate exists to prevent.
 
-**To finish this measurement:** run the probe again
-(`scratchpad/battery-probe.swift`), plug and unplug the charger a few
-times with a couple of minutes either side, and look for how long `-1`
+**To finish this measurement:** run the probe again —
+`swift docs/research/2026-08-30-battery-probe.swift` — then plug and unplug
+the charger a few times with a couple of minutes either side, and look for how long `-1`
 persists and how long the post-transition readings take to come within
 `agreementTolerance` of each other. Then set `settlingWindow` from that and
 update this section.
