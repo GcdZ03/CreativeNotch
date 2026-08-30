@@ -146,9 +146,43 @@ not read the charging key at all unless `Is Charging` is true — and
 "Estimating…", because nothing is being estimated and no amount of waiting
 will produce a number.
 
+### 7. "Plugged in and not charging" is a normal state, and the first wording of it was wrong
+
+Observed live: adapter attached, **52%**, `Is Charging = 0`, and
+`Current = -383` — the battery genuinely draining while plugged in.
+`pmset` agrees ("AC attached; not charging") and so does `ioreg`
+(`IsCharging = No`, `ExternalConnected = Yes`).
+
+`IOPSKeys.h` documents this as legitimate rather than exceptional:
+
+> Note that a battery may validly be plugged in, not charging, and <100% charge.
+> e.g. A battery with capacity >= 95% and not charging, is defined as charged.
+
+Two things were wrong in the shipped panel, and both were presentation
+rather than data:
+
+- The state line read **"Plugged in"**, which tells the user the cable is
+  connected — something they can already see — and hides the part worth
+  knowing. macOS calls this "Not charging"; so does the panel now.
+- The time row was **titled "Until full" with the value "Not charging"** —
+  a title promising a filling time, answered by a state. The title now
+  falls back to "Time remaining" whenever nothing is filling, and the value
+  is an em dash rather than a second copy of the state.
+
+`Is Charged` is read separately from `Is Charging` because of the second
+line of that quote: they are not negations of each other, and a machine
+that has simply finished must not be reported with the same words as one
+that is failing to charge. The key is absent from the dictionary entirely
+while on battery, so "absent means not charged" matches Apple's convention.
+
 ## What is still weak
 
-`settlingWindow` rests on a single transition. **To strengthen it:** run the
+`settlingWindow` rests on a single transition.
+
+The **"Fully charged"** path is unverified on real hardware: the machine
+never reached the ≥95%-and-not-charging state during testing, and
+`Is Charged` is not published while on battery. It is covered by unit
+tests against a constructed dictionary, not by observation. **To strengthen it:** run the
 probe again — `swift docs/research/2026-08-30-battery-probe.swift` — then
 plug and unplug the charger several times with a couple of minutes either side, and look for how long `-1`
 persists and how long the post-transition readings take to come within

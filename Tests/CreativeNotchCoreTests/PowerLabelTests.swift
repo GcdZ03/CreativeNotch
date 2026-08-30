@@ -48,21 +48,35 @@ struct PowerLabelTests {
     // MARK: - State
 
     @Test func stateNamesWhatIsActuallyHappening() {
-        #expect(PowerLabel.state(source: .wall, isCharging: true) == "Charging")
-        #expect(PowerLabel.state(source: .battery, isCharging: false) == "On battery")
+        #expect(PowerLabel.state(source: .wall, isCharging: true, isCharged: false)
+                == "Charging")
+        #expect(PowerLabel.state(source: .battery, isCharging: false, isCharged: false)
+                == "On battery")
     }
 
-    /// A machine at 100% on wall power is plugged in and not charging.
-    /// "On battery" there is simply false, and it is the state a person
-    /// checks the panel to confirm.
-    @Test func pluggedInAndFullIsNotOnBattery() {
-        #expect(PowerLabel.state(source: .wall, isCharging: false) == "Plugged in")
+    /// Plugged in, not charging, not full — macOS's own wording for this
+    /// is "Not charging", and it happens for real: measured on this
+    /// machine at 52% with the adapter attached and the battery actually
+    /// draining (`Current = -383`). Saying "Plugged in" there tells the
+    /// user the cable is in, which they can see, and hides the thing they
+    /// would want to know.
+    @Test func pluggedInAndNotChargingSaysNotCharging() {
+        #expect(PowerLabel.state(source: .wall, isCharging: false, isCharged: false)
+                == "Not charging")
     }
 
-    /// Charging is impossible on battery power, so the flag is ignored
+    /// But a machine that is simply full is not "not charging" in any
+    /// sense a person would recognise — it has finished.
+    @Test func aFullBatteryReadsAsCharged() {
+        #expect(PowerLabel.state(source: .wall, isCharging: false, isCharged: true)
+                == "Fully charged")
+    }
+
+    /// Charging is impossible on battery power, so the flags are ignored
     /// rather than believed.
     @Test func batteryPowerIsNeverReportedAsCharging() {
-        #expect(PowerLabel.state(source: .battery, isCharging: true) == "On battery")
+        #expect(PowerLabel.state(source: .battery, isCharging: true, isCharged: true)
+                == "On battery")
     }
 
     // MARK: - Nothing to estimate
@@ -71,9 +85,26 @@ struct PowerLabelTests {
     /// to estimate, and there never will be until charging starts. A row
     /// that says "Estimating…" forever is the same dishonesty as one that
     /// shows a stale number.
-    @Test func pluggedInAndNotChargingSaysSoRatherThanEstimating() {
+    ///
+    /// It must not repeat the state either. The line above already says
+    /// "Not charging"; a row that says it twice is noise, and a row
+    /// *titled* "Until full" whose value is "Not charging" contradicts its
+    /// own label — which is what shipped and what this pins.
+    @Test func pluggedInAndNotChargingHasNothingToReport() {
         #expect(PowerLabel.timeRemainingValue(
-            minutes: nil, source: .wall, isCharging: false) == "Not charging")
+            minutes: nil, source: .wall, isCharging: false) == "—")
+    }
+
+    /// The title and the value must never contradict each other. "Until
+    /// full" is a promise that a filling time is coming; it is only asked
+    /// while something is actually filling.
+    @Test func theTitleNeverPromisesWhatTheValueCannotAnswer() {
+        // Not charging: the title must not say "Until full".
+        #expect(PowerLabel.timeRemainingTitle(source: .wall, isCharging: false)
+                != "Until full")
+        // Charging: it should.
+        #expect(PowerLabel.timeRemainingTitle(source: .wall, isCharging: true)
+                == "Until full")
     }
 
     /// While charging, an absent estimate really is still being worked out.
@@ -95,7 +126,9 @@ struct PowerLabelTests {
     /// labelling a charging machine "Time remaining" reads as a countdown
     /// to empty while the cable is plugged in.
     @Test func theRowIsTitledForTheDirectionOfTravel() {
-        #expect(PowerLabel.timeRemainingTitle(source: .battery) == "Time remaining")
-        #expect(PowerLabel.timeRemainingTitle(source: .wall) == "Until full")
+        #expect(PowerLabel.timeRemainingTitle(source: .battery, isCharging: false)
+                == "Time remaining")
+        #expect(PowerLabel.timeRemainingTitle(source: .wall, isCharging: true)
+                == "Until full")
     }
 }

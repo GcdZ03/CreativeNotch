@@ -127,6 +127,21 @@ struct PowerObserverTests {
         #expect(snapshot?.estimateMinutes == 0)
     }
 
+    /// "Full and finished" and "plugged in but not taking charge" are
+    /// different states that both have `Is Charging = 0`. Without reading
+    /// `Is Charged`, a machine sitting at 100% is reported as "Not
+    /// charging", which reads as a fault rather than as success.
+    @Test func chargedIsReadSeparatelyFromCharging() {
+        var full = description(state: kIOPSACPowerValue, charging: false)
+        full[kIOPSIsChargedKey] = true
+
+        var stalled = description(state: kIOPSACPowerValue, charging: false)
+        stalled[kIOPSIsChargedKey] = false
+
+        #expect(PowerObserver.snapshot(from: full, isLowPowerMode: false)?.isCharged == true)
+        #expect(PowerObserver.snapshot(from: stalled, isLowPowerMode: false)?.isCharged == false)
+    }
+
     // MARK: - Source
 
     @Test func wallPowerIsRecognised() {

@@ -25,14 +25,18 @@ struct PowerView: View {
 
                     Text(PowerLabel.state(
                         source: snapshot.source,
-                        isCharging: snapshot.isCharging
+                        isCharging: snapshot.isCharging,
+                        isCharged: snapshot.isCharged
                     ))
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.6))
                 }
 
                 row(
-                    PowerLabel.timeRemainingTitle(source: snapshot.source),
+                    PowerLabel.timeRemainingTitle(
+                        source: snapshot.source,
+                        isCharging: snapshot.isCharging
+                    ),
                     PowerLabel.timeRemainingValue(
                         minutes: estimateMinutes,
                         source: snapshot.source,

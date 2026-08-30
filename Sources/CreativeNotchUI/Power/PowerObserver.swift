@@ -172,6 +172,16 @@ public final class PowerObserver {
         let source: PowerSource = (state == kIOPSACPowerValue) ? .wall : .battery
 
         let charging = description[kIOPSIsChargingKey] as? Bool ?? false
+        // Absent means not charged, which is Apple's own convention: the
+        // key is published where it is meaningful and omitted otherwise —
+        // it is not in the dictionary at all while running on battery.
+        //
+        // `IOPSKeys.h` also documents the state that made this necessary,
+        // in as many words: "a battery may validly be plugged in, not
+        // charging, and <100% charge", and "a battery with capacity >= 95%
+        // and not charging is defined as charged". So charged is not the
+        // negation of charging, and 100% is not the threshold.
+        let charged = description[kIOPSIsChargedKey] as? Bool ?? false
 
         // On wall power IOKit publishes time-to-full instead of
         // time-to-empty; the panel shows whichever applies. `-1` is
@@ -203,6 +213,7 @@ public final class PowerObserver {
             level: Int((Double(current) / Double(maximum) * 100).rounded()),
             source: source,
             isCharging: charging,
+            isCharged: charged,
             estimateMinutes: estimate,
             isLowPowerMode: isLowPowerMode
         )

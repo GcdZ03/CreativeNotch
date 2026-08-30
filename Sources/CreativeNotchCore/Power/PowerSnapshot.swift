@@ -27,6 +27,16 @@ public struct PowerSnapshot: Equatable, Sendable {
     public var source: PowerSource
     public var isCharging: Bool
 
+    /// Whether the battery is full and has stopped taking charge.
+    ///
+    /// Distinct from `!isCharging`, and the distinction is the difference
+    /// between "finished" and "something is wrong". A machine plugged in
+    /// at 52% that is not charging — measured on a real machine, adapter
+    /// attached, battery actually draining — is not the same state as one
+    /// sitting at 100%, and calling both "Not charging" alarms in one case
+    /// and confuses in the other.
+    public var isCharged: Bool
+
     /// Minutes remaining, or `nil` when IOKit is still calculating.
     ///
     /// The raw dictionary uses `-1` for "Still Calculating the Time"
@@ -43,12 +53,14 @@ public struct PowerSnapshot: Equatable, Sendable {
         level: Int,
         source: PowerSource,
         isCharging: Bool,
+        isCharged: Bool = false,
         estimateMinutes: Int?,
         isLowPowerMode: Bool
     ) {
         self.level = level
         self.source = source
         self.isCharging = isCharging
+        self.isCharged = isCharged
         self.estimateMinutes = estimateMinutes
         self.isLowPowerMode = isLowPowerMode
     }
