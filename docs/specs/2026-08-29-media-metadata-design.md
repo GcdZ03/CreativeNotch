@@ -132,14 +132,26 @@ publishes its answer as `playing`.
 > correct in only 1 of 5 samples. A rate that lies is worse than no rate:
 > it would show a pause button over paused music.
 >
-> ⚠️ **Observed, not proven. Pending live confirmation.** This is one
-> player, on one machine, on one OS build, measured in a single session,
-> and the inversion has no explanation — it may be a Spotify bug, a macOS
-> 26 change, or an artefact of how the spike sampled. The shipped code
-> takes the safer of two unproven readings; it does not claim the rate
-> field is universally wrong. Confirm against a live player (and at least
-> one non-Spotify client) before treating this as settled, and record the
-> result here.
+> ✅ **The replacement is confirmed live (2026-08-30).** The author ran the
+> signed bundle on real hardware and watched the ambient now-playing badge
+> appear beside the notch while music played and disappear when it stopped.
+> The badge draws only while `isPlaying` is true
+> (`NotchShape.showsBadge`), so its appearing and vanishing with playback
+> exercises the whole path end to end: the signed `.app`, the perl helper,
+> `MRMediaRemoteGetNowPlayingApplicationIsPlaying` inside `bridge.m`, the
+> `playing` key on the wire, `MediaPayload`'s decode, and the publish into
+> `AppState`. That is the live check this note was pending.
+>
+> ⚠️ **The inversion finding stands, and must stay recorded.**
+> `kMRMediaRemoteNowPlayingInfoPlaybackRate` measured inverted for Spotify
+> on macOS 26.6.2, and nothing above re-tests it — what was confirmed is
+> that the field replacing it is right, not that the rate is now right.
+> The rate remains a fallback only. Do not "restore" the bridge to it on
+> the strength of the header docs: re-measure first, and expect the
+> inversion until a measurement says otherwise. Still open, and not
+> blocking: the confirmation covers the author's player on one machine and
+> one OS build, so a non-Spotify client and a second machine would
+> strengthen it. Record any further result here.
 
 **Track identity is title + artist + album, and never `contentID`.**
 `TrackIdentity` is what the artwork cache is keyed by, so it must be stable

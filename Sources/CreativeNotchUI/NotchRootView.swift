@@ -223,6 +223,52 @@ public struct NotchRootView: View {
         NotchShape.showsBadge(nowPlaying: app.nowPlaying)
     }
 
+    /// The horizontal band a centred peek has to leave empty, because on a
+    /// notched Mac that band is the camera housing.
+    ///
+    /// One name for one value. `HUDView` and `NowPlayingPeekView` each
+    /// spelled `anchor.isNotch ? anchor.rect.width : 0` out for
+    /// themselves, two lines apart — and two independent derivations of a
+    /// single value is the exact shape of this project's only Critical
+    /// bug. (Follow-up F3.)
+    ///
+    /// Zero on a pill Mac and on external displays, where the middle of
+    /// the band is ordinary screen and one centred line is correct.
+    static func notchGap(for anchor: CreativeNotchCore.Anchor) -> CGFloat {
+        anchor.isNotch ? anchor.rect.width : 0
+    }
+
+    /// The now-playing peek exactly as `body` builds it, arguments and all.
+    ///
+    /// `body` calls this instead of constructing the view inline so the
+    /// arguments it passes can be read without rendering anything — the
+    /// same reason `drawnRect(for:)` above is a static function.
+    ///
+    /// The gap it closes: `PeekRenderingTests` prove `NowPlayingPeekView`
+    /// *honours* `notchGap`, but nothing proved this view *supplies* the
+    /// right one — replacing the argument with `notchGap: 0` left the whole
+    /// suite green. Proving it through a render is a trap, and a documented
+    /// one (`PeekRenderingTests.peekViewPixels`, lines 51-58): switching
+    /// the anchor to `.notch` changes the drawn panel shape as well as the
+    /// content, so the two images differ whether or not the gap was
+    /// honoured. Building the view here moves the argument somewhere a
+    /// plain `#expect` can read it. (Follow-up F2.)
+    ///
+    /// Note what this does and does not bind. It pins the arguments; it
+    /// does not pin that `body`'s `.peek(.nowPlaying)` case calls it. That
+    /// a now-playing peek draws the peek at all is what the rendering
+    /// tests cover, and they are the tests that caught C2.
+    static func nowPlayingPeek(
+        for app: AppState,
+        track: TrackSnapshot
+    ) -> NowPlayingPeekView {
+        NowPlayingPeekView(
+            track: track,
+            artwork: app.nowPlayingArtwork,
+            notchGap: notchGap(for: app.anchor)
+        )
+    }
+
     public var body: some View {
         ZStack(alignment: .topLeading) {
             Color.clear
@@ -297,7 +343,7 @@ public struct NotchRootView: View {
                 case .peek(.hud(let event)):
                     HUDView(
                         kind: event.kind,
-                        notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
+                        notchGap: Self.notchGap(for: app.anchor)
                     )
 
                 // A peek is a glance, not a panel: one truncating line,
@@ -319,15 +365,14 @@ public struct NotchRootView: View {
                 // `NowPlayingLabel.text(for:)`, the same function the
                 // panel header uses, so the two cannot drift apart.
                 case .peek(.nowPlaying(let track)):
-                    // Same notch-gap treatment `HUDView` gets above: on a
-                    // notched Mac the middle of this band is the camera
-                    // housing, and a centred line renders straight behind
-                    // it. Zero on a pill Mac and on external displays.
-                    NowPlayingPeekView(
-                        track: track,
-                        artwork: app.nowPlayingArtwork,
-                        notchGap: app.anchor.isNotch ? app.anchor.rect.width : 0
-                    )
+                    // Same notch-gap treatment `HUDView` gets above, from
+                    // the same named function: on a notched Mac the middle
+                    // of this band is the camera housing, and a centred
+                    // line renders straight behind it. Built by
+                    // `nowPlayingPeek(for:track:)` rather than inline so a
+                    // test can read the arguments without rendering — see
+                    // its doc comment.
+                    Self.nowPlayingPeek(for: app, track: track)
 
                 default:
                     Text(label)

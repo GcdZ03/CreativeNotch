@@ -117,14 +117,25 @@ ordering or arrival time.
 > `MRMediaRemoteGetNowPlayingApplicationIsPlaying` and publishes its
 > answer instead.
 >
-> ⚠️ **Observed, not proven.** One player, one machine, one OS build, one
-> session, and no explanation for the inversion — it could be a Spotify
-> bug, a macOS 26 change, or an artefact of how it was sampled. It has not
-> been independently confirmed, and this document should not be read as
-> establishing that the rate field is wrong in general. **Pending a live
-> check** against a running player, ideally including a non-Spotify
-> client. The original finding above (arrival order is untrustworthy)
-> stands regardless; only the choice of field changed.
+> ✅ **The replacement field is confirmed live (2026-08-30).** The author
+> ran the signed bundle on real hardware and watched the ambient
+> now-playing badge appear beside the notch while music played and
+> disappear when it stopped. The badge is drawn only while `isPlaying` is
+> true, so that is `MRMediaRemoteGetNowPlayingApplicationIsPlaying`
+> verified end to end — through the signed `.app`, the helper, the bridge,
+> the `playing` key on the wire, the decode, and the publish path — in
+> both directions. This is the live check the note below was pending.
+>
+> ⚠️ **The inversion itself remains observed, not proven, and stays on
+> record.** One player, one machine, one OS build, one session, and no
+> explanation — it could be a Spotify bug, a macOS 26 change, or an
+> artefact of how it was sampled. Confirming the replacement does not
+> re-test the rate field, so this document still must not be read as
+> establishing that the rate is wrong in general — nor as licence to go
+> back to it. It survives as a fallback only; re-measure before ever
+> promoting it again. Still worth doing, and not blocking: a non-Spotify
+> client and a second machine. The original finding above (arrival order
+> is untrustworthy) stands regardless; only the choice of field changed.
 
 **`contentID` is not a stable track identity.** Also measured during task
 6: it changed on *every play/pause of an unchanged track*. Anything keyed

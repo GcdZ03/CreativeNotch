@@ -74,8 +74,18 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
     /// track; wiring it back into identity re-introduces the artwork
     /// flicker the cache exists to prevent.
     ///
-    /// A payload with no title describes no track: that is how "nothing is
-    /// playing" arrives, and it becomes `nil` rather than an empty header.
+    /// A payload with neither a title nor an artist describes no track:
+    /// that is how "nothing is playing" arrives, and it becomes `nil`
+    /// rather than an empty header.
+    ///
+    /// Either field ALONE is a track, deliberately. A podcast, a live
+    /// radio stream or a video in Safari routinely publishes a title with
+    /// an empty artist, and station feeds turn up the other way round;
+    /// requiring both would blank the header, the peek and the badge for
+    /// every one of them. This comment used to read "a payload with no
+    /// title describes no track", which was stricter than the code — the
+    /// code is what is right, and `MediaPayloadTests` now pins all three
+    /// cases so the two cannot drift apart again. (Follow-up F1.)
     public var snapshot: TrackSnapshot? {
         guard !title.isEmpty || !artist.isEmpty else { return nil }
         return TrackSnapshot(title: title, artist: artist, isPlaying: isPlaying)

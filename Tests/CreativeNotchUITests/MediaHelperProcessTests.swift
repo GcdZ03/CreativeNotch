@@ -323,4 +323,48 @@ struct MediaHelperStandardInputTests {
 
         #expect(helper.stdinPipe == nil)
     }
+
+    /// The crash path owes the same guarantee `stop()` does.
+    ///
+    /// Deleting `closeStandardInput()` from `handleUnexpectedExit` left all
+    /// 525 tests green — the whole path was unreachable from the suite,
+    /// because reaching it for real needs a `Process` and this file may not
+    /// have one. (Follow-up F4.)
+    ///
+    /// The assertion is deliberately about *timing*, not about leaking.
+    /// This test still holds `pipe` when the helper lets go of it, so ARC
+    /// cannot be what closes the descriptor; the read end can only be at
+    /// EOF because `handleUnexpectedExit` closed the write end itself. That
+    /// is the real reason the call is there — the earlier comment above it
+    /// claimed four crashes would strand four write ends, which
+    /// overstated it.
+    @Test func aCrashedHelperClosesTheChildsStdinRatherThanLeavingItToARC() throws {
+        let helper = MediaHelperProcess()
+        let fake = FakeProcessIO()
+        helper.attachStandardIO(to: fake, stdout: Pipe(), stderr: Pipe())
+        let pipe = try #require(helper.stdinPipe)
+
+        helper.handleUnexpectedExit(status: 9)
+
+        #expect(helper.stdinPipe == nil)
+        // Closed now, by the code under test, while this test is still the
+        // one holding the pipe alive.
+        #expect(Self.readEndSeesEOF(pipe))
+    }
+
+    /// And the crash path still reports the exit, so the supervisor gets
+    /// its chance to restart or degrade. Cheap, and it stops the test above
+    /// from passing against a `handleUnexpectedExit` gutted down to the one
+    /// line it asserts.
+    @Test func aCrashedHelperStillReportsItsExitStatus() {
+        let helper = MediaHelperProcess()
+        helper.attachStandardIO(to: FakeProcessIO(), stdout: Pipe(), stderr: Pipe())
+        var reported: [Int32] = []
+        helper.onExit = { reported.append($0) }
+
+        helper.handleUnexpectedExit(status: 9)
+
+        #expect(reported == [9])
+        #expect(helper.isRunning == false)
+    }
 }

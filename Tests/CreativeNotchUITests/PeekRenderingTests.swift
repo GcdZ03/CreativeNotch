@@ -173,3 +173,98 @@ struct PeekRenderingTests {
         #expect(red != blue)
     }
 }
+
+/// The other half of the notch gap: not whether the peek *honours* it, but
+/// whether `NotchRootView` *supplies* the right one.
+///
+/// `PeekRenderingTests` above own the first half, and deliberately render
+/// `NowPlayingPeekView` on its own to get it — `peekViewPixels` records
+/// why going through the root view produced a test that could not fail.
+/// The cost of that isolation was this gap: replacing the argument with
+/// `notchGap: 0` left all 525 tests green.
+///
+/// So these do not render at all. `NotchRootView.nowPlayingPeek(for:track:)`
+/// is the peek exactly as `body` builds it, which puts the argument
+/// somewhere a plain `#expect` can read — no pixels, no panel shape, no
+/// second variable moving underneath the assertion. This is the regression
+/// class that has already cost this project twice: `HUDView`'s centred slab
+/// put 72% of its level bar behind the notch, and commit `dfe9142`.
+/// (Follow-up F2.)
+@MainActor
+struct PeekNotchGapWiringTests {
+
+    private static let track = TrackSnapshot(
+        title: "Blinding Lights", artist: "The Weeknd", isPlaying: true
+    )
+    private static let panel = CGRect(x: 0, y: 0, width: 600, height: 200)
+
+    private static func app(anchor: CreativeNotchCore.Anchor) -> AppState {
+        let state = AppState()
+        state.setGeometry(anchor: anchor, panelFrame: panel)
+        return state
+    }
+
+    /// On a notched Mac the peek must be handed the real notch width, so
+    /// the title and artist sit in the ears either side of the camera
+    /// housing. Hard-code the argument to `0` and this goes red.
+    @Test func theRootViewHandsThePeekTheRealNotchWidth() {
+        let notch = CGRect(x: 2090, y: 1118, width: 230, height: 38)
+        let state = Self.app(anchor: .notch(notch))
+
+        let peek = NotchRootView.nowPlayingPeek(for: state, track: Self.track)
+
+        #expect(peek.notchGap == notch.width)
+    }
+
+    /// And it is the anchor's width, not a constant that happens to match
+    /// one machine: a 14" and a 16" Mac have different notches, and an
+    /// external display attached to either has none.
+    @Test func theGapTracksTheAnchorRatherThanAFixedInset() {
+        let wide = Self.app(anchor: .notch(CGRect(x: 0, y: 0, width: 230, height: 38)))
+        let narrow = Self.app(anchor: .notch(CGRect(x: 0, y: 0, width: 179, height: 33)))
+
+        #expect(NotchRootView.nowPlayingPeek(for: wide, track: Self.track).notchGap == 230)
+        #expect(NotchRootView.nowPlayingPeek(for: narrow, track: Self.track).notchGap == 179)
+    }
+
+    /// A pill anchor has nothing to read around, and the peek's single
+    /// centred line is correct there. Passing the pill's width would split
+    /// a line that never needed splitting.
+    @Test func aPillAnchorLeavesNoGap() {
+        let state = Self.app(anchor: .pill(CGRect(x: 100, y: 0, width: 230, height: 32)))
+
+        #expect(NotchRootView.nowPlayingPeek(for: state, track: Self.track).notchGap == 0)
+    }
+
+    /// `HUDView` reads the same named value from the same place, which is
+    /// the point of naming it: the two were spelled out separately, two
+    /// lines apart, and this is the assertion that they cannot drift.
+    /// (Follow-up F3.)
+    @Test func theNamedGapIsWhatBothPeeksAreBuiltFrom() {
+        let notch = CreativeNotchCore.Anchor.notch(
+            CGRect(x: 2090, y: 1118, width: 230, height: 38)
+        )
+        let pill = CreativeNotchCore.Anchor.pill(CGRect(x: 100, y: 0, width: 230, height: 32))
+
+        #expect(NotchRootView.notchGap(for: notch) == 230)
+        #expect(NotchRootView.notchGap(for: pill) == 0)
+        #expect(
+            NotchRootView.nowPlayingPeek(for: Self.app(anchor: notch), track: Self.track)
+                .notchGap == NotchRootView.notchGap(for: notch)
+        )
+    }
+
+    /// The seam must not quietly drop the other two arguments while it is
+    /// making the gap testable — a peek built without its artwork would be
+    /// a worse bug than the one this closes, and one the rendering tests
+    /// could not see either, since they build the view themselves.
+    @Test func theRootViewHandsThePeekTheCurrentTrackAndArtwork() {
+        let state = Self.app(anchor: .notch(CGRect(x: 0, y: 0, width: 230, height: 38)))
+        state.nowPlayingArtwork = SolidArtwork.red
+
+        let peek = NotchRootView.nowPlayingPeek(for: state, track: Self.track)
+
+        #expect(peek.track == Self.track)
+        #expect(peek.artwork == SolidArtwork.red)
+    }
+}

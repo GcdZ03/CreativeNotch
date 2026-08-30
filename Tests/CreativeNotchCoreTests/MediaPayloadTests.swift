@@ -59,6 +59,76 @@ struct MediaPayloadTests {
         #expect(p.title == "T")
     }
 
+    // MARK: - `snapshot` — the module's "is anything playing" rule
+
+    /// The single predicate that decides whether anything is playing, and
+    /// until now nothing tested it directly: changing
+    /// `!title.isEmpty || !artist.isEmpty` to `&&` left all 525 tests
+    /// green. It was reached only through `MediaControllerTests`, every one
+    /// of which uses a payload carrying both fields. (Follow-up F1.)
+    ///
+    /// A title with an empty artist is routine — podcasts, live radio, a
+    /// video in Safari — and under `&&` every one of those resolves to
+    /// `nil`, blanking the panel header, the peek and the badge at once
+    /// with nothing to show for it in the suite.
+    @Test func aTitleWithNoArtistIsStillATrack() throws {
+        let line = #"{"title":"The Rest Is History","artist":"","album":"","playing":true}"#
+        let payload = try #require(MediaPayload.decode(line: line))
+
+        let snapshot = try #require(payload.snapshot)
+        #expect(snapshot.title == "The Rest Is History")
+        #expect(snapshot.artist.isEmpty)
+        #expect(snapshot.isPlaying)
+    }
+
+    /// The mirror case. Station feeds and some AirPlay sources publish an
+    /// artist or station name with no title, and the predicate accepts them
+    /// on purpose — the property's own comment now says so, having
+    /// previously claimed the stricter "no title means no track".
+    @Test func anArtistWithNoTitleIsStillATrack() throws {
+        let line = #"{"title":"","artist":"BBC Radio 6 Music","album":"","playing":true}"#
+        let payload = try #require(MediaPayload.decode(line: line))
+
+        let snapshot = try #require(payload.snapshot)
+        #expect(snapshot.title.isEmpty)
+        #expect(snapshot.artist == "BBC Radio 6 Music")
+    }
+
+    /// Neither field is how "nothing is playing" actually arrives. It must
+    /// become `nil` rather than an empty header — an album on its own is
+    /// not a track anyone can read.
+    @Test func aPayloadWithNeitherTitleNorArtistIsNoTrack() throws {
+        let line = #"{"title":"","artist":"","album":"Believe","playing":true}"#
+        let payload = try #require(MediaPayload.decode(line: line))
+
+        #expect(payload.snapshot == nil)
+    }
+
+    /// Absent keys, not merely empty strings: the helper omits a field
+    /// entirely when MediaRemote returns nothing for it, so this is the
+    /// shape an idle machine really emits.
+    @Test func aPayloadWithNoTextFieldsAtAllIsNoTrack() throws {
+        let payload = try #require(MediaPayload.decode(line: #"{"playing":true}"#))
+
+        #expect(payload.snapshot == nil)
+    }
+
+    /// The playing flag is carried straight through, never inferred from
+    /// the text. The badge draws only while it is true, so a snapshot that
+    /// invented `isPlaying` would put a cover beside the notch over paused
+    /// music.
+    @Test func theSnapshotCarriesThePlayingFlagUnchanged() throws {
+        let paused = try #require(
+            MediaPayload.decode(line: #"{"title":"T","artist":"A","playing":false}"#)
+        )
+        let playing = try #require(
+            MediaPayload.decode(line: #"{"title":"T","artist":"A","playing":true}"#)
+        )
+
+        #expect(paused.snapshot?.isPlaying == false)
+        #expect(playing.snapshot?.isPlaying == true)
+    }
+
     /// Titles contain quotes, emoji and non-Latin scripts. The spike's own
     /// test track was "跳楼机".
     @Test func unicodeAndQuotesSurvive() throws {

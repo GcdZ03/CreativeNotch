@@ -312,13 +312,31 @@ public final class MediaHelperProcess {
         _ = waitForExit(timeout)
     }
 
-    private func handleUnexpectedExit(status: Int32) {
+    /// The crash path: what `start()`'s `terminationHandler` runs when the
+    /// helper exits without being asked to.
+    ///
+    /// Internal rather than private purely as a test seam, the same trade
+    /// `attachStandardIO` and `ingest` make. No test in this module may
+    /// construct a `Process`, so the only way to reach this path at all is
+    /// to call it — and while it was private, deleting the
+    /// `closeStandardInput()` below left all 525 tests green.
+    func handleUnexpectedExit(status: Int32) {
         stdoutPipe?.fileHandleForReading.readabilityHandler = nil
         stderrPipe?.fileHandleForReading.readabilityHandler = nil
         // The child is already gone, so this is not about EOF any more —
-        // it is about not leaking a file descriptor pair per crash. The
-        // supervisor restarts after a crash, and a helper that dies four
-        // times before degrading would otherwise strand four write ends.
+        // nobody is left to read it. It is about closing the write end at
+        // a known moment instead of leaving it to reference counting: the
+        // next `start()` overwrites `stdinPipe`, and ARC would close the
+        // superseded pipe whenever it happened to release it.
+        //
+        // An earlier version of this comment claimed a helper that dies
+        // four times "would otherwise strand four write ends". That was
+        // wrong, and worth correcting rather than deleting: each crash
+        // replaces the pipe rather than accumulating one, so at most one
+        // write end is ever held and nothing leaks permanently. The call
+        // stays because this class does not leave a descriptor's lifetime
+        // to whoever drops the last reference — `stop()` makes the same
+        // guarantee, for the same reason. (Follow-up F4.)
         closeStandardInput()
         process = nil
         stdoutPipe = nil
