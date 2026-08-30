@@ -297,21 +297,23 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped. Six more are planned and
-**none of them is built yet**:
+Every module on the *original* roadmap has shipped, and the first of the six
+planned since — battery and power state. The remaining five are not built:
 
 | | |
 |---|---|
+| **Battery and power state** — level, charging state, Low Power Mode | **Shipped** |
 | **Preferences** — turn modules off, change the values that are compiled in today | Planned |
 | **Launch at login** | Planned |
 | **Global hotkey** — open the panel from anywhere | Planned |
-| **Battery and power state** — level, charging, time remaining, Low Power Mode | Planned |
 | **Timer** — a countdown, counting down in the notch | Planned |
 | **Capture indicators** — microphone, camera, and screen recording in use | Planned |
 
-Preferences comes first, because four of the others want somewhere to live
-and because retrofitting module enable/disable costs more than building for
-it. Capture indicators come last: microphone and camera are reachable
+Battery shipped first, out of the suggested order — it needed no preferences
+surface to be useful, and its tunables are documented constants that
+Preferences can read later. Preferences comes next, because the remaining
+four want somewhere to live and because retrofitting module enable/disable
+costs more than building for it. Capture indicators come last: microphone and camera are reachable
 through CoreAudio and CoreMediaIO property listeners, but **no public API
 reports that another app is recording the screen**, so that third part may
 not be buildable at all.

@@ -1,0 +1,221 @@
+import Foundation
+import IOKit.ps
+import Testing
+import CreativeNotchCore
+@testable import CreativeNotchUI
+
+/// The IOKit edge.
+///
+/// The conversion is tested against dictionaries shaped like the ones
+/// `docs/research/2026-08-30-battery-estimate-noise.md` recorded from a
+/// real machine. The notification registration is tested by delivery and
+/// by asking the run loop — moving a real charger by hand is not something
+/// a test suite can do.
+///
+/// The time-remaining keys are no longer read at all. Every test that
+/// covered `Time to Empty`, the `-1` sentinel, and the `0`-means-not-
+/// applicable convention on `Time to Full Charge` went with them; that
+/// behaviour is recorded in the research note rather than in code.
+@MainActor
+struct PowerObserverTests {
+
+    private func description(
+        current: Int = 66,
+        max: Int = 100,
+        state: String = kIOPSBatteryPowerValue,
+        charging: Bool = false,
+        type: String = kIOPSInternalBatteryType
+    ) -> [String: Any] {
+        [
+            kIOPSTypeKey: type,
+            kIOPSCurrentCapacityKey: current,
+            kIOPSMaxCapacityKey: max,
+            kIOPSPowerSourceStateKey: state,
+            kIOPSIsChargingKey: charging,
+        ]
+    }
+
+    // MARK: - Source
+
+    @Test func wallPowerIsRecognised() {
+        let snapshot = PowerObserver.snapshot(
+            from: description(state: kIOPSACPowerValue), isLowPowerMode: false
+        )
+
+        #expect(snapshot?.source == .wall)
+        #expect(snapshot?.isPluggedIn == true)
+    }
+
+    @Test func batteryPowerIsRecognised() {
+        let snapshot = PowerObserver.snapshot(
+            from: description(state: kIOPSBatteryPowerValue), isLowPowerMode: false
+        )
+
+        #expect(snapshot?.source == .battery)
+    }
+
+    /// An unrecognised state string is battery, not wall. Guessing wrong
+    /// in the other direction tells someone running on reserve that they
+    /// are plugged in.
+    @Test func anUnknownSourceIsTreatedAsBattery() {
+        let snapshot = PowerObserver.snapshot(
+            from: description(state: "Something New"), isLowPowerMode: false
+        )
+
+        #expect(snapshot?.source == .battery)
+    }
+
+    // MARK: - Level
+
+    /// The probe observed `pct=66/100`, but a maximum of 100 is not
+    /// guaranteed — the percentage is computed, not read.
+    @Test func theLevelIsAPercentageOfMaxCapacity() {
+        let snapshot = PowerObserver.snapshot(
+            from: description(current: 30, max: 60), isLowPowerMode: false
+        )
+
+        #expect(snapshot?.level == 50)
+    }
+
+    /// A zero maximum is a division by zero waiting to happen. IOKit
+    /// should never report it; this module should never produce nonsense
+    /// if it does.
+    @Test func aZeroMaximumDoesNotProduceASnapshot() {
+        #expect(PowerObserver.snapshot(
+            from: description(current: 30, max: 0), isLowPowerMode: false
+        ) == nil)
+    }
+
+    // MARK: - Which power source
+
+    /// A UPS is not an internal battery, and this app does not speak for
+    /// one. Mapping it onto the internal battery would report a desktop's
+    /// backup as the machine's own charge.
+    @Test func onlyTheInternalBatteryIsRead() {
+        #expect(PowerObserver.snapshot(
+            from: description(type: kIOPSUPSType), isLowPowerMode: false
+        ) == nil)
+    }
+
+    // MARK: - Low Power Mode
+
+    /// LPM arrives on a different notification and is passed in rather
+    /// than read from the dictionary, because IOKit's power source
+    /// description does not carry it.
+    @Test func lowPowerModeIsCarriedThrough() {
+        #expect(PowerObserver.snapshot(
+            from: description(), isLowPowerMode: true
+        )?.isLowPowerMode == true)
+    }
+
+    // MARK: - Lifecycle
+
+    /// `VolumeObserver`, `BrightnessObserver` and `MediaKeyMonitor` each
+    /// shipped a `stop()` that forgot one of the things `start()`
+    /// registered, and each was caught by a count exactly like this one.
+    ///
+    /// This assertion is necessary and *not* sufficient, which the tests
+    /// below cover: clearing the field and actually deregistering are two
+    /// different things, and a count cannot tell them apart. Both of the
+    /// mutations that matter here survived this test alone.
+    @Test func stopUndoesEverythingStartRegistered() {
+        let observer = PowerObserver()
+        observer.start()
+
+        #expect(observer.registrationCount == 2)
+
+        observer.stop()
+        #expect(observer.registrationCount == 0)
+    }
+
+    /// The run loop, not the field, is asked whether the source is gone.
+    ///
+    /// `stop()` nils its own field either way; only `CFRunLoopContainsSource`
+    /// distinguishes a real removal from a forgotten one. This is also
+    /// where the mode matters — a source removed from a different mode
+    /// than it was added to stays installed and the call silently
+    /// succeeds.
+    @Test func stoppingActuallyRemovesTheRunLoopSource() {
+        let observer = PowerObserver()
+        observer.start()
+        let source = observer.runLoopSource
+
+        #expect(source != nil)
+        #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .defaultMode))
+
+        observer.stop()
+
+        #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .defaultMode) == false)
+    }
+
+    /// The notification observer, proved by delivery rather than by a
+    /// field being nil. A `stop()` that clears the token without calling
+    /// `removeObserver` keeps receiving notifications forever, and the
+    /// count says everything is fine.
+    @Test func stoppingActuallyRemovesTheNotificationObserver() {
+        let observer = PowerObserver()
+        observer.start()
+        observer.stop()
+        let before = observer.readCount
+
+        NotificationCenter.default.post(
+            name: .NSProcessInfoPowerStateDidChange, object: nil
+        )
+
+        #expect(observer.readCount == before)
+    }
+
+    /// Starting twice must not stack. It is a wiring mistake, not a
+    /// reason to receive every event twice — and a second registration
+    /// over the first leaves `registrationCount` at 2, looking correct.
+    @Test func startingTwiceDeliversEachNotificationOnce() {
+        let observer = PowerObserver()
+        observer.start()
+        observer.start()
+        let before = observer.readCount
+
+        NotificationCenter.default.post(
+            name: .NSProcessInfoPowerStateDidChange, object: nil
+        )
+
+        #expect(observer.readCount == before + 1)
+
+        observer.stop()
+    }
+
+    @Test func startingTwiceLeavesOneSourceInTheRunLoop() {
+        let observer = PowerObserver()
+        observer.start()
+        let first = observer.runLoopSource
+        observer.start()
+
+        // The first source must have been removed, not merely dropped.
+        #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), first, .defaultMode) == false)
+
+        observer.stop()
+    }
+
+    @Test func stoppingWithoutStartingIsHarmless() {
+        let observer = PowerObserver()
+        observer.stop()
+
+        #expect(observer.registrationCount == 0)
+    }
+
+    /// A callback carrying nothing new must not republish. The probe
+    /// measured the IOKit notification firing repeatedly on a machine
+    /// sitting still, and every one of those reaches `read()`.
+    @Test func anUnchangedReadDoesNotRepublish() {
+        final class Count { var value = 0 }
+        let count = Count()
+        let observer = PowerObserver()
+        observer.onChange = { _ in count.value += 1 }
+
+        observer.read()
+        let afterFirst = count.value
+
+        observer.read()
+
+        #expect(count.value == afterFirst)
+    }
+}

@@ -106,6 +106,23 @@ public final class AppState {
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
+    /// Whether this Mac has an internal battery.
+    ///
+    /// Set once at install from `PowerObserver.hasBattery`. Defaults to
+    /// `false` so anything constructing a bare `AppState` — every test
+    /// that does not care about power — gets the shape that shows less,
+    /// rather than the one that promises a tab with nothing behind it.
+    ///
+    /// Not `@ObservationIgnored`: like `showsMediaControls`, it is a
+    /// plain `Bool` that `body` reads directly and needs Observation's
+    /// tracking if it is ever written after install.
+    public var hasBattery: Bool = false
+
+    /// Current power state, set by `PowerController`. Observable, like
+    /// `nowPlaying`: a plain value the panel reads directly.
+    public internal(set) var power: PowerSnapshot?
+
+
     /// Set by `MediaController`. Observable — unlike `shelf` and
     /// `clipboard`, which are `@Observable` stores that publish their own
     /// changes, this is a plain value the header reads directly.
@@ -382,6 +399,17 @@ public struct NotchRootView: View {
         )
     }
 
+    /// The power peek exactly as `body` builds it, arguments and all.
+    ///
+    /// Static for the same reason `nowPlayingPeek(for:track:)` is: it lets
+    /// a test read the `notchGap` this view *supplies* without rendering.
+    /// Proving the gap through a render is a documented trap — switching
+    /// the anchor changes the drawn panel shape as well as the content, so
+    /// the images differ whether or not the gap was honoured.
+    static func powerPeek(for app: AppState, event: PowerEvent) -> PowerPeekView {
+        PowerPeekView(event: event, notchGap: notchGap(for: app.anchor))
+    }
+
     public var body: some View {
         // At most one clock read per evaluation, and none at all when the
         // instant was pinned. Everything below derives from this single
@@ -470,7 +498,13 @@ public struct NotchRootView: View {
                 case .open(let tab):
                     VStack(spacing: 0) {
                         mediaBar
-                        PanelTabBar(selected: tab) { app.transition(to: .open($0)) }
+                        PanelTabBar(
+                            selected: tab,
+                            hasBattery: app.hasBattery
+                        ) { app.transition(to: .open($0)) }
+                        // `at: now` keeps the tab on the single instant
+                        // `body` already bound, rather than taking a
+                        // second clock read for the countdown.
                         openContent(for: tab, at: now)
                     }
                     // Top-aligned, but *below the anchor* — not at the
@@ -513,6 +547,13 @@ public struct NotchRootView: View {
                 // was never once drawn. Text comes from
                 // `NowPlayingLabel.text(for:)`, the same function the
                 // panel header uses, so the two cannot drift apart.
+                // A real case rather than a fall-through to `default`.
+                // That fall-through is bug C2: `.peek(.nowPlaying)` hit
+                // `default` and drew the literal string "CreativeNotch"
+                // over playing music for a whole module's development.
+                case .peek(.power(let event)):
+                    Self.powerPeek(for: app, event: event)
+
                 case .peek(.nowPlaying(let track)):
                     // Same notch-gap treatment `HUDView` gets above, from
                     // the same named function: on a notched Mac the middle
@@ -624,6 +665,9 @@ public struct NotchRootView: View {
                 onResume: { app.onResumeTimer?() },
                 onCancel: { app.onCancelTimer?() }
             )
+
+        case .power:
+            PowerView(snapshot: app.power)
         }
     }
 

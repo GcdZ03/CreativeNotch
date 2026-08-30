@@ -7,6 +7,7 @@ public extension CreativeNotchCore.Tab {
         case .shelf:     return "Shelf"
         case .clipboard: return "Clipboard"
         case .hud:       return "HUD"
+        case .power:     return "Power"
         case .timer:     return "Timer"
         }
     }
@@ -26,19 +27,39 @@ struct PanelTabBar: View {
     /// `AppDelegate` reference it, but HUD history is not built. A tab
     /// that opens onto a placeholder is worse than no tab.
     ///
-    /// `.timer` is here because the opposite now holds for it: the tab has
-    /// real content (`TimerTabView`), a real controller behind it, and a
-    /// badge in the ear. Left out, every part of the timer module would be
-    /// unreachable — the whole feature would ship invisible, which is the
-    /// same failure the clipboard had before this switcher existed.
-    static let visible: [CreativeNotchCore.Tab] = [.shelf, .clipboard, .timer]
+    /// `.timer` is unconditional: the tab has real content
+    /// (`TimerTabView`), a real controller behind it, and a badge in the
+    /// ear, and none of that depends on hardware. Left out, every part of
+    /// the timer module would be unreachable and the whole feature would
+    /// ship invisible.
+    ///
+    /// It is placed *before* the conditional `.power` append so that the
+    /// timer's position does not move between a MacBook and a desktop, and
+    /// so `.power` stays last exactly as its own note below intends.
+    ///
+    /// A function rather than the `static let` this used to be, because
+    /// `.power` is the first tab whose existence depends on the hardware:
+    /// three of its four facts are meaningless on a Mac with no internal
+    /// battery, so the same rule that hides `.hud` hides it there. Low
+    /// Power Mode does exist on a desktop, which is the argument for
+    /// showing the tab everywhere with the battery rows blanked — but one
+    /// live row out of four is a placeholder tab wearing a different hat.
+    ///
+    /// `.power` is appended rather than inserted, so hiding it never
+    /// reorders the tabs that were already there.
+    static func visible(hasBattery: Bool) -> [CreativeNotchCore.Tab] {
+        var tabs: [CreativeNotchCore.Tab] = [.shelf, .clipboard, .timer]
+        if hasBattery { tabs.append(.power) }
+        return tabs
+    }
 
     let selected: CreativeNotchCore.Tab
+    let hasBattery: Bool
     let onSelect: (CreativeNotchCore.Tab) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Self.visible, id: \.self) { tab in
+            ForEach(Self.visible(hasBattery: hasBattery), id: \.self) { tab in
                 Button {
                     onSelect(tab)
                 } label: {

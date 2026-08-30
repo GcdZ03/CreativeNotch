@@ -78,3 +78,65 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
     #expect(NotchState.open(.clipboard).presentation == .expanded)
     #expect(NotchState.receiving.presentation == .expanded)
 }
+
+// MARK: - Power
+
+/// A power peek is longer-lived than a HUD one. A HUD peek confirms
+/// something the user just did and can be caught in passing; a power
+/// peek tells them something they did not know.
+@Test func aPowerPeekOutlivesAHUDPeek() {
+    #expect(PeekArbiter.powerTTL > PeekArbiter.hudTTL)
+}
+
+@Test func aPowerEventOccupiesTheSlot() {
+    var arbiter = PeekArbiter()
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+
+    #expect(arbiter.content(now: 100) == .power(.unplugged(level: 66)))
+}
+
+@Test func aPowerPeekExpires() {
+    var arbiter = PeekArbiter()
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+
+    #expect(arbiter.content(now: 100 + PeekArbiter.powerTTL + 0.01) == nil)
+}
+
+/// The user pressed a key a fraction of a second ago. Preempting that
+/// makes their own keypress feel dropped.
+@Test func aHUDPeekOutranksAPowerPeek() {
+    var arbiter = PeekArbiter()
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+    arbiter.recordHUD(HUDEvent(kind: .volume(0.5)), now: 100)
+
+    #expect(arbiter.content(now: 100) == .hud(HUDEvent(kind: .volume(0.5))))
+}
+
+/// Now-playing is ambient wallpaper and yields to anything.
+@Test func aPowerPeekOutranksNowPlaying() {
+    var arbiter = PeekArbiter()
+    arbiter.setNowPlaying(TrackSnapshot(title: "T", artist: "A", isPlaying: true))
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+
+    #expect(arbiter.content(now: 100) == .power(.unplugged(level: 66)))
+}
+
+/// And falls back to it, rather than to nothing — the same
+/// transient-over-ambient model the HUD already follows.
+@Test func nowPlayingReturnsWhenThePowerPeekExpires() {
+    let track = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
+    var arbiter = PeekArbiter()
+    arbiter.setNowPlaying(track)
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+
+    #expect(arbiter.content(now: 100 + PeekArbiter.powerTTL + 0.01) == .nowPlaying(track))
+}
+
+/// Dragging a file is direct manipulation and outranks everything.
+@Test func aDragOutranksAPowerPeek() {
+    var arbiter = PeekArbiter()
+    arbiter.recordPower(.unplugged(level: 66), now: 100)
+    arbiter.setDragActive(true)
+
+    #expect(arbiter.content(now: 100) == .dragTarget)
+}

@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Tab: String, CaseIterable, Equatable, Sendable {
-    case shelf, clipboard, hud, timer
+    case shelf, clipboard, hud, power, timer
 }
 
 public struct TrackSnapshot: Equatable, Sendable {
@@ -44,12 +44,31 @@ public struct TimerCompletion: Equatable, Sendable {
     }
 }
 
+/// A power change worth interrupting for.
+///
+/// Five cases, and Low Power Mode is the one that looks like padding but
+/// is not. macOS turns it on automatically at 20%, and that automatic
+/// case is exactly a state change worth announcing: the machine has
+/// altered its own behaviour without being asked, and the person
+/// wondering why their fans went quiet is who this peek is for.
+///
+/// "Fully charged" and the optimised-charging 80% hold are deliberately
+/// absent. Neither is urgent, and the 80% hold is indistinguishable from
+/// a fault without more IOKit archaeology than it is worth.
+public enum PowerEvent: Equatable, Sendable {
+    case pluggedIn(level: Int)
+    case unplugged(level: Int)
+    case lowBattery(threshold: Int, level: Int)
+    case lowPowerMode(enabled: Bool)
+}
+
 /// What occupies the single peek slot.
 public enum PeekContent: Equatable, Sendable {
     case hud(HUDEvent)
     case dragTarget
     case nowPlaying(TrackSnapshot)
     case timerDone(TimerCompletion)
+    case power(PowerEvent)
 }
 
 /// The one state the panel is ever in.
