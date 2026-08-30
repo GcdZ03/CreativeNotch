@@ -87,6 +87,12 @@ public final class AppState {
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
+    /// Set by `MediaController`. Observable — unlike `shelf` and
+    /// `clipboard`, which are `@Observable` stores that publish their own
+    /// changes, this is a plain value the header reads directly.
+    public internal(set) var nowPlaying: TrackSnapshot?
+    public internal(set) var nowPlayingArtwork: Data?
+
     /// A list, not a single closure.
     ///
     /// It was one closure, which meant the second registration silently
@@ -224,6 +230,9 @@ public struct NotchRootView: View {
 
                 case .open(let tab):
                     VStack(spacing: 0) {
+                        if let nowPlaying = app.nowPlaying {
+                            NowPlayingView(snapshot: nowPlaying, artwork: app.nowPlayingArtwork)
+                        }
                         if app.showsMediaControls {
                             MediaControlsView { app.onMediaCommand?($0) }
                         }

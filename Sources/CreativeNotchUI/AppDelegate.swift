@@ -44,10 +44,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - HUD (F8)
 
     private var hud: HUDController?
-    private var arbiter = PeekArbiter()
+
+    /// Internal rather than private so the peek wiring is provable — the
+    /// same reason `hud`, `clipboard` and `activity` are internal.
+    var arbiter = PeekArbiter()
 
     /// Internal rather than private so the wiring is provable.
     private(set) var clipboard: ClipboardController?
+
+    /// Internal rather than private so the lifecycle is provable, like
+    /// `clipboard`.
+    private(set) var media: MediaController?
 
     /// One observer for the whole app. Internal rather than private so the
     /// fan-out is provable — `SystemActivityFanOutTests` asserts there is
@@ -179,12 +186,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         activity.start()
         clipboard?.start()
+        media?.start()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
         hud?.stop()
         clipboard?.stop()
+        media?.stop()
         activity.stop()
     }
 
@@ -241,7 +250,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let self else { return }
             let now = Date().timeIntervalSince1970
             self.clipboard?.setActivity(state, now: now)
+            self.media?.setActivity(state)
         }
+
+        // Publishes into `AppState` for the panel header and feeds the
+        // peek arbiter so hovering the closed notch shows what is
+        // playing. Starting and stopping the controller stays in
+        // `applicationDidFinishLaunching` / `applicationWillTerminate` —
+        // building the wiring here must not spawn the helper.
+        let media = MediaController()
+        media.onChange = { [weak self] snapshot in
+            guard let self else { return }
+            self.state.nowPlaying = snapshot
+            self.state.nowPlayingArtwork = snapshot.flatMap { media.artwork(for: $0) }
+            self.arbiter.setNowPlaying(snapshot)
+            self.reevaluatePeek()
+        }
+        self.media = media
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
