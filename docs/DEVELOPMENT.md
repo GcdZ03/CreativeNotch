@@ -93,12 +93,17 @@ To debug: launch via `dev.sh`, then **Debug → Attach to Process** in Xcode.
 
 ```
 Sources/
-  CreativeNotchCore/   pure logic. Never imports AppKit or SwiftUI.
-  CreativeNotchUI/     AppKit + SwiftUI. Everything with behaviour.
-  CreativeNotch/       18-line executable.
+  CreativeNotchCore/          pure logic. Never imports AppKit or SwiftUI.
+  CreativeNotchUI/            AppKit + SwiftUI. Everything with behaviour.
+  CreativeNotchMediaBridge/   Objective-C. Loaded into the perl helper, not
+                              into this app -- see ARCHITECTURE.md on why a
+                              subprocess exists at all.
+  CreativeNotch/              18-line executable.
+Resources/
+  media-helper.pl             what the helper runs. Ships inside the bundle.
 Tests/
-  CreativeNotchCoreTests/   86 tests
-  CreativeNotchUITests/     135 tests
+  CreativeNotchCoreTests/     224 tests
+  CreativeNotchUITests/       313 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
@@ -120,10 +125,14 @@ of it.
 A test is expected to **fail when its code is broken**, and that gets
 verified rather than assumed.
 
-During the foundation build, three tests shipped that passed with their
-implementation deleted. Every one was caught by a reviewer mutating the
-source, not by reading it. Two more were only shown adequate after a
-reviewer proved they covered half of the bug they claimed to cover.
+This is not a hypothetical. Three tests shipped during the foundation build
+that passed with their implementation deleted. The media metadata module
+added **nine more** before they were caught — including one written by the
+reviewer who had been insisting everyone else run mutations.
+
+Every single one was found by someone running the mutation and reporting
+"this didn't fail", never by reading the test. Reading is not a substitute:
+a decorative test reads exactly like a real one.
 
 So, for every test you add:
 
@@ -226,6 +235,36 @@ without a keyboard, real audio hardware, or a sleep.
 
 **Never call `Permissions.requestAccessibility()` from a test** — it pops a
 real system dialog. `AXIsProcessTrusted()` is a safe read.
+
+**A media helper verified from a terminal proves nothing.** A
+terminal-launched process inherits a valid stdin; the packaged `.app` does
+not provide one unless the code sets it. That difference shipped a Critical
+bug — the helper died in milliseconds in the bundle while every manual check
+passed. Verify against `dist/CreativeNotch.app`, and confirm the helper's
+fd 0 is a pipe:
+
+```bash
+lsof -p "$(pgrep -P "$(pgrep -f 'CreativeNotch.app/Contents/MacOS')")" | head
+```
+
+**The same applies to the code-signing gate.** Running a `.swift` file
+directly makes it a child of `com.apple.swift-frontend` and it inherits
+Apple's identity, so a probe of a `com.apple.*`-gated API will report it
+open when it is not. Compile and ad-hoc sign before believing the result.
+
+**`MediaPayload`'s CodingKeys are a wire contract with `bridge.m`.** They
+have to match the emitted JSON keys exactly. A mismatch does not throw — the
+field decodes as absent and the UI shows empty strings, which looks like "no
+music is playing" rather than like a bug.
+
+**Never spawn a real helper in a test, and never `Task.sleep` to wait for
+one.** The whole media module is tested against injected pipes and injected
+clocks, the same way `PeekArbiter` and `HUDAttribution` take time as a
+parameter.
+
+**Do not drive a real media player from a test or a script.** An agent doing
+exactly this wedged the author's Spotify badly enough that every programmatic
+recovery failed and it needed a manual click.
 
 ## Releasing
 

@@ -60,7 +60,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **System HUD** — volume and brightness in the notch, alongside Apple's | Built |
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
-| ✅ **Media metadata** — now-playing title, artist, and artwork | Done |
+| ✅ **Media metadata** — now-playing title, artist, artwork, and an ambient badge | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -103,8 +103,12 @@ the private MediaRemote framework to whatever application holds the media
 session.
 
 Media metadata is the fifth: the now-playing title, artist, and artwork,
-shown above the transport buttons in the panel and in the ambient peek
-when hovering the closed notch. Reading that information through
+shown above the transport buttons in the panel, in the ambient peek when
+hovering the closed notch, and as a small album-cover badge beside the
+closed notch while something is playing. The badge is deliberately
+**static** — a looping equaliser would redraw continuously for as long as
+music played, which is the exact cost this project exists to avoid.
+Reading that information through
 MediaRemote is gated by code-signing identifier, which this app cannot
 satisfy directly — so the app spawns the system's own `perl`, signed as
 `com.apple.perl`, and has it read Now Playing state on the app's behalf,
@@ -230,7 +234,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Title, artist, and artwork appear above the transport buttons |
-| Hover the closed notch while something is playing | Peeks the now-playing track; silent when paused |
+| Something starts playing | A small album-cover badge appears beside the notch; it goes away when you pause |
+| Hover the closed notch while something is playing | Peeks the now-playing track, with its cover; silent when paused |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
@@ -292,8 +297,35 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the original roadmap has shipped. Each got its own spec and
-plan before any code. See
+Every module on the *original* roadmap has shipped. Six more are planned and
+**none of them is built yet**:
+
+| | |
+|---|---|
+| **Preferences** — turn modules off, change the values that are compiled in today | Planned |
+| **Launch at login** | Planned |
+| **Global hotkey** — open the panel from anywhere | Planned |
+| **Battery and power state** — level, charging, time remaining, Low Power Mode | Planned |
+| **Timer** — a countdown, counting down in the notch | Planned |
+| **Capture indicators** — microphone, camera, and screen recording in use | Planned |
+
+Preferences comes first, because four of the others want somewhere to live
+and because retrofitting module enable/disable costs more than building for
+it. Capture indicators come last: microphone and camera are reachable
+through CoreAudio and CoreMediaIO property listeners, but **no public API
+reports that another app is recording the screen**, so that third part may
+not be buildable at all.
+
+The one that is not merely unbuilt but genuinely unsettled is preferences,
+for an architectural reason: turning a module off has to *stop its
+subsystem*, not hide its UI. A switch that removes the feature while leaving
+the poller running would be worse than no switch — the user pays for
+something they explicitly declined.
+
+Full analysis, including which need feasibility spikes first, is in
+[`docs/ROADMAP.md`](docs/ROADMAP.md).
+
+Each shipped module got its own spec and plan before any code. See
 [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md)
 for the HUD's design, section 5.3 of
 [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md)
@@ -329,6 +361,7 @@ Before module work starts, see
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How it works, and the non-obvious parts |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The six planned modules, and what each has to solve first |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
 | [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module |
