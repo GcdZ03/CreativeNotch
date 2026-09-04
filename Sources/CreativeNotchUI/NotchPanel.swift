@@ -35,6 +35,24 @@ public final class NotchPanel: NSPanel {
         )
         isOpaque = false
         backgroundColor = .clear
+
+        // The panel draws itself black, always, on every system theme. Its
+        // *appearance* has to say so, or AppKit resolves semantic colours
+        // against the user's system setting instead.
+        //
+        // This is not cosmetic. Under Light appearance, `.bordered`
+        // buttons resolve their label to `labelColor` — near-black — and
+        // draw it on this panel's black background. The Pause and Cancel
+        // buttons were invisible: rendered, hit-testable, and unreadable.
+        //
+        // Nothing caught it because every other view in the project styles
+        // its own text explicitly (`.white.opacity(...)` with
+        // `.buttonStyle(.plain)`) and so never asks the appearance
+        // anything. The timer tab is the first to use stock controls. The
+        // rendering tests could not have caught it either: `ImageRenderer`
+        // has no window, so there is no appearance for a semantic colour to
+        // resolve against.
+        appearance = NSAppearance(named: .darkAqua)
         hasShadow = false
         isMovable = false
         isMovableByWindowBackground = false

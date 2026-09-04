@@ -56,4 +56,21 @@ struct NotchPanelTests {
     @Test func panelCanTakeKeyboardFocusForTheOneControlThatNeedsIt() {
         #expect(makePanel().canBecomeKey)
     }
+
+    /// The panel is black on every system theme, so its appearance must be
+    /// dark on every system theme too.
+    ///
+    /// Without this, AppKit resolves stock controls' semantic colours
+    /// against the *user's* setting: under Light appearance a `.bordered`
+    /// button's label is near-black, drawn on this panel's black
+    /// background. That shipped — Pause and Cancel were rendered,
+    /// hit-testable and invisible.
+    ///
+    /// Asserted here rather than left to a rendering test because
+    /// `ImageRenderer` has no window, and therefore no appearance for a
+    /// semantic colour to resolve against. The bug is unreachable from the
+    /// only kind of test that draws anything.
+    @Test func panelForcesDarkAppearanceSoStockControlsAreLegible() {
+        #expect(makePanel().appearance?.name == .darkAqua)
+    }
 }
