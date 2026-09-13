@@ -73,6 +73,28 @@ public struct PeekArbiter: Equatable, Sendable {
         timerDone = nil
     }
 
+    /// Withdraws a HUD peek whose module has just been switched off.
+    ///
+    /// The counterpart to `dismissTimerDone`, and needed for the same reason:
+    /// toggles take effect immediately, so a peek already in the slot has to
+    /// be withdrawn rather than waited out. A volume peek that outlives the
+    /// HUD being disabled is small, visible, and exactly what makes a
+    /// preference feel unreliable.
+    ///
+    /// It clears only its own module. Blanking the arbiter would pass the
+    /// obvious test while silently cancelling another module's interruption,
+    /// and would hide whatever was queued behind this one -- the arbiter is a
+    /// priority list, so withdrawing the top entry reveals the next.
+    public mutating func clearHUD() {
+        hud = nil
+    }
+
+    /// Withdraws a power peek whose module has just been switched off. See
+    /// `clearHUD()`; the same reasoning applies unchanged.
+    public mutating func clearPower() {
+        power = nil
+    }
+
     public func content(now: TimeInterval) -> PeekContent? {
         if dragActive { return .dragTarget }
         if let timerDone, now < timerDoneExpiry { return .timerDone(timerDone) }
