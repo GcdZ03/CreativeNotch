@@ -29,6 +29,12 @@ poll. Global mouse monitors run continuously, system stats tick on timers,
 audio visualisers run FFT on a live tap. Users report idle battery drain as
 high as 5%/hour and memory leaks reaching 2 GB.
 
+This is checkable rather than folklore. The most popular open-source notch
+app installs **three permanently-resident global event monitors** — on mouse
+down, drag and up — in its drag detector alone, plus repeating timers behind
+its visualiser and its animated face. Those are the exact constructs
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) names as not allowed here.
+
 CreativeNotch inverts that with a single architectural commitment:
 
 > **No subsystem runs when it isn't needed, and that rule is enforced
@@ -326,7 +332,10 @@ wiring, which is a different thing from retrofitting a constant.
 
 Preferences comes next, because the remaining four want somewhere to live —
 and the camera wants it most, being the most expensive and most
-privacy-sensitive thing planned.
+privacy-sensitive thing planned. The **global hotkey** follows it, alone: it
+is the only planned module with no unresolved feasibility question, so it is
+the right first consumer of the preferences surface. **Launch at login moves
+last**, because it is the only one that might not ship at all.
 
 The camera module puts the FaceTime feed in the open panel: a mirror for
 checking framing, a shutter, and a record button, with what you capture
@@ -336,11 +345,17 @@ expensive for the same reason the audio visualiser is not — it runs *only*
 while you have opened it and are looking at it, and the capture session must
 genuinely stop when the panel closes, not merely be hidden.
 
-Capture indicators come last, and deliberately after the camera module, so
-that the indicator not lighting up for the app's *own* preview is designed in
-rather than retrofitted. **Screen recording has been cut from it**: no public
-API reports that another app is recording the screen, and macOS already shows
-its own indicator for that.
+Capture indicators come after the camera module. **Screen recording has been
+cut from them**: no public API reports that another app is recording the
+screen, and macOS already shows its own indicator.
+
+Underneath all of it sits one decision that is not about any single module.
+CreativeNotch is **ad-hoc signed**, so its identity changes on every build —
+which is why the Accessibility grant dies on every rebuild, why a camera
+grant would re-prompt on every update, why launch-at-login may be refused
+outright, and why downloads need `xattr -dr`. A signing identity would remove
+all four at once. That is a distribution decision, and it gates how two of
+the remaining modules get specified.
 
 The one that is not merely unbuilt but genuinely unsettled is preferences,
 for an architectural reason: turning a module off has to *stop its
