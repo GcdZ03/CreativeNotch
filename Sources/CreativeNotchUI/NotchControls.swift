@@ -13,24 +13,32 @@ struct NotchButtonStyle: ButtonStyle {
 
     var emphasis: Emphasis = .quiet
 
-    init(_ emphasis: Emphasis = .quiet) { self.emphasis = emphasis }
+    /// A smaller capsule for a title row, where a full-size button would
+    /// outweigh the title beside it.
+    var compact = false
+
+    init(_ emphasis: Emphasis = .quiet, compact: Bool = false) {
+        self.emphasis = emphasis
+        self.compact = compact
+    }
 
     func makeBody(configuration: Configuration) -> some View {
-        NotchButtonBody(configuration: configuration, emphasis: emphasis)
+        NotchButtonBody(configuration: configuration, emphasis: emphasis, compact: compact)
     }
 
     private struct NotchButtonBody: View {
         let configuration: Configuration
         let emphasis: Emphasis
+        let compact: Bool
         @State private var hovering = false
         @Environment(\.isEnabled) private var isEnabled
 
         var body: some View {
             configuration.label
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .font(.system(size: compact ? 11 : 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(emphasis == .prominent ? Color.black : Color.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
+                .padding(.horizontal, compact ? 10 : 14)
+                .padding(.vertical, compact ? 5 : 7)
                 .background(Capsule().fill(fill))
                 .opacity(isEnabled ? 1 : 0.4)
                 .contentShape(Capsule())

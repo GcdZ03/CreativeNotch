@@ -524,17 +524,18 @@ public struct NotchRootView: View {
     /// that decides the drawn rect — rather than from a second `switch`
     /// here. Two independent derivations of one shape is the exact shape
     /// of this project's only Critical bug.
-    private var backgroundShape: AnyShape {
+    private var backgroundShape: UnevenRoundedRectangle {
         let r = NotchShape.cornerRadii(
             presentation: app.state.presentation,
             anchor: app.anchor
         )
-        return AnyShape(UnevenRoundedRectangle(
+        return UnevenRoundedRectangle(
             topLeadingRadius: r.topLeading,
             bottomLeadingRadius: r.bottomLeading,
             bottomTrailingRadius: r.bottomTrailing,
-            topTrailingRadius: r.topTrailing
-        ))
+            topTrailingRadius: r.topTrailing,
+            style: .continuous
+        )
     }
 
     /// Takes the slot rather than reading it, so the content it draws and
@@ -546,6 +547,15 @@ public struct NotchRootView: View {
     private func shape(badge slot: BadgeSlot, at now: Date) -> some View {
         backgroundShape
             .fill(.black)
+            // The edge, since there is no shadow (spec §4): a window exactly
+            // the size of its shape has nowhere to cast one. Expanded only —
+            // the closed notch must vanish into the housing, and a peek is a
+            // glance.
+            .overlay {
+                if app.state.presentation == .expanded {
+                    backgroundShape.strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                }
+            }
             .overlay {
                 switch app.state {
                 case .closed:
@@ -600,61 +610,59 @@ public struct NotchRootView: View {
                         EmptyView()
                     }
 
-                case .open(.camera):
-                    // **The camera tab suppresses the MEDIA BAR only**, and
-                    // keeps the tab bar.
-                    //
-                    // The media bar is the real constraint: it appears and
-                    // disappears with playback, so a preview sized around it
-                    // would resize under the user the moment a track started.
-                    // Suppressing it fixes the height at roughly 195 points
-                    // whatever is playing.
-                    //
-                    // The tab bar was suppressed too, in the first version of
-                    // this module, and that was a mistake found by using it:
-                    // it left a close button as the ONLY discoverable way out,
-                    // with no Escape handling anywhere in the panel to fall
-                    // back on. A tab you cannot obviously leave is worse than
-                    // 27 points of preview.
-                    VStack(spacing: 0) {
-                        PanelTabBar(
-                            selected: .camera,
-                            enabled: app.preferences,
-                            hasBattery: app.hasBattery
-                        ) { app.transition(to: .open($0)) }
-                        cameraContent
-                    }
-                    .padding(.top, app.anchor.rect.height)
-                    .frame(maxHeight: .infinity, alignment: .top)
-
                 case .open(let tab):
+                    // The header sits in the band the content used to be
+                    // padded past — the hardware notch on a notched Mac, the
+                    // pill's own band otherwise — with the camera housing
+                    // left black between its two ears. Below it, a fixed
+                    // media column beside the module pane. The camera takes
+                    // the whole body: a preview wants width, and with no
+                    // column beside it its height no longer depends on
+                    // whether a track is playing (spec §5.9).
+                    let layout = PanelLayout.resolve(
+                        anchor: app.anchor,
+                        panelFrame: app.panelFrame,
+                        showsMedia: tab != .camera && app.showsMediaControls
+                    )
                     VStack(spacing: 0) {
-                        mediaBar
-                        PanelTabBar(
+                        PanelHeader(
+                            layout: layout,
                             selected: tab,
                             enabled: app.preferences,
-                            hasBattery: app.hasBattery
-                        ) { app.transition(to: .open($0)) }
-                        // `at: now` keeps the tab on the single instant
-                        // `body` already bound, rather than taking a
-                        // second clock read for the countdown.
-                        openContent(for: tab, at: now)
+                            hasBattery: app.hasBattery,
+                            power: app.power,
+                            onSelect: { app.transition(to: .open($0)) },
+                            onSettings: { app.onOpenSettings?() }
+                        )
+                        HStack(spacing: 0) {
+                            if layout.mediaColumnWidth > 0 {
+                                MediaColumn(
+                                    snapshot: app.nowPlaying,
+                                    artwork: app.nowPlayingArtwork,
+                                    showsControls: app.showsMediaControls
+                                ) { app.onMediaCommand?($0) }
+                            }
+                            // `at: now` keeps the pane on the single instant
+                            // `body` already bound.
+                            openContent(for: tab, at: now)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        }
                     }
-                    // Top-aligned, but *below the anchor* — not at the
-                    // panel's absolute top. `panelFrame` puts the panel's
-                    // top edge at `anchor.rect.maxY`, so its first band is
-                    // the hardware notch (or, on a pill Mac, the menu bar
-                    // it sits under). Pinning to the true top hid the media
-                    // row behind the notch entirely while leaving the tab
-                    // bar just low enough to still show — the panel looked
-                    // like the module had not shipped.
-                    .padding(.top, app.anchor.rect.height)
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // One fade in, on the state change (spec §5.11).
+                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
                 case .receiving:
-                    Text("Drop here")
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
+                    // The same target the empty shelf shows, brighter, under
+                    // an empty header band (spec §5.5). The state, the
+                    // transition and the hit region are unchanged.
+                    VStack(spacing: 0) {
+                        Color.clear.frame(height: app.anchor.rect.height)
+                        DropTargetView(prominent: true)
+                            .padding(.horizontal, 22)
+                            .padding(.top, 10)
+                            .padding(.bottom, 20)
+                    }
 
                 case .peek(.hud(let event)):
                     HUDView(
@@ -724,51 +732,7 @@ public struct NotchRootView: View {
             }
     }
 
-    /// What is playing, and the controls for it, as ONE full-width bar.
-    ///
-    /// They were previously two rows: a left-aligned header above centred
-    /// buttons. That put two alignment systems in one panel, left the whole
-    /// right half of the header empty, and floated the transport controls
-    /// away from the track they operate on. A bar that spans the panel does
-    /// not read as "left-aligned" at all, so the centred tab bar below it
-    /// sits in a different register rather than in conflict.
-    ///
-    /// The divider is structure, not decoration: above it is what is
-    /// playing now, below it is what you have stored. Two different
-    /// concerns, and the panel is small enough that the seam has to be
-    /// stated rather than implied by space.
-    @ViewBuilder
-    private var mediaBar: some View {
-        let hasMedia = app.nowPlaying != nil || app.showsMediaControls
-
-        if hasMedia {
-            HStack(spacing: 12) {
-                if let nowPlaying = app.nowPlaying {
-                    NowPlayingView(snapshot: nowPlaying, artwork: app.nowPlayingArtwork)
-                }
-
-                // Keeps the controls hard right when a track is showing,
-                // and lets them sit centred on their own when nothing is
-                // playing — the helper may be starting, degraded, or the
-                // machine simply silent, and transport still works in all
-                // three.
-                Spacer(minLength: 12)
-
-                if app.showsMediaControls {
-                    MediaControlsView { app.onMediaCommand?($0) }
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
-
-            Divider()
-                .overlay(.white.opacity(0.10))
-                .padding(.horizontal, 16)
-        }
-    }
-
-    /// The camera tab's content, drawn without the media bar or the tab bar.
+    /// The camera tab's content: the preview across the whole body.
     @ViewBuilder
     private var cameraContent: some View {
         if let camera = app.cameraSession, let state = app.cameraState {
@@ -788,41 +752,76 @@ public struct NotchRootView: View {
     private func openContent(for tab: CreativeNotchCore.Tab, at now: Date) -> some View {
         switch tab {
         case .camera:
-            // Unreachable: `.open(.camera)` is matched above, before this.
-            // Kept because the switch is exhaustive and a placeholder here is
-            // better than a `default` that would silently swallow a new tab.
-            EmptyView()
+            cameraContent
+
         case .shelf:
-            if let shelf = app.shelf { ShelfView(store: shelf) }
-        case .clipboard:
-            if let clipboard = app.clipboard {
-                ClipboardView(store: clipboard) { entry in
-                    app.onPasteClipboard?(entry)
+            if let shelf = app.shelf {
+                ModulePane(
+                    title: "Shelf",
+                    count: Self.shelfCount(shelf.items.count),
+                    action: shelf.items.isEmpty ? nil : ("Clear", { app.onClearShelf?() })
+                ) {
+                    ShelfView(store: shelf) { app.onRemoveShelfItem?($0) }
                 }
             }
+
+        case .clipboard:
+            if let clipboard = app.clipboard {
+                ModulePane(
+                    title: "Clipboard",
+                    count: clipboard.entries.isEmpty
+                        ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
+                    action: clipboard.entries.isEmpty ? nil : ("Clear", { app.onClearClipboard?() })
+                ) {
+                    ClipboardView(store: clipboard, now: now) { entry in
+                        app.onPasteClipboard?(entry)
+                    }
+                }
+            }
+
         case .hud:
             // Not built. `PanelTabBar.visible` does not offer this tab, so
             // it is unreachable — but `Tab` is exhaustive and the compiler
             // wants a case.
             EmptyView()
+
         case .timer:
             // Through `AppState`, never to a controller this view holds —
             // the same routing `onPasteClipboard` and `onMediaCommand`
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.
-            TimerTabView(
-                countdown: app.countdown,
-                now: now,
-                onStart: { app.onStartTimer?($0) },
-                onPause: { app.onPauseTimer?() },
-                onResume: { app.onResumeTimer?() },
-                onCancel: { app.onCancelTimer?() }
-            )
+            ModulePane(title: "Timer", count: app.countdown.map(Self.durationLabel)) {
+                TimerTabView(
+                    countdown: app.countdown,
+                    now: now,
+                    onStart: { app.onStartTimer?($0) },
+                    onPause: { app.onPauseTimer?() },
+                    onResume: { app.onResumeTimer?() },
+                    onCancel: { app.onCancelTimer?() }
+                )
+            }
 
         case .power:
-            PowerView(snapshot: app.power)
+            ModulePane(title: "Battery") {
+                PowerView(snapshot: app.power)
+            }
         }
+    }
+
+    /// "4 items", "1 item", or "empty" — the shelf's title-row count.
+    static func shelfCount(_ count: Int) -> String {
+        switch count {
+        case 0:  return "empty"
+        case 1:  return "1 item"
+        default: return "\(count) items"
+        }
+    }
+
+    /// The duration a running countdown was set to, for the timer's title
+    /// row. Whole minutes: presets and the field are both in minutes.
+    static func durationLabel(_ countdown: Countdown) -> String {
+        "\(Int(countdown.duration / 60)) min"
     }
 
     private var label: String {

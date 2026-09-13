@@ -52,9 +52,16 @@ struct CameraTabView: View {
     }
 
     private func message(_ title: String, detail: String) -> some View {
+        // Styled explicitly, as every other view in the panel is: a semantic
+        // colour here resolves against whatever appearance the host has, and
+        // in the offscreen renderer that is black on black.
         VStack(spacing: 6) {
-            Text(title).font(.headline)
-            Text(detail).font(.caption).foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+            Text(detail)
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(.white.opacity(0.55))
                 .multilineTextAlignment(.center)
         }
         .padding()

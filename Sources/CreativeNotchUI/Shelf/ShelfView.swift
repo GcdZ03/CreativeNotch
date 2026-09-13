@@ -7,6 +7,7 @@ import CreativeNotchCore
 /// Finder, an upload field, another app.
 struct ShelfView: View {
     let store: ShelfStore
+    var onRemove: (UUID) -> Void = { _ in }
 
     private let itemSize = CGSize(width: 56, height: 56)
 

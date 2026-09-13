@@ -33,6 +33,7 @@ enum ClipboardPreview {
 /// The clipboard history, and the source of paste-backs.
 struct ClipboardView: View {
     let store: ClipboardStore
+    let now: Date
     let onPaste: (ClipboardEntry) -> Void
 
     var body: some View {
