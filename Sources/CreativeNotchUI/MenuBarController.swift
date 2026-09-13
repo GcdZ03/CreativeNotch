@@ -11,10 +11,12 @@ import AppKit
 public final class MenuBarController: NSObject {
 
     private var item: NSStatusItem?
+    private(set) var settingsItem: NSMenuItem?
     private var accessibilityItem: NSMenuItem?
     private var clearShelfItem: NSMenuItem?
     private var clearClipboardItem: NSMenuItem?
 
+    private let onShowPreferences: () -> Void
     private let onShowOnboarding: () -> Void
     private let onClearShelf: () -> Void
     private let shelfCount: () -> Int
@@ -22,12 +24,14 @@ public final class MenuBarController: NSObject {
     private let clipboardCount: () -> Int
 
     public init(
+        onShowPreferences: @escaping () -> Void,
         onShowOnboarding: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
         shelfCount: @escaping () -> Int,
         onClearClipboard: @escaping () -> Void,
         clipboardCount: @escaping () -> Int
     ) {
+        self.onShowPreferences = onShowPreferences
         self.onShowOnboarding = onShowOnboarding
         self.onClearShelf = onClearShelf
         self.shelfCount = shelfCount
@@ -44,6 +48,20 @@ public final class MenuBarController: NSObject {
 
         let menu = NSMenu()
         menu.delegate = self
+
+        // First, and reachable however the panel is configured. With every
+        // tab-bearing module switched off the visible tab list is empty and
+        // the panel has nowhere to open -- this is what makes that a legal
+        // state rather than a trap.
+        let settings = NSMenuItem(
+            title: "Settings…",
+            action: #selector(openPreferences),
+            keyEquivalent: ","
+        )
+        settings.target = self
+        menu.addItem(settings)
+        menu.addItem(.separator())
+        self.settingsItem = settings
 
         let accessibility = NSMenuItem(
             title: Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted),
@@ -114,6 +132,10 @@ public final class MenuBarController: NSObject {
 
     @objc func clearClipboard() {
         onClearClipboard()
+    }
+
+    @objc private func openPreferences() {
+        onShowPreferences()
     }
 
     @objc private func openOnboarding() {

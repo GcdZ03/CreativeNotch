@@ -158,6 +158,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and `self` is not available in a property initialiser.
     private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
 
+    /// The settings window's controller, built on first use by
+    /// `showPreferences()`.
+    private(set) var preferences: PreferencesController?
+
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
@@ -244,6 +248,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menuBar = MenuBarController(
+            onShowPreferences: { [weak self] in self?.showPreferences() },
             onShowOnboarding: { [weak self] in self?.showOnboarding() },
             onClearShelf: { [weak self] in try? self?.shelf?.clear() },
             shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
@@ -320,6 +325,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func showOnboarding() {
         onboarding.show()
+    }
+
+    /// The settings surface, built on first use.
+    ///
+    /// Lazily rather than in `install(metrics:)` because building a panel must
+    /// not build a window, and because the fourteen suites that call `install`
+    /// have no use for one.
+    public func showPreferences() {
+        if preferences == nil {
+            preferences = PreferencesController(switchboard: switchboard, state: state)
+        }
+        preferences?.show()
     }
 
     // MARK: - Installation
