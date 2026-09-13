@@ -23,9 +23,14 @@ struct PanelTabBar: View {
 
     /// Only tabs that have something behind them.
     ///
-    /// `.hud` stays in the `Tab` enum because `PeekArbiter` and
-    /// `AppDelegate` reference it, but HUD history is not built. A tab
-    /// that opens onto a placeholder is worse than no tab.
+    /// `.hud` stays in the `Tab` enum because two exhaustive switches --
+    /// `title` and `openContent` -- would stop compiling without it. It is
+    /// never offered as a tab: HUD history is not built, and a tab that opens
+    /// onto a placeholder is worse than no tab.
+    ///
+    /// This comment used to claim `PeekArbiter` and `AppDelegate` reference
+    /// the case. They do not -- those are `PeekContent.hud`, a different
+    /// type -- and the wrong reason survived because nothing tested it.
     ///
     /// `.timer` is unconditional: the tab has real content
     /// (`TimerTabView`), a real controller behind it, and a badge in the

@@ -1,7 +1,13 @@
 import AppKit
 
-/// The only settings surface. A four-module personal tool does not need a
-/// preferences window.
+/// The status item, and the way to the settings window.
+///
+/// It used to say it was "the only settings surface", on the grounds that a
+/// four-module personal tool does not need a preferences window. Seven modules
+/// later it does, and this is how it is reached -- deliberately from here
+/// rather than from the panel, because with every tab-bearing module switched
+/// off the panel has nowhere to open. That is what makes an empty tab list a
+/// legal state rather than a trap.
 ///
 /// `NSObject` (not a plain `final class`) because target-action —
 /// `accessibility.target = self` / `#selector(openOnboarding)` — requires
