@@ -130,6 +130,14 @@ which chrome to suppress was sound, and the claim about what would replace it
 was never checked. 27 points of preview is a smaller cost than a tab the user
 cannot obviously leave.
 
+**Superseded on 2026-09-14 by the panel redesign**
+([`2026-09-13-ui-redesign-design.md`](2026-09-13-ui-redesign-design.md), §3.1
+and §5.9). There is no longer a media header that appears and disappears with
+playback: music is a column of fixed width, so nothing about any tab's height
+depends on what is playing. The camera tab now omits that column and takes
+the whole body under the same header and tab bar. The constraint this section
+argued from still holds; the thing it had to work around is gone.
+
 ---
 
 ## 4. The preview layer retains the session

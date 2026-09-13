@@ -3,11 +3,11 @@ import AppKit
 /// The status item, and the way to the settings window.
 ///
 /// It used to say it was "the only settings surface", on the grounds that a
-/// four-module personal tool does not need a preferences window. Seven modules
-/// later it does, and this is how it is reached -- deliberately from here
-/// rather than from the panel, because with every tab-bearing module switched
-/// off the panel has nowhere to open. That is what makes an empty tab list a
-/// legal state rather than a trap.
+/// four-module personal tool does not need a preferences window. Ten modules
+/// later it does. The panel's header has a gear that opens it too, but this
+/// item is the one that survives every tab-bearing module being switched off
+/// -- then the panel has nowhere to open, and the menu bar is the way in. That
+/// is what makes an empty tab list a legal state rather than a trap.
 ///
 /// `NSObject` (not a plain `final class`) because target-action —
 /// `accessibility.target = self` / `#selector(openOnboarding)` — requires
