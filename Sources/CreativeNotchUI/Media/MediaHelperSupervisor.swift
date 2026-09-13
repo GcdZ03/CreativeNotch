@@ -108,6 +108,33 @@ public final class MediaHelperSupervisor {
         startHelper()
     }
 
+    /// Hands the helper a fresh retry budget.
+    ///
+    /// **Only ever called from the explicit re-enable path** -- never from
+    /// `start()`, and never from the activity gate's resume. `start()` runs on
+    /// every screen unlock, so forgiving a degraded helper there would mean a
+    /// crash loop that resets itself every time the lid opens. A person
+    /// flipping the switch back on is a different thing: it is the one gesture
+    /// available for saying "try again".
+    ///
+    /// Both fields, not just the flag. `helperExited` short-circuits on
+    /// `guard !isDegraded`, but the attempt count is what decides the backoff
+    /// -- clearing only the flag buys a one-crash budget that degrades again
+    /// immediately.
+    public func resetRetryBudget() {
+        attempt = 0
+        isDegraded = false
+    }
+
+    /// Whether the subprocess is actually up.
+    ///
+    /// Internal for the lifecycle proof, the same reason
+    /// `PowerObserver.registrationCount` is: `helperProcess` is private, so
+    /// without this a test can only assert that a stop was *asked for*, which
+    /// is exactly the assertion that let the activity-gate bug survive a
+    /// green suite.
+    var helperIsRunning: Bool { helperProcess?.isRunning ?? false }
+
     public func stop() {
         // Recorded before calling out: the exit callback this triggers
         // (directly, in tests, or via the wrapped process's own

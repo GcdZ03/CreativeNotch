@@ -11,6 +11,90 @@ import CreativeNotchCore
 @MainActor
 struct MediaHelperSupervisorTests {
 
+    // MARK: - The retry budget
+
+    /// Flipping a switch back on is the one thing a person can do to say
+    /// "try again". Leaving the flag latched means a module that is on,
+    /// running, and permanently unable to recover from a crash.
+    @Test func resettingTheBudgetClearsDegradationAndTheAttemptCount() {
+        let supervisor = MediaHelperSupervisor()
+        supervisor.startHelper = {}
+        supervisor.stopHelper = {}
+        supervisor.scheduleRetry = { _, _ in }
+
+        for _ in 0...HelperBackoff.maxAttempts {
+            supervisor.helperExited(status: 1)
+        }
+        #expect(supervisor.isDegraded)
+        #expect(supervisor.attempt > 0)
+
+        supervisor.resetRetryBudget()
+
+        #expect(supervisor.isDegraded == false)
+        #expect(supervisor.attempt == 0)
+    }
+
+    /// And the budget is genuinely usable again. `helperExited` is what
+    /// `guard !isDegraded` short-circuits, so clearing the flag without
+    /// clearing the attempt count is a one-crash budget.
+    @Test func aResetBudgetSchedulesRetriesAgain() {
+        let supervisor = MediaHelperSupervisor()
+        supervisor.startHelper = {}
+        supervisor.stopHelper = {}
+        var retries = 0
+        supervisor.scheduleRetry = { _, _ in retries += 1 }
+
+        for _ in 0...HelperBackoff.maxAttempts {
+            supervisor.helperExited(status: 1)
+        }
+        let afterDegrade = retries
+
+        supervisor.resetRetryBudget()
+        supervisor.helperExited(status: 1)
+
+        #expect(retries == afterDegrade + 1)
+    }
+
+    /// The activity gate must not hand the budget back. An unlock is not a
+    /// user saying "try again", and a crash loop that forgives itself every
+    /// time the lid opens is worse than one that stops.
+    @Test func stoppingAndStartingDoesNotRefreshTheBudget() {
+        let supervisor = MediaHelperSupervisor()
+        supervisor.startHelper = {}
+        supervisor.stopHelper = {}
+        supervisor.scheduleRetry = { _, _ in }
+
+        for _ in 0...HelperBackoff.maxAttempts {
+            supervisor.helperExited(status: 1)
+        }
+        #expect(supervisor.isDegraded)
+
+        supervisor.stop()
+        supervisor.start()
+
+        #expect(supervisor.isDegraded, "start() must not forgive a degraded helper")
+    }
+
+    /// `helperIsRunning` must read the process, not a flag the supervisor
+    /// keeps for itself. With `stopHelper` injected as a no-op that never
+    /// touches a process, a supervisor-maintained Bool would read `false`
+    /// here and lie -- which is the whole failure R2 is about: asserting a
+    /// stop was *asked for* rather than that it *happened*.
+    @Test func helperIsRunningReadsTheProcessRatherThanAFlag() {
+        let supervisor = MediaHelperSupervisor()
+        supervisor.startHelper = {}
+        supervisor.stopHelper = {}
+        supervisor.scheduleRetry = { _, _ in }
+
+        // No real process behind this supervisor, so it is never running --
+        // including right after a start() that only ran the injected closure.
+        supervisor.start()
+        #expect(supervisor.helperIsRunning == false)
+
+        supervisor.stop()
+        #expect(supervisor.helperIsRunning == false)
+    }
+
     private final class Box {
         var starts = 0
         var stops = 0
