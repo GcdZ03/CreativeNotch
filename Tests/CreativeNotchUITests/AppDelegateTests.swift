@@ -188,6 +188,39 @@ struct AppDelegateStateFunnelTests {
         #expect(delegate.stateObserverCount == 1)
     }
 
+    // MARK: - The HUD controller is reachable
+
+    /// The switchboard cannot start or stop a controller it cannot see, and
+    /// nor can a test. Until this, `hud` was the one controller built outside
+    /// `install` and unreachable from outside the file -- while the comment
+    /// on `arbiter` cited it as a precedent for being internal.
+    @Test func installingBuildsTheHudController() {
+        let delegate = makeDelegate()
+        #expect(delegate.hud != nil)
+    }
+
+    /// And building it must not start it. Fourteen suites reach
+    /// `install(metrics:)` and then inject their fakes; a tap created here
+    /// would be a real global event monitor in every one of them.
+    @Test func installingDoesNotStartTheHud() throws {
+        let delegate = makeDelegate()
+        let hud = try #require(delegate.hud)
+        #expect(hud.keys.isRunning == false)
+        #expect(hud.volume.isRunning == false)
+        #expect(hud.brightness.isRunning == false)
+    }
+
+    /// `install` twice must not leave an orphaned controller holding a second
+    /// event tap that nothing can reach to tear down. The HUD is the only
+    /// module whose orphan would hold a system-global resource; every other
+    /// one is at least idle.
+    @Test func installingTwiceKeepsOneHudController() {
+        let delegate = makeDelegate()
+        let first = delegate.hud
+        delegate.install(metrics: Self.notched)
+        #expect(delegate.hud === first)
+    }
+
     /// F3: each token has to go back to the centre that issued it.
     /// Removing from the wrong one is a silent no-op, so the leak this
     /// prevents would never announce itself.

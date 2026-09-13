@@ -43,7 +43,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - HUD (F8)
 
-    private var hud: HUDController?
+    /// Internal rather than private so the switchboard and the tests can
+    /// reach it. It was the one controller built outside `install(metrics:)`
+    /// and unreachable from outside this file — while the comment below cited
+    /// it as a precedent for exactly the opposite. The comment was wrong, not
+    /// aspirational; this makes it true.
+    private(set) var hud: HUDController?
 
     /// Internal rather than private so the peek wiring is provable — the
     /// same reason `hud`, `clipboard` and `activity` are internal.
@@ -217,9 +222,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         onboarding.showIfNeeded()
 
-        let hud = HUDController { [weak self] kind in self?.showHUD(kind) }
-        hud.start()
-        self.hud = hud
+        hud?.start()
 
         activity.start()
         clipboard?.start()
@@ -378,6 +381,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Read once: a machine does not grow a battery, and a tab that
         // opens onto three meaningless rows is worse than no tab.
         state.hasBattery = power.hasBattery
+
+        // Constructed here like every other controller, so the switchboard
+        // and the tests can reach it; started in `applicationDidFinishLaunching`,
+        // because building a panel must not install a global event tap.
+        //
+        // Guarded: `install(metrics:)` is not safely re-entrant, and an
+        // orphaned `HUDController` is the only one that would keep a
+        // system-global resource — the tap, its run-loop source and a
+        // retained `TapContext` — with nothing left able to remove it.
+        if hud == nil {
+            hud = HUDController { [weak self] kind in self?.showHUD(kind) }
+        }
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
