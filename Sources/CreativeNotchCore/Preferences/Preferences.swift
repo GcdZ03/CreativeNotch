@@ -18,6 +18,7 @@ public struct Preferences: Equatable, Sendable {
     public var mediaControls: Bool
     public var power: Bool
     public var timer: Bool
+    public var hotkey: Bool
 
     public init(
         shelf: Bool = true,
@@ -26,7 +27,8 @@ public struct Preferences: Equatable, Sendable {
         mediaMetadata: Bool = true,
         mediaControls: Bool = true,
         power: Bool = true,
-        timer: Bool = true
+        timer: Bool = true,
+        hotkey: Bool = true
     ) {
         self.shelf = shelf
         self.hud = hud
@@ -35,6 +37,7 @@ public struct Preferences: Equatable, Sendable {
         self.mediaControls = mediaControls
         self.power = power
         self.timer = timer
+        self.hotkey = hotkey
     }
 
     /// Everything on. The shipped state, and what a domain with no keys in it
@@ -51,6 +54,7 @@ public struct Preferences: Equatable, Sendable {
             case .mediaControls: return mediaControls
             case .power:         return power
             case .timer:         return timer
+            case .hotkey:        return hotkey
             }
         }
         set {
@@ -62,6 +66,7 @@ public struct Preferences: Equatable, Sendable {
             case .mediaControls: mediaControls = newValue
             case .power:         power = newValue
             case .timer:         timer = newValue
+            case .hotkey:        hotkey = newValue
             }
         }
     }

@@ -310,7 +310,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-839 tests, all headless. `swift test` takes
+897 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -777,6 +777,95 @@ failed.** `CGEventTapCreate` genuinely fails without Accessibility, and a
 switch reading "on" over a dead subsystem is the exact inversion of the failure
 this module exists to prevent. The HUD row reports the permission, never the
 preference.
+
+## The global shortcut
+
+A key combination that opens the panel from anywhere, and **not** a global
+event monitor.
+
+`NSEvent.addGlobalMonitorForEvents` runs a closure on every keystroke you type,
+forever. This document names permanently-installed global monitors as not
+allowed, and this is the case it had in mind.
+`RegisterEventHotKey` hands the combination to the window server, which
+delivers an event only when that combination is pressed. Nothing runs in
+between, and it needs no Accessibility permission because it never sees any key
+but the one it registered. `MediaKeyMonitor` remains the project's one admitted
+always-installed monitor.
+
+### `OSStatus` cannot tell you a combination is taken
+
+Apple's header: *"The same hot key can, however, be registered by multiple
+applications."* So an ordinary conflict returns `noErr` and **both handlers
+fire**. Checking the status — which `ROADMAP.md` proposed and which is the
+obvious design — detects nothing.
+
+Registration is exclusive, which stops other registrants' handlers firing so a
+chosen shortcut does one thing rather than two. **No test covers that choice
+and none can**: exclusivity's only observable effect is cross-process. The
+duplicate detection the suite does assert is a different rule entirely —
+`CarbonEventsCore.h` returns −9878 for anything already registered *in the
+current process*, whatever the options — so that test proves the error mapping,
+not the option.
+
+What the settings row may therefore honestly claim is only what the system will
+back up: *"you already used that shortcut in CreativeNotch"*, and *"macOS
+already uses this"* via `CopySymbolicHotKeys`. Never *"another app has it"*.
+
+### Registration succeeding is not the feature; delivery is
+
+A system symbolic hotkey like ⌘Space registers with `noErr` and then never
+fires, because the system consumes it first. `CopySymbolicHotKeys` catches most
+of those but is enumerable state rather than a guarantee.
+
+So after recording, the row arms and waits for one press. **That keystroke is
+the only proof available**, it is persisted so a shortcut proven once is not
+re-interrogated, and it is cleared whenever the combination changes — a tick
+beside a key nobody has pressed is worse than no tick.
+
+### The callback captures nothing, and that is three traps avoided
+
+- A closure that captures context **type-checks clean**. The diagnostic comes
+  from SILGen, so `swiftc -typecheck` and every editor report the broken
+  version as fine; only a real compile catches it.
+- Calling a `@MainActor` method straight from the C handler is **only a
+  warning** under Swift 6 strict concurrency. It compiles and works by luck,
+  which is why CI fails the build on any warning.
+- The canonical `Unmanaged.passUnretained(self)` context pattern is a
+  use-after-free waiting for the owner to deallocate.
+
+Context travels as the `EventHotKeyID` carried by the event, so there is no
+lifetime to get wrong, and `MainActor.assumeIsolated` turns the
+main-run-loop assumption into an assertion that traps loudly rather than an
+inference that corrupts quietly.
+
+The handler is installed on the application event target and sees **every**
+`kEventHotKeyPressed` in the process, so it checks a four-character signature
+and returns `eventNotHandledErr` for anything else. Returning `noErr` would
+tell the Carbon dispatcher we consumed somebody else's event.
+
+### A keycode is stored, never a character
+
+A keycode identifies a *physical* key; the letter printed on it is a property
+of the layout. Resolution happens at display time against the **ASCII-capable**
+input source rather than the current one — with a Japanese or Pinyin IME
+selected the current source has no Unicode layout data at all, and the row
+would render blank for a key that works perfectly well.
+
+### It ships unset
+
+No default combination. Any default risks colliding with whatever launcher the
+user already runs, and a colliding shortcut either double-fires or is silently
+eaten — both of which read as this app being broken. Unlike the module toggles,
+whose absent key resolves to ON, absent here means genuinely absent.
+
+### Switching it off unregisters
+
+Per the rule Preferences established, disabling stops the subsystem — and here
+the subsystem is the registration plus the process-wide handler, so dropping
+the last registration takes the handler with it. Nothing is torn down at
+termination: Apple's header is explicit that the system reclaims registrations
+when the process exits, so teardown there would defend against something that
+cannot happen.
 
 ## Deliberately absent
 

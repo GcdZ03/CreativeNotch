@@ -1,6 +1,6 @@
 # Roadmap
 
-Four modules are planned. **None of them is implemented.** Nothing in this
+Three modules are planned. **None of them is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
@@ -11,6 +11,13 @@ Three have shipped, and their entries have been removed:
   `docs/research/2026-08-30-battery-estimate-noise.md`.
 - **Timer** (2026-08-30) — `docs/specs/2026-08-30-timer-design.md`,
   `docs/plans/2026-08-30-timer.md`.
+- **Global shortcut** (2026-09-13) — `docs/specs/2026-09-13-global-hotkey-design.md`,
+  `docs/research/2026-09-13-hotkey-probe.md`. Three of this document's claims
+  about it were wrong, and the probe that found that out is recorded beside the
+  spec: `OSStatus` cannot detect a conflict, `RegisterEventHotKey` is not
+  deprecated, and the macOS 15 shift/option restriction does not survive into
+  macOS 26. What the module does about the undecidable part — asking the user
+  to press the combination once — is the only honest proof available.
 - **Preferences** (2026-09-13) — `docs/specs/2026-09-13-preferences-design.md`,
   `docs/plans/2026-09-13-preferences.md`. It answered the question this
   document asks of every module, for all seven at once: **what does a toggle
@@ -26,7 +33,7 @@ and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all four have to answer
+## The constraint all three have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -101,7 +108,7 @@ inherited Apple's signing identity. Both looked like working code. For any
 application starts capturing, not only when this one does.
 
 **It must not point at itself, and the answer is not the one this document
-first proposed.** Module 4 puts a camera preview in the notch, making
+first proposed.** Module 3 puts a camera preview in the notch, making
 CreativeNotch one of the applications this indicator watches for.
 `IsRunningSomewhere` reports *that* something is capturing, not *who* — so it
 cannot answer this alone.
@@ -183,72 +190,7 @@ entirely. Only a `pgrep` after a real logout proves anything.
 
 ---
 
-## 3. Global hotkey
-
-**What it is.** A key combination that opens the panel from anywhere.
-
-**The obvious implementation is the wrong one.** An
-`NSEvent.addGlobalMonitorForEvents` monitor runs on every keystroke you
-type, forever, which is precisely the cost this project exists to avoid, and
-`ARCHITECTURE.md` names permanently-installed global monitors as not
-allowed.
-
-`RegisterEventHotKey` is the answer. It registers the specific combination
-with the window server, which delivers an event only when that combination
-is pressed. Nothing runs in between. It is old Carbon-era API and still
-supported, and unlike a monitor it needs no Accessibility permission,
-because it never sees any key but the one it registered.
-
-**Worth knowing.** `MediaKeyMonitor` is currently the project's *one*
-admitted always-installed monitor, and it earns that by firing only on
-physical media keys. A second one would need the same justification;
-`RegisterEventHotKey` avoids needing it at all.
-
-**The conflict model in this document was wrong, and the correction changes
-what the preferences pane may honestly say.** It used to claim registration
-fails when another app holds the combination, and that checking `OSStatus`
-catches it. Apple's header says the opposite — *"The same hot key can be
-registered by multiple applications"* — so an ordinary conflict returns
-`noErr` and **both** handlers fire. Checking the status detects nothing.
-
-Apple's header then contradicts itself about whether the `kEventHotKeyExclusive`
-option gives honest detection. **Measured, with two separate bundle
-identities:**
-
-| Incumbent | Challenger | Result |
-|---|---|---|
-| non-exclusive | non-exclusive | `noErr` |
-| non-exclusive | **exclusive** | `noErr` |
-| **exclusive** | **exclusive** | **−9878 `eventHotKeyExistsErr`** |
-| **exclusive** | non-exclusive | `noErr` |
-
-The narrow reading holds: exclusive registration detects only other
-*exclusive* registrants, and virtually nothing ships with that option. The
-third row is what makes this a real result rather than an inert option.
-
-**So the pane must not claim "that combination is taken."** What it can
-honestly do: detect duplicates *within this app* (same-process
-re-registration does return −9878), and enumerate `CopySymbolicHotKeys()` for
-system conflicts. A system hotkey like ⌘Space registers with `noErr` and then
-never delivers, because the system consumes it first.
-
-**Also measured:** `RegisterEventHotKey` is **not deprecated** — the
-"deprecated since 10.8" claim that dominates search results is false — and
-the macOS 15 shift/option-only restriction **does not survive into macOS 26**:
-all sixteen modifier subsets register cleanly, zero modifiers included.
-
-**The real trap is Swift 6, not Carbon.** Calling a `@MainActor` method
-straight from the C callback is *only a warning* under strict concurrency. It
-compiles and works by luck. That is why CI now fails on any warning.
-
-**Needs a spike:** no. This is the only remaining module with no unresolved
-feasibility question, which is why it goes first.
-
----
-
----
-
-## 4. The camera in the notch
+## 3. The camera in the notch
 
 **What it is.** Click the notch, choose the camera tab, and the FaceTime
 camera's feed appears in the panel — a mirror for checking framing before a
@@ -380,15 +322,12 @@ hosting view already declines clicks in three layers.
 section: the remaining four wanted somewhere to live, and now they have one.
 Every module is switchable, and switching one off stops what it runs.
 
-1. **Global hotkey**, *alone*. The only remaining module with **no unresolved
-   feasibility question**, no signing coupling, and mostly pure combinatorics —
-   the best Core-to-UI test ratio of the four. The right first real consumer of
-   the preferences surface.
-2. **The camera in the notch**, de-risked by the teardown measurement above.
-3. **Microphone and camera indicators.**
-4. **Launch at login**, *last*, and conditional. It is the only module that
-   might not exist, and pairing it with the hotkey — as this document used to —
-   risks the safe one slipping behind the blocked one.
+1. **The camera in the notch**, de-risked by the teardown measurement above.
+2. **Microphone and camera indicators.**
+3. **Launch at login**, *last*, and conditional. It is the only module that
+   might not exist, and pairing it with the shortcut — as this document used
+   to — would have risked the safe one slipping behind the blocked one. The
+   shortcut has since shipped on its own, which is the argument settled.
 
 **What Preferences leaves for whoever builds the next module.** Adding a
 module now means adding a `ModuleID` case, a row in `PreferencesView.rows`, and
@@ -397,7 +336,7 @@ because every one of them is mutation-verified against its own subsystem rather
 than against a stored boolean. That is the enable/disable retrofit this
 document kept warning about, paid once.
 
-**Why 2 before 3, restated.** This document used to justify it by
+**Why 1 before 2, restated.** This document used to justify it by
 self-exclusion: build the camera first so the indicator is designed not to
 point at it. That reason is weaker than it looked, and the measurement above
 weakened it further. The stronger reasons: the camera module can **delete** the

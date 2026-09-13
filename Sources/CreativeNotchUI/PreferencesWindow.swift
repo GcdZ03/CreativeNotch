@@ -61,10 +61,29 @@ final class PreferencesController {
 
     func isEnabled(_ module: ModuleID) -> Bool { state.preferences[module] }
 
+    /// The hotkey controller, for the recorder row. Reached through the
+    /// switchboard's delegate rather than stored twice.
+    var hotKeyController: HotKeyController? { switchboard.hotKeyController }
+
     /// Whether a countdown is running, which is what makes the timer row's
     /// warning conditional. Shown unconditionally it would train people to
     /// ignore it.
     var hasRunningCountdown: Bool { state.countdown != nil }
+
+    private var recorders: [ObjectIdentifier: HotKeyRecorder] = [:]
+
+    /// One recorder per hotkey controller, built on first use. Held here
+    /// rather than in the view, because a SwiftUI body can run many times and
+    /// a recorder rebuilt mid-recording would drop its monitor.
+    func recorder(for hotKey: HotKeyController) -> HotKeyRecorder {
+        let key = ObjectIdentifier(hotKey)
+        if let existing = recorders[key] { return existing }
+        let recorder = HotKeyRecorder { [weak hotKey] combo in
+            hotKey?.setCombo(combo)
+        }
+        recorders[key] = recorder
+        return recorder
+    }
 
     private func presentRealWindow() {
         if let window {
@@ -147,6 +166,13 @@ struct PreferencesView: View {
             title: "Timer",
             detail: "A countdown in the notch."
         ),
+        PreferencesRow(
+            module: .hotkey,
+            title: "Global shortcut",
+            // No default, and the note says why rather than leaving an empty
+            // field looking broken.
+            detail: "Open the notch from anywhere. No shortcut is set until you choose one — any default would risk colliding with a launcher you already use."
+        ),
     ]
 
     var body: some View {
@@ -170,6 +196,19 @@ struct PreferencesView: View {
                         Text(row.detail)
                             .font(.caption)
                             .foregroundStyle(.secondary)
+
+                        if row.module == .hotkey,
+                           controller.isEnabled(.hotkey),
+                           let hotKey = controller.hotKeyController {
+                            HotKeyRow(
+                                controller: hotKey,
+                                recorder: controller.recorder(for: hotKey),
+                                label: hotKey.combo.map {
+                                    HotKeyGlyphs.label($0, key: KeyCodeDisplay.character(for: $0.keyCode))
+                                }
+                            )
+                            .padding(.top, 2)
+                        }
 
                         if let warning = Self.warning(for: row.module, controller: controller) {
                             Text(warning)

@@ -19,4 +19,5 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case mediaControls = "media-controls"
     case power
     case timer
+    case hotkey
 }

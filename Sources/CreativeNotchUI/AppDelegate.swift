@@ -158,6 +158,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and `self` is not available in a property initialiser.
     private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
 
+    /// The global hotkey. Internal rather than private so the switchboard and
+    /// the tests can reach its lifecycle, like every other controller.
+    private(set) var hotkey: HotKeyController?
+
     /// The settings window's controller, built on first use by
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
@@ -327,6 +331,27 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         onboarding.show()
     }
 
+    /// What the hotkey does: open the panel, or close it if it is already
+    /// open.
+    ///
+    /// A toggle rather than open-only, because the combination is the one way
+    /// to reach the panel from another app -- and a key that opens but cannot
+    /// close is a key you press and then reach for the mouse.
+    func toggleFromHotKey() {
+        if case .open = state.state {
+            state.transition(to: .closed)
+            return
+        }
+        let visible = TabVisibility.visible(
+            enabled: state.preferences,
+            hasBattery: state.hasBattery
+        )
+        guard visible.contains(state.lastOpenTab) || !visible.isEmpty else { return }
+        state.transition(to: .open(visible.contains(state.lastOpenTab)
+                                  ? state.lastOpenTab
+                                  : visible[0]))
+    }
+
     /// The settings surface, built on first use.
     ///
     /// Lazily rather than in `install(metrics:)` because building a panel must
@@ -366,6 +391,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+
+        // Constructed here, started by the switchboard. Building a panel must
+        // not register a system-wide hotkey.
+        let hotkey = HotKeyController(store: HotKeyStore(defaults: preferencesDefaults))
+        hotkey.onTrigger = { [weak self] in self?.toggleFromHotKey() }
+        self.hotkey = hotkey
 
         shelf = try? ShelfStore(directory: shelfDirectory)
         _ = try? shelf?.purge(now: Date())

@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import Testing
 import CreativeNotchCore
@@ -236,6 +237,74 @@ struct ModuleToggleTests {
         delegate.switchboard.setEnabled(false, for: .shelf)
 
         #expect(delegate.state.shelf == nil)
+    }
+
+    // MARK: - Global hotkey
+
+    /// Stopping this module means **unregistering**, not ignoring the
+    /// callback. A system-wide registration alive while the switch reads off
+    /// is the sharpest version of the failure this whole module exists to
+    /// prevent -- the key still opens the panel.
+    @Test func disablingTheHotkeyDropsItsRegistration() throws {
+        let delegate = makeDelegate()
+        let hotkey = try #require(delegate.hotkey)
+        delegate.startSubsystems()
+        hotkey.setCombo(HotKeyCombo(
+            keyCode: UInt32(kVK_F13),
+            carbonModifiers: HotKeyModifier.control | HotKeyModifier.option | HotKeyModifier.shift
+        ))
+        #expect(hotkey.isRegistered, "nothing was registered, so nothing is proved by it stopping")
+
+        delegate.switchboard.setEnabled(false, for: .hotkey)
+
+        #expect(hotkey.isRegistered == false)
+        #expect(HotKeyCenter.shared.isHandlerInstalled == false,
+                "the process-wide handler outlived the module")
+        delegate.activity.stop()
+    }
+
+    /// And re-enabling brings it back, or the toggle works exactly once.
+    @Test func reEnablingTheHotkeyRegistersItAgain() throws {
+        let delegate = makeDelegate()
+        let hotkey = try #require(delegate.hotkey)
+        delegate.startSubsystems()
+        hotkey.setCombo(HotKeyCombo(
+            keyCode: UInt32(kVK_F13),
+            carbonModifiers: HotKeyModifier.control | HotKeyModifier.option | HotKeyModifier.shift
+        ))
+        delegate.switchboard.setEnabled(false, for: .hotkey)
+
+        delegate.switchboard.setEnabled(true, for: .hotkey)
+
+        #expect(hotkey.isRegistered)
+        hotkey.stop()
+        delegate.activity.stop()
+    }
+
+    /// The hotkey opens the panel, and closes it again -- a key that opens but
+    /// cannot close is a key you press and then reach for the mouse.
+    @Test func theHotkeyTogglesThePanel() {
+        let delegate = makeDelegate()
+        #expect(delegate.state.state == .closed)
+
+        delegate.toggleFromHotKey()
+        #expect(delegate.state.state == .open(.shelf))
+
+        delegate.toggleFromHotKey()
+        #expect(delegate.state.state == .closed)
+    }
+
+    /// With every tab-bearing module switched off there is nothing to open, so
+    /// the hotkey is a deliberate no-op rather than opening an empty panel.
+    @Test func theHotkeyOpensNothingWhenEveryTabIsGone() {
+        let delegate = makeDelegate()
+        for module in [ModuleID.shelf, .clipboard, .timer, .power] {
+            delegate.switchboard.setEnabled(false, for: module)
+        }
+
+        delegate.toggleFromHotKey()
+
+        #expect(delegate.state.state == .closed)
     }
 
     // MARK: - The tab that has just disappeared (R7)

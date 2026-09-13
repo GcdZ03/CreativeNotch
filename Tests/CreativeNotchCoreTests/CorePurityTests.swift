@@ -88,6 +88,10 @@ struct CorePurityTests {
             "PreferenceKeys.swift",
             "PreferencesStore.swift",
             "TabVisibility.swift",
+            "HotKeyCombo.swift",
+            "HotKeyValidation.swift",
+            "HotKeyGlyphs.swift",
+            "HotKeyStore.swift",
         ]
         for name in expectedInSubdirectories {
             #expect(names.contains(name), "expected recursive scan to find \(name)")

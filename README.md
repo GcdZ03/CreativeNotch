@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-839-brightgreen" alt="839 tests">
+  <img src="https://img.shields.io/badge/tests-897-brightgreen" alt="897 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -54,7 +54,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. All seven modules are built, and every one of them can be switched off.**
+**The foundation is complete. All eight modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -70,6 +70,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
+| ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -269,7 +270,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 839 tests, ~2s, no window server needed
+swift test           # 897 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -295,8 +296,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   353 tests
-  CreativeNotchUITests/     486 tests
+  CreativeNotchCoreTests/   377 tests
+  CreativeNotchUITests/     520 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -312,8 +313,8 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped, and three of the seven
-planned since. The remaining four are not built:
+Every module on the *original* roadmap has shipped, and four of the seven
+planned since. The remaining three are not built:
 
 | | |
 |---|---|
@@ -321,7 +322,7 @@ planned since. The remaining four are not built:
 | **Timer** — a countdown, counting down in the notch | **Shipped** |
 | **Preferences** — turn modules off, and the subsystem stops | **Shipped** |
 | **Launch at login** | Planned |
-| **Global hotkey** — open the panel from anywhere | Planned |
+| **Global shortcut** — open the panel from anywhere | **Shipped** |
 | **Camera in the notch** — a mirror under the lens, a shutter, and a record button | Planned |
 | **Capture indicators** — microphone and camera in use | Planned |
 
@@ -331,13 +332,21 @@ both have tunables that are documented constants Preferences can read later —
 the cost that ordering warns about is retrofitting module *enable/disable*
 wiring, which is a different thing from retrofitting a constant.
 
-Preferences has shipped, which is what the remaining four wanted somewhere to
-live. Every module is now switchable, and switching one off **stops what it
-runs** rather than hiding it — the clipboard's poller, the media helper's
-subprocess, the HUD's global event tap. The **global hotkey** comes next,
-alone: it is the only planned module with no unresolved feasibility question,
-so it is the right first consumer of that surface. **Launch at login moves
-last**, because it is the only one that might not ship at all.
+Preferences has shipped, which is what the rest wanted somewhere to live.
+Every module is now switchable, and switching one off **stops what it runs**
+rather than hiding it — the clipboard's poller, the media helper's subprocess,
+the HUD's global event tap, the shortcut's registration.
+
+The **global shortcut** followed it, and deliberately does not use a global
+event monitor: `RegisterEventHotKey` hands the combination to the window
+server, which delivers an event only when that combination is pressed. Nothing
+runs in between, and it needs no Accessibility permission. It also asks you to
+press the shortcut once after choosing it — because neither the registration
+result nor any system API can prove a combination actually *delivers*, and one
+keystroke can.
+
+**Launch at login moves last**, because it is the only one that might not ship
+at all.
 
 The camera module puts the FaceTime feed in the open panel: a mirror for
 checking framing, a shutter, and a record button, with what you capture
