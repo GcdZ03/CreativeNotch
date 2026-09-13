@@ -73,6 +73,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 | ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
 | ✅ **Capture indicator** — when another app is using your camera or microphone | Done |
+| ✅ **Redesigned panel** — tabs in the ears, music as a column, one control vocabulary | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it

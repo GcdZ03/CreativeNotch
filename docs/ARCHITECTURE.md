@@ -84,6 +84,29 @@ the top of the screen. A notch rect sits at `y = frame.maxY - inset` with
 height `inset`, so its own `maxY` is flush with the screen top — an
 invariant the peek geometry relies on.
 
+### The open panel's layout
+
+Inside the expanded rect, `PanelLayout.resolve(anchor:panelFrame:showsMedia:)`
+— pure, in Core — is the one place the panel is split up: a header as tall
+as the anchor whose middle column is the camera housing, and below it a
+fixed 212pt media column beside the module pane. Tabs live in the leading
+ear, battery and the settings gear in the trailing ear, and nothing is drawn
+behind the housing, the same rule every peek already follows. On a pill the
+gap is zero and the two ears are halves.
+
+The media column is fixed whether or not a track is playing. A column that
+appeared with the first track would reflow the pane under the user, and was
+the reason the camera tab used to special-case the media bar; now the
+camera simply takes the whole body.
+
+None of this touches `visibleRect`, the hit test or the hover rect. The
+layout happens inside the rectangle the panel already claims. That is also
+why there is no drop shadow: the window is exactly the expanded shape, so a
+shadow would be clipped on three sides, and making room means insetting
+`visibleRect` — the seam behind this project's only Critical bug. A 1pt
+inner hairline on the expanded shape does the edge's job instead, and the
+closed notch gets none so it still vanishes into the housing.
+
 ## The window is always full size
 
 `NotchPanel` is a borderless, non-activating `NSPanel` sized to the fully
