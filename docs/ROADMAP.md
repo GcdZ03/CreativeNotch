@@ -1,6 +1,6 @@
 # Roadmap
 
-Four modules are planned. **None of them is implemented.** Nothing in this
+Five modules are planned. **None of them is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
@@ -18,7 +18,7 @@ and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all four have to answer
+## The constraint all five have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -50,13 +50,17 @@ it *draws* when nobody is looking, and gate those separately.
 
 ---
 
-## 1. Screen recording, microphone and camera in use
+## 1. Microphone and camera in use
 
 **What it is.** An ambient indicator when something is capturing — the
 privacy tell, in the notch, next to the hardware it is about.
 
-**This is the one with a genuine feasibility question, and the three parts
-are not equally solvable.**
+**Scope is the microphone and the camera. Screen recording is out**, and
+that is now a decision rather than an open question the spike has to settle.
+No public API reports that another application is capturing the screen;
+macOS shows its own indicator and does not expose the underlying state. It
+is listed under *Still deliberately not planned* below, with the rest of
+what this project has ruled out.
 
 - **Microphone.** CoreAudio exposes
   `kAudioDevicePropertyDeviceIsRunningSomewhere` as a listenable property.
@@ -66,11 +70,6 @@ are not equally solvable.**
 - **Camera.** CoreMediaIO exposes the analogous
   `kCMIODevicePropertyDeviceIsRunningSomewhere`. Less travelled than the
   CoreAudio equivalent and worth proving before committing to it.
-- **Screen recording.** No public API reports that another application is
-  capturing the screen. macOS shows its own indicator and does not expose
-  the underlying state. Assume this part is **not feasible** until a spike
-  proves otherwise, and be prepared to ship the module with two of its three
-  parts.
 
 **The trap this project has already hit twice.** The HUD's brightness
 callback signature circulated online is wrong, and the media metadata
@@ -79,8 +78,17 @@ inherited Apple's signing identity. Both looked like working code. For any
 `IsRunningSomewhere` property: verify it changes when a *different*
 application starts capturing, not only when this one does.
 
-**Needs a spike:** yes — and the spike's first job is to decide whether
-screen recording is in scope at all.
+**It must not point at itself.** Module 5 puts a camera preview in the
+notch, which makes CreativeNotch one of the applications this indicator is
+watching for. An indicator that lights because the app opened its own
+preview tells the user nothing and reads as a bug. `IsRunningSomewhere` is
+precisely what its name says — it reports *that* something is capturing, not
+*who*. Whatever the answer is, it has to be settled before either module
+ships rather than retrofitted after, which is the one real reason to care
+about the order these two are built in.
+
+**Needs a spike:** yes, and a smaller one than before — only the CoreMediaIO
+camera property, now that screen recording no longer has to be adjudicated.
 
 ---
 
@@ -175,6 +183,93 @@ it is the only one of the five that changes how existing modules are wired.
 
 ---
 
+## 5. The camera in the notch
+
+**What it is.** Click the notch, choose the camera tab, and the FaceTime
+camera's feed appears in the panel — a mirror for checking framing before a
+call, a shutter for a still, and a record button for a clip. What gets
+captured lands in the file shelf.
+
+**The pleasing part is geometric rather than technical.** The camera sits
+physically behind the notch, so a preview drawn in the open panel is
+directly beneath the lens feeding it. Looking at yourself means very nearly
+looking at the camera.
+
+### Why this is allowed when the audio visualiser is not
+
+This is the most expensive thing the app would ever do, and a few lines
+below, the visualiser is refused as a top CPU cost that contradicts the one
+rule. A live capture session costs more than an FFT. So the distinction
+cannot be cost, and pretending it is would be dishonest:
+
+> The visualiser runs **ambiently**. It would draw whenever audio played,
+> whether or not anybody had the notch open, and whether or not anybody was
+> looking. The camera runs **only because the user opened it**, and only
+> while they are watching the thing it produces.
+
+The rule is *no subsystem runs when it isn't needed*, not *nothing expensive
+is allowed*. A preview the user explicitly asked for, while they are looking
+at it, is the definition of needed. The visualiser fails the rule; this
+passes it — **provided the session actually stops.**
+
+### Where this module can silently betray the rule
+
+An `AVCaptureSession` left running behind a closed panel is exactly the idle
+drain this project exists to avoid, and it is invisible everywhere except
+the battery graph. **Hiding the view is not stopping the session.** It has
+to stop on:
+
+- the panel dismissing by any route — click-out, Escape, the menu bar item
+- the tab changing away from the camera
+- screen lock and display sleep, which `SystemActivity` already reports
+- app termination
+
+This is the first module where the gate is not a power optimisation but a
+privacy guarantee. The green light beside the lens is the user's only
+evidence of what the app is doing, and it has to go out when they close the
+panel.
+
+### Permissions, and the trap specific to this app
+
+`NSCameraUsageDescription` in the bundle plist, and
+`AVCaptureDevice.requestAccess(for: .video)`. TCC keys the grant to the code
+signature, and CreativeNotch is **ad-hoc signed** — an ad-hoc signature's
+designated requirement is the hash of the code, so the camera grant is
+revoked on every rebuild. This is the same failure `DEVELOPMENT.md` already
+documents for Accessibility, and `Scripts/setup-signing.sh` is the same
+answer. Expect it while developing rather than discovering it as a bug.
+
+**The green light is not suppressible.** It is wired to the camera hardware
+below the level of any API. Document it, so "the light comes on" is not
+filed as a defect.
+
+### The geometry does not fit, and that is a real decision
+
+The open panel is `expandedSize`, **620 × 260**. A 16:9 preview 620 points
+wide wants 349 points of height; a 4:3 one wants 465. Neither fits. So this
+module forces a choice no previous one has had to make:
+
+- crop the preview to the panel, or letterbox it, or
+- let the camera tab open a **taller panel** than the other tabs.
+
+A per-tab panel height changes geometry that every module currently shares,
+and `NotchGeometry.expandedFrame` is where it would land. Decide it in the
+spec, not in the view.
+
+### Recording needs what a preview does not
+
+A clip needs somewhere to go while it is being written, a size that is not
+unbounded, and an unambiguous tell that recording is happening. The shelf is
+the natural destination and already knows how to hold files and drag them
+back out. What `ShelfStore` does *not* have is any notion of a file still
+being written — so a clip should land in the shelf **on stop, not on
+start.**
+
+**Needs a spike:** small. The part worth proving before the spec is an
+`AVCaptureSession` previewing inside an `LSUIElement` agent that owns no
+ordinary window — only an `NSPanel` with a hosting view that already
+declines clicks in three layers.
+
 ## Suggested order
 
 **Battery and the timer both shipped ahead of this order**, which was
@@ -188,18 +283,31 @@ can read all of them whenever it arrives. The cost the ordering warns about
 is retrofitting module *enable/disable* wiring, which is a different thing
 from retrofitting a constant — and neither module made that harder.
 
-1. **Preferences**, because the remaining three want a home in it, and
-   because retrofitting module enable/disable is more expensive than
-   building for it.
+1. **Preferences**, because the rest want a home in it, and because
+   retrofitting module enable/disable is more expensive than building for
+   it. The camera makes this argument stronger than it was: it is the most
+   expensive and most privacy-sensitive module planned, and it is the one a
+   user is most likely to want switched off outright.
 2. **Launch at login** and **global hotkey** — small, self-contained, and
    they validate the preferences surface with real settings.
-3. **Capture indicators**, last, because it is the only one that might come
-   back from its spike smaller than planned.
+3. **The camera in the notch.**
+4. **Microphone and camera indicators**, last — and after the camera
+   module specifically, so that not pointing at the app's own preview is
+   designed in rather than retrofitted.
+
+**If the camera jumps the queue**, and it reasonably might, the cost is the
+one this ordering has always named: its enable/disable wiring gets
+retrofitted into Preferences later. That is a known price rather than a
+surprise, and battery and the timer both paid a smaller version of it
+without trouble. The part that should *not* be reordered is 3 before 4.
 
 ## Still deliberately not planned
 
 - **An audio visualiser.** Named in this category as a top CPU cost; it
   contradicts the one rule directly.
+- **A screen-recording indicator.** Cut from module 1 above. No public API
+  reports that another application is capturing the screen, and macOS
+  already shows its own indicator for it.
 - **iCloud sync.** Requires the paid Developer Program.
 - **A synthetic black notch** on notchless Macs. The pill is the answer.
 - **The Mac App Store.** Private framework use rules it out regardless.
