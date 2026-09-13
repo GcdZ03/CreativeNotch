@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-739-brightgreen" alt="739 tests">
+  <img src="https://img.shields.io/badge/tests-752-brightgreen" alt="752 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -48,7 +48,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. All five modules are built.**
+**The foundation is complete. All seven modules are built.**
 
 | | |
 |---|---|
@@ -61,6 +61,7 @@ distributed, not sold, and not on the App Store.
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
 | ✅ **Media metadata** — now-playing title, artist, artwork, and an ambient badge | Done |
+| ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
@@ -261,7 +262,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 739 tests, ~2s, no window server needed
+swift test           # 752 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -287,8 +288,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   313 tests
-  CreativeNotchUITests/     426 tests
+  CreativeNotchCoreTests/   322 tests
+  CreativeNotchUITests/     430 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
