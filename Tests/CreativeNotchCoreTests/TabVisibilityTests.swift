@@ -4,11 +4,11 @@ import Testing
 
 // MARK: - Existence and order
 
-@Test func theDefaultTabsAreTheThreeUnconditionalOnesPlusPower() {
+@Test func theDefaultTabsAreTheUnconditionalOnesPlusPowerAndCamera() {
     #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
-            == [.shelf, .clipboard, .timer, .power])
+            == [.shelf, .clipboard, .timer, .power, .camera])
     #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: false)
-            == [.shelf, .clipboard, .timer])
+            == [.shelf, .clipboard, .timer, .camera])
 }
 
 /// `.hud` owns no panel content. It is never offered however the preferences
@@ -29,19 +29,21 @@ import Testing
 /// removal -- checked across all 16 combinations rather than by one example,
 /// because a single case is mutation-blind.
 @Test func relativeOrderIsPreservedUnderAnyRemoval() {
-    let canonical: [Tab] = [.shelf, .clipboard, .timer, .power]
-    for mask in 0..<16 {
+    let canonical: [Tab] = [.shelf, .clipboard, .timer, .power, .camera]
+    for mask in 0..<32 {
         var preferences = Preferences.allEnabled
         preferences.shelf     = mask & 1 != 0
         preferences.clipboard = mask & 2 != 0
         preferences.timer     = mask & 4 != 0
         preferences.power     = mask & 8 != 0
+        preferences.camera    = mask & 16 != 0
 
         let tabs = TabVisibility.visible(enabled: preferences, hasBattery: true)
         #expect(tabs == canonical.filter { tabs.contains($0) },
                 "order changed for mask \(mask): \(tabs)")
         #expect(tabs.count == [preferences.shelf, preferences.clipboard,
-                               preferences.timer, preferences.power].filter { $0 }.count)
+                               preferences.timer, preferences.power,
+                               preferences.camera].filter { $0 }.count)
     }
 }
 
@@ -54,6 +56,18 @@ import Testing
     #expect(!TabVisibility.visible(enabled: off, hasBattery: true).contains(.power))
     #expect(!TabVisibility.visible(enabled: .allEnabled, hasBattery: false).contains(.power))
     #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: true).contains(.power))
+}
+
+/// The camera is appended last, like `.power`, so hiding it never reorders the
+/// tabs that were already there.
+@Test func theCameraTabIsAppendedRatherThanInserted() {
+    var noCamera = Preferences.allEnabled
+    noCamera.camera = false
+    let without = TabVisibility.visible(enabled: noCamera, hasBattery: true)
+    let with = TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
+
+    #expect(Array(with.dropLast()) == without)
+    #expect(with.last == .camera)
 }
 
 @Test func everyModuleBeingOffLeavesNoTabsAtAll() {

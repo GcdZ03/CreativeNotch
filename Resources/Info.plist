@@ -17,5 +17,20 @@
   <key>LSMinimumSystemVersion</key><string>26.0</string>
   <key>LSUIElement</key><true/>
   <key>NSHighResolutionCapable</key><true/>
+
+  <!-- The camera module. Without this key macOS TERMINATES the process the
+       moment a capture session is built -- it is not an optional courtesy.
+       Note there is deliberately NO NSMicrophoneUsageDescription: clips are
+       silent, which avoids a second permission prompt, the orange recording
+       indicator, and a self-exclusion problem for the planned microphone
+       indicator. -->
+  <key>NSCameraUsageDescription</key><string>CreativeNotch shows the camera in the notch, so you can check your framing or take a quick photo or clip. Nothing is uploaded; captures are saved to the file shelf.</string>
+
+  <!-- Reaction Effects are on by default for every app on macOS, so a hand
+       gesture would produce confetti in a framing mirror. This sets the
+       DEFAULT only: Apple documents it as applying "until such time that the
+       user makes their own selection in Control Center", so it is not a
+       guarantee. -->
+  <key>NSCameraReactionEffectGesturesEnabledDefault</key><false/>
 </dict>
 </plist>

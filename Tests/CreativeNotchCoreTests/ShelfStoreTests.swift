@@ -9,6 +9,112 @@ import Testing
 @MainActor
 struct ShelfStoreTests {
 
+    // MARK: - References: files the shelf shows but does not own
+
+    /// **The rule that protects a photograph the user just took.**
+    ///
+    /// The shelf's retention is enforced by moving files to the Trash. That is
+    /// right for a copy it made of something dragged in, which still exists
+    /// where it came from. It is catastrophic for a capture in `~/Pictures`,
+    /// which is the only copy of something the user created.
+    @Test func expiringAReferenceLeavesTheFileAlone() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+
+        try store.addReference(to: external, now: Date(timeIntervalSince1970: 0))
+        // Far past the seven-day limit.
+        _ = try store.purge(now: Date(timeIntervalSince1970: 30 * 24 * 3600))
+
+        #expect(store.items.isEmpty, "the entry should have expired from the list")
+        #expect(FileManager.default.fileExists(atPath: external.path),
+                "the shelf trashed a file it does not own")
+    }
+
+    /// The same for eviction, which is the likelier of the two: twenty drags
+    /// is an afternoon.
+    @Test func evictingAReferenceLeavesTheFileAlone() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Clip.mov")
+        try store.addReference(to: external, now: Date())
+
+        for index in 0..<ShelfStore.capacity {
+            _ = try store.add(.text("drop \(index)"), now: Date())
+        }
+
+        #expect(store.items.count == ShelfStore.capacity)
+        #expect(FileManager.default.fileExists(atPath: external.path),
+                "the shelf trashed a file it does not own")
+    }
+
+    /// And removing it by hand. A user clearing the shelf is tidying a list,
+    /// not deleting their photos.
+    @Test func removingAReferenceLeavesTheFileAlone() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+        let item = try store.addReference(to: external, now: Date())
+
+        try store.remove(item.id)
+
+        #expect(store.items.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: external.path))
+    }
+
+    @Test func clearingTheShelfLeavesReferencedFilesAlone() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+        try store.addReference(to: external, now: Date())
+        _ = try store.add(.text("an owned drop"), now: Date())
+
+        try store.clear()
+
+        #expect(store.items.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: external.path))
+    }
+
+    /// The control, and it is what makes the four tests above mean anything:
+    /// an OWNED file is still trashed exactly as before. Without this, a
+    /// `trash` that did nothing at all would pass all of them.
+    @Test func removingAnOwnedItemStillTrashesItsFile() throws {
+        let (store, _) = try makeStore()
+        let item = try store.add(.text("owned"), now: Date())
+        #expect(FileManager.default.fileExists(atPath: item.url.path))
+
+        try store.remove(item.id)
+
+        #expect(FileManager.default.fileExists(atPath: item.url.path) == false,
+                "an owned file was left behind")
+    }
+
+    /// A reference points where it was told to, rather than at a copy.
+    @Test func aReferenceKeepsTheOriginalLocation() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+
+        let item = try store.addReference(to: external, now: Date())
+
+        #expect(item.url == external)
+        #expect(item.isOwned == false)
+        #expect(item.displayName == "Photo.jpg")
+    }
+
+    /// Drops are owned by default, so nothing about existing behaviour moved.
+    @Test func aDroppedFileIsStillOwned() throws {
+        let (store, _) = try makeStore()
+        let item = try store.add(.text("dropped"), now: Date())
+        #expect(item.isOwned)
+    }
+
+    /// A file somewhere outside the shelf's own directory, standing in for a
+    /// capture in `~/Pictures`.
+    private func makeExternalFile(named name: String) throws -> URL {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotchExternal-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let url = directory.appendingPathComponent(name)
+        try Data("pretend this is a photograph".utf8).write(to: url)
+        return url
+    }
+
     private func makeStore() throws -> (ShelfStore, URL) {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("shelf-\(UUID().uuidString)")

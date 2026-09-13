@@ -11,6 +11,7 @@ public enum BadgeSlot: Equatable, Sendable {
     case none
     case nowPlaying
     case timer
+    case recording
 
     /// How far the closed notch grows for this slot.
     public var width: CGFloat {
@@ -18,6 +19,7 @@ public enum BadgeSlot: Equatable, Sendable {
         case .none:       return 0
         case .nowPlaying: return NotchGeometry.nowPlayingBadgeWidth
         case .timer:      return NotchGeometry.timerBadgeWidth
+        case .recording:  return NotchGeometry.recordingBadgeWidth
         }
     }
 }
@@ -90,14 +92,22 @@ public enum NotchShape {
     /// two spellings of the rect would — and the drawn rect, the hit test
     /// and the hover tracking rect all derive from `.width`.
     ///
-    /// A running or paused timer owns the slot; media takes it back when the
-    /// timer finishes or is cancelled. Paused *media* shows nothing: the
-    /// badge answers "is something playing".
+    /// **A recording outranks everything**, and that ordering is the whole
+    /// reason the camera's exemption from the activity gate is defensible. A
+    /// capture that outlives the panel runs with the camera light on and
+    /// nothing else to explain it; this badge is the explanation, and it
+    /// cannot be the thing that yields to a track starting.
+    ///
+    /// Below it, a running or paused timer owns the slot; media takes it back
+    /// when the timer finishes or is cancelled. Paused *media* shows nothing:
+    /// the badge answers "is something playing".
     public static func badgeSlot(
         countdown: Countdown?,
         nowPlaying: TrackSnapshot?,
+        isRecording: Bool = false,
         at now: Date
     ) -> BadgeSlot {
+        if isRecording { return .recording }
         if let countdown, !countdown.hasFinished(at: now) { return .timer }
         if nowPlaying?.isPlaying == true { return .nowPlaying }
         return .none

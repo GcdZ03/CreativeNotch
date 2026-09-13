@@ -90,6 +90,31 @@ public final class ShelfStore {
         return item
     }
 
+    /// Puts a file on the shelf **without copying or owning it**.
+    ///
+    /// For things the app itself created somewhere the user cares about -- a
+    /// camera capture in `~/Pictures`. The shelf shows it and lets it be
+    /// dragged out; it never moves, copies or trashes it.
+    ///
+    /// It still counts toward the capacity limit and still expires from the
+    /// list, because the shelf is a view of recent things and a reference that
+    /// never aged out would crowd real drops off it. What expiry does *not* do
+    /// is touch the file.
+    @discardableResult
+    public func addReference(to url: URL, now: Date) throws -> ShelfItem {
+        let item = ShelfItem(
+            id: UUID(),
+            url: url,
+            displayName: url.lastPathComponent,
+            addedAt: now,
+            isOwned: false
+        )
+        items.insert(item, at: 0)
+        try evictBeyondCapacity()
+        try purge(now: now)
+        return item
+    }
+
     public func remove(_ id: UUID) throws {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         let item = items.remove(at: index)
@@ -149,7 +174,15 @@ public final class ShelfStore {
     /// whose original was later deleted has no other copy, so `removeItem`
     /// would destroy it without the user ever deciding to. `removeItem`
     /// must not appear in this module.
+    /// Moves an item's file to the Trash -- **only if the shelf owns it**.
+    ///
+    /// A referenced file lives somewhere the user chose, and is usually the
+    /// only copy of something they just made. The shelf's retention rules are
+    /// about reclaiming space it allocated; applying them to a file it merely
+    /// points at would mean a photograph taken this morning going to the Trash
+    /// next week because twenty things were dragged onto the notch.
     private func trash(_ item: ShelfItem) throws {
+        guard item.isOwned else { return }
         guard fileManager.fileExists(atPath: item.url.path) else { return }
         try fileManager.trashItem(at: item.url, resultingItemURL: nil)
     }

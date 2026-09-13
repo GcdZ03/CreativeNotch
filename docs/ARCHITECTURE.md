@@ -310,7 +310,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-897 tests, all headless. `swift test` takes
+944 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -866,6 +866,145 @@ the last registration takes the handler with it. Nothing is torn down at
 termination: Apple's header is explicit that the system reclaims registrations
 when the process exits, so teardown there would defend against something that
 cannot happen.
+
+## The camera
+
+A mirror under the lens, a shutter, and a record button. Captures land in the
+file shelf.
+
+### Why it is allowed where the audio visualiser is not
+
+The visualiser is refused a few lines below as a top CPU cost. A live capture
+session costs more than an FFT, so the distinction is not cost:
+
+> The visualiser would run **ambiently** — whenever audio played, whether or
+> not anybody had the notch open. The camera runs **only because the user
+> opened it**, or while it is writing a clip they asked for.
+
+That argument stands only if the session genuinely stops, which was the
+module's one unresolved question — and Apple's documentation does not reach it.
+`stopRunning` is documented to stop the session *object* and the *flow of
+data*, never to say when the device is released, and
+`AVCaptureVideoPreviewLayer.isPreviewing` is unavailable on macOS.
+
+**Measured out-of-process, with the subject held alive afterwards:** the device
+was released **10 ms after `stopRunning()` was called** — 40 ms before the call
+returned — and stayed released through a 120-second idle hold. The deeper
+teardown (removing inputs and outputs, dropping the session) made no
+difference. The 120-second hold is what rules out the obvious false pass: a
+probe that exits measures the kernel reclaiming a dead process's handle.
+
+### Two reasons to run, and the second is an exemption
+
+Gating the session on the panel being open is the obvious design and it is
+wrong. The case that makes it wrong is the one a user hits first: **press
+record, then click away.** A stray cursor would end the take.
+
+So the session runs while **either** the camera tab is visible **or** a
+recording is in progress. This is the project's **second documented exemption**
+from the activity gate, and it is the same shape as the timer's — a countdown's
+purpose is to fire while nobody watches, a recording's is to capture while you
+do something else. In both, the *drawing* is gated and the *work* is not.
+
+**And it is honest about itself.** Whenever a recording outlives the panel, the
+ear shows a red dot, and that badge outranks both the timer and a playing track
+in the slot. A capture running with nothing on screen to account for it is
+precisely what this project exists to prevent, so the badge is part of the rule
+rather than a decoration.
+
+The whole decision is a pure function of four inputs in `CameraRunReason`, so
+it is argued exhaustively over all sixteen combinations rather than reasoned
+about — including the invariant that previewing always implies running.
+
+The preference outranks everything, including a recording: flipping the switch
+is a stronger statement than the cursor moving, and the partial clip is saved
+rather than discarded.
+
+### Two teardowns, for two different problems
+
+`stopRunning()` releases the **device**. Nilling the preview layer's session
+releases the **graph** — `AVCaptureVideoPreviewLayer.h` states twice that the
+layer retains the session, so removing the view is not enough. Both are needed
+and neither substitutes for the other.
+
+### The fourth layer that declines a click
+
+Three are listed above, with the trap that each was individually correct while
+the assembly ate menu bar clicks across a 620pt band. The preview is a fourth
+layer-backed view inside the panel and therefore a fourth chance to make that
+mistake: it draws and never claims a point. The shutter and record buttons are
+SwiftUI siblings rather than subviews, so the clicks they need are not routed
+through a view whose job is to decline them.
+
+### The camera tab suppresses the media bar, and keeps the tab bar
+
+The media bar is the real constraint. It appears and disappears with playback,
+so a preview sized around it would resize under the user the moment a track
+started — and **a preview that resizes when music starts is not acceptable**.
+Suppressing it fixes the height at roughly 195 points whatever is playing, with
+`expandedFrame` untouched so no other tab is affected.
+
+`ROADMAP.md` previously said the geometry did not fit at all, on the arithmetic
+that 16:9 at 620 wide wants 349 points of height. That is only true fitting to
+*width*: fit to height and it is 462 × 260, inside 620 with room to spare.
+
+**The tab bar was suppressed too in the first version, and that was wrong.** The
+spec justified it by saying the camera view owned a close control "and Escape
+still dismisses" — and there is no Escape handling anywhere in the panel. So it
+shipped with one close button as the only discoverable way out, which a minute
+of using it exposed. A tab the user cannot obviously leave is worse than 27
+points of preview.
+
+### What is deliberately absent
+
+**Sound.** An audio input costs a second usage-description key, a second TCC
+prompt, the orange recording indicator, an entry in Control Center's microphone
+list — and a self-exclusion problem for the planned microphone indicator that
+does not otherwise exist.
+
+**Continuity Cameras.** `AVCaptureDevice.default(for:)` and
+`systemPreferredCamera` can both return an iPhone on a desk across the room,
+which breaks the premise that the lens is above the preview.
+`isContinuityCamera` is the documented filter.
+
+**Reaction Effects**, which are on by default for every app on macOS. A hand
+gesture producing confetti is right for FaceTime and wrong for a framing
+mirror. The Info.plist key sets a *default* rather than a guarantee — Apple
+documents it as applying only until the user makes their own selection in
+Control Center.
+
+**Mirroring on the saved file.** The preview is mirrored; the file is not, so
+text in shot reads correctly. Mirroring lives on `AVCaptureConnection` and
+there is a separate connection per output, so a `.scaleEffect(x: -1)` on the
+view would mirror the preview and nothing else.
+
+### Captures are not the shelf's to delete
+
+They go to `~/Pictures/CreativeNotch/`, and the shelf shows them as
+**references it does not own**.
+
+The shelf enforces its retention — 7 days, 20 items — by moving files to the
+Trash. Correct for a copy of something dragged in from where it still exists;
+catastrophic for the only copy of a photograph somebody just took. `ShelfItem`
+therefore carries `isOwned`, and `trash` is a no-op for anything the shelf does
+not own: the item still expires from the list, but expiry never touches the
+file.
+
+This was found by being asked where captures are stored, not by a test. The
+module had been written to the roadmap's phrase "captures land in the file
+shelf" without ever asking what the shelf *does* to what lands in it.
+
+### A denied grant is not an error
+
+`AVCaptureDevice.h`: *"Until access has been granted, any AVCaptureDevices for
+the media type will vend silent audio samples or **black video frames**."* So a
+refusal is indistinguishable from a bug unless `authorizationStatus` is read
+**before** the graph is built. It is. `notDetermined` is deliberately not
+treated as a refusal, or nobody would ever be prompted.
+
+Every shipped update re-prompts, because TCC keys the grant to the code hash
+and this app is ad-hoc signed — measured, not inferred. It is one of several
+costs a stable signing identity would remove at a stroke.
 
 ## Deliberately absent
 

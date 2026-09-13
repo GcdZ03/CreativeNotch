@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import AVFoundation
 import CreativeNotchCore
 
 /// The single funnel every derived value hangs off.
@@ -105,6 +106,22 @@ public final class AppState {
     /// directly — it needs Observation's tracking to invalidate the view
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
+
+    /// The capture session the preview draws, or `nil` when the camera module
+    /// is off or has no camera. Published rather than reached through the
+    /// delegate so the view keeps its one dependency.
+    @ObservationIgnored public var cameraSession: AVCaptureSession?
+
+    /// What the camera tab shows. Observed, unlike the session itself, which
+    /// is an object identity that never changes.
+    var cameraState: CameraController.State?
+
+    public var onCameraShutter: (() -> Void)?
+    public var onCameraToggleRecording: (() -> Void)?
+
+    /// Whether a clip is being written. Read by the badge slot, and the reason
+    /// the camera's activity-gate exemption is honest rather than silent.
+    public var isRecordingClip: Bool = false
 
     /// Which modules are switched on.
     ///
@@ -516,6 +533,13 @@ public struct NotchRootView: View {
                     // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
                     // test that bites that mistake.
                     switch slot {
+                    case .recording:
+                        RecordingBadgeView()
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .trailing
+                            )
                     case .timer:
                         if let countdown = app.countdown {
                             TimerBadgeView(
@@ -541,11 +565,39 @@ public struct NotchRootView: View {
                         EmptyView()
                     }
 
+                case .open(.camera):
+                    // **The camera tab suppresses the MEDIA BAR only**, and
+                    // keeps the tab bar.
+                    //
+                    // The media bar is the real constraint: it appears and
+                    // disappears with playback, so a preview sized around it
+                    // would resize under the user the moment a track started.
+                    // Suppressing it fixes the height at roughly 195 points
+                    // whatever is playing.
+                    //
+                    // The tab bar was suppressed too, in the first version of
+                    // this module, and that was a mistake found by using it:
+                    // it left a close button as the ONLY discoverable way out,
+                    // with no Escape handling anywhere in the panel to fall
+                    // back on. A tab you cannot obviously leave is worse than
+                    // 27 points of preview.
+                    VStack(spacing: 0) {
+                        PanelTabBar(
+                            selected: .camera,
+                            enabled: app.preferences,
+                            hasBattery: app.hasBattery
+                        ) { app.transition(to: .open($0)) }
+                        cameraContent
+                    }
+                    .padding(.top, app.anchor.rect.height)
+                    .frame(maxHeight: .infinity, alignment: .top)
+
                 case .open(let tab):
                     VStack(spacing: 0) {
                         mediaBar
                         PanelTabBar(
                             selected: tab,
+                            enabled: app.preferences,
                             hasBattery: app.hasBattery
                         ) { app.transition(to: .open($0)) }
                         // `at: now` keeps the tab on the single instant
@@ -681,9 +733,30 @@ public struct NotchRootView: View {
         }
     }
 
+    /// The camera tab's content, drawn without the media bar or the tab bar.
+    @ViewBuilder
+    private var cameraContent: some View {
+        if let camera = app.cameraSession, let state = app.cameraState {
+            CameraTabView(
+                state: state,
+                session: camera,
+                onShutter: { app.onCameraShutter?() },
+                onToggleRecording: { app.onCameraToggleRecording?() },
+                onClose: { app.transition(to: .closed) }
+            )
+        } else {
+            EmptyView()
+        }
+    }
+
     @ViewBuilder
     private func openContent(for tab: CreativeNotchCore.Tab, at now: Date) -> some View {
         switch tab {
+        case .camera:
+            // Unreachable: `.open(.camera)` is matched above, before this.
+            // Kept because the switch is exhaustive and a placeholder here is
+            // better than a `default` that would silently swallow a new tab.
+            EmptyView()
         case .shelf:
             if let shelf = app.shelf { ShelfView(store: shelf) }
         case .clipboard:

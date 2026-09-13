@@ -27,6 +27,9 @@ public enum TabVisibility {
         if enabled.clipboard { tabs.append(.clipboard) }
         if enabled.timer { tabs.append(.timer) }
         if enabled.power, hasBattery { tabs.append(.power) }
+        // Appended last for the same reason `.power` is: hiding it never
+        // reorders the tabs that were already there.
+        if enabled.camera { tabs.append(.camera) }
         return tabs
     }
 

@@ -239,6 +239,83 @@ struct ModuleToggleTests {
         #expect(delegate.state.shelf == nil)
     }
 
+    // MARK: - Camera
+
+    /// Switching the module off stops the capture and takes the session out of
+    /// the panel -- the preview must not keep a graph alive behind a switch
+    /// that reads off.
+    @Test func disablingTheCameraStopsItAndClearsTheSession() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.startSubsystems()
+        delegate.switchboard.setEnabled(true, for: .camera)
+        camera.setTabVisible(true)
+        #expect(camera.shouldRun, "the camera never started, so stopping it proves nothing")
+
+        delegate.switchboard.setEnabled(false, for: .camera)
+
+        #expect(camera.shouldRun == false)
+        #expect(delegate.state.cameraSession == nil)
+        #expect(delegate.state.isRecordingClip == false)
+        delegate.activity.stop()
+    }
+
+    /// The camera tab disappears with the module, like every other tab.
+    @Test func disablingTheCameraRemovesItsTab() {
+        let delegate = makeDelegate()
+        #expect(TabVisibility.visible(enabled: delegate.state.preferences,
+                                      hasBattery: true).contains(.camera))
+
+        delegate.switchboard.setEnabled(false, for: .camera)
+
+        #expect(!TabVisibility.visible(enabled: delegate.state.preferences,
+                                       hasBattery: true).contains(.camera))
+    }
+
+    /// Opening the tab is what starts the camera. It goes through the funnel
+    /// rather than the view's `onAppear`, because a view that started the
+    /// camera would also have to stop it on disappear -- and SwiftUI gives no
+    /// guarantee about when that runs.
+    @Test func openingTheCameraTabStartsIt() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        #expect(camera.shouldRun == false)
+
+        delegate.state.transition(to: .open(.camera))
+
+        #expect(camera.shouldRun)
+        #expect(camera.shouldPreview)
+    }
+
+    /// And leaving it stops the camera -- unless a clip is being written, which
+    /// `CameraRunReason` decides. Leaving the tab is not a request to discard
+    /// a take.
+    @Test func leavingTheCameraTabStopsIt() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.state.transition(to: .open(.camera))
+        #expect(camera.shouldRun)
+
+        delegate.state.transition(to: .open(.shelf))
+
+        #expect(camera.shouldRun == false)
+    }
+
+    /// Closing the panel entirely does the same.
+    @Test func closingThePanelStopsTheCamera() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.state.transition(to: .open(.camera))
+
+        delegate.state.transition(to: .closed)
+
+        #expect(camera.shouldRun == false)
+    }
+
     // MARK: - Global hotkey
 
     /// Stopping this module means **unregistering**, not ignoring the
@@ -298,7 +375,7 @@ struct ModuleToggleTests {
     /// the hotkey is a deliberate no-op rather than opening an empty panel.
     @Test func theHotkeyOpensNothingWhenEveryTabIsGone() {
         let delegate = makeDelegate()
-        for module in [ModuleID.shelf, .clipboard, .timer, .power] {
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
             delegate.switchboard.setEnabled(false, for: module)
         }
 
@@ -339,7 +416,7 @@ struct ModuleToggleTests {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
 
-        for module in [ModuleID.shelf, .clipboard, .timer, .power] {
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
             delegate.switchboard.setEnabled(false, for: module)
         }
 

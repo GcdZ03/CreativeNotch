@@ -167,6 +167,13 @@ struct PreferencesView: View {
             detail: "A countdown in the notch."
         ),
         PreferencesRow(
+            module: .camera,
+            title: "Camera",
+            // The honest note: this one genuinely costs something while it is
+            // open, and says so rather than implying it is free.
+            detail: "A mirror under the lens, with a shutter and a record button. This is the only module that costs anything while it is running \u{2014} the camera light is on whenever the preview is, and a clip keeps recording if you close the notch."
+        ),
+        PreferencesRow(
             module: .hotkey,
             title: "Global shortcut",
             // No default, and the note says why rather than leaving an empty

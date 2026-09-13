@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-897-brightgreen" alt="897 tests">
+  <img src="https://img.shields.io/badge/tests-944-brightgreen" alt="944 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -54,7 +54,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. All eight modules are built, and every one of them can be switched off.**
+**The foundation is complete. All nine modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -71,6 +71,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
+| ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -270,7 +271,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 897 tests, ~2s, no window server needed
+swift test           # 944 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -296,8 +297,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   377 tests
-  CreativeNotchUITests/     520 tests
+  CreativeNotchCoreTests/   399 tests
+  CreativeNotchUITests/     545 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -313,8 +314,8 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped, and four of the seven
-planned since. The remaining three are not built:
+Every module on the *original* roadmap has shipped, and five of the seven
+planned since. The remaining two are not built:
 
 | | |
 |---|---|
@@ -323,7 +324,7 @@ planned since. The remaining three are not built:
 | **Preferences** — turn modules off, and the subsystem stops | **Shipped** |
 | **Launch at login** | Planned |
 | **Global shortcut** — open the panel from anywhere | **Shipped** |
-| **Camera in the notch** — a mirror under the lens, a shutter, and a record button | Planned |
+| **Camera in the notch** — a mirror under the lens, a shutter, and a record button | **Shipped** |
 | **Capture indicators** — microphone and camera in use | Planned |
 
 Battery and the timer both shipped ahead of the suggested order, which put
@@ -351,10 +352,17 @@ at all.
 The camera module puts the FaceTime feed in the open panel: a mirror for
 checking framing, a shutter, and a record button, with what you capture
 landing in the file shelf. The camera is physically behind the notch, so the
-preview sits directly under the lens feeding it. It is allowed to be
-expensive for the same reason the audio visualiser is not — it runs *only*
-while you have opened it and are looking at it, and the capture session must
-genuinely stop when the panel closes, not merely be hidden.
+preview sits directly under the lens feeding it. It is allowed to be expensive
+for the same reason the audio visualiser is not — it runs *only* while you have
+opened it, or while it is writing a clip you asked for. **`stopRunning()` was
+measured to release the camera 10ms after the call is made, and to stay
+released with the process still alive** — so the claim that it stops is a
+measurement rather than a hope.
+
+Press record and close the notch and the clip keeps recording, with a red dot
+in the ear saying so. A capture running with nothing on screen to account for
+it is the one thing this project exists to prevent, so the badge is part of the
+rule rather than a decoration.
 
 Capture indicators come after the camera module. **Screen recording has been
 cut from them**: no public API reports that another app is recording the
