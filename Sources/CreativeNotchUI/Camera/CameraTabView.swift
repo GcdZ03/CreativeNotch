@@ -42,6 +42,12 @@ struct CameraTabView: View {
 
             controls
         }
+        // Fills what the tab bar left, rather than taking its intrinsic size.
+        // `CameraPreview` is an `NSViewRepresentable` with no intrinsic
+        // content size, so without this the ZStack can collapse and the
+        // controls lose the space their Spacers need -- which is how the
+        // close button ended up somewhere the user could not reach it.
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(12)
     }
 

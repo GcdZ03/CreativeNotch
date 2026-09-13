@@ -566,19 +566,31 @@ public struct NotchRootView: View {
                     }
 
                 case .open(.camera):
-                    // **The camera tab suppresses the chrome and takes the
-                    // full height**, and that is what makes its geometry
-                    // work at all. The content area left by the media bar
-                    // and the tab bar is roughly 195 points, dropping to
-                    // about 130 when a track starts playing -- and a preview
-                    // that resizes when music starts is not acceptable.
+                    // **The camera tab suppresses the MEDIA BAR only**, and
+                    // keeps the tab bar.
                     //
-                    // `expandedFrame` is untouched, so no other tab is
-                    // affected. Because the tab bar is gone, the camera view
-                    // owns the only way back.
-                    cameraContent
-                        .padding(.top, app.anchor.rect.height)
-                        .frame(maxHeight: .infinity, alignment: .top)
+                    // The media bar is the real constraint: it appears and
+                    // disappears with playback, so a preview sized around it
+                    // would resize under the user the moment a track started.
+                    // Suppressing it fixes the height at roughly 195 points
+                    // whatever is playing.
+                    //
+                    // The tab bar was suppressed too, in the first version of
+                    // this module, and that was a mistake found by using it:
+                    // it left a close button as the ONLY discoverable way out,
+                    // with no Escape handling anywhere in the panel to fall
+                    // back on. A tab you cannot obviously leave is worse than
+                    // 27 points of preview.
+                    VStack(spacing: 0) {
+                        PanelTabBar(
+                            selected: .camera,
+                            enabled: app.preferences,
+                            hasBattery: app.hasBattery
+                        ) { app.transition(to: .open($0)) }
+                        cameraContent
+                    }
+                    .padding(.top, app.anchor.rect.height)
+                    .frame(maxHeight: .infinity, alignment: .top)
 
                 case .open(let tab):
                     VStack(spacing: 0) {

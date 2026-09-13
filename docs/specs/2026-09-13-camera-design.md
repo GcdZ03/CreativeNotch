@@ -108,13 +108,22 @@ after the notch inset, the media header when a track is playing, and the tab
 bar — roughly 130 points with music playing and 195 without. **A preview whose
 height changes when a track starts is not acceptable.**
 
-So the camera tab takes the full panel height and suppresses the media header
-and the tab bar while it is open. `expandedFrame` is untouched, no other tab is
-affected, and the preview never resizes under the user.
+So the camera tab suppresses **the media header only**, and keeps the tab bar.
+`expandedFrame` is untouched, no other tab is affected, and the preview never
+resizes under the user, because the thing that was resizing it was the media
+header appearing and disappearing with playback.
 
-**Leaving the tab is the only way back**, so the tab bar is not merely hidden:
-the camera view owns a close control, and Escape still dismisses. A tab you
-cannot leave is worse than a preview that letterboxes.
+**This corrects the first version of this spec**, which suppressed the tab bar
+as well and claimed "the camera view owns a close control, and Escape still
+dismisses". The second half of that was simply false — **there is no Escape
+handling anywhere in the panel** — so removing the tab bar left one close
+button as the only discoverable way out, and using it for a minute was enough
+to find that out.
+
+The lesson is worth keeping rather than quietly fixing: the reasoning about
+which chrome to suppress was sound, and the claim about what would replace it
+was never checked. 27 points of preview is a smaller cost than a tab the user
+cannot obviously leave.
 
 ---
 

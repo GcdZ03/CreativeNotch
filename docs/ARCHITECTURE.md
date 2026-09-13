@@ -936,19 +936,24 @@ mistake: it draws and never claims a point. The shutter and record buttons are
 SwiftUI siblings rather than subviews, so the clicks they need are not routed
 through a view whose job is to decline them.
 
-### The camera tab takes the whole panel
+### The camera tab suppresses the media bar, and keeps the tab bar
 
-It suppresses the media bar and the tab bar and uses all 260 points. The
-content area left by that chrome is roughly 195 points, dropping to about 130
-when a track starts playing — and **a preview that resizes when music starts is
-not acceptable**. `expandedFrame` is untouched, so no other tab is affected.
+The media bar is the real constraint. It appears and disappears with playback,
+so a preview sized around it would resize under the user the moment a track
+started — and **a preview that resizes when music starts is not acceptable**.
+Suppressing it fixes the height at roughly 195 points whatever is playing, with
+`expandedFrame` untouched so no other tab is affected.
 
-`ROADMAP.md` previously said the geometry did not fit, on the arithmetic that
-16:9 at 620 wide wants 349 points of height. That is only true fitting to
+`ROADMAP.md` previously said the geometry did not fit at all, on the arithmetic
+that 16:9 at 620 wide wants 349 points of height. That is only true fitting to
 *width*: fit to height and it is 462 × 260, inside 620 with room to spare.
 
-Because the tab bar is gone, the camera view owns the only way back. A tab you
-cannot leave is worse than a preview that letterboxes.
+**The tab bar was suppressed too in the first version, and that was wrong.** The
+spec justified it by saying the camera view owned a close control "and Escape
+still dismisses" — and there is no Escape handling anywhere in the panel. So it
+shipped with one close button as the only discoverable way out, which a minute
+of using it exposed. A tab the user cannot obviously leave is worse than 27
+points of preview.
 
 ### What is deliberately absent
 
