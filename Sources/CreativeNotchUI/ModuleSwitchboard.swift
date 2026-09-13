@@ -118,14 +118,24 @@ final class ModuleSwitchboard {
     ///
     /// `apply()` is this called seven times, which is what makes the launch
     /// path and a live toggle the same code.
-    func setEnabled(_ enabled: Bool, for module: ModuleID) {
+    ///
+    /// **Three asymmetries below are deliberate, not oversights.** A running
+    /// countdown is not cancelled; `hasBattery` is never cleared, because
+    /// capability and preference are two different questions; and the shelf
+    /// and transport legs stop nothing, because they own nothing to stop.
+    func setEnabled(_ enabled: Bool, for module: ModuleID, persist: Bool = false) {
         preferences[module] = enabled
+        if persist { delegate.preferencesStore.setEnabled(enabled, for: module) }
         delegate.state.preferences = preferences
 
         switch module {
         case .hud:
-            enabled ? delegate.hud?.start() : delegate.hud?.stop()
-            if !enabled { delegate.arbiter.clearHUD() }
+            if enabled {
+                delegate.hud?.start()
+            } else {
+                delegate.hud?.stop()
+                delegate.arbiter.clearHUD()
+            }
 
         case .clipboard:
             if enabled {
@@ -138,18 +148,33 @@ final class ModuleSwitchboard {
             delegate.media?.setEnabled(enabled)
             if enabled {
                 delegate.media?.start()
+                // Re-apply the gate: enabling while the screen is locked must
+                // not leave a helper running that the gate would have stopped.
                 if activity != .active { delegate.media?.setActivity(activity) }
             } else {
                 delegate.media?.stop()
+                // `reset()` publishes the absence rather than merely stopping
+                // the production of presence -- it calls `onChange(nil)`,
+                // which is wired to `nowPlayingDidChange`. That matters: a
+                // stale badge widens the closed notch's hit-test region for
+                // the rest of the session.
+                //
+                // An explicit `nowPlayingDidChange(nil)` here was tried and
+                // removed: mutation showed it unobservable, because `reset()`
+                // has already done it by the time it would run.
                 delegate.media?.reset()
             }
 
         case .mediaControls:
-            // Lazy `&&`, preference first. Reading `MediaRemoteBridge
-            // .isAvailable` is what performs the `dlopen`, and there is no
-            // `dlclose` — so the operand order is what makes "off" mean "not
-            // loaded" rather than "loaded and hidden".
+            // Lazy `&&`, **preference first, and the order is load-bearing**.
+            // Reading `MediaRemoteBridge.isAvailable` is what performs the
+            // `dlopen`, and there is no `dlclose` — so the reverse spelling
+            // compiles, looks identical on screen, and loads a private
+            // framework the user just declined.
             delegate.state.showsMediaControls = enabled && delegate.mediaRemoteAvailable()
+            delegate.state.onMediaCommand = enabled
+                ? { command in MediaRemoteBridge.send(command) }
+                : nil
 
         case .power:
             if enabled {
@@ -159,22 +184,64 @@ final class ModuleSwitchboard {
                 delegate.power?.reset()
                 delegate.state.power = nil
                 delegate.arbiter.clearPower()
+                // `hasBattery` is NOT cleared. It answers "can this machine do
+                // it", which is not "does the user want it", and it is
+                // rewritten on every power notification — so a conflated field
+                // would be clobbered by the hardware and the preference would
+                // silently revert.
             }
 
         case .timer:
-            // A running countdown is left to finish and chime: it is state the
-            // user deliberately created, and the deadline was already exempt
-            // from the activity gate by design. What goes immediately is the
-            // tab, and the ability to start a new one.
-            if !enabled { delegate.arbiter.dismissTimerDone() }
+            if enabled {
+                delegate.wireTimerActions()
+            } else {
+                // The tab goes now and no new countdown can start, but a
+                // running one finishes and chimes: it is state the user
+                // deliberately created, and the deadline was already exempt
+                // from the activity gate by design.
+                //
+                // `onChange` and `onFinished` are deliberately NOT nilled.
+                // They are the publish and finish paths; nilling them for
+                // symmetry is what would silently break the surviving
+                // countdown.
+                delegate.state.onStartTimer = nil
+                delegate.state.onPauseTimer = nil
+                delegate.state.onResumeTimer = nil
+                delegate.state.onCancelTimer = nil
+                delegate.arbiter.dismissTimerDone()
+            }
 
         case .shelf:
-            // Nothing to stop — the shelf owns no timer, observer or process.
-            // Disabling it hides the tab and refuses drops, which the drop
-            // closures read from `state.preferences`.
-            break
+            // Nothing to stop: the shelf owns no timer, observer or process,
+            // and its idle cost is genuinely zero. Disabling hides the tab and
+            // refuses drops — the drop closures read `state.preferences`.
+            delegate.state.shelf = enabled ? delegate.shelf : nil
         }
 
+        retargetTabsIfNeeded()
         delegate.modulesDidChange()
+    }
+
+    /// Moves the selection off a tab that has just disappeared.
+    ///
+    /// **Both the live state and `lastOpenTab`.** Correcting only the live one
+    /// leaves the notch-tap reopen to fire later from `.open(lastOpenTab)`,
+    /// long after the toggle — the hardest version of this bug to reproduce
+    /// and the easiest to dismiss as a glitch.
+    ///
+    /// This is the first thing in the app's history that turns a tab off while
+    /// the panel is open; `hasBattery` only ever turned one on.
+    private func retargetTabsIfNeeded() {
+        let visible = TabVisibility.visible(
+            enabled: preferences,
+            hasBattery: delegate.state.hasBattery
+        )
+
+        if case .open(let tab) = delegate.state.state, !visible.contains(tab) {
+            delegate.state.transition(to: visible.first.map { .open($0) } ?? .closed)
+        }
+        if !visible.contains(delegate.state.lastOpenTab), let first = visible.first {
+            delegate.state.retarget(lastOpenTab: first)
+        }
     }
 }

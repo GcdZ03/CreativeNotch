@@ -264,6 +264,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startSubsystems()
     }
 
+    /// The four actions the timer tab can take.
+    ///
+    /// Extracted so the switchboard can nil them when the timer is switched
+    /// off and restore them when it comes back. `onChange` and `onFinished`
+    /// are deliberately not among them: they are the publish and finish paths
+    /// of a countdown that is allowed to outlive the toggle.
+    func wireTimerActions() {
+        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
+        state.onPauseTimer = { [weak timer] in timer?.pause() }
+        state.onResumeTimer = { [weak timer] in timer?.resume() }
+        state.onCancelTimer = { [weak timer] in timer?.cancel() }
+    }
+
     /// Re-derives everything that depends on which modules are on.
     ///
     /// The switchboard reaches AppKit through the per-module verbs and this
@@ -411,12 +424,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // closures are held by the state which the delegate owns, and the
         // delegate owns the controller — capturing it strongly would close
         // the cycle.
-        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
-        state.onPauseTimer = { [weak timer] in timer?.pause() }
-        state.onResumeTimer = { [weak timer] in timer?.resume() }
-        state.onCancelTimer = { [weak timer] in timer?.cancel() }
-
         self.timer = timer
+        wireTimerActions()
 
         // Publishes into `AppState` for the power tab, and into the
         // arbiter for the peek. Starting and stopping stays in
@@ -629,10 +638,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // reads the clock. `remaining` is deliberately unclamped for
         // exactly this, so negate it and floor at zero.
         let lateness = -countdown.remaining(at: Date())
-        arbiter.recordTimerFinished(
-            TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
-            now: self.now()
-        )
+
+        // A countdown that finishes AFTER the timer was switched off still
+        // chimes -- the interruption is precisely what the user asked for --
+        // but does not take the peek slot.
+        //
+        // `timerDoneTTL` is 600s and outranks both `.hud` and `.power`, so
+        // recording here would hold the shared slot for ten minutes on behalf
+        // of a switched-off module, swallowing volume feedback. And it would
+        // be unclearable: `dismissTimerDone()`'s only caller sits behind a
+        // transition to `.open`, and there is no tab left to reach.
+        if state.preferences.timer {
+            arbiter.recordTimerFinished(
+                TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
+                now: self.now()
+            )
+        }
         playChime()
         // The existing peek path, not a second one: it already declines to
         // interrupt `.open` and `.receiving`, and it is what makes the
