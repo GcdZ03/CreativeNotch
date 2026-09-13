@@ -1,6 +1,6 @@
 # Roadmap
 
-Three modules are planned. **None of them is implemented.** Nothing in this
+Two modules are planned. **Neither is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
@@ -11,6 +11,13 @@ Three have shipped, and their entries have been removed:
   `docs/research/2026-08-30-battery-estimate-noise.md`.
 - **Timer** (2026-08-30) — `docs/specs/2026-08-30-timer-design.md`,
   `docs/plans/2026-08-30-timer.md`.
+- **The camera in the notch** (2026-09-13) —
+  `docs/specs/2026-09-13-camera-design.md`. The module whose admission rested
+  on a single undocumented question -- does `stopRunning()` release the
+  hardware -- now answered by measurement rather than by argument: 10ms after
+  the call is made, and still released 120 seconds later with the process
+  alive. It also turned out this document's geometry arithmetic was wrong; the
+  preview fits.
 - **Global shortcut** (2026-09-13) — `docs/specs/2026-09-13-global-hotkey-design.md`,
   `docs/research/2026-09-13-hotkey-probe.md`. Three of this document's claims
   about it were wrong, and the probe that found that out is recorded beside the
@@ -33,7 +40,7 @@ and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all three have to answer
+## The constraint both have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -190,141 +197,18 @@ entirely. Only a `pgrep` after a real logout proves anything.
 
 ---
 
-## 3. The camera in the notch
-
-**What it is.** Click the notch, choose the camera tab, and the FaceTime
-camera's feed appears in the panel — a mirror for checking framing before a
-call, a shutter for a still, and a record button for a clip. What gets
-captured lands in the file shelf.
-
-**The pleasing part is geometric rather than technical.** The camera sits
-physically behind the notch, so a preview drawn in the open panel is
-directly beneath the lens feeding it. Looking at yourself means very nearly
-looking at the camera.
-
-### Why this is allowed when the audio visualiser is not
-
-This is the most expensive thing the app would ever do, and a few lines
-below, the visualiser is refused as a top CPU cost that contradicts the one
-rule. A live capture session costs more than an FFT. So the distinction
-cannot be cost, and pretending it is would be dishonest:
-
-> The visualiser runs **ambiently**. It would draw whenever audio played,
-> whether or not anybody had the notch open, and whether or not anybody was
-> looking. The camera runs **only because the user opened it**, and only
-> while they are watching the thing it produces.
-
-The rule is *no subsystem runs when it isn't needed*, not *nothing expensive
-is allowed*. A preview the user explicitly asked for, while they are looking
-at it, is the definition of needed. The visualiser fails the rule; this
-passes it — **provided the session actually stops.**
-
-### Where this module can silently betray the rule
-
-An `AVCaptureSession` left running behind a closed panel is exactly the idle
-drain this project exists to avoid, and it is invisible everywhere except
-the battery graph. **Hiding the view is not stopping the session.** It has
-to stop on:
-
-- the panel dismissing by any route — click-out, Escape, the menu bar item
-- the tab changing away from the camera
-- screen lock and display sleep, which `SystemActivity` already reports
-- app termination
-
-This is the first module where the gate is not a power optimisation but a
-privacy guarantee. The green light beside the lens is the user's only
-evidence of what the app is doing, and it has to go out when they close the
-panel.
-
-### Permissions, and the trap specific to this app
-
-`NSCameraUsageDescription` in the bundle plist, and
-`AVCaptureDevice.requestAccess(for: .video)`. TCC keys the grant to the code
-signature, and CreativeNotch is **ad-hoc signed** — an ad-hoc signature's
-designated requirement is the hash of the code, so the camera grant is
-revoked on every rebuild. This is the same failure `DEVELOPMENT.md` already
-documents for Accessibility, and `Scripts/setup-signing.sh` is the same
-answer. Expect it while developing rather than discovering it as a bug.
-
-**The green light is not suppressible.** It is wired to the camera hardware
-below the level of any API. Document it, so "the light comes on" is not
-filed as a defect.
-
-### The geometry fits — this document got the arithmetic wrong
-
-**Correction.** This section used to read *"the geometry does not fit"*, on
-the basis that a 16:9 preview 620 points wide wants 349 points of height
-against a 260-point panel. That is only true fitting to **width**. Fit to
-**height** and 16:9 at 260 tall is **462 × 260**, which sits inside 620 with
-158 points to spare for controls.
-
-The real constraint is not `expandedSize` at all — it is the **tab content
-area** left after the notch inset, the media header when a track is playing,
-and the tab bar. That leaves roughly 130 points with music playing and ~195
-without, and **a preview whose height changes when a track starts is not
-acceptable.**
-
-So the option this document missed is the likely answer: a camera tab that
-**suppresses the media header and tab chrome and takes the full 260**,
-leaving `expandedFrame` untouched and every other tab unaffected. Measure the
-three heights on a real screen before the spec commits.
-
-### Recording needs what a preview does not
-
-A clip needs somewhere to go while it is being written, a size that is not
-unbounded, and an unambiguous tell that recording is happening. The shelf is
-the natural destination and already knows how to hold files and drag them
-back out. What `ShelfStore` does *not* have is any notion of a file still
-being written — so a clip should land in the shelf **on stop, not on
-start.**
-
-### The teardown question is answered, and the module is admissible
-
-This module's admission rests entirely on "provided the session actually
-stops", and Apple's documentation does not reach that far: `stopRunning` is
-documented to stop the session *object* and the flow of data, never to say
-when the **device** is released. `AVCaptureVideoPreviewLayer.isPreviewing` —
-the only in-process cross-check — is unavailable on macOS, and the preview
-layer **retains the session**, so the obvious teardown leaves it running with
-no symptom anywhere inside the app.
-
-**Measured, twice, with an out-of-process observer and a control:**
-
-| Variant | Observer saw the device released |
-| --- | --- |
-| `stopRunning()` alone | **10 ms after the call was made** — 40 ms before it returned |
-| `stopRunning()` + remove inputs/outputs + drop the session | 52 ms before the call returned |
-
-Both held at released for the full 120-second idle hold **with the process
-still alive**, which is what rules out the obvious false pass: a probe that
-exits measures the kernel reclaiming a dead process's handle, not
-`stopRunning`.
-
-So **`stopRunning()` alone is sufficient**, the deeper teardown buys nothing
-for device release, and the justification above holds as written. Still nil
-the preview layer's session — that is a retain cycle, not a device claim.
-
-**One cost to write into the spec.** TCC keys the camera grant to the code
-hash, and this app is ad-hoc signed. Confirmed in the same probe: a rebuild
-with an unchanged bundle identifier and a changed cdhash **re-prompted for
-camera access**. Every shipped update makes every user approve the camera
-again. Unlike Accessibility, which fails silently, this is noisy and
-self-healing — but it is a real cost, and it is one of several that a stable
-signing identity would remove at a stroke.
-
-**Needs a spike:** the hard one is done. What remains is the preview inside
-an `LSUIElement` agent that owns no ordinary window — only an `NSPanel` whose
-hosting view already declines clicks in three layers.
-
 ## Suggested order
 
 **Preferences has shipped**, which removes the argument that used to lead this
 section: the remaining four wanted somewhere to live, and now they have one.
 Every module is switchable, and switching one off stops what it runs.
 
-1. **The camera in the notch**, de-risked by the teardown measurement above.
-2. **Microphone and camera indicators.**
-3. **Launch at login**, *last*, and conditional. It is the only module that
+1. **Microphone and camera indicators.** The camera module has shipped, which
+   settles the dependency this order was really about: CreativeNotch is now a
+   known, instrumentable capture client to test the indicator against, and —
+   because clips are silent — it is **not** something the microphone half has
+   to exclude.
+2. **Launch at login**, *last*, and conditional. It is the only module that
    might not exist, and pairing it with the shortcut — as this document used
    to — would have risked the safe one slipping behind the blocked one. The
    shortcut has since shipped on its own, which is the argument settled.
@@ -335,14 +219,6 @@ a leg to `ModuleSwitchboard.setEnabled` — and the leg has to *stop something*,
 because every one of them is mutation-verified against its own subsystem rather
 than against a stored boolean. That is the enable/disable retrofit this
 document kept warning about, paid once.
-
-**Why 1 before 2, restated.** This document used to justify it by
-self-exclusion: build the camera first so the indicator is designed not to
-point at it. That reason is weaker than it looked, and the measurement above
-weakened it further. The stronger reasons: the camera module can **delete** the
-indicator module's hardest requirement outright if it is ever cut, and whether
-clips carry sound is a camera scope decision that determines whether
-CreativeNotch is something the *microphone* indicator must exclude.
 
 ### The decision that sits above all of this: a signing identity
 

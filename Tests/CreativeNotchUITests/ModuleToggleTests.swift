@@ -273,6 +273,49 @@ struct ModuleToggleTests {
                                        hasBattery: true).contains(.camera))
     }
 
+    /// Opening the tab is what starts the camera. It goes through the funnel
+    /// rather than the view's `onAppear`, because a view that started the
+    /// camera would also have to stop it on disappear -- and SwiftUI gives no
+    /// guarantee about when that runs.
+    @Test func openingTheCameraTabStartsIt() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        #expect(camera.shouldRun == false)
+
+        delegate.state.transition(to: .open(.camera))
+
+        #expect(camera.shouldRun)
+        #expect(camera.shouldPreview)
+    }
+
+    /// And leaving it stops the camera -- unless a clip is being written, which
+    /// `CameraRunReason` decides. Leaving the tab is not a request to discard
+    /// a take.
+    @Test func leavingTheCameraTabStopsIt() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.state.transition(to: .open(.camera))
+        #expect(camera.shouldRun)
+
+        delegate.state.transition(to: .open(.shelf))
+
+        #expect(camera.shouldRun == false)
+    }
+
+    /// Closing the panel entirely does the same.
+    @Test func closingThePanelStopsTheCamera() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.state.transition(to: .open(.camera))
+
+        delegate.state.transition(to: .closed)
+
+        #expect(camera.shouldRun == false)
+    }
+
     // MARK: - Global hotkey
 
     /// Stopping this module means **unregistering**, not ignoring the

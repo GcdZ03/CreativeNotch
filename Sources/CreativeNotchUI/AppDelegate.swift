@@ -290,6 +290,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onCancelTimer = { [weak timer] in timer?.cancel() }
     }
 
+    /// Tells the camera whether its tab is on screen.
+    ///
+    /// The one input the controller cannot work out for itself, and the reason
+    /// it goes through the funnel rather than being read by the view: a view
+    /// that started the camera on appear would also have to stop it on
+    /// disappear, and SwiftUI gives no guarantee about when that runs. `pkill`
+    /// -- which this repo's own dev.sh and install.sh both use -- runs no
+    /// AppKit handler at all.
+    ///
+    /// Note what this does NOT do: stop a recording. `CameraRunReason` decides
+    /// that, and a clip in progress keeps the session alive with the badge
+    /// showing. Leaving the tab is not a request to discard a take.
+    func syncCameraVisibility(for next: NotchState) {
+        camera?.setTabVisible(next == .open(.camera))
+    }
+
     /// Re-derives everything that depends on which modules are on.
     ///
     /// The switchboard reaches AppKit through the per-module verbs and this
@@ -607,6 +623,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
+                self.syncCameraVisibility(for: newState)
             }
         }
 
