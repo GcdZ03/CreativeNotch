@@ -83,21 +83,43 @@ jobs:
 
             ## What is in it
 
-            The foundation and **seven modules**:
+            The foundation and **ten modules**, every one of which can be switched
+            off in Settings — and switching one off stops what it runs, rather than
+            hiding it:
 
             | | |
             |---|---|
-            | **File shelf** | Drag a file onto the notch to stash it, drag it out later |
+            | **File shelf** | Drag a file onto the notch to stash it, drag it out later; remove one, or clear all, from the panel |
             | **System HUD** | Volume and brightness, in the notch, alongside Apple's |
             | **Media controls** | Play, pause, and skip from the panel |
-            | **Clipboard history** | The last things you copied, gated on activity |
+            | **Clipboard history** | The last things you copied, with the time each was copied, gated on activity |
             | **Media metadata** | Now-playing title, artist, artwork, and an ambient badge |
-            | **Battery and power state** | Level, charging state, Low Power Mode |
+            | **Battery and power state** | Level, charging state, Low Power Mode, and a gauge |
             | **Timer** | A countdown, counting down beside the notch |
+            | **Preferences** | A settings window that stops a subsystem, not one that hides a feature |
+            | **Global shortcut** | Open the notch from anywhere, registered with the window server rather than a global monitor |
+            | **Camera** | A mirror under the lens, a shutter, and a record button |
+            | **Capture indicator** | A tell in the notch when another app is using your camera or microphone |
 
-            **Preferences, launch at login, a global hotkey, and capture indicators
-            are not built yet.** There is no settings surface: the values above are
-            the ones compiled in.
+            ## The panel, redrawn
+
+            The open panel now opens *into* the notch rather than under it. The tabs
+            are icons in the left ear of the camera housing, the battery level and a
+            settings gear sit in the right ear, and nothing is drawn behind the
+            housing — the same rule every peek already followed. Music is a column
+            on the left with the cover, the track and the transport buttons; it
+            stays put when nothing is playing, so the tabs never move. Each pane has
+            a title row with a count and an action. One control vocabulary replaces
+            the system-blue buttons the timer used to wear, the battery tab draws a
+            real gauge, and a drag shows a dashed drop target instead of a bare label.
+
+            Nothing about it adds a timer or a redraw: the clipboard shows the clock
+            time an entry was copied rather than "2m ago", and the timer's progress
+            track moves only when its digits do. The closed notch, the peeks and the
+            badges are unchanged. Settings is a grouped form in five sections.
+
+            **Launch at login is the one module not built yet.** It is blocked on a
+            signing decision, not on code.
 
             ## The point of it
 

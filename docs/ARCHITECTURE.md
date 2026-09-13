@@ -333,8 +333,8 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-989 tests, all headless. `swift test` takes
-about a second.
+1031 tests, all headless. `swift test` takes
+about two seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
 rather than assumed. Three vacuous tests shipped during the foundation
@@ -505,7 +505,9 @@ the app: it is supervised with bounded restarts, started only while
 
 ### What it draws
 
-The panel header shows artwork, title and artist. Hovering the closed notch
+The panel's music column shows artwork, title and artist above the transport
+buttons, and stays at its fixed width with a placeholder tile when nothing is
+playing (see "The open panel's layout"). Hovering the closed notch
 peeks the same information laid out **around** the camera housing — title
 against its left edge, artist against its right — because anything drawn in
 the middle of that band is invisible. While something is playing, a small
@@ -967,24 +969,27 @@ mistake: it draws and never claims a point. The shutter and record buttons are
 SwiftUI siblings rather than subviews, so the clicks they need are not routed
 through a view whose job is to decline them.
 
-### The camera tab suppresses the media bar, and keeps the tab bar
+### The camera tab takes the whole body, under the same header
 
-The media bar is the real constraint. It appears and disappears with playback,
-so a preview sized around it would resize under the user the moment a track
-started — and **a preview that resizes when music starts is not acceptable**.
-Suppressing it fixes the height at roughly 195 points whatever is playing, with
-`expandedFrame` untouched so no other tab is affected.
+The constraint was always that **a preview that resizes when music starts is
+not acceptable**. Before the redesign the media bar appeared and disappeared
+with playback above every tab, so the camera tab suppressed it and fixed its
+height that way. The redesign moved music into a column of fixed width, and
+the camera tab simply omits the column and takes the full body: the preview
+gets the panel's width, its height no longer depends on playback, and
+`expandedSize` is untouched.
 
-`ROADMAP.md` previously said the geometry did not fit at all, on the arithmetic
-that 16:9 at 620 wide wants 349 points of height. That is only true fitting to
-*width*: fit to height and it is 462 × 260, inside 620 with room to spare.
+The header — and with it the tab bar — stays. **The tab bar was suppressed in
+the first version of the camera tab, and that was wrong.** The spec justified
+it by saying the camera view owned a close control "and Escape still
+dismisses" — and there is no Escape handling anywhere in the panel. So it
+shipped with one close button as the only discoverable way out, which a
+minute of using it exposed. The close button remains for now, redundant
+beside the tabs, because removing a way out is the bug that put it there.
 
-**The tab bar was suppressed too in the first version, and that was wrong.** The
-spec justified it by saying the camera view owned a close control "and Escape
-still dismisses" — and there is no Escape handling anywhere in the panel. So it
-shipped with one close button as the only discoverable way out, which a minute
-of using it exposed. A tab the user cannot obviously leave is worse than 27
-points of preview.
+`ROADMAP.md` once said the geometry did not fit at all, on the arithmetic
+that 16:9 at 620 wide wants 349 points of height. That is only true fitting
+to *width*: fit to height and it is 462 × 260, inside 620 with room to spare.
 
 ### What is deliberately absent
 

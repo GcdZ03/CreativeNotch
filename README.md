@@ -14,11 +14,14 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-989-brightgreen" alt="989 tests">
+  <img src="https://img.shields.io/badge/tests-1031-brightgreen" alt="1031 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
-<!-- Screenshot goes here once there is UI worth showing. -->
+<p align="center">
+  <img src="docs/assets/panel-timer-render.png" width="620" alt="The open panel on the timer tab: icon tabs in the left ear of the notch, battery and a settings gear in the right ear, a music column on the left, and the countdown with a progress track beside it">
+</p>
+<p align="center"><sub>Rendered offscreen by the test suite's renderer on a stand-in wallpaper, not a screenshot — the layout is exact, the desktop is not.</sub></p>
 
 ---
 
@@ -116,7 +119,7 @@ the private MediaRemote framework to whatever application holds the media
 session.
 
 Media metadata is the fifth: the now-playing title, artist, and artwork,
-shown above the transport buttons in the panel, in the ambient peek when
+shown in the music column beside the tabs in the panel, in the ambient peek when
 hovering the closed notch, and as a small album-cover badge beside the
 closed notch while something is playing. The badge is deliberately
 **static** — a looping equaliser would redraw continuously for as long as
@@ -241,12 +244,15 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Drag the brightness slider very slowly (>3s end to end) | Nothing; the steps fall under the ambient noise floor |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
-| Click the notch | Opens the full panel, on the tab you used last |
-| Switch to the Clipboard tab | Shows what you have copied, newest first |
+| Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
+| Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
+| Click the gear | Closes the panel and opens Settings |
+| Hover a shelf item | An × appears to remove just that one; Clear in the title row empties the shelf |
+| Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
-| Open the panel while something is playing | Title, artist, and artwork appear above the transport buttons |
+| Open the panel while something is playing | Cover, title, artist and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
 | Something starts playing | A small album-cover badge appears beside the notch; it goes away when you pause |
 | Hover the closed notch while something is playing | Peeks the now-playing track, with its cover; silent when paused |
 | Click anywhere outside | Closes it |
@@ -258,7 +264,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause it | The countdown dims, and stops redrawing entirely |
 | Let it finish | The notch peeks and chimes once, and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Accessibility status, Clear Shelf, Clear Clipboard, Quit |
+| Menu bar icon | Settings…, Accessibility status, Clear Shelf, Clear Clipboard, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path.
@@ -273,7 +279,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 989 tests, ~2s, no window server needed
+swift test           # 1031 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -299,8 +305,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   418 tests
-  CreativeNotchUITests/     571 tests
+  CreativeNotchCoreTests/   442 tests
+  CreativeNotchUITests/     589 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -430,12 +436,17 @@ Before module work starts, see
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How it works, and the non-obvious parts |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The six planned modules, and what each has to solve first |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The one module still planned, and what it has to solve first |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
 | [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module |
 | [`docs/specs/2026-08-29-media-metadata-design.md`](docs/specs/2026-08-29-media-metadata-design.md) | The media metadata module |
 | [`docs/specs/2026-08-30-timer-design.md`](docs/specs/2026-08-30-timer-design.md) | The timer module |
+| [`docs/specs/2026-09-13-preferences-design.md`](docs/specs/2026-09-13-preferences-design.md) | Preferences: a toggle that stops the subsystem |
+| [`docs/specs/2026-09-13-global-hotkey-design.md`](docs/specs/2026-09-13-global-hotkey-design.md) | The global shortcut |
+| [`docs/specs/2026-09-13-camera-design.md`](docs/specs/2026-09-13-camera-design.md) | The camera module |
+| [`docs/specs/2026-09-13-ui-redesign-design.md`](docs/specs/2026-09-13-ui-redesign-design.md) | The redesigned panel, tabs and Settings |
+| [`docs/plans/2026-09-13-ui-redesign.md`](docs/plans/2026-09-13-ui-redesign.md) | How the redesign was built |
 | [`docs/plans/2026-08-30-timer.md`](docs/plans/2026-08-30-timer.md) | How the timer was built |
 | [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |
