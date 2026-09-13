@@ -205,8 +205,17 @@ struct AppDelegateStateFunnelTests {
         media.supervisor.startHelper = { starts += 1 }
         media.supervisor.stopHelper = {}
 
+        // Each subsystem is asserted as not-yet-running first: `install`
+        // starts nothing, so every assertion below is vacuous at rest and a
+        // start that never happened looks identical to one that did.
+        #expect(delegate.activity.tokenCount == 0)
+        #expect(clipboard.poller.scheduledInterval == nil)
+        #expect(starts == 0)
+        #expect(delegate.power?.isObserving == false)
+
         delegate.startSubsystems()
 
+        #expect(delegate.activity.tokenCount > 0, "the activity observer never registered")
         #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
         #expect(starts == 1)
         #expect(delegate.power?.isObserving == true)
