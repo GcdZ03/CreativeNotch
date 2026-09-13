@@ -305,8 +305,8 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped, and two of the six
-planned since. The remaining four are not built:
+Every module on the *original* roadmap has shipped, and two of the seven
+planned since. The remaining five are not built:
 
 | | |
 |---|---|
@@ -315,7 +315,8 @@ planned since. The remaining four are not built:
 | **Preferences** — turn modules off, change the values that are compiled in today | Planned |
 | **Launch at login** | Planned |
 | **Global hotkey** — open the panel from anywhere | Planned |
-| **Capture indicators** — microphone, camera, and screen recording in use | Planned |
+| **Camera in the notch** — a mirror under the lens, a shutter, and a record button | Planned |
+| **Capture indicators** — microphone and camera in use | Planned |
 
 Battery and the timer both shipped ahead of the suggested order, which put
 Preferences first. Neither needed a preferences surface to be useful, and
@@ -323,11 +324,23 @@ both have tunables that are documented constants Preferences can read later —
 the cost that ordering warns about is retrofitting module *enable/disable*
 wiring, which is a different thing from retrofitting a constant.
 
-Preferences comes next, because the remaining three want somewhere to live.
-Capture indicators come last: microphone and camera are reachable through
-CoreAudio and CoreMediaIO property listeners, but **no public API reports
-that another app is recording the screen**, so that third part may not be
-buildable at all.
+Preferences comes next, because the remaining four want somewhere to live —
+and the camera wants it most, being the most expensive and most
+privacy-sensitive thing planned.
+
+The camera module puts the FaceTime feed in the open panel: a mirror for
+checking framing, a shutter, and a record button, with what you capture
+landing in the file shelf. The camera is physically behind the notch, so the
+preview sits directly under the lens feeding it. It is allowed to be
+expensive for the same reason the audio visualiser is not — it runs *only*
+while you have opened it and are looking at it, and the capture session must
+genuinely stop when the panel closes, not merely be hidden.
+
+Capture indicators come last, and deliberately after the camera module, so
+that the indicator not lighting up for the app's *own* preview is designed in
+rather than retrofitted. **Screen recording has been cut from it**: no public
+API reports that another app is recording the screen, and macOS already shows
+its own indicator for that.
 
 The one that is not merely unbuilt but genuinely unsettled is preferences,
 for an architectural reason: turning a module off has to *stop its
@@ -359,8 +372,9 @@ fully suspended while the screen is locked or the machine is asleep —
 resuming resyncs without capturing whatever was copied in the meantime.
 
 Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
-battery architecture), iCloud sync, a synthetic black notch on notchless
-Macs, and the Mac App Store.
+battery architecture), a screen-recording indicator (no public API reports
+it), iCloud sync, a synthetic black notch on notchless Macs, and the Mac App
+Store.
 
 Before module work starts, see
 [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md)
