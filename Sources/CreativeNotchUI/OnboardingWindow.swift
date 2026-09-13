@@ -65,7 +65,7 @@ public final class OnboardingController {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 460, height: 320),
+            contentRect: NSRect(x: 0, y: 0, width: 460, height: 360),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -91,25 +91,32 @@ struct OnboardingView: View {
     @State private var trusted = Permissions.isAccessibilityTrusted
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("CreativeNotch needs Accessibility access")
-                .font(.title2.weight(.semibold))
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("One permission, to stay quiet")
+                    .font(.title2.weight(.semibold))
+                Text("CreativeNotch asks for Accessibility access for a single reason.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
 
-            Text("""
-                 CreativeNotch needs Accessibility access for one thing: to \
-                 notice when you press the volume or brightness keys.
-
-                 It uses that to stay *quiet*. macOS already shows its own \
-                 overlay for those keys, so the notch stands aside — and \
-                 speaks up only when you change the volume somewhere macOS \
-                 gives you no feedback at all, like Control Center or Siri.
-
-                 Without it, everything still works; you will just see both \
-                 indicators at once when using the keys.
-                 """)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 12) {
+                point(
+                    "keyboard",
+                    "It notices the volume and brightness keys.",
+                    "That is the only thing the permission is used for."
+                )
+                point(
+                    "speaker.slash",
+                    "So it can stand aside.",
+                    "macOS already shows its own overlay for those keys. The notch speaks up only where macOS gives no feedback: Control Center, Siri, another app."
+                )
+                point(
+                    "rectangle.on.rectangle",
+                    "Without it, everything still works.",
+                    "You will just see both indicators at once when you use the keys."
+                )
+            }
 
             Spacer()
 
@@ -135,7 +142,7 @@ struct OnboardingView: View {
             }
         }
         .padding(24)
-        .frame(width: 460, height: 320)
+        .frame(width: 460, height: 360)
         .onReceive(
             NotificationCenter.default.publisher(
                 for: NSApplication.didBecomeActiveNotification
@@ -144,6 +151,24 @@ struct OnboardingView: View {
             // Re-check when the user comes back from System Settings.
             // Event-driven, not polled.
             trusted = Permissions.isAccessibilityTrusted
+        }
+    }
+
+    /// One reason, one line, one symbol.
+    private func point(_ symbol: String, _ title: String, _ detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 28, height: 28)
+                .background(RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.accentColor))
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.body.weight(.medium))
+                Text(detail)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
         }
     }
 }

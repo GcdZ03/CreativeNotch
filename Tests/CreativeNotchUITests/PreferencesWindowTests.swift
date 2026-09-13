@@ -84,6 +84,16 @@ struct PreferencesWindowTests {
         #expect(PreferencesView.rows.count == ModuleID.allCases.count)
     }
 
+    /// A grouped form with an empty group is a heading over nothing, and a
+    /// row without a symbol is a blank tile.
+    @Test func everySectionIsNonEmptyAndEveryRowHasASymbol() {
+        for section in PreferencesSection.allCases {
+            #expect(PreferencesView.rows.contains { $0.section == section }, "\(section) has no rows")
+        }
+        #expect(PreferencesView.rows.allSatisfy { !$0.symbolName.isEmpty })
+        #expect(Set(PreferencesView.rows.map(\.symbolName)).count == PreferencesView.rows.count)
+    }
+
     /// The three notes the spec requires are copy with a job, not decoration:
     /// the shelf's toggle saves no power, and transport's only means "not
     /// loaded" when it was off at launch.

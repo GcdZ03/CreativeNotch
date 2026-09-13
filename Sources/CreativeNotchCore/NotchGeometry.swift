@@ -73,7 +73,11 @@ public enum NotchGeometry {
 
     /// The panel's own corner styling, once it is large enough to read as
     /// a panel rather than as the notch.
-    public static let panelCornerRadius: CGFloat = 14
+    ///
+    /// 20 rather than the closed notch's 12: once it is a panel it reads as
+    /// an island, and the reference apps sit between 14 and 24. Also the
+    /// peek's radius, since a peek is a panel in miniature.
+    public static let panelCornerRadius: CGFloat = 20
     public static let expandedSize = CGSize(width: 620, height: 260)
 
     /// Resolves the anchor for a screen. Real notch when the hardware has

@@ -29,15 +29,20 @@ struct MediaControlsView: View {
     }
 
     var body: some View {
-        HStack(spacing: 18) {
+        HStack(spacing: 8) {
             ForEach(Self.buttons, id: \.command) { button in
+                let isToggle = button.command == .togglePlayPause
                 Button {
                     onCommand(button.command)
                 } label: {
                     Image(systemName: button.symbol)
-                        .font(.system(size: 13))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .frame(width: 28, height: 24)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: isToggle ? 40 : 32, height: 28)
+                        .background {
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(.white.opacity(isToggle ? 0.16 : 0.08))
+                        }
                         .contentShape(.rect)
                 }
                 .buttonStyle(.plain)

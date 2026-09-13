@@ -46,12 +46,18 @@ struct TimerTabView: View {
         }
     }
 
+    /// The track's fill, from Core. Static so the argument order is pinned
+    /// by a test without rendering.
+    static func trackFraction(_ countdown: Countdown, at now: Date) -> Double {
+        TimerProgress.fraction(countdown, at: now)
+    }
+
     private var idle: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 14) {
             HStack(spacing: 8) {
                 ForEach(Self.presets, id: \.self) { minutes in
-                    Button("\(minutes)m") { onStart(TimeInterval(minutes) * 60) }
-                        .buttonStyle(.borderedProminent)
+                    Button("\(minutes) min") { onStart(TimeInterval(minutes) * 60) }
+                        .buttonStyle(NotchButtonStyle(.quiet))
                 }
             }
             HStack(spacing: 8) {
@@ -68,10 +74,8 @@ struct TimerTabView: View {
                 // which would reject it and leave Start silently doing
                 // nothing — a dead button being the worst of the options.
                 TextField("", value: $customMinutes, format: .number)
-                    .textFieldStyle(.roundedBorder)
-                    .frame(width: 54)
-                    .multilineTextAlignment(.center)
-                    .monospacedDigit()
+                    .textFieldStyle(NotchFieldStyle())
+                    .frame(width: 52)
                     .onSubmit { start() }
                     .onChange(of: customMinutes) { _, typed in
                         customMinutes = min(
@@ -86,9 +90,11 @@ struct TimerTabView: View {
                 }
 
                 Button("Start", action: start)
-                    .buttonStyle(.bordered)
+                    .buttonStyle(NotchButtonStyle(.prominent))
+                    .padding(.leading, 6)
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func start() {
@@ -104,29 +110,49 @@ struct TimerTabView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .semibold))
-                .frame(width: 22, height: 22)
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 12, height: 12)
         }
-        .buttonStyle(.bordered)
+        .buttonStyle(NotchButtonStyle(.quiet))
         .disabled(disabled)
         .accessibilityLabel(symbol == "plus" ? "Longer" : "Shorter")
     }
 
     private func running(_ countdown: Countdown) -> some View {
         VStack(spacing: 12) {
-            Text(TimerDisplay.text(remaining: countdown.remaining(at: now)))
-                .font(.system(size: 34, weight: .medium, design: .rounded))
-                .monospacedDigit()
-                .foregroundStyle(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
+                Text(TimerDisplay.text(remaining: countdown.remaining(at: now)))
+                    .font(.system(size: 44, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                Text("left")
+                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .opacity(0.55)
+            }
+            // Dimming is the paused signal, as it is in the ear.
+            .foregroundStyle(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
 
-            HStack(spacing: 10) {
-                if countdown.isPaused {
-                    Button("Resume", action: onResume).buttonStyle(.borderedProminent)
-                } else {
-                    Button("Pause", action: onPause).buttonStyle(.bordered)
+            // Redraws exactly when the digits do: same `now`, no clock of
+            // its own.
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.14))
+                    Capsule()
+                        .fill(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+                        .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
                 }
-                Button("Cancel", action: onCancel).buttonStyle(.bordered)
+            }
+            .frame(width: 220, height: 4)
+            .accessibilityHidden(true)
+
+            HStack(spacing: 8) {
+                if countdown.isPaused {
+                    Button("Resume", action: onResume).buttonStyle(NotchButtonStyle(.prominent))
+                } else {
+                    Button("Pause", action: onPause).buttonStyle(NotchButtonStyle(.quiet))
+                }
+                Button("Cancel", action: onCancel).buttonStyle(NotchButtonStyle(.quiet))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

@@ -14,7 +14,8 @@ public extension CreativeNotchCore.Tab {
     }
 }
 
-/// The switcher inside the open panel.
+/// The switcher inside the open panel: one icon per tab, in the leading ear
+/// of the header. The tab's name moved to the pane's title row (`ModulePane`).
 ///
 /// Before this, tapping the notch always opened the shelf and
 /// `.open(.clipboard)` fell through to a placeholder label — so the
@@ -71,19 +72,15 @@ struct PanelTabBar: View {
                 Button {
                     onSelect(tab)
                 } label: {
-                    Text(tab.title)
-                        .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(tab == selected ? 0.95 : 0.5))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background {
-                            RoundedRectangle(cornerRadius: 7)
-                                .fill(.white.opacity(tab == selected ? 0.14 : 0))
-                        }
+                    Image(systemName: tab.symbolName)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(NotchIconButtonStyle(selected: tab == selected))
+                // An icon without a name is a regression for anyone using
+                // VoiceOver, and a tooltip is how a sighted user learns it.
+                .help(tab.title)
+                .accessibilityLabel(tab.title)
+                .accessibilityAddTraits(tab == selected ? .isSelected : [])
             }
         }
-        .padding(.top, 8)
     }
 }

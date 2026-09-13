@@ -93,7 +93,7 @@ final class PreferencesController {
         }
 
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 480, height: 560),
+            contentRect: NSRect(x: 0, y: 0, width: 520, height: 640),
             styleMask: [.titled, .closable],
             backing: .buffered,
             defer: false
@@ -108,6 +108,40 @@ final class PreferencesController {
     }
 }
 
+/// Which group of the form a module's row sits in (spec §6).
+///
+/// The longer, honest notes that used to sit under every toggle become the
+/// section's footer, so the form reads as a form and the honesty is still
+/// there for anyone who reads to the end of a group.
+enum PreferencesSection: CaseIterable {
+    case notch, music, camera, system, shortcut
+
+    var title: String {
+        switch self {
+        case .notch:    return "In the notch"
+        case .music:    return "Music"
+        case .camera:   return "Camera and privacy"
+        case .system:   return "System"
+        case .shortcut: return "Shortcut"
+        }
+    }
+
+    var footer: String? {
+        switch self {
+        case .notch:
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+        case .music:
+            return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
+        case .camera:
+            return "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing."
+        case .system:
+            return "Volume and brightness feedback where macOS shows none. Releases a global event tap when switched off."
+        case .shortcut:
+            return "No shortcut is set until you choose one. Any default would risk colliding with a launcher you already use."
+        }
+    }
+}
+
 /// One row per module.
 ///
 /// `rows` is the single source of which modules are offered, in the same sense
@@ -116,6 +150,9 @@ final class PreferencesController {
 /// `ModuleID.allCases`.
 struct PreferencesRow: Identifiable {
     let module: ModuleID
+    let section: PreferencesSection
+    let symbolName: String
+    let tint: Color
     let title: String
     let detail: String
 
@@ -127,110 +164,126 @@ struct PreferencesView: View {
 
     static let rows: [PreferencesRow] = [
         PreferencesRow(
-            module: .shelf,
+            module: .shelf, section: .notch, symbolName: "tray.full", tint: .blue,
             title: "File shelf",
             // Required, not decorative. The shelf owns no timer, observer or
             // process, so this toggle saves no power at all. Saying so beats
             // implying a saving that is not there.
-            detail: "Drag files onto the notch to stash them. This one costs nothing when idle — switching it off hides the tab and refuses drops, it does not save battery."
+            detail: "Drag files onto the notch to stash them for a week. Off hides the tab; it does not save battery."
         ),
         PreferencesRow(
-            module: .hud,
-            title: "System HUD",
-            detail: "Volume and brightness in the notch, where macOS shows you nothing. Releases a global event tap when switched off."
-        ),
-        PreferencesRow(
-            module: .clipboard,
+            module: .clipboard, section: .notch, symbolName: "doc.on.clipboard", tint: .purple,
             title: "Clipboard history",
-            detail: "The last things you copied. Switching it off stops the only repeating timer in the app."
+            detail: "The last 50 things you copied, in memory only."
         ),
         PreferencesRow(
-            module: .mediaMetadata,
+            module: .timer, section: .notch, symbolName: "timer", tint: .orange,
+            title: "Timer",
+            detail: "A countdown, in the ear of the notch."
+        ),
+        PreferencesRow(
+            module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
+            title: "Battery and power",
+            detail: "Level, charging state and Low Power Mode. Costs almost nothing either way."
+        ),
+        PreferencesRow(
+            module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
             title: "Now playing",
-            detail: "Title, artist and artwork. Switching it off terminates the helper process that reads them."
+            detail: "Title, artist and artwork, in the panel and beside the closed notch."
         ),
         PreferencesRow(
-            module: .mediaControls,
+            module: .mediaControls, section: .music, symbolName: "playpause", tint: .pink,
             title: "Media controls",
             // Required. Only disabled-at-launch means "not loaded": the
             // framework is mapped with `dlopen` and there is no `dlclose`.
-            detail: "Play, pause and skip buttons. Switching this off now hides the buttons; the framework stays mapped until the next launch."
+            detail: "Play, pause and skip. Off hides the buttons; the framework stays mapped until the next launch."
         ),
         PreferencesRow(
-            module: .power,
-            title: "Battery and power",
-            detail: "Level, charging state and Low Power Mode. Notification-driven, so it costs almost nothing either way."
-        ),
-        PreferencesRow(
-            module: .timer,
-            title: "Timer",
-            detail: "A countdown in the notch."
-        ),
-        PreferencesRow(
-            module: .camera,
+            module: .camera, section: .camera, symbolName: "camera", tint: .gray,
             title: "Camera",
-            // The honest note: this one genuinely costs something while it is
-            // open, and says so rather than implying it is free.
-            detail: "A mirror under the lens, with a shutter and a record button. This is the only module that costs anything while it is running \u{2014} the camera light is on whenever the preview is, and a clip keeps recording if you close the notch."
+            detail: "A mirror under the lens, with a shutter and a record button."
         ),
         PreferencesRow(
-            module: .captureIndicator,
+            module: .captureIndicator, section: .camera, symbolName: "record.circle", tint: .red,
             title: "Camera and microphone indicator",
-            detail: "Shows in the notch when another app is using the camera or the microphone \u{2014} next to the hardware it is about. Notification-driven, so it costs nothing while nothing is capturing."
+            detail: "Shows in the notch when another app is using the camera or the microphone."
         ),
         PreferencesRow(
-            module: .hotkey,
+            module: .hud, section: .system, symbolName: "speaker.wave.2", tint: .indigo,
+            title: "System HUD",
+            detail: "Volume and brightness in the notch, where macOS shows you nothing."
+        ),
+        PreferencesRow(
+            module: .hotkey, section: .shortcut, symbolName: "command", tint: .gray,
             title: "Global shortcut",
-            // No default, and the note says why rather than leaving an empty
-            // field looking broken.
-            detail: "Open the notch from anywhere. No shortcut is set until you choose one — any default would risk colliding with a launcher you already use."
+            detail: "Open the notch from anywhere."
         ),
     ]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                Text("Modules")
-                    .font(.title2.weight(.semibold))
-
-                Text("Switching a module off stops what it runs, rather than hiding it.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                ForEach(Self.rows) { row in
-                    VStack(alignment: .leading, spacing: 4) {
-                        Toggle(row.title, isOn: Binding(
-                            get: { controller.isEnabled(row.module) },
-                            set: { controller.setEnabled($0, for: row.module) }
-                        ))
-                        .font(.body.weight(.medium))
-
-                        Text(row.detail)
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if row.module == .hotkey,
-                           controller.isEnabled(.hotkey),
-                           let hotKey = controller.hotKeyController {
-                            HotKeyRow(
-                                controller: hotKey,
-                                recorder: controller.recorder(for: hotKey),
-                                label: hotKey.combo.map {
-                                    HotKeyGlyphs.label($0, key: KeyCodeDisplay.character(for: $0.keyCode))
-                                }
-                            )
-                            .padding(.top, 2)
-                        }
-
-                        if let warning = Self.warning(for: row.module, controller: controller) {
-                            Text(warning)
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
+        Form {
+            ForEach(PreferencesSection.allCases, id: \.self) { section in
+                Section {
+                    ForEach(Self.rows.filter { $0.section == section }) { row in
+                        moduleRow(row)
+                    }
+                } header: {
+                    Text(section.title)
+                } footer: {
+                    if let footer = section.footer {
+                        Text(footer)
                     }
                 }
             }
-            .padding(24)
+        }
+        .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private func moduleRow(_ row: PreferencesRow) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding(
+                get: { controller.isEnabled(row.module) },
+                set: { controller.setEnabled($0, for: row.module) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(row.title)
+                            .font(.body.weight(.medium))
+                        Text(row.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: row.symbolName)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(row.tint)
+                        )
+                }
+            }
+
+            if row.module == .hotkey,
+               controller.isEnabled(.hotkey),
+               let hotKey = controller.hotKeyController {
+                HotKeyRow(
+                    controller: hotKey,
+                    recorder: controller.recorder(for: hotKey),
+                    label: hotKey.combo.map {
+                        HotKeyGlyphs.label($0, key: KeyCodeDisplay.character(for: $0.keyCode))
+                    }
+                )
+                .padding(.leading, 36)
+            }
+
+            if let warning = Self.warning(for: row.module, controller: controller) {
+                Text(warning)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.leading, 36)
+            }
         }
     }
 

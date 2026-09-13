@@ -174,6 +174,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
 
+    /// Test seam for the header's gear: what `onOpenSettings` presents after
+    /// closing the panel. `nil` means the real window via `showPreferences()`.
+    /// Exists so a wiring test can prove the panel closes without putting a
+    /// Settings window on screen.
+    var presentPreferences: (() -> Void)?
+
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
@@ -463,6 +469,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.clipboard = clipboardStore
         state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
         self.clipboard = clipboard
+
+        // The pane's title-row verbs reach the verbs that already exist —
+        // the same `clear()` the menu bar items call. Read through `self`
+        // rather than captured, so a shelf rebuilt later is the one cleared.
+        state.onClearShelf = { [weak self] in try? self?.shelf?.clear() }
+        state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
+        state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
+        state.onOpenSettings = { [weak self] in
+            guard let self else { return }
+            self.state.transition(to: .closed)
+            if let presentPreferences { presentPreferences() } else { self.showPreferences() }
+        }
 
         // Spec section 4.7: the sleep/lock gate is enforced once, here, and
         // fanned out to every consumer — never registered a second time
