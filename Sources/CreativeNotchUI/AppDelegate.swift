@@ -74,6 +74,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// production wiring is this line and nothing else.
     var playChime: () -> Void = TimerChime.play
 
+    /// Whether MediaRemote is loadable, behind a seam.
+    ///
+    /// In the shape of `playChime` and `now`, and for a sharper reason than
+    /// either: reading `MediaRemoteBridge.isAvailable` is what performs the
+    /// `dlopen`, and there is no `dlclose` — `handle` is a `static let`.
+    ///
+    /// Once the transport toggle exists, this read has to sit on the RIGHT of
+    /// a lazy `&&` with the preference on its left. Written the other way
+    /// round it compiles, behaves identically in every visible respect, and
+    /// loads a private framework the user just declined — exactly the line a
+    /// later tidy-up reverses with nothing failing. `handle` is already
+    /// forced open by `MediaRemoteBridgeTests` in the same process, so
+    /// counting calls to this seam is the only way that order is provable.
+    var mediaRemoteAvailable: () -> Bool = { MediaRemoteBridge.isAvailable }
+
     /// Internal rather than private so the lifecycle and the fan-out are
     /// provable, like `clipboard` and `media`.
     private(set) var power: PowerController?
@@ -400,7 +415,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // HUD and clipboard controllers it needs no lifecycle hook in
         // `applicationDidFinishLaunching` or `applicationWillTerminate` —
         // a command is sent only because a button was clicked.
-        state.showsMediaControls = MediaRemoteBridge.isAvailable
+        state.showsMediaControls = mediaRemoteAvailable()
         state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
 
         container.onDragEntered = { [weak self] in

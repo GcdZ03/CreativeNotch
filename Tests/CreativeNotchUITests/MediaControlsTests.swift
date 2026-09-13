@@ -1,3 +1,5 @@
+import AppKit
+import Foundation
 import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
@@ -9,6 +11,51 @@ import CreativeNotchCore
 /// wire "next" to the previous-track command with nothing to catch it.
 @MainActor
 struct MediaControlsTests {
+
+    // MARK: - The availability probe
+
+    private static let notched = ScreenMetrics(
+        frame: CGRect(x: 0, y: 0, width: 1470, height: 956),
+        safeAreaTopInset: 38,
+        auxiliaryTopLeftWidth: 620,
+        auxiliaryTopRightWidth: 620,
+        menuBarHeight: 38
+    )
+
+    private func makeDelegate(available: @escaping () -> Bool) -> AppDelegate {
+        let delegate = AppDelegate()
+        delegate.growthDelay = .zero
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotchMediaControls-\(UUID().uuidString)")
+        delegate.mediaRemoteAvailable = available
+        delegate.install(metrics: Self.notched)
+        return delegate
+    }
+
+    /// Reading `MediaRemoteBridge.isAvailable` is what performs the `dlopen`,
+    /// and there is no `dlclose`. Once the transport toggle exists, the read
+    /// has to sit on the RIGHT of a lazy `&&` with the preference on its
+    /// left, or disabling the module still loads the private framework the
+    /// user just declined.
+    ///
+    /// `handle` is a `private static let` already forced open by
+    /// `MediaRemoteBridgeTests` in this same process, so no test can tell the
+    /// two spellings apart by observing the bridge. Counting calls to this
+    /// seam is the only way the order is provable at all.
+    @Test func installReadsAvailabilityThroughTheProbe() {
+        var probes = 0
+        let delegate = makeDelegate(available: { probes += 1; return true })
+
+        #expect(probes == 1)
+        #expect(delegate.state.showsMediaControls)
+    }
+
+    /// And the seam is honoured rather than merely called: an unavailable
+    /// bridge means no transport buttons.
+    @Test func anUnavailableBridgeHidesTheControls() {
+        let delegate = makeDelegate(available: { false })
+        #expect(delegate.state.showsMediaControls == false)
+    }
 
     @Test func thereAreThreeButtonsInTransportOrder() {
         #expect(MediaControlsView.buttons.map(\.command) == [
