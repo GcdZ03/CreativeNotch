@@ -106,6 +106,25 @@ public final class AppState {
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
+    /// Which modules are switched on.
+    ///
+    /// **The single read surface for preferences.** `ModuleSwitchboard` writes
+    /// it; everything else reads it from here -- `PanelTabBar` the way it
+    /// takes `hasBattery`, the shelf drop closures through their existing
+    /// `[weak self]`, the timer's finish path to decide whether to peek.
+    /// Nothing reads `PreferencesStore` or the switchboard directly, which is
+    /// what makes a preference snapshotted into a `let` structurally
+    /// impossible for the app-lifetime closures built in `install(metrics:)`.
+    ///
+    /// Defaults to everything on, matching what an empty defaults domain
+    /// resolves to, so a bare `AppState` in a test behaves like a fresh
+    /// install rather than like a user who switched everything off.
+    ///
+    /// Not `@ObservationIgnored`: like `hasBattery`, `body` reads it directly
+    /// and needs Observation's tracking when it is written at runtime -- which
+    /// unlike `hasBattery` is the normal case here.
+    public var preferences: Preferences = .allEnabled
+
     /// Whether this Mac has an internal battery.
     ///
     /// Set by the first power snapshot, in `AppDelegate.powerDidChange` —

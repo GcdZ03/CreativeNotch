@@ -26,6 +26,60 @@ struct ShelfDropTests {
         return delegate
     }
 
+    // MARK: - Switched off
+
+    /// A drop target that appears and then refuses the file is worse than no
+    /// drop target: it advertises a feature the user turned off.
+    @Test func aDisabledShelfOpensNoDropTarget() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        delegate.state.preferences.shelf = false
+
+        container.onDragEntered()
+
+        #expect(delegate.state.state == .closed)
+        #expect(delegate.arbiter.content(now: delegate.now()) == nil)
+    }
+
+    /// And the enabled half -- or the test above passes against a closure
+    /// that was never wired at all.
+    @Test func anEnabledShelfStillOpensItsDropTarget() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+
+        container.onDragEntered()
+
+        #expect(delegate.state.state == .receiving)
+    }
+
+    @Test func aDisabledShelfStoresNothingEvenIfADropArrives() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        let shelf = try #require(delegate.shelf)
+        delegate.state.preferences.shelf = false
+
+        let accepted = container.onDrop([.text("refused")])
+
+        #expect(accepted == false)
+        #expect(shelf.items.isEmpty)
+    }
+
+    /// The exit leg is deliberately NOT guarded. A drag already in flight
+    /// when the toggle flipped must still be able to put the notch back --
+    /// a symmetric guard there is how the notch gets stuck open.
+    @Test func aDisabledShelfCanStillLeaveAReceivingState() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+
+        container.onDragEntered()
+        #expect(delegate.state.state == .receiving)
+
+        delegate.state.preferences.shelf = false
+        container.onDragExited()
+
+        #expect(delegate.state.state == .closed)
+    }
+
     @Test func aDragEnteringOpensTheDropTarget() throws {
         let delegate = try makeDelegate()
         let container = try #require(delegate.panel?.contentView as? PassthroughContainer)

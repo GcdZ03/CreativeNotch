@@ -419,15 +419,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
 
         container.onDragEntered = { [weak self] in
+            // A drop target that appears and then refuses the file is worse
+            // than no drop target: it advertises a feature the user switched
+            // off. Read through `state.preferences` rather than captured,
+            // so the closure cannot hold a stale answer for the app's life.
+            guard self?.state.preferences.shelf == true else { return }
             self?.arbiter.setDragActive(true)
             self?.state.transition(to: .receiving)
         }
         container.onDragExited = { [weak self] in
+            // Deliberately NOT guarded on the preference. A drag already in
+            // flight when the toggle flipped must still be able to put the
+            // notch back; a symmetric guard here is how it gets stuck open.
             self?.arbiter.setDragActive(false)
             self?.state.transition(to: .closed)
         }
         container.onDrop = { [weak self] payloads in
-            guard let self, let shelf = self.shelf else {
+            guard let self, let shelf = self.shelf, self.state.preferences.shelf else {
                 self?.arbiter.setDragActive(false)
                 self?.state.transition(to: .closed)
                 return false
