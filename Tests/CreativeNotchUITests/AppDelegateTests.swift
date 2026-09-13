@@ -188,6 +188,65 @@ struct AppDelegateStateFunnelTests {
         #expect(delegate.stateObserverCount == 1)
     }
 
+    // MARK: - The launch path
+
+    /// Everything that starts a subsystem, in one method a test can call.
+    /// `applicationDidFinishLaunching` cannot be driven from a test -- it
+    /// reads `NSScreen.main`, installs a real status item and pops a real
+    /// onboarding window on a fresh defaults domain -- so behaviour that only
+    /// ever ran there was behaviour nothing could assert.
+    @Test func startingSubsystemsStartsThem() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let media = try #require(delegate.media)
+        var starts = 0
+        media.supervisor.startHelper = { starts += 1 }
+        media.supervisor.stopHelper = {}
+
+        delegate.startSubsystems()
+
+        #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
+        #expect(starts == 1)
+        #expect(delegate.power?.isObserving == true)
+
+        delegate.activity.stop()
+        delegate.power?.stop()
+    }
+
+    /// The call site is pinned the only way this repo can pin it, in the
+    /// shape of `ClipboardStoreTests.theStoreNeverTouchesTheFileSystem`.
+    /// `applicationDidFinishLaunching` is unreachable from a test, so what
+    /// stops a start line drifting back into it is a source scan.
+    ///
+    /// **This scan, not a behavioural test, is what covers the launch call
+    /// site.** Said plainly so nobody later assumes the suite would catch it.
+    @Test func theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // .../Tests/CreativeNotchUITests
+            .deletingLastPathComponent()   // .../Tests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("Sources/CreativeNotchUI/AppDelegate.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        let start = try #require(text.range(of: "public func applicationDidFinishLaunching"))
+        let after = text[start.upperBound...]
+        // Whichever declaration comes FIRST, not whichever spelling is
+        // searched for first: `startSubsystems()` is internal and sits
+        // directly after this method, so preferring `public func` would
+        // swallow it and the scan would always fail.
+        let ends = [after.range(of: "\n    public func"), after.range(of: "\n    func")]
+            .compactMap { $0?.lowerBound }
+        let body = ends.min().map { String(after[..<$0]) } ?? String(after)
+
+        #expect(body.contains("startSubsystems()"))
+        for banned in ["hud?.start()", "clipboard?.start()", "media?.start()",
+                       "power?.start()", "activity.start()"] {
+            #expect(body.contains(banned) == false, "\(banned) is back in the launch path")
+        }
+    }
+
     // MARK: - The HUD controller is reachable
 
     /// The switchboard cannot start or stop a controller it cannot see, and

@@ -237,9 +237,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         onboarding.showIfNeeded()
 
-        hud?.start()
+        startSubsystems()
+    }
 
+    /// Everything that starts a subsystem, in one place.
+    ///
+    /// Split out of `applicationDidFinishLaunching` because that method is not
+    /// drivable from a test: it reads `NSScreen.main`, installs a real status
+    /// item, and pops a real onboarding window on a fresh defaults domain.
+    /// `grep applicationDidFinishLaunching Tests/` returns nothing, and never
+    /// did. Behaviour that only ever ran there was behaviour nothing could
+    /// assert — which is precisely where a preference that applies on change
+    /// but not at launch would hide.
+    ///
+    /// The launch path must reach subsystems only through here. Nothing in the
+    /// suite can prove that behaviourally, so a source scan does it instead:
+    /// `theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod`.
+    func startSubsystems() {
         activity.start()
+        hud?.start()
         clipboard?.start()
         media?.start()
         power?.start()
