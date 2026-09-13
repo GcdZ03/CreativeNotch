@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import CreativeNotchCore
 
@@ -30,7 +31,19 @@ enum ClipboardPreview {
     }
 }
 
+/// The row's derived strings, kept out of the view so the argument order
+/// into Core is pinned by a test — swapping `addedAt` and `now` compiles.
+enum ClipboardRowModel {
+    static func timeText(entry: ClipboardEntry, now: Date) -> String {
+        ClipboardTimeLabel.text(addedAt: entry.addedAt, now: now)
+    }
+}
+
 /// The clipboard history, and the source of paste-backs.
+///
+/// `now` is the single per-body instant `NotchRootView` binds, so every
+/// row's time label comes from one reading of the clock and none of them
+/// reads it again (spec §9).
 struct ClipboardView: View {
     let store: ClipboardStore
     let now: Date
@@ -38,23 +51,26 @@ struct ClipboardView: View {
 
     var body: some View {
         if store.entries.isEmpty {
-            Text("Nothing copied yet")
-                .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.5))
+            VStack(spacing: 6) {
+                Image(systemName: "doc.on.clipboard")
+                    .font(.system(size: 22, weight: .medium))
+                Text("Nothing copied yet")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+            }
+            .foregroundStyle(.white.opacity(0.5))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 3) {
                     ForEach(store.entries) { entry in
-                        Button {
+                        ClipboardRow(
+                            entry: entry,
+                            time: ClipboardRowModel.timeText(entry: entry, now: now)
+                        ) {
                             onPaste(entry)
-                        } label: {
-                            ClipboardRow(entry: entry)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
             }
         }
     }
@@ -62,34 +78,66 @@ struct ClipboardView: View {
 
 private struct ClipboardRow: View {
     let entry: ClipboardEntry
+    let time: String
+    let onPaste: () -> Void
+
+    @State private var hovering = false
+
+    private var kind: ClipboardKind { ClipboardKind.classify(entry.content) }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: icon)
-                .font(.system(size: 10))
-                .foregroundStyle(.white.opacity(0.45))
-                .frame(width: 14)
+        Button(action: onPaste) {
+            HStack(spacing: 9) {
+                tile
 
-            Text(ClipboardPreview.text(for: entry.content))
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.white.opacity(0.85))
-                .lineLimit(1)
-                .truncationMode(.tail)
+                Text(ClipboardPreview.text(for: entry.content))
+                    .font(kind == .code
+                          ? .system(size: 11, design: .monospaced)
+                          : .system(size: 12, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.88))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
 
-            Spacer(minLength: 0)
+                Spacer(minLength: 8)
+
+                // A clock time at rest; the verb on hover.
+                Text(hovering ? "Paste ↩" : time)
+                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .monospacedDigit()
+                    .foregroundStyle(.white.opacity(hovering ? 0.7 : 0.4))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .contentShape(.rect)
+            .background {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(.white.opacity(hovering ? 0.08 : 0))
+            }
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
-        .contentShape(.rect)
-        .background {
-            RoundedRectangle(cornerRadius: 6).fill(.white.opacity(0.05))
-        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .accessibilityLabel("Paste \(ClipboardPreview.text(for: entry.content)), copied \(time)")
     }
 
-    private var icon: String {
-        switch entry.content {
-        case .text:  return "text.alignleft"
-        case .image: return "photo"
+    /// The image itself for an image; a glyph for everything else.
+    @ViewBuilder
+    private var tile: some View {
+        Group {
+            if case .image(let data, _) = entry.content, let image = NSImage(data: data) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(.white.opacity(0.08))
+                    Image(systemName: kind.symbolName)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.7))
+                }
+            }
         }
+        .frame(width: 22, height: 22)
+        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
