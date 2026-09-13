@@ -95,7 +95,12 @@ That is settled: this is not a second private-framework decision.
   process holding *no camera permission at all*. That matters more than it
   sounds — an indicator that had to request camera access in order to report
   camera use would be self-defeating.
-- **Microphone.** CoreAudio's `kAudioDevicePropertyDeviceIsRunningSomewhere`.
+- **Microphone.** CoreAudio's `kAudioDevicePropertyDeviceIsRunningSomewhere`,
+  **registered on global scope**. Measured: global fires once per edge;
+  the directional-scope listener `VolumeObserver`'s pattern would have used
+  fires **never** — while its property value reads correctly throughout, so
+  polling to check it would pass. See
+  `docs/research/2026-09-13-capture-listener-scope.md`.
 
 **This roadmap previously had the risk on the wrong half, in the dangerous
 direction.** It said the microphone was the settled one because the HUD's
@@ -134,8 +139,12 @@ shape.
 a PID directly to its audio process object, so "is that me?" is a cheap
 lookup rather than an enumeration, and it needs no permission at all.
 
-**Needs a spike:** yes — and it is now the *microphone* half, plus the
-listener-removal question below.
+**The microphone spike is done**, and it confirmed this entry's correction:
+global scope notifies, input scope does not, and input scope's *value* is
+accurate the whole time — so the trap survives every check short of an
+end-to-end test with a second application capturing.
+
+**Needs a spike:** only the listener-removal question below.
 
 **One thing to measure before trusting `stop()`.** There is an unresolved
 report that `CMIOObjectRemovePropertyListenerBlock` returns `noErr` and keeps
