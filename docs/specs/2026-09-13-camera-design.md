@@ -43,6 +43,11 @@ Both stayed released for a full 120-second idle hold **with the process still
 alive**, which is what rules out the obvious false pass: a probe that exits
 measures the kernel reclaiming a dead process's handle, not `stopRunning`.
 
+**And it was measured again against the shipped app**, with a human opening and
+closing the tab: claimed and released cleanly across two cycles, nothing held
+between them, and nothing held afterwards — with the app still running. Full
+figures in `docs/research/2026-09-13-camera-teardown.md`.
+
 So `stopRunning()` alone is sufficient. The deeper teardown buys nothing for
 device release — but the preview layer must still be released, for a different
 reason (§4).

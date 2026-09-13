@@ -894,6 +894,14 @@ teardown (removing inputs and outputs, dropping the session) made no
 difference. The 120-second hold is what rules out the obvious false pass: a
 probe that exits measures the kernel reclaiming a dead process's handle.
 
+The same observer was then pointed at the **shipped app**, and saw it claim and
+release the camera cleanly across two open/close cycles with the process still
+running and nothing held in between. See
+`docs/research/2026-09-13-camera-teardown.md` — which also records a finding
+the indicator module needs: **CMIO fires three events on start and one on
+stop**, so an indicator that toggles state per callback would flicker every
+time any app opens a camera.
+
 ### Two reasons to run, and the second is an exemption
 
 Gating the session on the panel being open is the obvious design and it is
