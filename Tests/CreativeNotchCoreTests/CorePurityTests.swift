@@ -99,6 +99,10 @@ struct CorePurityTests {
             "CaptureUse.swift",
             "CaptureAttribution.swift",
             "CaptureDebounce.swift",
+            "ClipboardKind.swift",
+            "ClipboardTimeLabel.swift",
+            "TimerProgress.swift",
+            "PowerGaugeTone.swift",
         ]
         for name in expectedInSubdirectories {
             #expect(names.contains(name), "expected recursive scan to find \(name)")
