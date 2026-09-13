@@ -21,8 +21,29 @@ jobs:
           sw_vers
           swift --version
 
-      - name: Build
-        run: swift build -v
+      # ARCHITECTURE.md claims a warning-free build. Until this step nothing
+      # enforced it, and the gap is not cosmetic: under Swift 6 strict
+      # concurrency, calling a `@MainActor` method from a C callback -- the
+      # exact shape the planned global-hotkey module needs -- is only a
+      # WARNING. It compiles, it works by luck, and it would ship.
+      #
+      # `--build-tests` so the test target is covered too; a warning there is
+      # the same signal. The build is run separately from `swift test` so the
+      # failure says "warning" rather than being buried in test output.
+      - name: Build, and fail on any warning
+        run: |
+          set -o pipefail
+          swift build --build-tests -v 2>&1 | tee build.log
+          # Match a compiler diagnostic specifically -- `file.swift:LINE:COL:
+          # warning:` -- not any line containing the word. Under `-v` SwiftPM
+          # echoes full compiler invocations, and a bare `grep warning:` can
+          # match one of those and fail the build for nothing. A gate that
+          # cries wolf gets deleted, which costs more than having none.
+          if grep -qE '^.*\.swift:[0-9]+:[0-9]+: warning:' build.log; then
+            echo "::error::the build emitted warnings; ARCHITECTURE.md requires a warning-free build"
+            grep -E '^.*\.swift:[0-9]+:[0-9]+: warning:' build.log | sort -u
+            exit 1
+          fi
 
       - name: Test
         run: swift test -v
