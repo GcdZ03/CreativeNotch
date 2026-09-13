@@ -68,6 +68,14 @@ Not for the conflict detection — virtually nothing ships with the option, so
 stops other registrants' handlers firing for that combination, so a hotkey the
 user chose does one thing rather than two.
 
+**No test covers that choice, and none can.** Swapping the option for
+`kEventHotKeyNoOptions` leaves the suite green, because exclusivity's only
+observable effect is cross-process. The duplicate detection the suite *does*
+assert is a different rule entirely — `CarbonEventsCore.h` returns −9878 for a
+hotkey already registered *in the current process* whatever the options are —
+so that test proves the error mapping rather than the option. Recorded here
+because an untested line that looks tested is worse than one known not to be.
+
 ### So the pane must never say "that combination is taken"
 
 It cannot know. What it can honestly claim:
