@@ -33,6 +33,11 @@ final class ModuleSwitchboard {
 
     private unowned let delegate: AppDelegate
 
+    /// The hotkey controller, for the settings row's recorder. Exposed here
+    /// rather than reaching into `AppDelegate` from the window, so the window
+    /// keeps its one dependency.
+    var hotKeyController: HotKeyController? { delegate.hotkey }
+
     init(delegate: AppDelegate) {
         self.delegate = delegate
     }

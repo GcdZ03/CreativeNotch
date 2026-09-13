@@ -25,6 +25,44 @@ import Testing
     #expect(back == combo)
 }
 
+// MARK: - AppKit to Carbon
+
+/// A different bit layout, not a coincidence of naming. AppKit's command is
+/// `1 << 20`; Carbon's is `0x0100`. One bit wrong here produces a recorder
+/// that stores ⌥ when the user pressed ⌘ and then registers a combination
+/// they never chose.
+@Test func eachCocoaModifierMapsToItsCarbonCounterpart() {
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: HotKeyModifier.Cocoa.command) == HotKeyModifier.command)
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: HotKeyModifier.Cocoa.shift) == HotKeyModifier.shift)
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: HotKeyModifier.Cocoa.option) == HotKeyModifier.option)
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: HotKeyModifier.Cocoa.control) == HotKeyModifier.control)
+}
+
+@Test func modifiersCombineRatherThanReplacingEachOther() {
+    let raw = HotKeyModifier.Cocoa.command | HotKeyModifier.Cocoa.option
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: raw)
+            == HotKeyModifier.command | HotKeyModifier.option)
+}
+
+/// Caps Lock, Fn and the numeric-pad bit that arrives with every arrow key are
+/// not modifiers `RegisterEventHotKey` accepts. Passing them through would
+/// refuse combinations that are perfectly valid.
+@Test func modifiersMacOSAddsButCarbonDoesNotTakeAreDropped() {
+    let capsLock: UInt = 1 << 16
+    let numericPad: UInt = 1 << 21
+    let function: UInt = 1 << 23
+
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: capsLock) == 0)
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: function) == 0)
+    // An arrow key with Command carries the numeric-pad bit too.
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: HotKeyModifier.Cocoa.command | numericPad)
+            == HotKeyModifier.command)
+}
+
+@Test func noModifiersMapsToNoModifiers() {
+    #expect(HotKeyModifier.carbon(fromCocoaRawValue: 0) == 0)
+}
+
 // MARK: - Validation
 
 private let cmdOptN = HotKeyCombo(

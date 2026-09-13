@@ -42,4 +42,36 @@ public enum HotKeyModifier {
     /// Every bit this project recognises. Anything outside it in a stored
     /// value is a value we did not write.
     public static let all: UInt32 = command | shift | option | control
+
+    /// AppKit's `NSEvent.ModifierFlags` bits, by raw value.
+    ///
+    /// Named here rather than imported so the conversion below stays in Core,
+    /// where it is testable. These are a *different layout* from Carbon's --
+    /// AppKit's command is `1 << 20`, Carbon's is `0x0100` -- which is exactly
+    /// why the mapping is worth writing down and worth a test. Getting one bit
+    /// wrong produces a recorder that stores ⌥ when the user pressed ⌘, and
+    /// then registers a combination they never chose.
+    public enum Cocoa {
+        public static let shift: UInt = 1 << 17
+        public static let control: UInt = 1 << 18
+        public static let option: UInt = 1 << 19
+        public static let command: UInt = 1 << 20
+    }
+
+    /// Converts AppKit's modifier flags to Carbon's.
+    ///
+    /// Takes the raw value rather than `NSEvent.ModifierFlags` so Core need
+    /// not import AppKit. Everything outside the four recognised modifiers --
+    /// Caps Lock, Fn, the numeric-pad bit that arrives with every arrow key --
+    /// is dropped, because none of them is a modifier `RegisterEventHotKey`
+    /// accepts and passing them through would refuse combinations that are
+    /// perfectly valid.
+    public static func carbon(fromCocoaRawValue raw: UInt) -> UInt32 {
+        var out: UInt32 = 0
+        if raw & Cocoa.command != 0 { out |= command }
+        if raw & Cocoa.shift != 0 { out |= shift }
+        if raw & Cocoa.option != 0 { out |= option }
+        if raw & Cocoa.control != 0 { out |= control }
+        return out
+    }
 }
