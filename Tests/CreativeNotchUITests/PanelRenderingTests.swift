@@ -135,3 +135,65 @@ struct PanelRenderingTests {
         #expect(NotchRootView.shelfCount(4) == "4 items")
     }
 }
+
+/// The tabs, restyled (spec §5.4–5.8, §5.10).
+@MainActor
+struct TabRenderingTests {
+
+    /// The empty shelf draws the dashed target; its bottom edge sits near
+    /// the pane's bottom, where a bare centred label leaves black.
+    @Test func theEmptyShelfDrawsATarget() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
+        let s = PanelRenderingTests.state(media: false)
+        s.shelf = try ShelfStore(directory: dir)
+        s.transition(to: .open(.shelf))
+        let b = try #require(PanelRenderingTests.bitmap(s))
+        #expect(PanelRenderingTests.ink(b, in: CGRect(x: 40, y: 243, width: 540, height: 6)) > 0.03)
+    }
+
+    /// Stock styles resolve colours against the appearance and once drew
+    /// black-on-black (`NotchPanel.swift`). The panel has its own; and
+    /// nothing in the UI may loop (spec §9).
+    @Test func noStockControlStyleOrRepeatingAnimationSurvivesInTheUI() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI")
+        let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        let banned = [".borderedProminent", ".bordered)", ".roundedBorder", "TimelineView", ".repeatForever"]
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            let text = try String(contentsOf: url, encoding: .utf8)
+            // Code only. A doc comment that says "no `TimelineView`" is the
+            // rule being stated, not broken.
+            let code = text.split(separator: "\n")
+                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
+                .joined(separator: "\n")
+            for token in banned {
+                #expect(!code.contains(token), "\(url.lastPathComponent) still uses \(token)")
+            }
+        }
+    }
+
+    @Test func theTrackFillsFromCore() throws {
+        let t0 = Date(timeIntervalSinceReferenceDate: 0)
+        let c = try #require(Countdown(duration: 600, startingAt: t0))
+        let at = t0.addingTimeInterval(150)
+        #expect(TimerTabView.trackFraction(c, at: at) == TimerProgress.fraction(c, at: at))
+        #expect(TimerTabView.trackFraction(c, at: at) == 0.25)
+    }
+
+    @Test func theGaugeReadsItsToneFromCore() {
+        #expect(PowerView.fill(for: PowerSnapshot(level: 15, source: .battery, isCharging: false, isLowPowerMode: false)) == .yellow)
+        #expect(PowerView.fill(for: PowerSnapshot(level: 15, source: .wall, isCharging: true, isLowPowerMode: false)) == .green)
+        #expect(PowerView.fill(for: PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false)) == .white)
+    }
+
+    @Test func theClipboardRowLabelIsTheCoreClockTime() {
+        let added = Date(timeIntervalSinceReferenceDate: 800_000)
+        let now = added.addingTimeInterval(120)
+        let entry = ClipboardEntry(id: UUID(), content: .text("x"), addedAt: added)
+        #expect(ClipboardRowModel.timeText(entry: entry, now: now)
+                == ClipboardTimeLabel.text(addedAt: added, now: now))
+    }
+}
