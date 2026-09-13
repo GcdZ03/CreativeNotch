@@ -1,6 +1,6 @@
 # Roadmap
 
-Two modules are planned. **Neither is implemented.** Nothing in this
+One module is planned. **It is not implemented, and it is not blocked on code.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
@@ -11,6 +11,12 @@ Three have shipped, and their entries have been removed:
   `docs/research/2026-08-30-battery-estimate-noise.md`.
 - **Timer** (2026-08-30) — `docs/specs/2026-08-30-timer-design.md`,
   `docs/plans/2026-08-30-timer.md`.
+- **Microphone and camera indicator** (2026-09-13) —
+  `docs/research/2026-09-13-capture-listener-scope.md`. The spike this entry
+  called for settled the dangerous half: the listener must be registered on
+  **global** scope, because the directional scope this project's own
+  `VolumeObserver` uses registers with `noErr` and never fires — while its
+  property value reads correctly throughout, so polling to check it would pass.
 - **The camera in the notch** (2026-09-13) —
   `docs/specs/2026-09-13-camera-design.md`. The module whose admission rested
   on a single undocumented question -- does `stopRunning()` release the
@@ -40,7 +46,7 @@ and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint both have to answer
+## The constraint it has to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -72,81 +78,7 @@ it *draws* when nobody is looking, and gate those separately.
 
 ---
 
-## 1. Microphone and camera in use
-
-**What it is.** An ambient indicator when something is capturing — the
-privacy tell, in the notch, next to the hardware it is about.
-
-**Scope is the microphone and the camera. Screen recording is out**, and
-that is now a decision rather than an open question the spike has to settle.
-No public API reports that another application is capturing the screen;
-macOS shows its own indicator and does not expose the underlying state. It
-is listed under *Still deliberately not planned* below, with the rest of
-what this project has ruled out.
-
-Both properties are documented in word-for-word identical terms — *"a UInt32
-where 1 means that the device is running in at least one process on the
-system"* — so **cross-process reporting is documented, not inferred**. And
-**CoreMediaIO is a public framework**, with public headers and a module map.
-That is settled: this is not a second private-framework decision.
-
-- **Camera.** CoreMediaIO's `kCMIODevicePropertyDeviceIsRunningSomewhere`.
-  **Measured working**: it fired correctly, on both edges, from a probe
-  process holding *no camera permission at all*. That matters more than it
-  sounds — an indicator that had to request camera access in order to report
-  camera use would be self-defeating.
-- **Microphone.** CoreAudio's `kAudioDevicePropertyDeviceIsRunningSomewhere`.
-
-**This roadmap previously had the risk on the wrong half, in the dangerous
-direction.** It said the microphone was the settled one because the HUD's
-`VolumeObserver` already uses CoreAudio. But `VolumeObserver`'s pattern is
-*directional scope* (`kAudioDevicePropertyScopeOutput`) — correct for volume
-and mute, which really are scoped — and applying it by analogy to
-`DeviceIsRunningSomewhere` is reported to register with `noErr` and then
-**never fire, ever**. The microphone half needs the probe *more* than the
-camera half, precisely because this project's own precedent leads into the
-trap.
-
-**The trap this project has already hit twice.** The HUD's brightness
-callback signature circulated online is wrong, and the media metadata
-module's first probe reported the API ungated because the test binary
-inherited Apple's signing identity. Both looked like working code. For any
-`IsRunningSomewhere` property: verify it changes when a *different*
-application starts capturing, not only when this one does.
-
-**It must not point at itself, and the answer is not the one this document
-first proposed.** Module 3 puts a camera preview in the notch, making
-CreativeNotch one of the applications this indicator watches for.
-`IsRunningSomewhere` reports *that* something is capturing, not *who* — so it
-cannot answer this alone.
-
-The obvious fix was `AVCaptureDevice.inUseByAnotherApplication`, which is
-public and documented as meaning exactly what its name says. **It did not
-work in the probe**: it read `false` throughout, while a genuinely separate
-application captured on that exact device. That measurement is confounded —
-the observing process had never requested camera access, so it cannot
-distinguish "the property does not work" from "it needs an authorisation we
-did not ask for" — and *either* answer disqualifies it here, because a
-privacy indicator that must hold camera permission to function is the wrong
-shape.
-
-**Use `kAudioHardwarePropertyTranslatePIDToProcessObject` instead.** It maps
-a PID directly to its audio process object, so "is that me?" is a cheap
-lookup rather than an enumeration, and it needs no permission at all.
-
-**Needs a spike:** yes — and it is now the *microphone* half, plus the
-listener-removal question below.
-
-**One thing to measure before trusting `stop()`.** There is an unresolved
-report that `CMIOObjectRemovePropertyListenerBlock` returns `noErr` and keeps
-delivering. If that reproduces on macOS 26, a registration count of zero
-proves only that removal was *asked for*, and the observer needs its own
-stopped flag as a backstop. That is the same class of failure as the media
-helper's activity gate: a stop that is asserted rather than observed.
-
----
-
-## 2. Launch at login
+## 1. Launch at login
 
 **What it is.** A toggle that registers the app to start with the session.
 
@@ -203,15 +135,19 @@ entirely. Only a `pgrep` after a real logout proves anything.
 section: the remaining four wanted somewhere to live, and now they have one.
 Every module is switchable, and switching one off stops what it runs.
 
-1. **Microphone and camera indicators.** The camera module has shipped, which
-   settles the dependency this order was really about: CreativeNotch is now a
-   known, instrumentable capture client to test the indicator against, and —
-   because clips are silent — it is **not** something the microphone half has
-   to exclude.
-2. **Launch at login**, *last*, and conditional. It is the only module that
-   might not exist, and pairing it with the shortcut — as this document used
-   to — would have risked the safe one slipping behind the blocked one. The
-   shortcut has since shipped on its own, which is the argument settled.
+**There is no order left to suggest.** One module remains, and what it needs
+is not engineering time:
+
+1. **Launch at login**, conditional on the signing decision below. It is the
+   only module that might not exist as a toggle at all, and no amount of
+   building settles that — the question is whether `SMAppService` accepts an
+   ad-hoc signature, and the only thing that answers it is a throwaway bundle,
+   a real install, and two logout/login cycles.
+
+Everything this document has warned about ordering — retrofitting
+enable/disable wiring, modules wanting somewhere to live — is paid. Adding the
+tenth module took a `ModuleID` case, a row, and a switchboard leg, and the
+compiler refused to build until all three existed.
 
 **What Preferences leaves for whoever builds the next module.** Adding a
 module now means adding a `ModuleID` case, a row in `PreferencesView.rows`, and

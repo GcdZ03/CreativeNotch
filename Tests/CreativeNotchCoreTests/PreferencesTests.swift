@@ -19,11 +19,12 @@ import Testing
     #expect(ModuleID.timer.rawValue == "timer")
     #expect(ModuleID.hotkey.rawValue == "hotkey")
     #expect(ModuleID.camera.rawValue == "camera")
+    #expect(ModuleID.captureIndicator.rawValue == "capture-indicator")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 9)
+    #expect(keys.count == 10)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }

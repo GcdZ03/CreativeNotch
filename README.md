@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-944-brightgreen" alt="944 tests">
+  <img src="https://img.shields.io/badge/tests-989-brightgreen" alt="989 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -54,7 +54,7 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. All nine modules are built, and every one of them can be switched off.**
+**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -72,6 +72,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 | ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
+| ✅ **Capture indicator** — when another app is using your camera or microphone | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -271,7 +272,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 944 tests, ~2s, no window server needed
+swift test           # 989 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -297,8 +298,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   399 tests
-  CreativeNotchUITests/     545 tests
+  CreativeNotchCoreTests/   418 tests
+  CreativeNotchUITests/     571 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -314,8 +315,8 @@ Full detail in [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md).
 
 ## Roadmap
 
-Every module on the *original* roadmap has shipped, and five of the seven
-planned since. The remaining two are not built:
+Every module on the *original* roadmap has shipped, and six of the seven
+planned since. **One remains**, and it is not blocked on code:
 
 | | |
 |---|---|
@@ -325,7 +326,7 @@ planned since. The remaining two are not built:
 | **Launch at login** | Planned |
 | **Global shortcut** — open the panel from anywhere | **Shipped** |
 | **Camera in the notch** — a mirror under the lens, a shutter, and a record button | **Shipped** |
-| **Capture indicators** — microphone and camera in use | Planned |
+| **Capture indicator** — microphone and camera in use | **Shipped** |
 
 Battery and the timer both shipped ahead of the suggested order, which put
 Preferences first. Neither needed a preferences surface to be useful, and
@@ -364,9 +365,15 @@ in the ear saying so. A capture running with nothing on screen to account for
 it is the one thing this project exists to prevent, so the badge is part of the
 rule rather than a decoration.
 
-Capture indicators come after the camera module. **Screen recording has been
-cut from them**: no public API reports that another app is recording the
-screen, and macOS already shows its own indicator.
+The capture indicator shows when **another** application is using your camera
+or microphone, in the notch, next to the hardware it is about. **Screen
+recording is deliberately not included**: no public API reports that another
+app is recording the screen, and macOS already shows its own indicator.
+
+It does not point at itself. `IsRunningSomewhere` reports *that* something is
+capturing, never *who*, so the module reads per-process state to exclude
+CreativeNotch's own camera — and since its clips are silent, the microphone
+half has nothing of ours to exclude at all.
 
 Underneath all of it sits one decision that is not about any single module.
 CreativeNotch is **ad-hoc signed**, so its identity changes on every build —

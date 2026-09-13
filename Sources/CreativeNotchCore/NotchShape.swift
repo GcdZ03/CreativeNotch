@@ -12,6 +12,7 @@ public enum BadgeSlot: Equatable, Sendable {
     case nowPlaying
     case timer
     case recording
+    case capture
 
     /// How far the closed notch grows for this slot.
     public var width: CGFloat {
@@ -20,6 +21,7 @@ public enum BadgeSlot: Equatable, Sendable {
         case .nowPlaying: return NotchGeometry.nowPlayingBadgeWidth
         case .timer:      return NotchGeometry.timerBadgeWidth
         case .recording:  return NotchGeometry.recordingBadgeWidth
+        case .capture:    return NotchGeometry.captureBadgeWidth
         }
     }
 }
@@ -105,9 +107,17 @@ public enum NotchShape {
         countdown: Countdown?,
         nowPlaying: TrackSnapshot?,
         isRecording: Bool = false,
+        capture: CaptureUse = .none,
         at now: Date
     ) -> BadgeSlot {
         if isRecording { return .recording }
+        // **Above the timer and above media.** Something else is using the
+        // camera or the microphone right now, and that is the one thing in
+        // this list the user cannot find out any other way -- a countdown they
+        // set themselves and a track they are playing are both already known
+        // to them. It sits below `.recording` only because that is this app's
+        // own capture, which is the more specific claim about the same fact.
+        if capture.isAnythingCapturing { return .capture }
         if let countdown, !countdown.hasFinished(at: now) { return .timer }
         if nowPlaying?.isPlaying == true { return .nowPlaying }
         return .none

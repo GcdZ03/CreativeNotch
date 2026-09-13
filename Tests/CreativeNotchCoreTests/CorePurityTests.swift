@@ -96,6 +96,9 @@ struct CorePurityTests {
             "CameraPreviewFit.swift",
             "CaptureFileNaming.swift",
             "ClipLimits.swift",
+            "CaptureUse.swift",
+            "CaptureAttribution.swift",
+            "CaptureDebounce.swift",
         ]
         for name in expectedInSubdirectories {
             #expect(names.contains(name), "expected recursive scan to find \(name)")

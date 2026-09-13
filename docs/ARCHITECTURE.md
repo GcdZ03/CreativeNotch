@@ -310,7 +310,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-944 tests, all headless. `swift test` takes
+989 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -894,6 +894,14 @@ teardown (removing inputs and outputs, dropping the session) made no
 difference. The 120-second hold is what rules out the obvious false pass: a
 probe that exits measures the kernel reclaiming a dead process's handle.
 
+The same observer was then pointed at the **shipped app**, and saw it claim and
+release the camera cleanly across two open/close cycles with the process still
+running and nothing held in between. See
+`docs/research/2026-09-13-camera-teardown.md` — which also records a finding
+the indicator module needs: **CMIO fires three events on start and one on
+stop**, so an indicator that toggles state per callback would flicker every
+time any app opens a camera.
+
 ### Two reasons to run, and the second is an exemption
 
 Gating the session on the panel being open is the obvious design and it is
@@ -1005,6 +1013,93 @@ treated as a refusal, or nobody would ever be prompted.
 Every shipped update re-prompts, because TCC keys the grant to the code hash
 and this app is ad-hoc signed — measured, not inferred. It is one of several
 costs a stable signing identity would remove at a stroke.
+
+## The capture indicator
+
+When **another** application is using the camera or the microphone, the notch
+says so — in the trailing ear, next to the hardware it is about. The camera is
+directly above it, which is the whole reason this belongs in a notch rather
+than a menu bar item.
+
+### Register on global scope. This is measured, not obvious.
+
+Both `kAudioDevicePropertyDeviceIsRunningSomewhere` and its CoreMediaIO twin
+are listenable, so the module is notification-driven and costs nothing between
+events.
+
+**The scope is the trap.** `VolumeObserver` registers on *directional* scope,
+which is correct there because volume genuinely is per-direction. Applied here,
+input scope registers with `noErr` and **never fires** — while its property
+value reads correctly the whole time. So the failure mode is:
+
+1. register on input scope — succeeds;
+2. verify by reading the property — correct, every time;
+3. ship an indicator that never updates.
+
+Nothing short of an end-to-end test with a second application capturing
+notices. Measured in `docs/research/2026-09-13-capture-listener-scope.md`, and
+pinned by a source scan, because the tests inject the system read precisely so
+they touch no real device.
+
+### Read the value; do not react to the notification
+
+CoreAudio fires **one** event per edge. CoreMediaIO fires **three** on start
+and one on stop. Neither shape can be relied on, so a callback is a prompt to
+re-read and a re-read matching what is shown changes nothing. That is
+`CaptureDebounce`, and it is the third time this project has needed the shape —
+`MediaCoalescer` and `HUDSignificanceGate` are the others.
+
+### It must not point at itself
+
+`IsRunningSomewhere` reports *that* something is capturing, never *who*. Since
+this app opens its own camera, an indicator built on the property alone lights
+up for its own preview, which tells the user nothing and reads as a bug.
+
+The obvious answer, `AVCaptureDevice.inUseByAnotherApplication`, is documented
+to mean exactly this and read `false` throughout a probe in which a genuinely
+separate application was capturing. That measurement is confounded — the
+observing process had never requested camera access — and **either explanation
+disqualifies it: a privacy indicator that must hold camera permission in order
+to report camera use is the wrong shape.**
+
+So attribution is a per-process read, and the policy half of it is pure. Since
+the camera module's clips are silent, the microphone half has nothing of ours
+to exclude at all.
+
+### It is not suspended by the activity gate
+
+The same shape as the power module. The observer costs nothing idle, and
+suspending it would mean missing a capture that started while the screen was
+locked and then reporting the wrong thing on unlock. The badge is ambient
+rather than a peek, so there is no interruption to withhold.
+
+Switching the module off stops the listeners **and clears the badge** — a
+privacy tell stuck on after its module was switched off is worse than none.
+That clearing belongs to the controller, not to the switchboard leg: two
+spellings would be two things to keep true.
+
+### `isStopped` is a backstop, not paranoia
+
+An unanswered radar claims `CMIOObjectRemovePropertyListenerBlock` returns
+`noErr` and keeps delivering. If that reproduces, a registration count of zero
+means "removal was asked for" rather than "it stopped" — the same class of
+failure as the media helper's activity gate. A callback arriving after `stop()`
+publishes nothing.
+
+### Where it sits in the badge slot
+
+Above the timer and above now-playing, below this app's own recording:
+
+| | |
+| --- | --- |
+| `.recording` | our own capture — the more specific claim about the same fact |
+| `.capture` | **somebody else's** — the one thing here the user cannot learn any other way |
+| `.timer` | a countdown they set themselves |
+| `.nowPlaying` | a track they are playing |
+
+Both glyphs can show at once, and the slot is the two-glyph width whichever is
+showing — a badge that grew when the second device started would resize the
+closed notch mid-call.
 
 ## Deliberately absent
 

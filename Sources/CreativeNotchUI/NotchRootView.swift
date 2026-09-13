@@ -119,6 +119,11 @@ public final class AppState {
     public var onCameraShutter: (() -> Void)?
     public var onCameraToggleRecording: (() -> Void)?
 
+    /// What is currently capturing, from the capture indicator module. Read by
+    /// the badge slot, so an indicator the user cannot otherwise get is the
+    /// first thing the closed notch gives up its ear for.
+    public var captureUse: CaptureUse = .none
+
     /// Whether a clip is being written. Read by the badge slot, and the reason
     /// the camera's activity-gate exemption is honest rather than silent.
     public var isRecordingClip: Bool = false
@@ -412,7 +417,11 @@ public struct NotchRootView: View {
     /// different answers.
     static func badgeSlot(for app: AppState, at now: Date) -> BadgeSlot {
         NotchShape.badgeSlot(
-            countdown: app.countdown, nowPlaying: app.nowPlaying, at: now
+            countdown: app.countdown,
+            nowPlaying: app.nowPlaying,
+            isRecording: app.isRecordingClip,
+            capture: app.captureUse,
+            at: now
         )
     }
 
@@ -533,6 +542,13 @@ public struct NotchRootView: View {
                     // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
                     // test that bites that mistake.
                     switch slot {
+                    case .capture:
+                        CaptureBadgeView(use: app.captureUse)
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .trailing
+                            )
                     case .recording:
                         RecordingBadgeView()
                             .frame(

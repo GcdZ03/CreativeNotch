@@ -49,6 +49,15 @@ public enum NotchGeometry {
     /// which a dot says completely.
     public static let recordingBadgeWidth: CGFloat = 28
 
+    /// How far the capture indicator extends past the trailing edge.
+    ///
+    /// Wide enough for two glyphs side by side, because the microphone and the
+    /// camera can be in use at once and collapsing that to one icon would hide
+    /// half of what the user most wants to know. Fixed at the two-glyph width
+    /// whichever is showing: a badge that grew when the second device started
+    /// would resize the closed notch mid-call.
+    public static let captureBadgeWidth: CGFloat = 40
+
     /// Approximates the radius of the hardware notch's bottom corners.
     ///
     /// The closed panel covers the notch's bounding box, but the cutout
