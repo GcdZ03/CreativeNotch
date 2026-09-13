@@ -11,6 +11,40 @@ import CreativeNotchCore
 @MainActor
 struct PowerControllerTests {
 
+    // MARK: - Restarting the module
+
+    /// The first snapshot is a baseline, not an event -- and after a
+    /// disable/re-enable cycle, "first" means the first one since the
+    /// re-enable. Without `reset()`, unplugging while the module is off fires
+    /// an `.unplugged` peek the moment it comes back.
+    @Test func resettingMakesTheNextSnapshotABaselineAgain() {
+        let controller = PowerController()
+        var events: [PowerEvent] = []
+        controller.onEvent = { events.append($0) }
+
+        controller.apply(snapshot(source: .wall))
+        #expect(events.isEmpty, "the first snapshot must be a baseline")
+
+        controller.stop()
+        controller.reset()
+        controller.apply(snapshot(source: .battery))
+
+        #expect(events.isEmpty, "the first snapshot after a reset is a baseline too")
+    }
+
+    /// The control: without the reset that same second snapshot IS an event.
+    /// If this fails, `reset()` is being called from somewhere it should not.
+    @Test func aSourceChangeWithinOneRunStillPeeks() {
+        let controller = PowerController()
+        var events: [PowerEvent] = []
+        controller.onEvent = { events.append($0) }
+
+        controller.apply(snapshot(source: .wall))
+        controller.apply(snapshot(source: .battery))
+
+        #expect(events.count == 1)
+    }
+
     /// Collects what the controller decided.
     private final class Recorder {
         var events: [PowerEvent] = []

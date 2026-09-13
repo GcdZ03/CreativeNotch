@@ -108,10 +108,16 @@ public final class AppState {
 
     /// Whether this Mac has an internal battery.
     ///
-    /// Set once at install from `PowerObserver.hasBattery`. Defaults to
-    /// `false` so anything constructing a bare `AppState` — every test
-    /// that does not care about power — gets the shape that shows less,
-    /// rather than the one that promises a tab with nothing behind it.
+    /// Set by the first power snapshot, in `AppDelegate.powerDidChange` —
+    /// not at install. An install-time read of `PowerObserver.hasBattery`
+    /// used to exist and was dead, because that flag is false until the
+    /// observer starts, which happens later. Defaults to `false` so anything
+    /// constructing a bare `AppState` — every test that does not care about
+    /// power — gets the shape that shows less, rather than the one that
+    /// promises a tab with nothing behind it.
+    ///
+    /// A capability, not a preference: it answers "can this machine do it",
+    /// which is never overwritten by whether the user wants it.
     ///
     /// Not `@ObservationIgnored`: like `showsMediaControls`, it is a
     /// plain `Bool` that `body` reads directly and needs Observation's

@@ -39,6 +39,30 @@ public final class PowerController {
     public func start() { observer.start() }
     public func stop() { observer.stop() }
 
+    /// The other half of `stop()`, and never called on its own.
+    ///
+    /// `previous` is what makes the first snapshot a baseline rather than an
+    /// event. Left in place across a stop, the first snapshot after the
+    /// restart is compared against one from before it, and a charger moved
+    /// while the module was switched off fires a peek the instant it comes
+    /// back.
+    ///
+    /// **`arming` is re-seeded as a defence, and no test bites it.** Said
+    /// plainly because the obvious justification -- "a battery already below
+    /// the threshold when the module went off would otherwise never speak
+    /// again" -- is false, and a test written to prove it passes either way.
+    /// `apply` advances `arming` *above* the baseline guard, so the first
+    /// snapshot after a reset spends the threshold and returns silently
+    /// whether or not `arming` was fresh. The line is kept because `reset()`
+    /// should mean what it says: leaving one field of the previous run behind
+    /// is how the next person's change to the baseline rule becomes a silent
+    /// suppressed warning. It is a defence without a test, and this comment
+    /// is the record of that, not an oversight.
+    public func reset() {
+        previous = nil
+        arming = LowBatteryArming()
+    }
+
     /// Whether the observer is registered.
     ///
     /// Internal, for the lifecycle proof — the same reason

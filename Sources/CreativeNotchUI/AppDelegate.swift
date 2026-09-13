@@ -378,9 +378,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showPowerPeek(event)
         }
         self.power = power
-        // Read once: a machine does not grow a battery, and a tab that
-        // opens onto three meaningless rows is worse than no tab.
-        state.hasBattery = power.hasBattery
+        // `hasBattery` is deliberately NOT set here. It was, and the line was
+        // dead: `PowerObserver.hasBattery` is false until `start()` assigns
+        // it, and `start()` runs after `install(metrics:)`. The flag has one
+        // writer and it is the first snapshot, in `powerDidChange`.
 
         // Constructed here like every other controller, so the switchboard
         // and the tests can reach it; started in `applicationDidFinishLaunching`,
@@ -666,9 +667,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `nowPlayingDidChange` is one.
     func powerDidChange(_ snapshot: PowerSnapshot) {
         state.power = snapshot
-        // `hasBattery` is set at install, but the first snapshot is the
-        // first proof there is one. A machine whose battery reads as
-        // absent at launch and present a moment later would otherwise
+        // The first snapshot is the ONLY thing that sets `hasBattery`. An
+        // install-time assignment used to sit beside the controller and was
+        // dead -- the observer's flag is false until `start()`, which runs
+        // later -- so the tab has always appeared from here. A machine whose
+        // battery reads as absent at launch and present a moment later would
+        // otherwise
         // never show the tab.
         state.hasBattery = true
     }

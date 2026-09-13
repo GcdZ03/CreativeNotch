@@ -29,6 +29,25 @@ struct PowerWiringTests {
         return delegate
     }
 
+    /// `hasBattery` is established by the first snapshot, not at install.
+    ///
+    /// **This test cannot catch the deleted line coming back, and that is the
+    /// point.** `state.hasBattery = power.hasBattery` at install always read
+    /// `false`, because `PowerObserver.hasBattery` is assigned only inside
+    /// `start()`, which runs later -- so restoring it changes nothing
+    /// observable and this test still passes. Being unobservable is exactly
+    /// why it sat there being wrong while two doc comments described it as
+    /// the mechanism. What this test does pin is the real one: false after
+    /// install, true after the first snapshot.
+    @Test func installDoesNotClaimToKnowWhetherThereIsABattery() {
+        let delegate = makeDelegate()
+        #expect(delegate.state.hasBattery == false)
+
+        delegate.powerDidChange(snapshot())
+
+        #expect(delegate.state.hasBattery)
+    }
+
     private func snapshot(
         level: Int = 66,
         source: PowerSource = .battery,
