@@ -978,6 +978,22 @@ text in shot reads correctly. Mirroring lives on `AVCaptureConnection` and
 there is a separate connection per output, so a `.scaleEffect(x: -1)` on the
 view would mirror the preview and nothing else.
 
+### Captures are not the shelf's to delete
+
+They go to `~/Pictures/CreativeNotch/`, and the shelf shows them as
+**references it does not own**.
+
+The shelf enforces its retention — 7 days, 20 items — by moving files to the
+Trash. Correct for a copy of something dragged in from where it still exists;
+catastrophic for the only copy of a photograph somebody just took. `ShelfItem`
+therefore carries `isOwned`, and `trash` is a no-op for anything the shelf does
+not own: the item still expires from the list, but expiry never touches the
+file.
+
+This was found by being asked where captures are stored, not by a test. The
+module had been written to the roadmap's phrase "captures land in the file
+shelf" without ever asking what the shelf *does* to what lands in it.
+
 ### A denied grant is not an error
 
 `AVCaptureDevice.h`: *"Until access has been granted, any AVCaptureDevices for

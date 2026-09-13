@@ -258,7 +258,38 @@ name twice.
 
 ---
 
-## 11. Deliberately not in v1
+## 11. Captures are not the shelf's to delete
+
+Captures go to **`~/Pictures/CreativeNotch/`**, and the shelf shows them as
+references it does not own.
+
+The first version of this spec said only "captures land in the file shelf",
+taken from `ROADMAP.md`, and never asked what the shelf *does* to things put in
+it. It has retention rules, and it enforces them by **moving files to the
+Trash**:
+
+| Rule | Value |
+| --- | --- |
+| `ShelfStore.maxAge` | 7 days |
+| `ShelfStore.capacity` | 20 items |
+
+That is exactly right for a copy of a file dragged in from somewhere it still
+exists. It is catastrophic for the only copy of a photograph somebody just
+took: a photo would be trashed a week later, or sooner if twenty things were
+dragged onto the notch in the meantime, with nothing anywhere saying so.
+
+So `ShelfItem` gains `isOwned`, and `trash` is a no-op for anything the shelf
+does not own. The item still expires from the *list* — the shelf is a view of
+recent things and a permanent entry would crowd real drops off it — but expiry
+no longer touches the file.
+
+**And nothing is written twice.** Captures were originally written to
+`FileManager.default.temporaryDirectory` and then *copied* into the shelf,
+which left the temporary one behind forever. A 512 MB clip existing twice, one
+copy orphaned, is not a rounding error. They are now recorded straight to their
+final destination.
+
+## 12. Deliberately not in v1
 
 - **Audio.** §6.
 - **Choosing a camera.** §8 — the premise is the built-in lens.

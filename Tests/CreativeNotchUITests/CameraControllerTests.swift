@@ -223,6 +223,61 @@ struct CameraControllerTests {
         #expect(log.recordingStops == 0)
     }
 
+    // MARK: - Where captures go
+
+    /// **Captures are REFERENCED, never copied into the shelf.**
+    ///
+    /// The shelf enforces its retention by moving files to the Trash -- seven
+    /// days, twenty items. That is right for a copy it made of something
+    /// dragged in, and catastrophic for the only copy of a photograph the user
+    /// just took. Adding it as an owned copy would mean their photo is trashed
+    /// next week, and the first version of this module did exactly that.
+    @Test func aFinishedClipIsReferencedRatherThanCopiedIntoTheShelf() throws {
+        let shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CameraShelf-\(UUID().uuidString)")
+        let shelf = try ShelfStore(directory: shelfDirectory)
+        let controller = CameraController(shelf: shelf)
+
+        let captures = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: captures, withIntermediateDirectories: true)
+        let clip = captures.appendingPathComponent("Clip.mov")
+        try Data("a clip".utf8).write(to: clip)
+
+        controller.didFinishRecording(clip)
+
+        let item = try #require(shelf.items.first)
+        #expect(item.isOwned == false, "the shelf took ownership of a capture it will later trash")
+        #expect(item.url == clip, "the capture was copied instead of referenced")
+    }
+
+    @Test func aPhotoIsReferencedRatherThanCopiedIntoTheShelf() throws {
+        let shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CameraShelf-\(UUID().uuidString)")
+        let shelf = try ShelfStore(directory: shelfDirectory)
+        let controller = CameraController(shelf: shelf)
+
+        let captures = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: captures, withIntermediateDirectories: true)
+        let photo = captures.appendingPathComponent("Photo.jpg")
+
+        controller.didCapturePhoto(Data("a photo".utf8), to: photo)
+
+        let item = try #require(shelf.items.first)
+        #expect(item.isOwned == false)
+        #expect(item.url == photo)
+        #expect(FileManager.default.fileExists(atPath: photo.path), "the photo was never written")
+    }
+
+    /// And they land somewhere permanent by default, not in a temporary
+    /// directory that a copy would then duplicate.
+    @Test func capturesDefaultToThePicturesFolder() {
+        let controller = CameraController(shelf: nil)
+        #expect(controller.capturesDirectory.path.contains("Pictures"))
+        #expect(controller.capturesDirectory.lastPathComponent == "CreativeNotch")
+    }
+
     // MARK: - State is published
 
     @Test func stateChangesAreAnnouncedOnce() {

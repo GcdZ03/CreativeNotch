@@ -22,6 +22,20 @@ final class CameraController {
 
     private let session = CameraSession()
     private let shelf: ShelfStore?
+
+    /// Where captures are kept.
+    ///
+    /// **`~/Pictures/CreativeNotch/`, not the shelf's own storage.** The shelf
+    /// is a staging area with retention rules -- seven days, twenty items,
+    /// both enforced by moving files to the Trash -- which is right for a file
+    /// dragged in from somewhere it still exists, and wrong for the only copy
+    /// of a photograph the user just took.
+    ///
+    /// The shelf still shows them, as references it does not own, so they are
+    /// as draggable as anything else and nothing auto-deletes them.
+    var capturesDirectory: URL = FileManager.default
+        .urls(for: .picturesDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("CreativeNotch")
     private var recordingDelegate: MovieDelegate?
     private var photoDelegate: PhotoDelegate?
 
@@ -155,7 +169,11 @@ final class CameraController {
     func startRecording(now: Date = Date(), suffix: String = UUID().uuidString.prefix(4).lowercased()) {
         guard !isRecording else { return }
         let name = CaptureFileNaming.name(for: .clip, at: now, suffix: suffix)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        // Recorded straight to its final home. Writing to a temporary
+        // directory and copying afterwards means a 512 MB clip exists twice
+        // and the temporary one is never cleaned up -- which is exactly what
+        // the first version of this did.
+        guard let url = prepareCaptureURL(named: name) else { return }
 
         isRecording = true
         reevaluate()
@@ -180,7 +198,7 @@ final class CameraController {
     func takePhoto(now: Date = Date(), suffix: String = String(UUID().uuidString.prefix(4)).lowercased()) {
         guard shouldRun else { return }
         let name = CaptureFileNaming.name(for: .still, at: now, suffix: suffix)
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+        guard let url = prepareCaptureURL(named: name) else { return }
 
         let delegate = PhotoDelegate { [weak self] data in
             Task { @MainActor in self?.didCapturePhoto(data, to: url) }
@@ -189,14 +207,15 @@ final class CameraController {
         capturePhoto(delegate)
     }
 
-    private func didCapturePhoto(_ data: Data?, to url: URL) {
+    /// Internal so a test can drive the shelf path without a capture graph.
+    func didCapturePhoto(_ data: Data?, to url: URL) {
         photoDelegate = nil
         guard let data else { return }
         do {
             try data.write(to: url)
-            try shelf?.add(.file(url), now: Date())
+            try shelf?.addReference(to: url, now: Date())
         } catch {
-            NSLog("CreativeNotch: the shelf could not store a photo: \(error)")
+            NSLog("CreativeNotch: could not save a photo: \(error)")
         }
     }
 
@@ -207,7 +226,27 @@ final class CameraController {
         reevaluate()
     }
 
-    private func didFinishRecording(_ url: URL) {
+    /// The destination for a capture, with its directory created.
+    ///
+    /// Returns `nil` when the directory cannot be made -- a sandbox denial, a
+    /// full disk -- rather than letting the capture start and fail later:
+    /// `AVCaptureFileOutput` reports a bad destination asynchronously, long
+    /// after the button was pressed, which reads as the clip vanishing.
+    private func prepareCaptureURL(named name: String) -> URL? {
+        do {
+            try FileManager.default.createDirectory(
+                at: capturesDirectory,
+                withIntermediateDirectories: true
+            )
+        } catch {
+            NSLog("CreativeNotch: could not create the captures directory: \(error)")
+            return nil
+        }
+        return capturesDirectory.appendingPathComponent(name)
+    }
+
+    /// Internal so a test can drive the shelf path without a capture graph.
+    func didFinishRecording(_ url: URL) {
         recordingDelegate = nil
         // Landing on STOP rather than on start: `ShelfStore` has no notion of
         // a file still being written, so a clip added at the start would sit
@@ -216,10 +255,12 @@ final class CameraController {
         // A failure is logged rather than swallowed. The shelf refuses a drop
         // it cannot store, and a clip that silently never arrives is the worst
         // outcome available -- the user watched the light stay on for it.
+        // A reference, not a copy: the file is already where it belongs, and
+        // the shelf must never trash it.
         do {
-            try shelf?.add(.file(url), now: Date())
+            try shelf?.addReference(to: url, now: Date())
         } catch {
-            NSLog("CreativeNotch: the shelf could not store a clip: \(error)")
+            NSLog("CreativeNotch: the shelf could not list a clip: \(error)")
         }
         isRecording = false
         reevaluate()
