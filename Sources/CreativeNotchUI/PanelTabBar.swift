@@ -43,29 +43,31 @@ struct PanelTabBar: View {
     /// timer's position does not move between a MacBook and a desktop, and
     /// so `.power` stays last exactly as its own note below intends.
     ///
-    /// A function rather than the `static let` this used to be, because
-    /// `.power` is the first tab whose existence depends on the hardware:
-    /// three of its four facts are meaningless on a Mac with no internal
-    /// battery, so the same rule that hides `.hud` hides it there. Low
-    /// Power Mode does exist on a desktop, which is the argument for
-    /// showing the tab everywhere with the battery rows blanked — but one
-    /// live row out of four is a placeholder tab wearing a different hat.
+    /// **Delegates to `TabVisibility` rather than keeping its own list.** It
+    /// kept one until this was caught by running the app: the switchboard
+    /// computed the right tabs and retargeted the selection, while this view
+    /// went on drawing all four regardless of any preference. Every test
+    /// passed, because they exercised the Core function and the switchboard --
+    /// never the view's own answer.
     ///
-    /// `.power` is appended rather than inserted, so hiding it never
-    /// reorders the tabs that were already there.
-    static func visible(hasBattery: Bool) -> [CreativeNotchCore.Tab] {
-        var tabs: [CreativeNotchCore.Tab] = [.shelf, .clipboard, .timer]
-        if hasBattery { tabs.append(.power) }
-        return tabs
+    /// That is the same shape as the `PassthroughContainer` trap recorded in
+    /// ARCHITECTURE.md: each piece correct, the assembly wrong. One rule,
+    /// spelled once, is the only fix that stays fixed.
+    static func visible(
+        enabled: Preferences,
+        hasBattery: Bool
+    ) -> [CreativeNotchCore.Tab] {
+        TabVisibility.visible(enabled: enabled, hasBattery: hasBattery)
     }
 
     let selected: CreativeNotchCore.Tab
+    let enabled: Preferences
     let hasBattery: Bool
     let onSelect: (CreativeNotchCore.Tab) -> Void
 
     var body: some View {
         HStack(spacing: 4) {
-            ForEach(Self.visible(hasBattery: hasBattery), id: \.self) { tab in
+            ForEach(Self.visible(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
                 Button {
                     onSelect(tab)
                 } label: {

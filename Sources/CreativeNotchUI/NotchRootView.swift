@@ -585,6 +585,7 @@ public struct NotchRootView: View {
                         mediaBar
                         PanelTabBar(
                             selected: tab,
+                            enabled: app.preferences,
                             hasBattery: app.hasBattery
                         ) { app.transition(to: .open($0)) }
                         // `at: now` keeps the tab on the single instant
