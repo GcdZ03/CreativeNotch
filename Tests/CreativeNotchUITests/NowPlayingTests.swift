@@ -19,6 +19,7 @@ struct NowPlayingTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchNowPlaying-\(UUID().uuidString)")

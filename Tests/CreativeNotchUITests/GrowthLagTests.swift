@@ -38,6 +38,7 @@ struct GrowthLagTests {
 
     private func makeDelegate(delay: Duration = .milliseconds(60)) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = delay
         delegate.install(metrics: Self.notched)
         return delegate

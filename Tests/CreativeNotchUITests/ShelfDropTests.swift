@@ -19,6 +19,7 @@ struct ShelfDropTests {
 
     private func makeDelegate() throws -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("shelf-\(UUID().uuidString)")

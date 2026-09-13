@@ -40,6 +40,7 @@ struct AppDelegateStateFunnelTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         // These tests are about the funnel, not the expand animation, so
         // the growth lag is switched off. F6 has its own suite.
         delegate.growthDelay = .zero
@@ -294,6 +295,7 @@ struct AppDelegateStateFunnelTests {
     /// prevents would never announce itself.
     @Test func eachScreenObserverRemembersItsOwnNotificationCentre() {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
 
@@ -310,6 +312,7 @@ struct AppDelegateStateFunnelTests {
     /// the mismatch went unnoticed. The pairing above is the testable half.
     @Test func terminatingClearsTheScreenObservers() {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
         #expect(delegate.screenObserverCenters.count == 2)
@@ -364,6 +367,7 @@ struct HUDPeekOwnershipTests {
 
     private func makeDelegate(clock: FakeClock) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.now = { clock.value }
         delegate.install(metrics: Self.notched)

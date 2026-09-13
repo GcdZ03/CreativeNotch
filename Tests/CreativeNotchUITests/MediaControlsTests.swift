@@ -24,6 +24,7 @@ struct MediaControlsTests {
 
     private func makeDelegate(available: @escaping () -> Bool) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchMediaControls-\(UUID().uuidString)")

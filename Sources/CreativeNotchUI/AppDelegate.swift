@@ -134,6 +134,30 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// sleeping and hoping, exactly like `graceTask`.
     private(set) var hudTTLTask: Task<Void, Never>?
 
+    // MARK: - Preferences
+
+    /// Overridable so tests never read or write the real
+    /// `com.gcdz.creativenotch` domain.
+    ///
+    /// **Required, not a convenience.** Once the activity fan-out routes
+    /// through the switchboard, a wiring suite reading the developer's real
+    /// defaults means a developer who switched media off in the actual app
+    /// makes `lockingStopsTheMediaHelper` fail on their machine and nowhere
+    /// else. Set it before `install(metrics:)`, exactly as `shelfDirectory`
+    /// and `growthDelay` are.
+    var preferencesDefaults: UserDefaults = .standard
+
+    /// Reads and writes the module toggles. Built in `install(metrics:)` from
+    /// `preferencesDefaults`, so the seam above is the only thing a test has
+    /// to set.
+    private(set) var preferencesStore = PreferencesStore()
+
+    /// The one place that knows how to start and stop every module.
+    ///
+    /// Constructed lazily because it holds an `unowned` reference back here,
+    /// and `self` is not available in a property initialiser.
+    private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
+
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
@@ -240,6 +264,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startSubsystems()
     }
 
+    /// Re-derives everything that depends on which modules are on.
+    ///
+    /// The switchboard reaches AppKit through the per-module verbs and this
+    /// one method, and nothing else. It pairs the two verbs that
+    /// `nowPlayingDidChange` already pairs — which is why that method is the
+    /// only disable path in the tree that has ever worked correctly.
+    ///
+    /// Both are needed. Stopping a subsystem does not by itself remove what it
+    /// put on screen: without `syncTrackingRect()` a badge that has just gone
+    /// leaves the closed notch's hit-test region widened for the rest of the
+    /// session, and without `reevaluatePeek()` a peek withdrawn from the
+    /// arbiter stays on screen until something else happens to ask.
+    func modulesDidChange() {
+        syncTrackingRect()
+        reevaluatePeek()
+    }
+
     /// Everything that starts a subsystem, in one place.
     ///
     /// Split out of `applicationDidFinishLaunching` because that method is not
@@ -255,18 +296,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod`.
     func startSubsystems() {
         activity.start()
-        hud?.start()
-        clipboard?.start()
-        media?.start()
-        power?.start()
+        switchboard.apply()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
-        hud?.stop()
-        clipboard?.stop()
-        media?.stop()
-        power?.stop()
+        switchboard.stopAll()
         activity.stop()
     }
 
@@ -300,6 +335,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
 
         // Purged on launch and after each add — never on a timer.
+        preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+
         shelf = try? ShelfStore(directory: shelfDirectory)
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
@@ -319,32 +356,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // fanned out to every consumer — never registered a second time
         // inside a module. Adding a second consumer later is a one-line
         // addition to this closure, not a second observer.
+        // The promised one-line addition, wearing a name. Still ONE
+        // registration: `SystemActivityFanOutTests` asserts exactly four
+        // notification tokens and one observer, and the switchboard adds
+        // neither.
+        //
+        // The per-module reasoning — why the timer is never suspended, why
+        // power keeps observing, why the HUD has no activity axis at all —
+        // moved with the code, to `ModuleSwitchboard.setActivity`. It does not
+        // survive being split from what it explains.
         activity.onChange = { [weak self] state in
-            guard let self else { return }
-            let now = Date().timeIntervalSince1970
-            self.clipboard?.setActivity(state, now: now)
-            self.media?.setActivity(state)
-
-            // The timer is deliberately NOT suspended here the way the
-            // poller and the helper above are, and the difference is the
-            // point rather than an oversight. Their output is only worth
-            // producing while somebody can see it, so outside `.active`
-            // they stop. A timer's whole purpose is to fire while nobody
-            // is watching: `setActive` changes only how often it wakes to
-            // *redraw* the ear — see `TimerSchedule.nextWake`, where
-            // inactive schedules the deadline itself and nothing before
-            // it. It never changes whether the deadline fires. Three
-            // subsystems on one fan-out with one deliberately different
-            // behaviour is exactly the shape a later "consistency fix"
-            // breaks, so: do not make this a `stop()`.
-            self.timer?.setActive(state == .active)
-
-            // The promised one-line addition. Note what it does *not* do:
-            // `PowerController.setActivity` suppresses peeks and leaves
-            // the observer running, because a notification-driven source
-            // costs nothing idle and suspending it would mean missing the
-            // charger moving while the lid is shut.
-            self.power?.setActivity(state)
+            self?.switchboard.setActivity(state)
         }
 
         // Publishes into `AppState` for the panel header and feeds the

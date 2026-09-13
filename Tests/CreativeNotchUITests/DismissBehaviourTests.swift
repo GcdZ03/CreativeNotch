@@ -31,6 +31,7 @@ struct DismissBehaviourTests {
     ) -> (AppDelegate, MonitorSpy) {
         let spy = MonitorSpy()
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.installOutsideClickMonitor = { handler in spy.install(handler) }
         delegate.removeOutsideClickMonitor = { spy.remove($0) }
         delegate.growthDelay = .zero
