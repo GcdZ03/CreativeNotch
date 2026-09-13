@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Foundation
 import Testing
 import CreativeNotchCore
@@ -59,6 +60,44 @@ struct ModuleSwitchboardTests {
         delegate.startSubsystems()
 
         #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
+        delegate.activity.stop()
+    }
+
+    /// The same for the hotkey, and it matters more here than anywhere: a
+    /// system-wide registration made at launch for a module the user switched
+    /// off is a key that opens the panel with the switch reading off.
+    @Test func aHotkeyDisabledBeforeLaunchIsNeverRegistered() throws {
+        let delegate = makeDelegate()
+        let hotkey = try #require(delegate.hotkey)
+        hotkey.setCombo(HotKeyCombo(
+            keyCode: UInt32(kVK_F13),
+            carbonModifiers: HotKeyModifier.control | HotKeyModifier.option | HotKeyModifier.shift
+        ))
+        hotkey.stop()
+        delegate.preferencesStore.setEnabled(false, for: .hotkey)
+
+        delegate.startSubsystems()
+
+        #expect(hotkey.isRegistered == false)
+        #expect(HotKeyCenter.shared.registrationCount == 0)
+        delegate.activity.stop()
+    }
+
+    /// The ON case, or the above passes against an `apply()` that registers
+    /// nothing at all.
+    @Test func aHotkeyEnabledBeforeLaunchIsRegistered() throws {
+        let delegate = makeDelegate()
+        let hotkey = try #require(delegate.hotkey)
+        hotkey.setCombo(HotKeyCombo(
+            keyCode: UInt32(kVK_F13),
+            carbonModifiers: HotKeyModifier.control | HotKeyModifier.option | HotKeyModifier.shift
+        ))
+        hotkey.stop()
+
+        delegate.startSubsystems()
+
+        #expect(hotkey.isRegistered)
+        hotkey.stop()
         delegate.activity.stop()
     }
 

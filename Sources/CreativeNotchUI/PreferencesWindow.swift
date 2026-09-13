@@ -147,6 +147,13 @@ struct PreferencesView: View {
             title: "Timer",
             detail: "A countdown in the notch."
         ),
+        PreferencesRow(
+            module: .hotkey,
+            title: "Global shortcut",
+            // No default, and the note says why rather than leaving an empty
+            // field looking broken.
+            detail: "Open the notch from anywhere. No shortcut is set until you choose one — any default would risk colliding with a launcher you already use."
+        ),
     ]
 
     var body: some View {

@@ -59,6 +59,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.power, for: .power)
         setEnabled(preferences.timer, for: .timer)
         setEnabled(preferences.shelf, for: .shelf)
+        setEnabled(preferences.hotkey, for: .hotkey)
     }
 
     /// Stops everything, regardless of preference.
@@ -73,6 +74,14 @@ final class ModuleSwitchboard {
         delegate.media?.stop()
         delegate.power?.stop()
         delegate.timer?.cancel()
+        // The hotkey is deliberately absent. `stopAll()` runs only from
+        // `applicationWillTerminate`, and Apple's header is explicit that the
+        // system reclaims hotkey registrations when the process exits -- so a
+        // stop here would be teardown for something that cannot happen, and no
+        // test could distinguish it from the system doing its job.
+        //
+        // The registration IS dropped when the module is switched off, which
+        // is the case that can actually go wrong: see the `.hotkey` leg.
     }
 
     /// Fans the activity gate out per module.
@@ -210,6 +219,18 @@ final class ModuleSwitchboard {
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
             }
+
+        case .hotkey:
+            // Stopping means UNREGISTERING, not ignoring the callback. A
+            // registration alive while the switch reads off is exactly the
+            // failure this module exists to prevent -- and dropping the last
+            // one takes the process-wide Carbon handler with it.
+            //
+            // No activity axis, like the HUD: a hotkey whose purpose is to
+            // open the panel from anywhere must keep working while the panel
+            // is closed, and there is nothing running between presses to
+            // suspend.
+            delegate.hotkey?.setEnabled(enabled)
 
         case .shelf:
             // Nothing to stop: the shelf owns no timer, observer or process,
