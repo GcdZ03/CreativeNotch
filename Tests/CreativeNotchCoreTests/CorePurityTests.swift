@@ -92,6 +92,10 @@ struct CorePurityTests {
             "HotKeyValidation.swift",
             "HotKeyGlyphs.swift",
             "HotKeyStore.swift",
+            "CameraRunReason.swift",
+            "CameraPreviewFit.swift",
+            "CaptureFileNaming.swift",
+            "ClipLimits.swift",
         ]
         for name in expectedInSubdirectories {
             #expect(names.contains(name), "expected recursive scan to find \(name)")
