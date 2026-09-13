@@ -67,6 +67,25 @@ public final class AppState {
     @ObservationIgnored
     public var onPasteClipboard: ((ClipboardEntry) -> Void)?
 
+    /// The pane's title-row verbs. Closures, like `onPasteClipboard`, so the
+    /// view gets a verb and never a store or a controller. Wired in
+    /// `AppDelegate.install(metrics:)` to the same `clear()` the menu bar
+    /// calls — `ShelfStore.clear()` moves real files to the Trash, which is
+    /// exactly why the verb is not duplicated (spec §5.3).
+    @ObservationIgnored
+    public var onClearShelf: (() -> Void)?
+
+    @ObservationIgnored
+    public var onRemoveShelfItem: ((UUID) -> Void)?
+
+    @ObservationIgnored
+    public var onClearClipboard: (() -> Void)?
+
+    /// The header's gear. Closes the panel, then opens Settings — Settings
+    /// is an activating window, and the panel should not sit open under it.
+    @ObservationIgnored
+    public var onOpenSettings: (() -> Void)?
+
     /// How the media buttons reach `MediaRemoteBridge`.
     ///
     /// A closure rather than calling the bridge from the view, for the
