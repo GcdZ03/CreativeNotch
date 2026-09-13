@@ -19,6 +19,21 @@ import CreativeNotchCore
 @MainActor
 struct PowerObserverTests {
 
+    /// Stopping must forget what was last seen, or the `read()` inside
+    /// `start()` finds nothing new and publishes nothing -- and a re-enabled
+    /// Power tab sits empty until the hardware happens to move, which on a
+    /// desk machine on wall power can be hours. Only observable once
+    /// something restarts the observer, which until preferences nothing did.
+    @Test func stoppingForgetsTheLastSnapshotSoARestartRepublishes() {
+        let observer = PowerObserver()
+        observer.snapshot = PowerSnapshot(
+            level: 50, source: .battery, isCharging: false, isLowPowerMode: false
+        )
+        observer.stop()
+        #expect(observer.snapshot == nil)
+    }
+
+
     private func description(
         current: Int = 66,
         max: Int = 100,

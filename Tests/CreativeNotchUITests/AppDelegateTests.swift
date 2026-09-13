@@ -40,6 +40,7 @@ struct AppDelegateStateFunnelTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         // These tests are about the funnel, not the expand animation, so
         // the growth lag is switched off. F6 has its own suite.
         delegate.growthDelay = .zero
@@ -188,11 +189,113 @@ struct AppDelegateStateFunnelTests {
         #expect(delegate.stateObserverCount == 1)
     }
 
+    // MARK: - The launch path
+
+    /// Everything that starts a subsystem, in one method a test can call.
+    /// `applicationDidFinishLaunching` cannot be driven from a test -- it
+    /// reads `NSScreen.main`, installs a real status item and pops a real
+    /// onboarding window on a fresh defaults domain -- so behaviour that only
+    /// ever ran there was behaviour nothing could assert.
+    @Test func startingSubsystemsStartsThem() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        clipboard.poller.scheduleTimer = { _, _ in nil }
+        clipboard.poller.cancelTimer = { _ in }
+        let media = try #require(delegate.media)
+        var starts = 0
+        media.supervisor.startHelper = { starts += 1 }
+        media.supervisor.stopHelper = {}
+
+        // Each subsystem is asserted as not-yet-running first: `install`
+        // starts nothing, so every assertion below is vacuous at rest and a
+        // start that never happened looks identical to one that did.
+        #expect(delegate.activity.tokenCount == 0)
+        #expect(clipboard.poller.scheduledInterval == nil)
+        #expect(starts == 0)
+        #expect(delegate.power?.isObserving == false)
+
+        delegate.startSubsystems()
+
+        #expect(delegate.activity.tokenCount > 0, "the activity observer never registered")
+        #expect(clipboard.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
+        #expect(starts == 1)
+        #expect(delegate.power?.isObserving == true)
+
+        delegate.activity.stop()
+        delegate.power?.stop()
+    }
+
+    /// The call site is pinned the only way this repo can pin it, in the
+    /// shape of `ClipboardStoreTests.theStoreNeverTouchesTheFileSystem`.
+    /// `applicationDidFinishLaunching` is unreachable from a test, so what
+    /// stops a start line drifting back into it is a source scan.
+    ///
+    /// **This scan, not a behavioural test, is what covers the launch call
+    /// site.** Said plainly so nobody later assumes the suite would catch it.
+    @Test func theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // .../Tests/CreativeNotchUITests
+            .deletingLastPathComponent()   // .../Tests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("Sources/CreativeNotchUI/AppDelegate.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        let start = try #require(text.range(of: "public func applicationDidFinishLaunching"))
+        let after = text[start.upperBound...]
+        // Whichever declaration comes FIRST, not whichever spelling is
+        // searched for first: `startSubsystems()` is internal and sits
+        // directly after this method, so preferring `public func` would
+        // swallow it and the scan would always fail.
+        let ends = [after.range(of: "\n    public func"), after.range(of: "\n    func")]
+            .compactMap { $0?.lowerBound }
+        let body = ends.min().map { String(after[..<$0]) } ?? String(after)
+
+        #expect(body.contains("startSubsystems()"))
+        for banned in ["hud?.start()", "clipboard?.start()", "media?.start()",
+                       "power?.start()", "activity.start()"] {
+            #expect(body.contains(banned) == false, "\(banned) is back in the launch path")
+        }
+    }
+
+    // MARK: - The HUD controller is reachable
+
+    /// The switchboard cannot start or stop a controller it cannot see, and
+    /// nor can a test. Until this, `hud` was the one controller built outside
+    /// `install` and unreachable from outside the file -- while the comment
+    /// on `arbiter` cited it as a precedent for being internal.
+    @Test func installingBuildsTheHudController() {
+        let delegate = makeDelegate()
+        #expect(delegate.hud != nil)
+    }
+
+    /// And building it must not start it. Fourteen suites reach
+    /// `install(metrics:)` and then inject their fakes; a tap created here
+    /// would be a real global event monitor in every one of them.
+    @Test func installingDoesNotStartTheHud() throws {
+        let delegate = makeDelegate()
+        let hud = try #require(delegate.hud)
+        #expect(hud.keys.isRunning == false)
+        #expect(hud.volume.isRunning == false)
+        #expect(hud.brightness.isRunning == false)
+    }
+
+    /// `install` twice must not leave an orphaned controller holding a second
+    /// event tap that nothing can reach to tear down. The HUD is the only
+    /// module whose orphan would hold a system-global resource; every other
+    /// one is at least idle.
+    @Test func installingTwiceKeepsOneHudController() {
+        let delegate = makeDelegate()
+        let first = delegate.hud
+        delegate.install(metrics: Self.notched)
+        #expect(delegate.hud === first)
+    }
+
     /// F3: each token has to go back to the centre that issued it.
     /// Removing from the wrong one is a silent no-op, so the leak this
     /// prevents would never announce itself.
     @Test func eachScreenObserverRemembersItsOwnNotificationCentre() {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
 
@@ -209,6 +312,7 @@ struct AppDelegateStateFunnelTests {
     /// the mismatch went unnoticed. The pairing above is the testable half.
     @Test func terminatingClearsTheScreenObservers() {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
         #expect(delegate.screenObserverCenters.count == 2)
@@ -263,6 +367,7 @@ struct HUDPeekOwnershipTests {
 
     private func makeDelegate(clock: FakeClock) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.now = { clock.value }
         delegate.install(metrics: Self.notched)

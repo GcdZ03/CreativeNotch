@@ -29,8 +29,12 @@ running, or wake more often than the display actually changes.
 
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
-on `SystemActivity` — as is the media helper subprocess, which is the gate's
-second consumer. Those two are the whole list.
+on `SystemActivity`. **The gate has four consumers, joining it in three
+different ways** — the clipboard poller and the media helper are suspended
+outside `.active`; the power module is never suspended, because a
+notification-driven source costs nothing idle; and the timer's *redraws* are
+gated while its *deadline* never is. Joining the gate does not have to mean
+being switched off.
 
 ## Targets
 
@@ -306,7 +310,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-221 tests, all headless. `swift test` takes
+839 tests, all headless. `swift test` takes
 about a second.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -650,13 +654,139 @@ non-`Equatable` box. `nowPlaying` keeps the dedupe on purpose: an equal
 away, `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what stops
 you.
 
+## Preferences
+
+Seven switches. **Switching a module off stops what it runs**, rather than
+hiding it — which is the only reason this module was worth building. A
+preference that removes the feature and leaves the cost running is strictly
+worse than no preference, because the user pays for something they explicitly
+declined and has no way to tell.
+
+### `ModuleSwitchboard` exists because there were three lists and none was complete
+
+The obvious place for toggle logic is the views. It is the wrong place, and
+`ROADMAP.md` said so before this was built: toggles belong next to the
+`SystemActivity` gate, in the same place that already knows how to start and
+stop these subsystems.
+
+That place was `AppDelegate`, and it was **three straight-line lists that did
+not agree with each other**:
+
+| List | Contained |
+| --- | --- |
+| Start | `hud`, `activity`, `clipboard`, `media`, `power` |
+| Stop | screen observers, `hud`, `clipboard`, `media`, `power`, `activity` |
+| Activity fan-out | `clipboard`, `media`, `timer`, `power` |
+
+`hud` was in the first two and not the third. `timer` was in the third and
+neither of the others. The shelf and the transport controls were in none. A
+seven-way preference across three disagreeing lists is twenty-one chances to
+miss one, silently.
+
+`ModuleSwitchboard` is that one place. Four callers route through it and they
+are the only four: `startSubsystems()` → `apply()`, `applicationWillTerminate`
+→ `stopAll()`, `activity.onChange` → `setActivity(_:)`, and the settings window
+→ `setEnabled(_:for:)`.
+
+**The launch path is the first invocation of the same code a live toggle
+runs.** If launch kept its own list, "off at launch" and "turned off at
+runtime" would drift — and the one that drifts is always the launch path,
+because a developer's machine has every module on.
+
+### It is deliberately not one formula
+
+"Effective state is enabled AND activity" is right for the lifecycle verbs and
+wrong applied uniformly. Two modules are exceptions, and both would be bugs if
+smoothed over:
+
+- **The HUD has no activity axis and must not gain one.** A uniform formula
+  would newly stop it on every screen lock, tearing down and recreating a
+  `CGEventTap` per lock/unlock cycle. `MediaKeyMonitor.start()` records success
+  as `isRunning = token != nil` with **no retry**, so a single
+  `CGEventTapCreate` failure inside an unlock window would leave the HUD
+  silently dead for the session. That window does not exist today.
+- **`setActive` still reaches the timer while the timer is switched off**, for
+  as long as a countdown is running. It is a scheduling-rate verb, not a
+  lifecycle one: freezing `isActive` at `true` on a disabled-but-running
+  countdown would cost a 25-minute timer on a locked machine roughly 84 wakes
+  where `TimerSchedule` promises one.
+
+### Three modules have nothing to stop, and the docs say so
+
+The file shelf owns no timer, no observer and no process. The transport
+controls are a lazily `dlopen`'d static. Disabling those hides a tab and
+refuses drops; it saves no power, and the settings window says that in as many
+words rather than implying a saving that is not there.
+
+This is the shape `ROADMAP.md` condemns — hide the UI, leave the cost running —
+except that here the idle cost genuinely is zero. Stating that is the
+difference between an honest toggle and a decorative one.
+
+### An absent key means ON, and that is the whole compatibility surface
+
+`UserDefaults.bool(forKey:)` returns `false` for an absent key. For a set of
+enable-flags **that is the wrong polarity**, and the failure mode is the entire
+app coming up dark on a fresh install with the settings window truthfully
+reporting that the user switched everything off. `Scripts/dev.sh --fresh`
+deletes the whole domain, so "every key absent" is a daily state rather than a
+first-launch edge case.
+
+Every read therefore presence-checks `object(forKey:)` before interpreting a
+type, in one pure function — `PreferenceKeys.resolveEnabled` — which is the
+entire compatibility surface and is tested with no `UserDefaults` in sight. A
+value of the wrong type reads as absent and is **not** rewritten: someone who
+ran `defaults write … -string yes` gets working software and keeps the evidence
+of what they typed.
+
+`UserDefaults.register(defaults:)` is refused. It is invisible to
+`defaults read`, it is per-process, and it makes "what does absent mean" depend
+on registration order at launch rather than on a function.
+
+`ModuleID`'s raw values are the middle segment of a shipped key, so renaming a
+case does not migrate a preference — it abandons it, and because absent
+resolves ON the symptom is the module coming back with nothing failing. They
+are pinned by literal.
+
+### The first thing that ever turned a tab off
+
+`hasBattery` only ever turned a tab **on**. Preferences can turn one off while
+the panel is open, and four paths did nothing about that: the tab bar styles
+an off-list selection with no highlight, `openContent` never consults the
+visible list, the notch tap reopens `lastOpenTab` without validating it, and
+`shouldTakeKey` still claimed focus for a timer tab that had gone.
+
+The fix lives in the funnel, and it corrects **both** the live state and
+`lastOpenTab`. Correcting only the live one leaves the notch tap to reopen a
+dead tab minutes later — the hardest version of the bug to reproduce and the
+easiest to dismiss as a glitch. `AppState.retarget(lastOpenTab:)` is the second
+and last writer of that field, and it notifies nobody, because nothing moved.
+
+Switching every tab-bearing module off is a **legal state**, not a trap: the
+settings window is reached from the menu bar, so the panel having nowhere to
+open is recoverable.
+
+### Why the settings surface is a window
+
+The panel disqualifies itself on its own construction: a `.nonactivatingPanel`
+dismissed on a 400ms grace when the cursor leaves, taking key focus for exactly
+one tab. A form that closes 400ms after your cursor strays and does not hold
+the keyboard is the wrong container.
+
+One rule with teeth: **the window must not report the HUD as on when the tap
+failed.** `CGEventTapCreate` genuinely fails without Accessibility, and a
+switch reading "on" over a dead subsystem is the exact inversion of the failure
+this module exists to prevent. The HUD row reports the permission, never the
+preference.
+
 ## Deliberately absent
 
 - ~~**`SystemActivity`**~~ — shipped. It arrived with the clipboard module
-  and now gates three subsystems: the clipboard poller, the media helper
-  subprocess, and the power module. The first two are suspended outside
-  `.active`; the third only stops *drawing*. Any future subsystem with a
-  runtime cost joins it rather than managing its own lifecycle.
+  and now gates four subsystems: the clipboard poller, the media helper
+  subprocess, the power module and the timer. The first two are suspended
+  outside `.active`; the power module only stops *drawing*; the timer only
+  changes how often it wakes to redraw. Any future subsystem with a runtime
+  cost joins it rather than managing its own lifecycle — through
+  `ModuleSwitchboard`, which is now the single fan-out point.
 - **An audio visualiser** — named in the category as a top CPU cost. It
   contradicts the one rule.
 - **iCloud sync** — would require the paid Developer Program.

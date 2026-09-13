@@ -30,7 +30,12 @@ public final class PowerObserver {
 
     public var onChange: ((PowerSnapshot) -> Void)?
 
-    public private(set) var snapshot: PowerSnapshot?
+    /// Settable inside the module so a test can plant a snapshot and observe
+    /// that `stop()` forgets it. The only writer in production is `read()`;
+    /// the seam exists for the same reason `registrationCount`, `readCount`
+    /// and `runLoopSource` do -- the alternative is a test that needs a real
+    /// charger moved by hand.
+    public internal(set) var snapshot: PowerSnapshot?
 
     /// Whether this Mac has an internal battery at all.
     ///
@@ -116,6 +121,12 @@ public final class PowerObserver {
             NotificationCenter.default.removeObserver(lowPowerToken)
             self.lowPowerToken = nil
         }
+
+        // Forget what was last seen. Not tidiness: `read()` returns early on
+        // `next != snapshot`, so a stale snapshot makes the immediate `read()`
+        // inside a later `start()` publish nothing at all, and the re-enabled
+        // Power tab stays empty until the hardware happens to move.
+        snapshot = nil
     }
 
     /// Reads the current state and publishes it if it changed.

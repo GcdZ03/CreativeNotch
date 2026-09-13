@@ -1,24 +1,32 @@
 # Roadmap
 
-Five modules are planned. **None of them is implemented.** Nothing in this
+Four modules are planned. **None of them is implemented.** Nothing in this
 document describes code that exists — it records what each module would have
 to do, and the specific problem each one has to solve before it can be
 written.
 
-Two of the original six have shipped, both on 2026-08-30, and their entries
-have been removed:
+Three have shipped, and their entries have been removed:
 
-- **Battery and power state** — `docs/plans/2026-08-30-battery.md`,
+- **Battery and power state** (2026-08-30) — `docs/plans/2026-08-30-battery.md`,
   `docs/research/2026-08-30-battery-estimate-noise.md`.
-- **Timer** — `docs/specs/2026-08-30-timer-design.md`,
+- **Timer** (2026-08-30) — `docs/specs/2026-08-30-timer-design.md`,
   `docs/plans/2026-08-30-timer.md`.
+- **Preferences** (2026-09-13) — `docs/specs/2026-09-13-preferences-design.md`,
+  `docs/plans/2026-09-13-preferences.md`. It answered the question this
+  document asks of every module, for all seven at once: **what does a toggle
+  actually call to stop this subsystem?** Four had a stop verb already; three
+  had nothing to stop, and the spec says so rather than inventing symmetry.
+  Specifying it surfaced two live defects — an unlock would have resurrected a
+  disabled media helper, and the power module could not be restarted at all —
+  plus a dead `state.hasBattery` read that two doc comments described as the
+  mechanism.
 
 Every module in this project so far has gone spec → plan → implementation,
 and the two that touched private or undocumented API (the system HUD, media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
-## The constraint all five have to answer
+## The constraint all four have to answer
 
 > No subsystem runs when it isn't needed, and that rule is enforced
 > centrally rather than trusted to each module.
@@ -93,7 +101,7 @@ inherited Apple's signing identity. Both looked like working code. For any
 application starts capturing, not only when this one does.
 
 **It must not point at itself, and the answer is not the one this document
-first proposed.** Module 5 puts a camera preview in the notch, making
+first proposed.** Module 4 puts a camera preview in the notch, making
 CreativeNotch one of the applications this indicator watches for.
 `IsRunningSomewhere` reports *that* something is capturing, not *who* — so it
 cannot answer this alone.
@@ -238,44 +246,9 @@ feasibility question, which is why it goes first.
 
 ---
 
-## 4. Preferences
-
-**What it is.** A settings surface: enable or disable individual modules,
-and adjust the values currently compiled in — dwell delay, clipboard
-retention and poll interval, HUD peek duration, which peeks are allowed to
-interrupt.
-
-**This is the module the others depend on.** Launch-at-login and the
-global hotkey both need somewhere to live, and every module above adds
-another thing worth turning off.
-
-**The architectural requirement, and it is the whole point.** Disabling a
-module must **stop its subsystem**, not hide its UI. Turning off clipboard
-history has to stop the poller; turning off media metadata has to terminate
-the helper subprocess. A preference that leaves the cost running while
-removing the feature is strictly worse than no preference — the user pays
-for something they explicitly declined. That means module toggles belong
-next to the `SystemActivity` gate, in the same place that already knows how
-to start and stop these subsystems, rather than in the views.
-
-**What exists to build on.** `UserDefaults` is already used in two places,
-and `OnboardingWindow` establishes the pattern worth copying: it takes an
-injectable `UserDefaults` suite so its logic is testable against an isolated
-store instead of the real one. Every preference should be readable and
-writable through `CreativeNotchCore` so the defaults logic stays headlessly
-testable.
-
-**The thing to get right.** Defaults are a compatibility surface. Once a key
-ships, its absence, its type, and its out-of-range values all have to mean
-something forever. Decide what an unset key means before the first release
-that reads it.
-
-**Needs a spike:** no, but it needs a spec more than any of the others —
-it is the only one of the five that changes how existing modules are wired.
-
 ---
 
-## 5. The camera in the notch
+## 4. The camera in the notch
 
 **What it is.** Click the notch, choose the camera tab, and the FaceTime
 camera's feed appears in the panel — a mirror for checking framing before a
@@ -403,43 +376,34 @@ hosting view already declines clicks in three layers.
 
 ## Suggested order
 
-**Battery and the timer both shipped ahead of this order**, which was
-originally Preferences-first on the grounds that four of the six then-planned
-modules wanted a home in a preferences surface. That reasoning still holds
-for what remains, and it did not hold for either of the two that shipped —
-their tunables are documented constants Preferences can read whenever it
-arrives. The cost the ordering warns about is retrofitting module
-*enable/disable* wiring, which is a different thing from retrofitting a
-constant.
+**Preferences has shipped**, which removes the argument that used to lead this
+section: the remaining four wanted somewhere to live, and now they have one.
+Every module is switchable, and switching one off stops what it runs.
 
-**The order below has changed from "launch at login and global hotkey" as a
-pair.** They are not a pair. One has no unresolved feasibility question at
-all; the other may not ship as a toggle.
+1. **Global hotkey**, *alone*. The only remaining module with **no unresolved
+   feasibility question**, no signing coupling, and mostly pure combinatorics —
+   the best Core-to-UI test ratio of the four. The right first real consumer of
+   the preferences surface.
+2. **The camera in the notch**, de-risked by the teardown measurement above.
+3. **Microphone and camera indicators.**
+4. **Launch at login**, *last*, and conditional. It is the only module that
+   might not exist, and pairing it with the hotkey — as this document used to —
+   risks the safe one slipping behind the blocked one.
 
-1. **Preferences**, because the rest want a home in it, and because
-   retrofitting module enable/disable is more expensive than building for
-   it. The camera makes this argument stronger than it was: it is the most
-   expensive and most privacy-sensitive module planned, and the one a user is
-   most likely to want switched off outright.
-2. **Global hotkey**, *alone*. It is now the only planned module with **no
-   unresolved feasibility question**, it needs no signing decision, and its
-   logic is mostly pure combinatorics — the best Core-to-UI test ratio of the
-   four. That makes it the right first real consumer of the preferences
-   surface.
-3. **The camera in the notch**, de-risked by the teardown measurement above.
-4. **Microphone and camera indicators.**
-5. **Launch at login**, *last*, and conditional. It is the only module that
-   might not exist, and pairing it with the hotkey — as this document used to
-   — risks the safe one slipping behind the blocked one.
+**What Preferences leaves for whoever builds the next module.** Adding a
+module now means adding a `ModuleID` case, a row in `PreferencesView.rows`, and
+a leg to `ModuleSwitchboard.setEnabled` — and the leg has to *stop something*,
+because every one of them is mutation-verified against its own subsystem rather
+than against a stored boolean. That is the enable/disable retrofit this
+document kept warning about, paid once.
 
-**Why 3 before 4, restated.** This document used to justify it by
+**Why 2 before 3, restated.** This document used to justify it by
 self-exclusion: build the camera first so the indicator is designed not to
 point at it. That reason is weaker than it looked, and the measurement above
-weakened it further. The stronger reasons: module 5 can **delete** module 4's
-hardest requirement outright if the camera is ever cut, and whether clips
-carry sound is a module 5 scope decision that determines whether
-CreativeNotch is something the *microphone* indicator must exclude. Module 5
-also gives module 4 a known, instrumentable capture client to test against.
+weakened it further. The stronger reasons: the camera module can **delete** the
+indicator module's hardest requirement outright if it is ever cut, and whether
+clips carry sound is a camera scope decision that determines whether
+CreativeNotch is something the *microphone* indicator must exclude.
 
 ### The decision that sits above all of this: a signing identity
 

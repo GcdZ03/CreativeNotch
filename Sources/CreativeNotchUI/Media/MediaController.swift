@@ -88,6 +88,10 @@ public final class MediaController {
 
     public func start() {
         supervisor.onLine = { [weak self] line in self?.handle(line: line) }
+        // The explicit path, and the only one that forgives a degraded
+        // helper. The activity gate reaches the supervisor through
+        // `setActivity` instead, which deliberately does not.
+        supervisor.resetRetryBudget()
         supervisor.start()
     }
 
@@ -106,6 +110,22 @@ public final class MediaController {
     /// its first snapshot instead of comparing it against a dead helper's
     /// last one.
     func degrade() {
+        reset()
+    }
+
+    /// Publish the absence, and forget everything the dead helper said.
+    ///
+    /// Extracted from `degrade()` because the two are the same work for
+    /// different reasons, and conflating them makes a deliberate disable
+    /// masquerade as a failure -- `degrade()` means "failed past the retry
+    /// cap", which is not what a person flipping a switch did.
+    ///
+    /// Both halves matter. Without nilling the published snapshot, a stale
+    /// now-playing badge keeps widening the closed notch's hit-test region
+    /// for the rest of the session. Without resetting the coalescer, the
+    /// RE-ENABLE silently fails: the first snapshot from the fresh helper is
+    /// deduped against the dead one's last and the header never repopulates.
+    func reset() {
         coalescer = MediaCoalescer()
         snapshot = nil
         currentIdentity = nil
@@ -123,11 +143,33 @@ public final class MediaController {
     public func setActivity(_ activity: SystemActivity) {
         switch activity {
         case .active:
+            // The whole point of the second latch. Without this guard an
+            // unlock respawns a `perl` subprocess the user explicitly
+            // declined, with nothing on screen to reveal it.
+            guard isEnabled else { return }
             supervisor.start()
         case .locked, .asleep:
+            // Deliberately NOT guarded on `isEnabled`. Stopping something
+            // already stopped is free; a guard here would only add a way to
+            // be wrong.
             supervisor.stop()
         }
     }
+
+    /// The lifecycle latch, separate from the activity gate.
+    ///
+    /// Two latches rather than one, transplanted from `ClipboardPoller`'s
+    /// `isRunning` / `activity` split -- which is exactly why the clipboard
+    /// module needs no new code for preferences at all. A single flag cannot
+    /// distinguish "the user switched this off" from "the screen is locked",
+    /// and conflating them is what let an unlock resurrect the helper.
+    private(set) var isEnabled = true
+
+    /// Only ever called by `ModuleSwitchboard`. The latch exists as well as
+    /// the switchboard, not instead of it: the switchboard keeps the policy
+    /// in one readable place, and this makes the controller safe to call by
+    /// somebody who has not read it.
+    func setEnabled(_ enabled: Bool) { isEnabled = enabled }
 
     /// Artwork for a snapshot currently being shown, if any was ever seen
     /// for that track's identity.

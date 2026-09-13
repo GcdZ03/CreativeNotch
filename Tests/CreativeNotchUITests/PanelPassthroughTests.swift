@@ -23,6 +23,7 @@ struct PanelPassthroughTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
         return delegate

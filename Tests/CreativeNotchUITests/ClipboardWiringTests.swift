@@ -19,6 +19,7 @@ struct ClipboardWiringTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchClipWiring-\(UUID().uuidString)")
@@ -40,6 +41,7 @@ struct ClipboardWiringTests {
 
     @Test func theClearItemReportsAnEmptyRing() {
         let controller = MenuBarController(
+            onShowPreferences: {},
             onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
@@ -52,6 +54,7 @@ struct ClipboardWiringTests {
 
     @Test func theClearItemCountsTheRing() {
         let controller = MenuBarController(
+            onShowPreferences: {},
             onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
@@ -67,6 +70,7 @@ struct ClipboardWiringTests {
         store.record(.text("A"), now: Date())
 
         let controller = MenuBarController(
+            onShowPreferences: {},
             onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },

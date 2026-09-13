@@ -106,12 +106,37 @@ public final class AppState {
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
 
+    /// Which modules are switched on.
+    ///
+    /// **The single read surface for preferences.** `ModuleSwitchboard` writes
+    /// it; everything else reads it from here -- `PanelTabBar` the way it
+    /// takes `hasBattery`, the shelf drop closures through their existing
+    /// `[weak self]`, the timer's finish path to decide whether to peek.
+    /// Nothing reads `PreferencesStore` or the switchboard directly, which is
+    /// what makes a preference snapshotted into a `let` structurally
+    /// impossible for the app-lifetime closures built in `install(metrics:)`.
+    ///
+    /// Defaults to everything on, matching what an empty defaults domain
+    /// resolves to, so a bare `AppState` in a test behaves like a fresh
+    /// install rather than like a user who switched everything off.
+    ///
+    /// Not `@ObservationIgnored`: like `hasBattery`, `body` reads it directly
+    /// and needs Observation's tracking when it is written at runtime -- which
+    /// unlike `hasBattery` is the normal case here.
+    public var preferences: Preferences = .allEnabled
+
     /// Whether this Mac has an internal battery.
     ///
-    /// Set once at install from `PowerObserver.hasBattery`. Defaults to
-    /// `false` so anything constructing a bare `AppState` — every test
-    /// that does not care about power — gets the shape that shows less,
-    /// rather than the one that promises a tab with nothing behind it.
+    /// Set by the first power snapshot, in `AppDelegate.powerDidChange` —
+    /// not at install. An install-time read of `PowerObserver.hasBattery`
+    /// used to exist and was dead, because that flag is false until the
+    /// observer starts, which happens later. Defaults to `false` so anything
+    /// constructing a bare `AppState` — every test that does not care about
+    /// power — gets the shape that shows less, rather than the one that
+    /// promises a tab with nothing behind it.
+    ///
+    /// A capability, not a preference: it answers "can this machine do it",
+    /// which is never overwritten by whether the user wants it.
     ///
     /// Not `@ObservationIgnored`: like `showsMediaControls`, it is a
     /// plain `Bool` that `body` reads directly and needs Observation's
@@ -219,6 +244,27 @@ public final class AppState {
         if case .open(let tab) = next { lastOpenTab = tab }
         state = next
         notify(.state(next))
+    }
+
+    /// Corrects which tab a later reopen would target, without moving the
+    /// panel.
+    ///
+    /// **The second and last writer of `lastOpenTab`, and there will not be a
+    /// third.** `transition(to:)` is the only writer of `state` and remains
+    /// so; this exists because `lastOpenTab` is assigned only on the `.open`
+    /// branch, and a preference usually changes while the panel is CLOSED.
+    /// Correcting it through the funnel would mean opening a window on screen
+    /// in order to change a setting.
+    ///
+    /// It notifies nobody on purpose: nothing moved, and an observer told the
+    /// panel changed when it did not is a redraw for nothing.
+    ///
+    /// Not optional. Fix only the live state when a module is switched off
+    /// and the notch-tap reopen fires later from `.open(lastOpenTab)`, long
+    /// after the toggle -- the hardest version of that bug to reproduce and
+    /// the easiest to dismiss as a glitch.
+    public func retarget(lastOpenTab tab: CreativeNotchCore.Tab) {
+        lastOpenTab = tab
     }
 
     /// The only way the geometry ever changes. Returns whether anything

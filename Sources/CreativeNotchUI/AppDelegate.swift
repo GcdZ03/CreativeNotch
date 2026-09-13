@@ -43,7 +43,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - HUD (F8)
 
-    private var hud: HUDController?
+    /// Internal rather than private so the switchboard and the tests can
+    /// reach it. It was the one controller built outside `install(metrics:)`
+    /// and unreachable from outside this file — while the comment below cited
+    /// it as a precedent for exactly the opposite. The comment was wrong, not
+    /// aspirational; this makes it true.
+    private(set) var hud: HUDController?
 
     /// Internal rather than private so the peek wiring is provable — the
     /// same reason `hud`, `clipboard` and `activity` are internal.
@@ -68,6 +73,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// suite must stay silent. The default *is* the real chime, so
     /// production wiring is this line and nothing else.
     var playChime: () -> Void = TimerChime.play
+
+    /// Whether MediaRemote is loadable, behind a seam.
+    ///
+    /// In the shape of `playChime` and `now`, and for a sharper reason than
+    /// either: reading `MediaRemoteBridge.isAvailable` is what performs the
+    /// `dlopen`, and there is no `dlclose` — `handle` is a `static let`.
+    ///
+    /// Once the transport toggle exists, this read has to sit on the RIGHT of
+    /// a lazy `&&` with the preference on its left. Written the other way
+    /// round it compiles, behaves identically in every visible respect, and
+    /// loads a private framework the user just declined — exactly the line a
+    /// later tidy-up reverses with nothing failing. `handle` is already
+    /// forced open by `MediaRemoteBridgeTests` in the same process, so
+    /// counting calls to this seam is the only way that order is provable.
+    var mediaRemoteAvailable: () -> Bool = { MediaRemoteBridge.isAvailable }
 
     /// Internal rather than private so the lifecycle and the fan-out are
     /// provable, like `clipboard` and `media`.
@@ -113,6 +133,34 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Exposed so tests can await the real re-evaluation instead of
     /// sleeping and hoping, exactly like `graceTask`.
     private(set) var hudTTLTask: Task<Void, Never>?
+
+    // MARK: - Preferences
+
+    /// Overridable so tests never read or write the real
+    /// `com.gcdz.creativenotch` domain.
+    ///
+    /// **Required, not a convenience.** Once the activity fan-out routes
+    /// through the switchboard, a wiring suite reading the developer's real
+    /// defaults means a developer who switched media off in the actual app
+    /// makes `lockingStopsTheMediaHelper` fail on their machine and nowhere
+    /// else. Set it before `install(metrics:)`, exactly as `shelfDirectory`
+    /// and `growthDelay` are.
+    var preferencesDefaults: UserDefaults = .standard
+
+    /// Reads and writes the module toggles. Built in `install(metrics:)` from
+    /// `preferencesDefaults`, so the seam above is the only thing a test has
+    /// to set.
+    private(set) var preferencesStore = PreferencesStore()
+
+    /// The one place that knows how to start and stop every module.
+    ///
+    /// Constructed lazily because it holds an `unowned` reference back here,
+    /// and `self` is not available in a property initialiser.
+    private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
+
+    /// The settings window's controller, built on first use by
+    /// `showPreferences()`.
+    private(set) var preferences: PreferencesController?
 
     // MARK: - Shelf
 
@@ -200,6 +248,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         let menuBar = MenuBarController(
+            onShowPreferences: { [weak self] in self?.showPreferences() },
             onShowOnboarding: { [weak self] in self?.showOnboarding() },
             onClearShelf: { [weak self] in try? self?.shelf?.clear() },
             shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
@@ -217,27 +266,77 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         onboarding.showIfNeeded()
 
-        let hud = HUDController { [weak self] kind in self?.showHUD(kind) }
-        hud.start()
-        self.hud = hud
+        startSubsystems()
+    }
 
+    /// The four actions the timer tab can take.
+    ///
+    /// Extracted so the switchboard can nil them when the timer is switched
+    /// off and restore them when it comes back. `onChange` and `onFinished`
+    /// are deliberately not among them: they are the publish and finish paths
+    /// of a countdown that is allowed to outlive the toggle.
+    func wireTimerActions() {
+        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
+        state.onPauseTimer = { [weak timer] in timer?.pause() }
+        state.onResumeTimer = { [weak timer] in timer?.resume() }
+        state.onCancelTimer = { [weak timer] in timer?.cancel() }
+    }
+
+    /// Re-derives everything that depends on which modules are on.
+    ///
+    /// The switchboard reaches AppKit through the per-module verbs and this
+    /// one method, and nothing else. It pairs the two verbs that
+    /// `nowPlayingDidChange` already pairs — which is why that method is the
+    /// only disable path in the tree that has ever worked correctly.
+    ///
+    /// Both are needed. Stopping a subsystem does not by itself remove what it
+    /// put on screen: without `syncTrackingRect()` a badge that has just gone
+    /// leaves the closed notch's hit-test region widened for the rest of the
+    /// session, and without `reevaluatePeek()` a peek withdrawn from the
+    /// arbiter stays on screen until something else happens to ask.
+    func modulesDidChange() {
+        syncTrackingRect()
+        reevaluatePeek()
+    }
+
+    /// Everything that starts a subsystem, in one place.
+    ///
+    /// Split out of `applicationDidFinishLaunching` because that method is not
+    /// drivable from a test: it reads `NSScreen.main`, installs a real status
+    /// item, and pops a real onboarding window on a fresh defaults domain.
+    /// `grep applicationDidFinishLaunching Tests/` returns nothing, and never
+    /// did. Behaviour that only ever ran there was behaviour nothing could
+    /// assert — which is precisely where a preference that applies on change
+    /// but not at launch would hide.
+    ///
+    /// The launch path must reach subsystems only through here. Nothing in the
+    /// suite can prove that behaviourally, so a source scan does it instead:
+    /// `theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod`.
+    func startSubsystems() {
         activity.start()
-        clipboard?.start()
-        media?.start()
-        power?.start()
+        switchboard.apply()
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
         removeScreenObservers()
-        hud?.stop()
-        clipboard?.stop()
-        media?.stop()
-        power?.stop()
+        switchboard.stopAll()
         activity.stop()
     }
 
     public func showOnboarding() {
         onboarding.show()
+    }
+
+    /// The settings surface, built on first use.
+    ///
+    /// Lazily rather than in `install(metrics:)` because building a panel must
+    /// not build a window, and because the fourteen suites that call `install`
+    /// have no use for one.
+    public func showPreferences() {
+        if preferences == nil {
+            preferences = PreferencesController(switchboard: switchboard, state: state)
+        }
+        preferences?.show()
     }
 
     // MARK: - Installation
@@ -266,6 +365,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
 
         // Purged on launch and after each add — never on a timer.
+        preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+
         shelf = try? ShelfStore(directory: shelfDirectory)
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
@@ -285,32 +386,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // fanned out to every consumer — never registered a second time
         // inside a module. Adding a second consumer later is a one-line
         // addition to this closure, not a second observer.
+        // The promised one-line addition, wearing a name. Still ONE
+        // registration: `SystemActivityFanOutTests` asserts exactly four
+        // notification tokens and one observer, and the switchboard adds
+        // neither.
+        //
+        // The per-module reasoning — why the timer is never suspended, why
+        // power keeps observing, why the HUD has no activity axis at all —
+        // moved with the code, to `ModuleSwitchboard.setActivity`. It does not
+        // survive being split from what it explains.
         activity.onChange = { [weak self] state in
-            guard let self else { return }
-            let now = Date().timeIntervalSince1970
-            self.clipboard?.setActivity(state, now: now)
-            self.media?.setActivity(state)
-
-            // The timer is deliberately NOT suspended here the way the
-            // poller and the helper above are, and the difference is the
-            // point rather than an oversight. Their output is only worth
-            // producing while somebody can see it, so outside `.active`
-            // they stop. A timer's whole purpose is to fire while nobody
-            // is watching: `setActive` changes only how often it wakes to
-            // *redraw* the ear — see `TimerSchedule.nextWake`, where
-            // inactive schedules the deadline itself and nothing before
-            // it. It never changes whether the deadline fires. Three
-            // subsystems on one fan-out with one deliberately different
-            // behaviour is exactly the shape a later "consistency fix"
-            // breaks, so: do not make this a `stop()`.
-            self.timer?.setActive(state == .active)
-
-            // The promised one-line addition. Note what it does *not* do:
-            // `PowerController.setActivity` suppresses peeks and leaves
-            // the observer running, because a notification-driven source
-            // costs nothing idle and suspending it would mean missing the
-            // charger moving while the lid is shut.
-            self.power?.setActivity(state)
+            self?.switchboard.setActivity(state)
         }
 
         // Publishes into `AppState` for the panel header and feeds the
@@ -355,12 +441,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // closures are held by the state which the delegate owns, and the
         // delegate owns the controller — capturing it strongly would close
         // the cycle.
-        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
-        state.onPauseTimer = { [weak timer] in timer?.pause() }
-        state.onResumeTimer = { [weak timer] in timer?.resume() }
-        state.onCancelTimer = { [weak timer] in timer?.cancel() }
-
         self.timer = timer
+        wireTimerActions()
 
         // Publishes into `AppState` for the power tab, and into the
         // arbiter for the peek. Starting and stopping stays in
@@ -375,28 +457,49 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showPowerPeek(event)
         }
         self.power = power
-        // Read once: a machine does not grow a battery, and a tab that
-        // opens onto three meaningless rows is worse than no tab.
-        state.hasBattery = power.hasBattery
+        // `hasBattery` is deliberately NOT set here. It was, and the line was
+        // dead: `PowerObserver.hasBattery` is false until `start()` assigns
+        // it, and `start()` runs after `install(metrics:)`. The flag has one
+        // writer and it is the first snapshot, in `powerDidChange`.
+
+        // Constructed here like every other controller, so the switchboard
+        // and the tests can reach it; started in `applicationDidFinishLaunching`,
+        // because building a panel must not install a global event tap.
+        //
+        // Guarded: `install(metrics:)` is not safely re-entrant, and an
+        // orphaned `HUDController` is the only one that would keep a
+        // system-global resource — the tap, its run-loop source and a
+        // retained `TapContext` — with nothing left able to remove it.
+        if hud == nil {
+            hud = HUDController { [weak self] kind in self?.showHUD(kind) }
+        }
 
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
         // HUD and clipboard controllers it needs no lifecycle hook in
         // `applicationDidFinishLaunching` or `applicationWillTerminate` —
         // a command is sent only because a button was clicked.
-        state.showsMediaControls = MediaRemoteBridge.isAvailable
+        state.showsMediaControls = mediaRemoteAvailable()
         state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
 
         container.onDragEntered = { [weak self] in
+            // A drop target that appears and then refuses the file is worse
+            // than no drop target: it advertises a feature the user switched
+            // off. Read through `state.preferences` rather than captured,
+            // so the closure cannot hold a stale answer for the app's life.
+            guard self?.state.preferences.shelf == true else { return }
             self?.arbiter.setDragActive(true)
             self?.state.transition(to: .receiving)
         }
         container.onDragExited = { [weak self] in
+            // Deliberately NOT guarded on the preference. A drag already in
+            // flight when the toggle flipped must still be able to put the
+            // notch back; a symmetric guard here is how it gets stuck open.
             self?.arbiter.setDragActive(false)
             self?.state.transition(to: .closed)
         }
         container.onDrop = { [weak self] payloads in
-            guard let self, let shelf = self.shelf else {
+            guard let self, let shelf = self.shelf, self.state.preferences.shelf else {
                 self?.arbiter.setDragActive(false)
                 self?.state.transition(to: .closed)
                 return false
@@ -552,10 +655,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // reads the clock. `remaining` is deliberately unclamped for
         // exactly this, so negate it and floor at zero.
         let lateness = -countdown.remaining(at: Date())
-        arbiter.recordTimerFinished(
-            TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
-            now: self.now()
-        )
+
+        // A countdown that finishes AFTER the timer was switched off still
+        // chimes -- the interruption is precisely what the user asked for --
+        // but does not take the peek slot.
+        //
+        // `timerDoneTTL` is 600s and outranks both `.hud` and `.power`, so
+        // recording here would hold the shared slot for ten minutes on behalf
+        // of a switched-off module, swallowing volume feedback. And it would
+        // be unclearable: `dismissTimerDone()`'s only caller sits behind a
+        // transition to `.open`, and there is no tab left to reach.
+        if state.preferences.timer {
+            arbiter.recordTimerFinished(
+                TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
+                now: self.now()
+            )
+        }
         playChime()
         // The existing peek path, not a second one: it already declines to
         // interrupt `.open` and `.receiving`, and it is what makes the
@@ -651,9 +766,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `nowPlayingDidChange` is one.
     func powerDidChange(_ snapshot: PowerSnapshot) {
         state.power = snapshot
-        // `hasBattery` is set at install, but the first snapshot is the
-        // first proof there is one. A machine whose battery reads as
-        // absent at launch and present a moment later would otherwise
+        // The first snapshot is the ONLY thing that sets `hasBattery`. An
+        // install-time assignment used to sit beside the controller and was
+        // dead -- the observer's flag is false until `start()`, which runs
+        // later -- so the tab has always appeared from here. A machine whose
+        // battery reads as absent at launch and present a moment later would
+        // otherwise
         // never show the tab.
         state.hasBattery = true
     }

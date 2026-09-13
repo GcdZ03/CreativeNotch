@@ -22,6 +22,7 @@ struct DropRegionTests {
 
     @Test func theContainerIsRegisteredForFileDrops() throws {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
         let content = try #require(delegate.panel?.contentView)
@@ -33,6 +34,7 @@ struct DropRegionTests {
     /// notch. Clicks there must pass through; drops there must not.
     @Test func aPointOutsideTheNotchIsStillInsideTheContainerBounds() throws {
         let delegate = AppDelegate()
+        delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
         let content = try #require(delegate.panel?.contentView)

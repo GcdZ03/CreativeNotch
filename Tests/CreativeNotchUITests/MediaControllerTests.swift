@@ -21,6 +21,115 @@ struct MediaControllerTests {
         return json + "}"
     }
 
+    // MARK: - Switched off, and staying off
+
+    /// R1, and the headline bug this module had. Disabling then unlocking
+    /// must not respawn the helper.
+    ///
+    /// The pre-assert is not optional: `starts == 0` after an unlock is also
+    /// exactly what a controller that was never started looks like.
+    @Test func anUnlockDoesNotResurrectADisabledHelper() {
+        let c = MediaController()
+        var starts = 0
+        c.supervisor.startHelper = { starts += 1 }
+        c.supervisor.stopHelper = {}
+
+        c.start()
+        #expect(starts == 1, "not started is indistinguishable from not resurrected")
+
+        c.setEnabled(false)
+        c.stop()
+        let baseline = starts
+
+        c.setActivity(.locked)
+        c.setActivity(.active)
+
+        #expect(starts == baseline)
+        #expect(c.supervisor.helperIsRunning == false)
+    }
+
+    /// And the gate still works when the module is on -- or the test above
+    /// passes against a `setActivity` that does nothing at all.
+    @Test func anUnlockStillResumesAnEnabledHelper() {
+        let c = MediaController()
+        var starts = 0
+        c.supervisor.startHelper = { starts += 1 }
+        c.supervisor.stopHelper = {}
+
+        c.start()
+        c.setActivity(.locked)
+        c.setActivity(.active)
+
+        #expect(starts == 2)
+    }
+
+    /// A stale now-playing badge widens the closed notch's hit-test region
+    /// for the rest of the session. Stopping the helper has to publish the
+    /// absence, not merely stop producing presence.
+    @Test func disablingPublishesNothingPlaying() {
+        let c = MediaController()
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        var published: [TrackSnapshot?] = []
+        c.onChange = { published.append($0) }
+
+        c.start()
+        c.handle(line: line())
+        #expect(c.snapshot != nil)
+
+        c.reset()
+
+        #expect(c.snapshot == nil)
+        #expect((published.last ?? nil) == nil)
+    }
+
+    /// R4(a). The coalescer dedupes against the dead helper's last snapshot,
+    /// so an identical line after a re-enable publishes nothing and the
+    /// header stays empty.
+    ///
+    /// There is deliberately no `degrade()` anywhere in this test: it resets
+    /// the coalescer itself and would mask the bug.
+    @Test func reEnablingRepublishesEvenTheIdenticalTrack() {
+        let c = MediaController()
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        var published = 0
+        c.onChange = { _ in published += 1 }
+
+        c.start()
+        c.handle(line: line())
+        let afterFirst = published
+
+        c.setEnabled(false)
+        c.reset()
+        c.stop()
+
+        c.setEnabled(true)
+        c.start()
+        c.handle(line: line())
+
+        #expect(published > afterFirst + 1, "the re-enable published nothing new")
+    }
+
+    /// An explicit re-enable hands back the retry budget. The activity
+    /// gate's resume does not -- that asymmetry is the point of Task 6.
+    @Test func reEnablingForgivesADegradedHelper() {
+        let c = MediaController()
+        c.supervisor.startHelper = {}
+        c.supervisor.stopHelper = {}
+        c.supervisor.scheduleRetry = { _, _ in }
+
+        for _ in 0...HelperBackoff.maxAttempts {
+            c.supervisor.helperExited(status: 1)
+        }
+        #expect(c.supervisor.isDegraded)
+
+        c.setEnabled(true)
+        c.start()
+
+        #expect(c.supervisor.isDegraded == false)
+    }
+
     @Test func aLineBecomesASnapshot() {
         let c = MediaController()
         c.handle(line: line(title: "Beauty And A Beat", artist: "Justin Bieber"))
