@@ -158,6 +158,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and `self` is not available in a property initialiser.
     private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
 
+    /// The camera. Internal rather than private so the switchboard and the
+    /// tests can reach its lifecycle, like every other controller.
+    private(set) var camera: CameraController?
+
     /// The global hotkey. Internal rather than private so the switchboard and
     /// the tests can reach its lifecycle, like every other controller.
     private(set) var hotkey: HotKeyController?
@@ -391,6 +395,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+
+        // Constructed here, started by the switchboard. Building a panel must
+        // not open a camera -- and `install(metrics:)` runs in fourteen test
+        // suites, none of which has an Info.plist usage description.
+        let camera = CameraController(shelf: shelf)
+        camera.onStateChange = { [weak self] next in
+            self?.state.cameraState = next
+            if case .recording = next {
+                self?.state.isRecordingClip = true
+            } else {
+                self?.state.isRecordingClip = false
+            }
+            self?.syncTrackingRect()
+        }
+        self.camera = camera
+        state.cameraState = camera.state
+        state.onCameraShutter = { [weak camera] in camera?.takePhoto() }
+        state.onCameraToggleRecording = { [weak camera] in camera?.toggleRecording() }
 
         // Constructed here, started by the switchboard. Building a panel must
         // not register a system-wide hotkey.

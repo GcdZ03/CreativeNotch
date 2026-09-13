@@ -65,6 +65,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.timer, for: .timer)
         setEnabled(preferences.shelf, for: .shelf)
         setEnabled(preferences.hotkey, for: .hotkey)
+        setEnabled(preferences.camera, for: .camera)
     }
 
     /// Stops everything, regardless of preference.
@@ -223,6 +224,19 @@ final class ModuleSwitchboard {
                 delegate.state.onResumeTimer = nil
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
+            }
+
+        case .camera:
+            // Stopping means stopping the capture, including mid-recording:
+            // the switch is a stronger statement than the cursor moving, and
+            // the partial clip is saved rather than discarded. The controller
+            // owns that ordering; this leg only states the preference.
+            delegate.camera?.setEnabled(enabled)
+            if !enabled {
+                delegate.state.cameraSession = nil
+                delegate.state.isRecordingClip = false
+            } else {
+                delegate.state.cameraSession = delegate.camera?.captureSession
             }
 
         case .hotkey:

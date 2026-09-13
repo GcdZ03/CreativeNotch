@@ -23,6 +23,7 @@ final class CameraController {
     private let session = CameraSession()
     private let shelf: ShelfStore?
     private var recordingDelegate: MovieDelegate?
+    private var photoDelegate: PhotoDelegate?
 
     private var isTabVisible = false
     private var isRecording = false
@@ -52,6 +53,10 @@ final class CameraController {
     var beginRecording: (URL, MovieDelegate) -> Void
     var endRecording: () -> Void
 
+    /// Taking a still, behind a seam for the same reason: `AVCapturePhotoOutput`
+    /// cannot be exercised in a test bundle.
+    var capturePhoto: (PhotoDelegate) -> Void
+
     init(shelf: ShelfStore?) {
         self.shelf = shelf
         let session = self.session
@@ -66,6 +71,11 @@ final class CameraController {
         }
         self.endRecording = {
             session.queue.async { session.movieOutput.stopRecording() }
+        }
+        self.capturePhoto = { delegate in
+            session.queue.async {
+                session.photoOutput.capturePhoto(with: AVCapturePhotoSettings(), delegate: delegate)
+            }
         }
     }
 
@@ -157,6 +167,39 @@ final class CameraController {
         beginRecording(url, delegate)
     }
 
+    /// Toggles recording, which is what the single record button does.
+    func toggleRecording() {
+        isRecording ? stopRecording() : startRecording()
+    }
+
+    /// Captures a still.
+    ///
+    /// The saved file is **not** mirrored even though the preview is --
+    /// mirroring lives on the capture connection, set to off in
+    /// `CameraSession.configure()`, so text in shot reads correctly.
+    func takePhoto(now: Date = Date(), suffix: String = String(UUID().uuidString.prefix(4)).lowercased()) {
+        guard shouldRun else { return }
+        let name = CaptureFileNaming.name(for: .still, at: now, suffix: suffix)
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(name)
+
+        let delegate = PhotoDelegate { [weak self] data in
+            Task { @MainActor in self?.didCapturePhoto(data, to: url) }
+        }
+        photoDelegate = delegate
+        capturePhoto(delegate)
+    }
+
+    private func didCapturePhoto(_ data: Data?, to url: URL) {
+        photoDelegate = nil
+        guard let data else { return }
+        do {
+            try data.write(to: url)
+            try shelf?.add(.file(url), now: Date())
+        } catch {
+            NSLog("CreativeNotch: the shelf could not store a photo: \(error)")
+        }
+    }
+
     func stopRecording() {
         guard isRecording else { return }
         endRecording()
@@ -180,6 +223,23 @@ final class CameraController {
         }
         isRecording = false
         reevaluate()
+    }
+}
+
+/// The photo output's delegate, for the same reason as the movie one.
+final class PhotoDelegate: NSObject, AVCapturePhotoCaptureDelegate, @unchecked Sendable {
+    private let onCapture: (Data?) -> Void
+
+    init(onCapture: @escaping (Data?) -> Void) {
+        self.onCapture = onCapture
+    }
+
+    func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishProcessingPhoto photo: AVCapturePhoto,
+        error: Error?
+    ) {
+        onCapture(photo.fileDataRepresentation())
     }
 }
 

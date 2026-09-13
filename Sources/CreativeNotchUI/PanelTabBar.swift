@@ -9,6 +9,7 @@ public extension CreativeNotchCore.Tab {
         case .hud:       return "HUD"
         case .power:     return "Power"
         case .timer:     return "Timer"
+        case .camera:    return "Camera"
         }
     }
 }

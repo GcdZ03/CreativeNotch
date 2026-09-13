@@ -115,3 +115,49 @@ struct BadgeSlotTests {
         #expect(plain == grown)
     }
 }
+
+// MARK: - A recording outranks everything
+
+/// **This ordering is what makes the camera's exemption from the activity gate
+/// defensible.** A capture that outlives the panel runs with the camera light
+/// on and nothing else to explain it; this badge is the explanation, so it
+/// cannot be the thing that yields to a track starting.
+@Test func aRecordingOutranksAPlayingTrack() {
+    let slot = NotchShape.badgeSlot(
+        countdown: nil,
+        nowPlaying: TrackSnapshot(title: "T", artist: "A", isPlaying: true),
+        isRecording: true,
+        at: Date()
+    )
+    #expect(slot == .recording)
+}
+
+@Test func aRecordingOutranksARunningTimer() {
+    let slot = NotchShape.badgeSlot(
+        countdown: Countdown(duration: 60, startingAt: Date()),
+        nowPlaying: nil,
+        isRecording: true,
+        at: Date()
+    )
+    #expect(slot == .recording)
+}
+
+/// And it yields when the recording stops, rather than sticking.
+@Test func theSlotGoesBackToTheTimerWhenARecordingEnds() {
+    let now = Date()
+    let countdown = Countdown(duration: 60, startingAt: now)
+    #expect(NotchShape.badgeSlot(countdown: countdown, nowPlaying: nil,
+                                 isRecording: true, at: now) == .recording)
+    #expect(NotchShape.badgeSlot(countdown: countdown, nowPlaying: nil,
+                                 isRecording: false, at: now) == .timer)
+}
+
+/// The recording badge is narrower than the timer's: it holds a dot rather
+/// than text, and deliberately shows no elapsed time -- a duration would need
+/// the once-a-second redraw TimerSchedule exists to avoid.
+@Test func theRecordingBadgeIsItsOwnWidth() {
+    #expect(BadgeSlot.recording.width == NotchGeometry.recordingBadgeWidth)
+    #expect(BadgeSlot.recording.width == 28)
+    #expect(BadgeSlot.recording.width < BadgeSlot.timer.width)
+    #expect(BadgeSlot.recording.width > 0, "a zero-width badge would not widen the notch at all")
+}

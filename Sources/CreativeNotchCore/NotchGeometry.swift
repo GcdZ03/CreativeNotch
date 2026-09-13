@@ -40,6 +40,15 @@ public enum NotchGeometry {
     /// once-a-minute geometry update.
     public static let timerBadgeWidth: CGFloat = 44
 
+    /// How far a recording indicator extends past the trailing edge.
+    ///
+    /// Narrower than the timer's, because it holds a dot rather than text.
+    /// It deliberately does NOT show elapsed time: a duration would need the
+    /// same once-a-second redraw the timer's badge was carefully designed to
+    /// avoid, and what this badge has to communicate is "the camera is on",
+    /// which a dot says completely.
+    public static let recordingBadgeWidth: CGFloat = 28
+
     /// Approximates the radius of the hardware notch's bottom corners.
     ///
     /// The closed panel covers the notch's bounding box, but the cutout

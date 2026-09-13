@@ -1,4 +1,5 @@
 import SwiftUI
+@preconcurrency import AVFoundation
 import CreativeNotchCore
 
 /// The single funnel every derived value hangs off.
@@ -105,6 +106,22 @@ public final class AppState {
     /// directly — it needs Observation's tracking to invalidate the view
     /// if it is ever written again after install.
     public var showsMediaControls: Bool = false
+
+    /// The capture session the preview draws, or `nil` when the camera module
+    /// is off or has no camera. Published rather than reached through the
+    /// delegate so the view keeps its one dependency.
+    @ObservationIgnored public var cameraSession: AVCaptureSession?
+
+    /// What the camera tab shows. Observed, unlike the session itself, which
+    /// is an object identity that never changes.
+    var cameraState: CameraController.State?
+
+    public var onCameraShutter: (() -> Void)?
+    public var onCameraToggleRecording: (() -> Void)?
+
+    /// Whether a clip is being written. Read by the badge slot, and the reason
+    /// the camera's activity-gate exemption is honest rather than silent.
+    public var isRecordingClip: Bool = false
 
     /// Which modules are switched on.
     ///
@@ -516,6 +533,13 @@ public struct NotchRootView: View {
                     // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
                     // test that bites that mistake.
                     switch slot {
+                    case .recording:
+                        RecordingBadgeView()
+                            .frame(
+                                maxWidth: .infinity,
+                                maxHeight: .infinity,
+                                alignment: .trailing
+                            )
                     case .timer:
                         if let countdown = app.countdown {
                             TimerBadgeView(
@@ -540,6 +564,21 @@ public struct NotchRootView: View {
                     case .none:
                         EmptyView()
                     }
+
+                case .open(.camera):
+                    // **The camera tab suppresses the chrome and takes the
+                    // full height**, and that is what makes its geometry
+                    // work at all. The content area left by the media bar
+                    // and the tab bar is roughly 195 points, dropping to
+                    // about 130 when a track starts playing -- and a preview
+                    // that resizes when music starts is not acceptable.
+                    //
+                    // `expandedFrame` is untouched, so no other tab is
+                    // affected. Because the tab bar is gone, the camera view
+                    // owns the only way back.
+                    cameraContent
+                        .padding(.top, app.anchor.rect.height)
+                        .frame(maxHeight: .infinity, alignment: .top)
 
                 case .open(let tab):
                     VStack(spacing: 0) {
@@ -681,9 +720,30 @@ public struct NotchRootView: View {
         }
     }
 
+    /// The camera tab's content, drawn without the media bar or the tab bar.
+    @ViewBuilder
+    private var cameraContent: some View {
+        if let camera = app.cameraSession, let state = app.cameraState {
+            CameraTabView(
+                state: state,
+                session: camera,
+                onShutter: { app.onCameraShutter?() },
+                onToggleRecording: { app.onCameraToggleRecording?() },
+                onClose: { app.transition(to: .closed) }
+            )
+        } else {
+            EmptyView()
+        }
+    }
+
     @ViewBuilder
     private func openContent(for tab: CreativeNotchCore.Tab, at now: Date) -> some View {
         switch tab {
+        case .camera:
+            // Unreachable: `.open(.camera)` is matched above, before this.
+            // Kept because the switch is exhaustive and a placeholder here is
+            // better than a `default` that would silently swallow a new tab.
+            EmptyView()
         case .shelf:
             if let shelf = app.shelf { ShelfView(store: shelf) }
         case .clipboard:

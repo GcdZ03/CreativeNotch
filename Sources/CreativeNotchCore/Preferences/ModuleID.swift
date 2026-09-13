@@ -20,4 +20,5 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case power
     case timer
     case hotkey
+    case camera
 }

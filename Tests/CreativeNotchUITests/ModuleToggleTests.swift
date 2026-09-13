@@ -239,6 +239,40 @@ struct ModuleToggleTests {
         #expect(delegate.state.shelf == nil)
     }
 
+    // MARK: - Camera
+
+    /// Switching the module off stops the capture and takes the session out of
+    /// the panel -- the preview must not keep a graph alive behind a switch
+    /// that reads off.
+    @Test func disablingTheCameraStopsItAndClearsTheSession() throws {
+        let delegate = makeDelegate()
+        let camera = try #require(delegate.camera)
+        camera.authorizationStatus = { .authorized }
+        delegate.startSubsystems()
+        delegate.switchboard.setEnabled(true, for: .camera)
+        camera.setTabVisible(true)
+        #expect(camera.shouldRun, "the camera never started, so stopping it proves nothing")
+
+        delegate.switchboard.setEnabled(false, for: .camera)
+
+        #expect(camera.shouldRun == false)
+        #expect(delegate.state.cameraSession == nil)
+        #expect(delegate.state.isRecordingClip == false)
+        delegate.activity.stop()
+    }
+
+    /// The camera tab disappears with the module, like every other tab.
+    @Test func disablingTheCameraRemovesItsTab() {
+        let delegate = makeDelegate()
+        #expect(TabVisibility.visible(enabled: delegate.state.preferences,
+                                      hasBattery: true).contains(.camera))
+
+        delegate.switchboard.setEnabled(false, for: .camera)
+
+        #expect(!TabVisibility.visible(enabled: delegate.state.preferences,
+                                       hasBattery: true).contains(.camera))
+    }
+
     // MARK: - Global hotkey
 
     /// Stopping this module means **unregistering**, not ignoring the
@@ -298,7 +332,7 @@ struct ModuleToggleTests {
     /// the hotkey is a deliberate no-op rather than opening an empty panel.
     @Test func theHotkeyOpensNothingWhenEveryTabIsGone() {
         let delegate = makeDelegate()
-        for module in [ModuleID.shelf, .clipboard, .timer, .power] {
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
             delegate.switchboard.setEnabled(false, for: module)
         }
 
@@ -339,7 +373,7 @@ struct ModuleToggleTests {
         let delegate = makeDelegate()
         delegate.state.transition(to: .open(.shelf))
 
-        for module in [ModuleID.shelf, .clipboard, .timer, .power] {
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
             delegate.switchboard.setEnabled(false, for: module)
         }
 
