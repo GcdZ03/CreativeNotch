@@ -29,6 +29,10 @@ struct ModuleToggleTests {
             .appendingPathComponent("CreativeNotchToggle-\(UUID().uuidString)")
         delegate.playChime = {}
         delegate.install(metrics: NotchedDelegate.metrics)
+        // The indicator would otherwise read the developer's real
+        // microphone and camera, so the suite would pass or fail
+        // depending on whether they happened to be on a call.
+        delegate.capture?.observer.readCurrentUse = { .none }
         delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}
@@ -314,6 +318,53 @@ struct ModuleToggleTests {
         delegate.state.transition(to: .closed)
 
         #expect(camera.shouldRun == false)
+    }
+
+    // MARK: - Capture indicator
+
+    /// Switching it off stops the listeners AND clears the badge. A privacy
+    /// tell stuck on after its module was switched off is worse than none.
+    @Test func disablingTheCaptureIndicatorStopsObservingAndClearsTheBadge() throws {
+        let delegate = makeDelegate()
+        let capture = try #require(delegate.capture)
+        delegate.startSubsystems()
+        #expect(capture.isObserving, "nothing was observing, so stopping it proves nothing")
+        delegate.state.captureUse = CaptureUse(camera: true)
+
+        delegate.switchboard.setEnabled(false, for: .captureIndicator)
+
+        #expect(capture.isObserving == false)
+        #expect(delegate.state.captureUse == .none)
+        #expect(delegate.currentBadgeWidth == 0)
+        delegate.activity.stop()
+    }
+
+    @Test func reEnablingTheCaptureIndicatorObservesAgain() throws {
+        let delegate = makeDelegate()
+        let capture = try #require(delegate.capture)
+        delegate.startSubsystems()
+        delegate.switchboard.setEnabled(false, for: .captureIndicator)
+
+        delegate.switchboard.setEnabled(true, for: .captureIndicator)
+
+        #expect(capture.isObserving)
+        delegate.activity.stop()
+    }
+
+    /// **Not suspended by the activity gate**, like the power module. The
+    /// observer is notification-driven, so it costs nothing idle -- and
+    /// suspending it would mean missing a capture that started while the
+    /// screen was locked and then reporting the wrong thing on unlock.
+    @Test func lockingDoesNotStopTheCaptureIndicator() throws {
+        let delegate = makeDelegate()
+        let capture = try #require(delegate.capture)
+        delegate.startSubsystems()
+        #expect(capture.isObserving)
+
+        delegate.activity.handle(.screenLocked)
+
+        #expect(capture.isObserving, "the indicator was suspended by the gate")
+        delegate.activity.stop()
     }
 
     // MARK: - Global hotkey

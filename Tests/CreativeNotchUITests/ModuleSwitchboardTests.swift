@@ -27,6 +27,10 @@ struct ModuleSwitchboardTests {
             .appendingPathComponent("CreativeNotchSwitchboard-\(UUID().uuidString)")
         delegate.playChime = {}
         delegate.install(metrics: NotchedDelegate.metrics)
+        // The indicator would otherwise read the developer's real
+        // microphone and camera, so the suite would pass or fail
+        // depending on whether they happened to be on a call.
+        delegate.capture?.observer.readCurrentUse = { .none }
         // Neither the real repeating Timer nor a real perl subprocess.
         delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
         delegate.clipboard?.poller.cancelTimer = { _ in }

@@ -158,6 +158,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and `self` is not available in a property initialiser.
     private(set) lazy var switchboard = ModuleSwitchboard(delegate: self)
 
+    /// The capture indicator. Internal rather than private so the switchboard
+    /// and the tests can reach its lifecycle, like every other controller.
+    private(set) var capture: CaptureController?
+
     /// The camera. Internal rather than private so the switchboard and the
     /// tests can reach its lifecycle, like every other controller.
     private(set) var camera: CameraController?
@@ -411,6 +415,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+
+        // Constructed here, started by the switchboard. Building a panel must
+        // not register system-wide property listeners.
+        let capture = CaptureController()
+        capture.onChange = { [weak self] use in
+            self?.state.captureUse = use
+            self?.syncTrackingRect()
+        }
+        self.capture = capture
 
         // Constructed here, started by the switchboard. Building a panel must
         // not open a camera -- and `install(metrics:)` runs in fourteen test
@@ -672,7 +685,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// test can assert the source of the width directly.
     var currentBadgeWidth: CGFloat {
         NotchShape.badgeSlot(
-            countdown: state.countdown, nowPlaying: state.nowPlaying, at: Date()
+            countdown: state.countdown,
+            nowPlaying: state.nowPlaying,
+            isRecording: state.isRecordingClip,
+            capture: state.captureUse,
+            at: Date()
         ).width
     }
 

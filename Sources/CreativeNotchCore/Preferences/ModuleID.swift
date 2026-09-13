@@ -21,4 +21,5 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case timer
     case hotkey
     case camera
+    case captureIndicator = "capture-indicator"
 }

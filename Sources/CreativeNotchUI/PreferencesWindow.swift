@@ -174,6 +174,11 @@ struct PreferencesView: View {
             detail: "A mirror under the lens, with a shutter and a record button. This is the only module that costs anything while it is running \u{2014} the camera light is on whenever the preview is, and a clip keeps recording if you close the notch."
         ),
         PreferencesRow(
+            module: .captureIndicator,
+            title: "Camera and microphone indicator",
+            detail: "Shows in the notch when another app is using the camera or the microphone \u{2014} next to the hardware it is about. Notification-driven, so it costs nothing while nothing is capturing."
+        ),
+        PreferencesRow(
             module: .hotkey,
             title: "Global shortcut",
             // No default, and the note says why rather than leaving an empty

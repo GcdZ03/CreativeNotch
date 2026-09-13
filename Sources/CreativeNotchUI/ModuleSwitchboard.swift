@@ -66,6 +66,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.shelf, for: .shelf)
         setEnabled(preferences.hotkey, for: .hotkey)
         setEnabled(preferences.camera, for: .camera)
+        setEnabled(preferences.captureIndicator, for: .captureIndicator)
     }
 
     /// Stops everything, regardless of preference.
@@ -80,6 +81,7 @@ final class ModuleSwitchboard {
         delegate.media?.stop()
         delegate.power?.stop()
         delegate.timer?.cancel()
+        delegate.capture?.stop()
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -238,6 +240,18 @@ final class ModuleSwitchboard {
             } else {
                 delegate.state.cameraSession = delegate.camera?.captureSession
             }
+
+        case .captureIndicator:
+            // Not suspended by the activity gate -- the same shape as the
+            // power module. The observer is notification-driven so it costs
+            // nothing idle, and suspending it would mean missing a capture
+            // that started while the screen was locked and then reporting the
+            // wrong thing on unlock.
+            // Clearing the badge is the controller's own job, not this leg's:
+            // `stop()` publishes the absence through `onChange`. A second
+            // spelling here would mean two things to keep true, and mutation
+            // showed it made the controller's own clearing untestable.
+            delegate.capture?.setEnabled(enabled)
 
         case .hotkey:
             // Stopping means UNREGISTERING, not ignoring the callback. A

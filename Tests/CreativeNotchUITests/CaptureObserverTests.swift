@@ -61,6 +61,24 @@ struct CaptureObserverTests {
         #expect(text.contains("CMIOObjectAddPropertyListenerBlock(device, &address, nil") == false)
     }
 
+    /// **The suite must never read the developer's real microphone.** Without
+    /// an injected read, every wiring test would pass or fail depending on
+    /// whether they happened to be on a call -- which is the worst shape a
+    /// test failure can take, and it happened before this was added.
+    ///
+    /// Pinned by scan, because the thing being asserted is that no default
+    /// construction reaches hardware, which no behavioural test can show.
+    @Test func everyDelegateHelperNeutralisesTheHardwareRead() throws {
+        let tests = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        for name in ["AppDelegateTests.swift", "ModuleToggleTests.swift",
+                     "ModuleSwitchboardTests.swift", "PreferencesWindowTests.swift",
+                     "CaptureBadgeTests.swift", "NotchedDelegate.swift"] {
+            let text = try String(contentsOf: tests.appendingPathComponent(name), encoding: .utf8)
+            #expect(text.contains("capture?.observer.readCurrentUse"),
+                    "\(name) builds a delegate whose indicator reads real hardware")
+        }
+    }
+
     @Test func startingPublishesTheCurrentStateImmediately() {
         let observer = CaptureObserver()
         observer.readCurrentUse = { CaptureUse(microphone: true) }
