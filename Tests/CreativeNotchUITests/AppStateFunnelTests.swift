@@ -12,6 +12,62 @@ import CreativeNotchCore
 @MainActor
 struct AppStateFunnelTests {
 
+    // MARK: - Retargeting a tab that has just disappeared
+
+    /// Preferences is the first thing in this app's history that turns a tab
+    /// OFF while the panel is open, so `lastOpenTab` can now name a tab that
+    /// no longer exists. Correcting it is not optional: fix only the live
+    /// state and the notch-tap reopen fires later from `.open(lastOpenTab)`,
+    /// long after the toggle -- the hardest version of this bug to reproduce
+    /// and the easiest to dismiss as a glitch.
+    @Test func retargetingChangesWhichTabWouldReopen() {
+        let state = AppState()
+        state.transition(to: .open(.clipboard))
+        state.transition(to: .closed)
+        #expect(state.lastOpenTab == .clipboard)
+
+        state.retarget(lastOpenTab: .timer)
+
+        #expect(state.lastOpenTab == .timer)
+    }
+
+    /// It must not move the panel. The whole reason this is a second writer
+    /// rather than a `transition` is that the panel is usually CLOSED when a
+    /// preference changes, and correcting `lastOpenTab` through the funnel
+    /// would mean opening a window on screen to change a setting.
+    @Test func retargetingDoesNotChangeTheState() {
+        let state = AppState()
+        state.transition(to: .closed)
+
+        state.retarget(lastOpenTab: .timer)
+
+        #expect(state.state == .closed)
+    }
+
+    /// And it does not fire the funnel's state notification: nothing moved,
+    /// so an observer told otherwise redraws for nothing.
+    @Test func retargetingNotifiesNobody() {
+        let state = AppState()
+        var changes: [AppState.Change] = []
+        _ = state.observe { changes.append($0) }
+
+        state.retarget(lastOpenTab: .timer)
+
+        #expect(changes.isEmpty)
+    }
+
+    /// The point of all of it: the next tap opens the retargeted tab.
+    @Test func aTapAfterRetargetingOpensTheNewTab() {
+        let state = AppState()
+        state.transition(to: .open(.clipboard))
+        state.transition(to: .closed)
+
+        state.retarget(lastOpenTab: .shelf)
+        state.transition(to: .open(state.lastOpenTab))
+
+        #expect(state.state == .open(.shelf))
+    }
+
     private let anchor = Anchor.notch(CGRect(x: 620, y: 918, width: 230, height: 38))
     private let panel  = CGRect(x: 415, y: 696, width: 620, height: 260)
 

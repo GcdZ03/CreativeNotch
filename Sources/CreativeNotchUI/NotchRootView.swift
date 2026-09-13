@@ -246,6 +246,27 @@ public final class AppState {
         notify(.state(next))
     }
 
+    /// Corrects which tab a later reopen would target, without moving the
+    /// panel.
+    ///
+    /// **The second and last writer of `lastOpenTab`, and there will not be a
+    /// third.** `transition(to:)` is the only writer of `state` and remains
+    /// so; this exists because `lastOpenTab` is assigned only on the `.open`
+    /// branch, and a preference usually changes while the panel is CLOSED.
+    /// Correcting it through the funnel would mean opening a window on screen
+    /// in order to change a setting.
+    ///
+    /// It notifies nobody on purpose: nothing moved, and an observer told the
+    /// panel changed when it did not is a redraw for nothing.
+    ///
+    /// Not optional. Fix only the live state when a module is switched off
+    /// and the notch-tap reopen fires later from `.open(lastOpenTab)`, long
+    /// after the toggle -- the hardest version of that bug to reproduce and
+    /// the easiest to dismiss as a glitch.
+    public func retarget(lastOpenTab tab: CreativeNotchCore.Tab) {
+        lastOpenTab = tab
+    }
+
     /// The only way the geometry ever changes. Returns whether anything
     /// actually moved, so callers can skip the work that follows.
     @discardableResult
