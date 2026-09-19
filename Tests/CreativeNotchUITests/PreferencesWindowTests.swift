@@ -31,7 +31,11 @@ struct PreferencesWindowTests {
     }
 
     private func makeController(_ delegate: AppDelegate) -> PreferencesController {
-        PreferencesController(switchboard: delegate.switchboard, state: delegate.state)
+        PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin
+        )
     }
 
     // MARK: - The write path
@@ -150,6 +154,57 @@ struct PreferencesWindowTests {
         }
     }
 
+    // MARK: - Launch at login
+
+    /// It is deliberately **not** a module: the system owns the state, so
+    /// there is no stored `Bool` and nothing to stop. `rows` stays a list of
+    /// modules, which is what keeps `everyModuleHasASwitch` meaningful.
+    @Test func launchAtLoginIsNotAModuleRow() {
+        #expect(ModuleID.allCases.count == 10)
+        #expect(PreferencesView.rows.allSatisfy { $0.title != "Open at login" })
+        #expect(PreferencesView.rows.count == ModuleID.allCases.count)
+    }
+
+    /// The real controller respects the path it is running from.
+    ///
+    /// The suite runs from a build directory, never `/Applications`, so it
+    /// must be in the state that touches nothing at all -- if this ever
+    /// reports otherwise, a test run has been repointing the developer's own
+    /// login item, which is the failure the whole eligibility rule exists to
+    /// prevent and the one that would never announce itself.
+    ///
+    /// **This deliberately does not assert that the window and the app share
+    /// one controller.** An `===` check here passed against a `showPreferences()`
+    /// mutated to build a fresh controller every time, because the test
+    /// supplies the controller it then reads back. Rather than prop it up
+    /// with a source scan, the claim is dropped: sharing is not load-bearing.
+    /// Construction reads nothing, and `refresh()` reads the system on every
+    /// appearance, so a second controller would behave identically.
+    @Test func theRealControllerRefusesAnUninstalledCopy() {
+        let delegate = makeDelegate()
+
+        guard case .unavailable = delegate.launchAtLogin.state else {
+            Issue.record("a test-run bundle was treated as installed: \(delegate.launchAtLogin.state)")
+            return
+        }
+    }
+
+    /// And the row it draws cannot be operated in that state -- asserted
+    /// through the controller, because a `.disabled` modifier is not
+    /// reachable from a test.
+    @Test func anUninstalledCopyCannotBeSwitchedOn() {
+        let delegate = makeDelegate()
+        let before = delegate.launchAtLogin.state
+
+        delegate.launchAtLogin.setEnabled(true)
+
+        #expect(delegate.launchAtLogin.state == before)
+        guard case .unavailable = delegate.launchAtLogin.state else {
+            Issue.record("switching on from an uninstalled copy changed the state")
+            return
+        }
+    }
+
     // MARK: - Reaching it
 
     /// The escape hatch. With every tab-bearing module switched off the panel
@@ -161,6 +216,7 @@ struct PreferencesWindowTests {
         let controller = PreferencesController(
             switchboard: delegate.switchboard,
             state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin,
             presenter: { _ in shown += 1 }
         )
 

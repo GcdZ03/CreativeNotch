@@ -102,7 +102,8 @@ struct HotKeyRecorderTests {
         delegate.preferencesDefaults = TestDefaults.isolated("recorder-prefs")
         let controller = PreferencesController(
             switchboard: delegate.switchboard,
-            state: delegate.state
+            state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin
         )
 
         let first = controller.recorder(for: hotKey)

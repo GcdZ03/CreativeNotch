@@ -174,6 +174,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
 
+    /// The login-item toggle.
+    ///
+    /// Lazy, and it reads nothing until the Settings window asks it to: a
+    /// status read repoints the system's record at this bundle, so building
+    /// one must not be enough to do that. See `LaunchAtLoginController`.
+    private(set) lazy var launchAtLogin = LaunchAtLoginController()
+
     /// Test seam for the header's gear: what `onOpenSettings` presents after
     /// closing the panel. `nil` means the real window via `showPreferences()`.
     /// Exists so a wiring test can prove the panel closes without putting a
@@ -389,7 +396,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// have no use for one.
     public func showPreferences() {
         if preferences == nil {
-            preferences = PreferencesController(switchboard: switchboard, state: state)
+            preferences = PreferencesController(
+                switchboard: switchboard,
+                state: state,
+                launchAtLogin: launchAtLogin
+            )
         }
         preferences?.show()
     }

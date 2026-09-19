@@ -29,9 +29,19 @@ final class PreferencesController {
     private let presenter: (PreferencesController) -> Void
     private var window: NSWindow?
 
-    init(switchboard: ModuleSwitchboard, state: AppState) {
+    /// The login-item toggle. Handed in rather than built here, so the window
+    /// and the app agree about one controller -- and so a test can supply one
+    /// pinned to a path of its choosing.
+    let launchAtLogin: LaunchAtLoginController
+
+    init(
+        switchboard: ModuleSwitchboard,
+        state: AppState,
+        launchAtLogin: LaunchAtLoginController
+    ) {
         self.switchboard = switchboard
         self.state = state
+        self.launchAtLogin = launchAtLogin
         // Taking the instance as a parameter rather than `[weak self]`, which
         // would capture `self` before every stored property has a value --
         // the same reason `OnboardingController` does it this way.
@@ -44,10 +54,12 @@ final class PreferencesController {
     init(
         switchboard: ModuleSwitchboard,
         state: AppState,
+        launchAtLogin: LaunchAtLoginController,
         presenter: @escaping (PreferencesController) -> Void
     ) {
         self.switchboard = switchboard
         self.state = state
+        self.launchAtLogin = launchAtLogin
         self.presenter = presenter
     }
 
@@ -222,6 +234,18 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
+            // First, and outside the `ForEach`: this is about the app rather
+            // than about a module, and `PreferencesSection`'s cases are module
+            // groups -- adding a case with no module rows would make the
+            // "every section has rows" test meaningless.
+            Section {
+                LaunchAtLoginRow(controller: controller.launchAtLogin)
+            } header: {
+                Text("Startup")
+            } footer: {
+                Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
+            }
+
             ForEach(PreferencesSection.allCases, id: \.self) { section in
                 Section {
                     ForEach(Self.rows.filter { $0.section == section }) { row in
@@ -303,6 +327,71 @@ struct PreferencesView: View {
             return "Accessibility is not granted, so the HUD cannot tell a keypress from any other cause. It will show both overlays at once when you use the keys."
         default:
             return nil
+        }
+    }
+}
+
+/// The one row in this window that stores nothing.
+///
+/// Its switch shows `LaunchAtLoginController.state`, which is read from the
+/// system, so a registration removed in System Settings shows up here on the
+/// next open without anything having told us.
+struct LaunchAtLoginRow: View {
+    let controller: LaunchAtLoginController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding(
+                get: { controller.state == .on },
+                set: { controller.setEnabled($0) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Open at login")
+                            .font(.body.weight(.medium))
+                        Text(detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "power")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.teal)
+                        )
+                }
+            }
+            .disabled(isUnavailable)
+
+            // Unconditional, not shown only on failure: no probe in this repo
+            // can prove macOS actually starts the app after a logout, and a
+            // user for whom it silently does not should not have to deduce
+            // that they are in a failure case to find the manual route.
+            // (Spec section 5.)
+            Button("Open Login Items") {
+                LaunchAtLoginController.openLoginItemsSettings()
+            }
+            .padding(.leading, 36)
+        }
+        // Reads the system when the window appears, never on a timer.
+        .onAppear { controller.refresh() }
+    }
+
+    private var isUnavailable: Bool {
+        if case .unavailable = controller.state { return true }
+        return false
+    }
+
+    private var detail: String {
+        switch controller.state {
+        case .on, .off:
+            return "Opens CreativeNotch when you log in."
+        case .needsApproval:
+            return "macOS is holding this until you allow it in System Settings \u{203A} General \u{203A} Login Items."
+        case .unavailable(let path):
+            return "Only an installed copy can do this. This one is running from \(path)."
         }
     }
 }
