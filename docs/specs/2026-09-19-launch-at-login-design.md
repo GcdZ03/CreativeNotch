@@ -254,11 +254,13 @@ is precisely the bug.
   rather than wrong.
 - **A switch that lies.** Caught by `refresh()` being the only writer and by
   its reading the system rather than the argument.
-- **A registration that exists but never launches.** **Not caught by
-  anything in this repo.** The probe measured the record, never a login. The
-  manual route is unconditional (§5) for exactly this reason, and the
-  roadmap's demand stands: a real logout and a `pgrep` before believing the
-  toggle.
+- **A registration that exists but never launches.** **Not caught by any
+  test**, and it cannot be: the probe measured the record, never a login.
+  `Scripts/verify-login-item.sh` is the procedure — `arm`, log out, log in,
+  `check`, twice — and its FAIL branch names the planned response rather than
+  leaving it to be worked out on the day. The manual route is unconditional
+  (§5) for exactly this reason, and the roadmap's demand stands: a real
+  logout and a `pgrep` before believing the toggle.
 - **A read that never happens again.** The stale-`.onAppear` bug above. Caught
   by `everyPresentationRereadsTheSystem`, which opens three times and counts
   three reads.

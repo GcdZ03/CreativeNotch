@@ -123,6 +123,10 @@ is about the *record*. None of them proves macOS starts an ad-hoc-signed,
 non-notarised, quarantine-free app at login — only a logout and a `pgrep`
 does, and that needs a human at the machine.
 
+`Scripts/verify-login-item.sh` is that check, in a form that records the
+before state rather than trusting anyone to remember it: `arm` before logging
+out, `check` after logging back in, twice.
+
 The risk of building the module before that is now small and one-directional:
 if the launch itself turns out to be refused, the toggle is already reading
 the real status, so it would show `enabled` while nothing started. That is the
