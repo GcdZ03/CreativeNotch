@@ -1,0 +1,98 @@
+import AppKit
+import ServiceManagement
+import CreativeNotchCore
+
+/// The login-item toggle: one read, two writes, and a rule about which copy
+/// is allowed to make them.
+///
+/// **Nothing here runs.** A registration is a row in the system's Background
+/// Task Management database, not a process, so this module joins no
+/// lifecycle hook and no activity gate — there is nothing to start, nothing
+/// to stop, and the app is not running when the record matters. It is the
+/// first module in this project whose honest answer to "what does the toggle
+/// stop?" is *nothing*, and `docs/specs/2026-09-19-launch-at-login-design.md`
+/// §2 is why that is stated rather than quietly true.
+///
+/// The three seams are injected because **a real call changes the machine
+/// running the tests**: `register()` writes a record that outlives the
+/// process, so a suite that made one would pass or fail depending on whether
+/// it had ever been run before. Same discipline as never spawning a real
+/// media helper.
+@MainActor
+@Observable
+public final class LaunchAtLoginController {
+
+    /// What the row shows. Written only by `refresh()`, which reads the
+    /// system rather than the argument it was just handed.
+    public private(set) var state: LaunchAtLoginState
+
+    private let bundlePath: String
+    private let eligibility: LaunchAtLoginEligibility
+
+    @ObservationIgnored
+    var readStatus: () -> Int = { SMAppService.mainApp.status.rawValue }
+
+    @ObservationIgnored
+    var register: () throws -> Void = { try SMAppService.mainApp.register() }
+
+    @ObservationIgnored
+    var unregister: () throws -> Void = { try SMAppService.mainApp.unregister() }
+
+    public init(
+        bundlePath: String = Bundle.main.bundlePath,
+        installDirectories: [String] = LaunchAtLoginEligibility.defaultInstallDirectories
+    ) {
+        self.bundlePath = bundlePath
+        self.eligibility = LaunchAtLoginEligibility.resolve(
+            bundlePath: bundlePath, installDirectories: installDirectories
+        )
+        // Resolved once, at construction, and never asked again: the answer
+        // is a property of where this bundle is, and a running app does not
+        // move. Note the initial value is NOT a status read — construction
+        // must touch nothing, or building a controller would be the very
+        // repoint the eligibility rule exists to prevent.
+        self.state = eligibility == .eligible
+            ? .off
+            : .unavailable(bundlePath: bundlePath)
+    }
+
+    /// The only writer of `state`.
+    ///
+    /// The guard is the whole mitigation for the probe's Q3, and it guards
+    /// the **call**, not the result: reading `.status` from an uninstalled
+    /// copy repoints the system's record at it, so discarding the answer
+    /// afterwards would be too late.
+    public func refresh() {
+        guard eligibility == .eligible else {
+            state = .unavailable(bundlePath: bundlePath)
+            return
+        }
+        state = LaunchAtLoginState.from(rawStatus: readStatus())
+    }
+
+    /// Register or unregister, then read back what actually happened.
+    ///
+    /// A throw is caught rather than propagated: the row has no way to show
+    /// an error that the re-read does not already show better. A refused
+    /// registration leaves the switch off, which is true — where a stored
+    /// `Bool` would leave it on over nothing at all.
+    public func setEnabled(_ enabled: Bool) {
+        guard eligibility == .eligible else { return }
+        do {
+            try enabled ? register() : unregister()
+        } catch {
+            NSLog("CreativeNotch: login item \(enabled ? "registration" : "removal") failed: \(error)")
+        }
+        refresh()
+    }
+
+    /// System Settings → General → Login Items. The manual route, and the
+    /// fallback for the one thing no probe in this repo can prove: that
+    /// macOS actually starts the app after a logout.
+    public static func openLoginItemsSettings() {
+        guard let url = URL(
+            string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
+        ) else { return }
+        NSWorkspace.shared.open(url)
+    }
+}
