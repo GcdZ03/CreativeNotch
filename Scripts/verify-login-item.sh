@@ -155,14 +155,19 @@ cmd_check() {
   echo
 
   if [ -n "$pid" ] && [ "$pid" = "$pid_before" ]; then
-    red "INCONCLUSIVE -- same process id as before arming ($pid)."
+    red "INCONCLUSIVE -- same process id as at the start of this cycle ($pid)."
     echo "  Nothing was restarted, so you did not actually log out. Log out"
     echo "  properly (Apple menu > Log Out) rather than locking the screen."
     exit 2
   fi
 
   if [ -n "$pid" ]; then
-    sed -i '' "s/^cycle=.*/cycle=$cycle/" "$STATE"
+    # The second cycle has to compare against the process running *now*.
+    # Leaving pid_before at the pid from arming makes the guard above check
+    # for a process that is already gone, so the next check reads any running
+    # app as a fresh launch -- including the one this pass just found, which
+    # is exactly the false pass the guard exists to catch.
+    sed -i '' -e "s/^cycle=.*/cycle=$cycle/" -e "s/^pid_before=.*/pid_before=$pid/" "$STATE"
     green "PASS (cycle $cycle) -- macOS started it at login."
     echo "  Nothing else launched it, so this is the launch the record promised."
     if [ "$cycle" -lt 2 ]; then
