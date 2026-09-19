@@ -22,8 +22,12 @@ import CreativeNotchCore
 @Observable
 public final class LaunchAtLoginController {
 
-    /// What the row shows. Written only by `refresh()`, which reads the
-    /// system rather than the argument it was just handed.
+    /// What the row shows.
+    ///
+    /// `init` seeds it — `.unread` for a copy that may ask, `.unavailable`
+    /// for one that may not — and after that `refresh()` is the only writer.
+    /// Both seeds are the *absence* of an answer rather than a guess at one:
+    /// nothing here ever renders a value that was not read from the system.
     public private(set) var state: LaunchAtLoginState
 
     private let bundlePath: String
@@ -51,8 +55,11 @@ public final class LaunchAtLoginController {
         // move. Note the initial value is NOT a status read — construction
         // must touch nothing, or building a controller would be the very
         // repoint the eligibility rule exists to prevent.
+        //
+        // `.unread` rather than `.off`, so "nobody has asked yet" is not
+        // spelled the same as "the system said no". See `LaunchAtLoginState`.
         self.state = eligibility == .eligible
-            ? .off
+            ? .unread
             : .unavailable(bundlePath: bundlePath)
     }
 
@@ -86,13 +93,19 @@ public final class LaunchAtLoginController {
         refresh()
     }
 
-    /// System Settings → General → Login Items. The manual route, and the
-    /// fallback for the one thing no probe in this repo can prove: that
-    /// macOS actually starts the app after a logout.
+    /// System Settings → General → Login Items.
+    ///
+    /// Split out from the call below so a test can check the deep link at
+    /// all: `NSWorkspace.shared.open` is not seamed, so the only part of
+    /// this with a right answer is the URL itself.
+    public static let loginItemsSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
+    )
+
+    /// The manual route, and the fallback for the one thing no probe in this
+    /// repo can prove: that macOS actually starts the app after a logout.
     public static func openLoginItemsSettings() {
-        guard let url = URL(
-            string: "x-apple.systempreferences:com.apple.LoginItems-Settings.extension"
-        ) else { return }
+        guard let url = loginItemsSettingsURL else { return }
         NSWorkspace.shared.open(url)
     }
 }

@@ -63,7 +63,28 @@ final class PreferencesController {
         self.presenter = presenter
     }
 
-    func show() { presenter(self) }
+    /// **Refreshing here rather than in the view is load-bearing.**
+    ///
+    /// `presentRealWindow()` caches the window and sets
+    /// `isReleasedWhenClosed = false`, so closing Settings and reopening it
+    /// reuses the same `NSHostingView` — and SwiftUI's `.onAppear` fires
+    /// exactly once per process. Measured, not assumed: after close and
+    /// reopen, `onAppear` does not fire again and `onDisappear` never fires
+    /// at all.
+    ///
+    /// With the read living only in `.onAppear`, a login item switched off
+    /// in System Settings would go on reading `on` here for the life of the
+    /// process, which is precisely the lie this module exists to prevent.
+    /// The presentation boundary fires every time; the view's `.onAppear`
+    /// stays as well, for the first show and for any future presentation
+    /// path that does not come through here.
+    ///
+    /// `refresh()` is eligibility-guarded, so this still touches nothing
+    /// from an uninstalled copy.
+    func show() {
+        launchAtLogin.refresh()
+        presenter(self)
+    }
 
     /// The one write path. Persists and applies in the same call, because two
     /// calls are two chances to do one without the other.
@@ -336,20 +357,34 @@ struct PreferencesView: View {
 /// Its switch shows `LaunchAtLoginController.state`, which is read from the
 /// system, so a registration removed in System Settings shows up here on the
 /// next open without anything having told us.
+///
+/// Everything with a right answer — whether the switch reads on, whether the
+/// row can be operated, what the line underneath says — lives on
+/// `LaunchAtLoginState` in Core, because a SwiftUI body is not reachable
+/// from a test. What is left here is arrangement.
 struct LaunchAtLoginRow: View {
     let controller: LaunchAtLoginController
 
+    /// Built by a function rather than inline so both directions can be
+    /// exercised without rendering: a getter reading `!= .on` and a setter
+    /// calling `setEnabled(!$0)` are each a one-character bug that shows the
+    /// switch backwards or unregisters when asked to register, and neither
+    /// is visible to any other kind of test.
+    static func binding(for controller: LaunchAtLoginController) -> Binding<Bool> {
+        Binding(
+            get: { controller.state.isOn },
+            set: { controller.setEnabled($0) }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Toggle(isOn: Binding(
-                get: { controller.state == .on },
-                set: { controller.setEnabled($0) }
-            )) {
+            Toggle(isOn: Self.binding(for: controller)) {
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Open at login")
                             .font(.body.weight(.medium))
-                        Text(detail)
+                        Text(controller.state.detail)
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -363,7 +398,7 @@ struct LaunchAtLoginRow: View {
                         )
                 }
             }
-            .disabled(isUnavailable)
+            .disabled(!controller.state.isOperable)
 
             // Unconditional, not shown only on failure: no probe in this repo
             // can prove macOS actually starts the app after a logout, and a
@@ -375,23 +410,9 @@ struct LaunchAtLoginRow: View {
             }
             .padding(.leading, 36)
         }
-        // Reads the system when the window appears, never on a timer.
+        // The first show comes through here; every later one comes through
+        // `PreferencesController.show()`, because this fires only once per
+        // process. See that method.
         .onAppear { controller.refresh() }
-    }
-
-    private var isUnavailable: Bool {
-        if case .unavailable = controller.state { return true }
-        return false
-    }
-
-    private var detail: String {
-        switch controller.state {
-        case .on, .off:
-            return "Opens CreativeNotch when you log in."
-        case .needsApproval:
-            return "macOS is holding this until you allow it in System Settings \u{203A} General \u{203A} Login Items."
-        case .unavailable(let path):
-            return "Only an installed copy can do this. This one is running from \(path)."
-        }
     }
 }

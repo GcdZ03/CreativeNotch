@@ -12,6 +12,11 @@ set -euo pipefail
 
 REPO="GcdZ03/CreativeNotch"
 APP_NAME="CreativeNotch.app"
+# Overriding this disables the "Open at login" switch. That toggle refuses to
+# touch the system's login-item record unless the app is directly inside
+# /Applications or ~/Applications -- because reading the record repoints it at
+# whichever copy read it, and a copy somewhere unexpected can steal it from the
+# installed one. See LaunchAtLoginEligibility.
 DEST="${INSTALL_DIR:-/Applications}"
 API="https://api.github.com/repos/$REPO/releases/latest"
 

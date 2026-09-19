@@ -174,12 +174,20 @@ struct PreferencesWindowTests {
     /// prevent and the one that would never announce itself.
     ///
     /// **This deliberately does not assert that the window and the app share
-    /// one controller.** An `===` check here passed against a `showPreferences()`
-    /// mutated to build a fresh controller every time, because the test
-    /// supplies the controller it then reads back. Rather than prop it up
-    /// with a source scan, the claim is dropped: sharing is not load-bearing.
-    /// Construction reads nothing, and `refresh()` reads the system on every
-    /// appearance, so a second controller would behave identically.
+    /// one controller.** An `===` check here passed against a
+    /// `showPreferences()` mutated to build a fresh controller every time,
+    /// because the test supplies the controller it then reads back. Rather
+    /// than prop it up with a source scan, the claim is dropped: sharing is
+    /// not load-bearing, since construction reads nothing and `show()`
+    /// refreshes on every presentation.
+    ///
+    /// It also no longer calls `setEnabled` on that controller. It used to,
+    /// and the assertion was vacuous -- `refresh()` has its own guard, so
+    /// the state came out `.unavailable` whether or not the write escaped --
+    /// while the prescribed mutation for it, removing the guard from
+    /// `setEnabled`, would have made a reviewer following CONTRIBUTING.md
+    /// register a real login item on their own machine. `anUninstalledCopy
+    /// NeverRegisters` counts the write instead, against injected seams.
     @Test func theRealControllerRefusesAnUninstalledCopy() {
         let delegate = makeDelegate()
 
@@ -189,20 +197,76 @@ struct PreferencesWindowTests {
         }
     }
 
-    /// And the row it draws cannot be operated in that state -- asserted
-    /// through the controller, because a `.disabled` modifier is not
-    /// reachable from a test.
-    @Test func anUninstalledCopyCannotBeSwitchedOn() {
+    /// **Opening Settings must read the system every time, not once.**
+    ///
+    /// `presentRealWindow()` caches the window with
+    /// `isReleasedWhenClosed = false`, and SwiftUI's `.onAppear` fires
+    /// exactly once per process for a reused hosting view. With the read
+    /// living only there, a login item switched off in System Settings went
+    /// on reading `on` for the life of the app -- the precise lie this
+    /// module exists to prevent, and one that shipped past the first round
+    /// of tests because nothing exercised the second open.
+    @Test func everyPresentationRereadsTheSystem() {
+        var reads = 0
+        let launchAtLogin = LaunchAtLoginController(
+            bundlePath: "/Applications/CreativeNotch.app",
+            installDirectories: ["/Applications"]
+        )
+        launchAtLogin.readStatus = { reads += 1; return 1 }
         let delegate = makeDelegate()
-        let before = delegate.launchAtLogin.state
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: launchAtLogin,
+            presenter: { _ in }
+        )
 
-        delegate.launchAtLogin.setEnabled(true)
+        controller.show()
+        controller.show()
+        controller.show()
 
-        #expect(delegate.launchAtLogin.state == before)
-        guard case .unavailable = delegate.launchAtLogin.state else {
-            Issue.record("switching on from an uninstalled copy changed the state")
-            return
-        }
+        #expect(reads == 3, "the window read the system \(reads) times across three opens")
+    }
+
+    /// And that path is still refused from an uninstalled copy, so the fix
+    /// above did not buy freshness by giving up the rule.
+    @Test func presentingFromAnUninstalledCopyStillTouchesNothing() {
+        var reads = 0
+        let launchAtLogin = LaunchAtLoginController(
+            bundlePath: "/Users/someone/dist/CreativeNotch.app",
+            installDirectories: ["/Applications"]
+        )
+        launchAtLogin.readStatus = { reads += 1; return 1 }
+        let delegate = makeDelegate()
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: launchAtLogin,
+            presenter: { _ in }
+        )
+
+        controller.show()
+
+        #expect(reads == 0)
+    }
+
+    /// The row has to actually be in the form.
+    ///
+    /// Deleting the whole `Section { LaunchAtLoginRow(...) }` removed the
+    /// feature from Settings and left the entire suite green: a grouped
+    /// `Form` renders blank through `ImageRenderer`, so there is no pixel to
+    /// assert on. Scanned instead, the way `PanelTabBarTests` scans its body.
+    @Test func theStartupSectionIsInTheForm() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI/PreferencesWindow.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        #expect(text.contains("LaunchAtLoginRow(controller: controller.launchAtLogin)"),
+                "the Settings form no longer contains the launch-at-login row")
+        #expect(text.contains("Text(\"Startup\")"))
     }
 
     // MARK: - Reaching it

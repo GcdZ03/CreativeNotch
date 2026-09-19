@@ -1147,9 +1147,20 @@ Preferences exists to prevent, arrived at from the opposite direction. There,
 the lie would be a switch reading `on` over a subsystem *we* had stopped.
 Here it would be a switch reading `on` over a registration the **user**
 removed in System Settings, which macOS never tells us about. So the row reads
-the system on every appearance, and `refresh()` — the only writer of the
-published state — reads it rather than trusting the argument it was just
-handed. A `register()` that throws is caught and followed by a read anyway, so
+the system on every **presentation**, and after construction `refresh()` — the
+only writer of the published state — reads it rather than trusting the
+argument it was just handed.
+
+*On every presentation*, not on every appearance, and the difference is a bug
+that review caught. The Settings window is cached and never released, so
+SwiftUI's `.onAppear` fires once per process; with the read living only there,
+a login item switched off in System Settings went on reading `on` for the life
+of the app. The call belongs in `PreferencesController.show()`.
+
+The initial value is `.unread`, distinct from `.off`, so a seed is never
+mistaken for a measurement — and so "the initialiser read nothing" can be
+asserted at all, which it could not while an unread controller and an
+unregistered app both said `.off`. A `register()` that throws is caught and followed by a read anyway, so
 a refused registration shows the switch falling back to off, which is what
 happened.
 

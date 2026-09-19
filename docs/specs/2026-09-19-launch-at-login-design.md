@@ -47,8 +47,9 @@ So:
 - **No lifecycle hook.** Nothing at launch, nothing at terminate, nothing on
   the `SystemActivity` gate. A registration is a row in a database, not a
   process, and the app is not running when it matters.
-- **The row reads the system every time it is shown.** That read is the
-  whole feature.
+- **The row reads the system every time Settings is presented.** That read is
+  the whole feature — and *presented*, not *appeared*, is load-bearing. See
+  §4.
 
 This is the first module whose honest answer to *"what does the toggle
 stop?"* is **nothing**, and the shape above is what stops that from being a
@@ -120,8 +121,14 @@ setEnabled(false)  → unregister() → refresh()
 refresh()          → eligible ? map(readStatus()) : .unavailable
 ```
 
-**`refresh()` is the only writer of the published state, and it reads the
-system rather than the argument it was just given.** A `register()` that
+**After construction, `refresh()` is the only writer of the published state,
+and it reads the system rather than the argument it was just given.** `init`
+seeds it — `.unread` when this copy may ask, `.unavailable` when it may not.
+Both seeds are the *absence* of an answer rather than a guess at one, which
+matters twice over: nothing ever renders a value that was not read, and
+"the initialiser read nothing" becomes assertable. While the seed was `.off`,
+an initialiser that *did* read returned `.off` too for an unregistered app, so
+no behavioural test could tell the two apart. A `register()` that
 throws is caught, logged, and followed by a `refresh()` anyway — so a failed
 attempt shows the switch falling back to off, which is what happened, instead
 of staying on, which is what was asked for.
@@ -146,6 +153,24 @@ needs the user to deny the item in System Settings. It is handled rather than
 measured, and the row says what it means: macOS is holding the registration
 until it is approved.
 
+### Where the read is triggered from
+
+**At the presentation boundary, not in the view.** `PreferencesController.show()`
+calls `refresh()` before presenting.
+
+This looks like a detail and is not. `presentRealWindow()` caches the window
+and sets `isReleasedWhenClosed = false`, so reopening Settings reuses the same
+hosting view — and SwiftUI's `.onAppear` then fires **exactly once per
+process**, with `.onDisappear` never firing at all. Measured, after review
+found it. With the read living only in `.onAppear`, a login item switched off
+in System Settings went on reading `on` here for the life of the app: the
+precise lie §2 claims to eliminate, reintroduced by where the call sat.
+
+The view keeps its `.onAppear` as well, for the first show and for any future
+presentation path that does not go through `show()`. `refresh()` is
+eligibility-guarded either way, so neither route touches the service from an
+uninstalled copy.
+
 ## 5. The row
 
 In Settings, its own section, **first** — it is about the app rather than
@@ -160,6 +185,14 @@ keeping honest.
 | `.off` | off, live | Opens CreativeNotch when you log in. |
 | `.needsApproval` | off, live | macOS is holding this until you allow it in System Settings → General → Login Items. |
 | `.unavailable` | off, **not operable** | Only an installed copy can do this. This one is running from `<path>`. |
+
+Which of those the row shows, whether the switch reads on, and whether it can
+be operated at all are `LaunchAtLoginState.detail`, `.isOn` and `.isOperable`
+— in Core, because a SwiftUI body is not reachable from a test and a grouped
+`Form` renders blank offscreen. The `Binding` is built by a named function for
+the same reason: a getter reading `!= .on` shows the switch backwards and a
+setter calling `setEnabled(!$0)` unregisters when asked to register, and each
+is one character that nothing else would catch.
 
 Every state carries a button to **Open Login Items**, which is the manual
 route and the fallback the roadmap asked for. It is unconditional rather than
@@ -199,6 +232,14 @@ is precisely the bug.
   manual route is unconditional (§5) for exactly this reason, and the
   roadmap's demand stands: a real logout and a `pgrep` before believing the
   toggle.
+- **A read that never happens again.** The stale-`.onAppear` bug above. Caught
+  by `everyPresentationRereadsTheSystem`, which opens three times and counts
+  three reads.
+- **A path that has to be resolved against the filesystem to be judged.**
+  `standardizingPath` removes `..` lexically, so `/tmp/../Applications/X.app`
+  collapses to an install directory while the real path is
+  `/private/Applications`. Any `..` component is refused outright; no bundle
+  path macOS hands an app contains one.
 - **Quarantine.** An app downloaded through a browser carries
   `com.apple.quarantine` and Gatekeeper refuses to open it; whether that also
   blocks a login launch is unmeasured. `install.sh` uses `curl`, which never

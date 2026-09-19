@@ -1,13 +1,14 @@
 import Foundation
+import SwiftUI
 import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
 
 /// The login-item toggle.
 ///
-/// **No test here reaches the real `SMAppService`.** A real `register()`
-/// writes a record into the developer's Background Task Management database,
-/// and it outlives the process — so a suite that made one would pass or fail
+/// **No test here reaches the real service.** A real `register()` writes a
+/// record into the developer's Background Task Management database, and it
+/// outlives the process — so a suite that made one would pass or fail
 /// depending on whether it had ever been run before. Every seam is injected,
 /// exactly as the media module never spawns a real helper.
 @MainActor
@@ -56,79 +57,20 @@ struct LaunchAtLoginControllerTests {
     /// Constructing one must touch nothing either — a controller built at
     /// launch would otherwise repoint the record before any window opened.
     ///
-    /// This proves the *state* is provisional rather than read. It does not
-    /// prove nothing was read: see the source scan below for why it cannot.
-    @Test func constructingAControllerLeavesTheStateProvisional() {
+    /// `.unread` is what makes this assertable at all. An initialiser that
+    /// *did* read would produce `.off` for an unregistered app, so while the
+    /// unread seed and a real off were the same value, this could only ever
+    /// pin the value and never the absence of the read.
+    @Test func constructingAControllerReadsNothing() {
+        var reads = 0
         let controller = LaunchAtLoginController(
             bundlePath: Self.installed, installDirectories: Self.dirs
         )
+        controller.readStatus = { reads += 1; return 1 }
 
-        #expect(controller.state == .off, "the initial state was not provisional")
-    }
-
-    /// **Pinned by a source scan, because nothing else can reach it.**
-    ///
-    /// The seam catches an initialiser that reads through `readStatus`. It
-    /// cannot catch one that calls `SMAppService.mainApp.status` *directly*:
-    /// the spy is never consulted, and the real service answers about the
-    /// test runner's own bundle — which reports off, the same value the
-    /// provisional state has. That mutation was applied and every
-    /// behavioural test in this file passed.
-    ///
-    /// So the rule is pinned where it is visible instead. The framework is
-    /// named exactly three times, once per injected default, and an
-    /// occurrence anywhere else — an initialiser, a convenience read, a
-    /// "just this once" — is a call that bypasses the seam and therefore
-    /// bypasses the eligibility rule the seam exists to enforce.
-    ///
-    /// Same shape as `PanelTabBarTests.theBodyRendersTheListItWasGiven`:
-    /// where behaviour is unreachable, scan the source and say so.
-    @Test func theServiceIsNamedOnlyInTheThreeInjectedDefaults() throws {
-        let source = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-            .appendingPathComponent("Sources/CreativeNotchUI/Startup/LaunchAtLoginController.swift")
-        let text = try String(contentsOf: source, encoding: .utf8)
-
-        // Code only: the doc comments discuss the framework by name.
-        let code = text.split(separator: "\n")
-            .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-            .joined(separator: "\n")
-
-        #expect(code.components(separatedBy: "SMAppService").count - 1 == 3,
-                "SMAppService is called somewhere other than the three injected defaults")
-        #expect(code.contains("var readStatus: () -> Int = { SMAppService.mainApp.status.rawValue }"))
-        #expect(code.contains("var register: () throws -> Void = { try SMAppService.mainApp.register() }"))
-        #expect(code.contains("var unregister: () throws -> Void = { try SMAppService.mainApp.unregister() }"))
-    }
-
-    /// And the suite as a whole never reaches the real service.
-    ///
-    /// A real `register()` writes a record that outlives the process, so one
-    /// test that made one would change every later run on that machine.
-    ///
-    /// This file is the one exclusion, and deliberately: it names the
-    /// framework only inside the string literals the scan above compares
-    /// against, never as a call. Excluding it by name rather than loosening
-    /// the match keeps the check exact for all 60-odd other files.
-    @Test func noTestInThisRepoTouchesTheRealService() throws {
-        let tests = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let enumerator = try #require(
-            FileManager.default.enumerator(at: tests, includingPropertiesForKeys: nil)
-        )
-        let thisFile = URL(fileURLWithPath: #filePath).lastPathComponent
-        for case let url as URL in enumerator
-        where url.pathExtension == "swift" && url.lastPathComponent != thisFile {
-            let text = try String(contentsOf: url, encoding: .utf8)
-            let code = text.split(separator: "\n")
-                .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
-                .joined(separator: "\n")
-            #expect(!code.contains("SMAppService"),
-                    "\(url.lastPathComponent) reaches the real login-item service")
-        }
+        #expect(reads == 0, "the initialiser read through the seam")
+        #expect(controller.state == .unread,
+                "the initialiser published an answer nobody asked for")
     }
 
     /// And an uninstalled copy must not write, however the row is driven.
@@ -167,12 +109,18 @@ struct LaunchAtLoginControllerTests {
         #expect(controller.state == .on)
     }
 
+    /// Starts from `.unread` rather than from the old provisional `.off`.
+    ///
+    /// With `.off` as the seed, dropping the trailing `refresh()` from
+    /// `setEnabled` left this green — the expected value and the untouched
+    /// seed were the same, so the "AndThenRereads" half proved nothing.
     @Test func switchingOffUnregistersAndThenRereads() {
         var removals = 0
         var status = 1
         let controller = makeController()
         controller.readStatus = { status }
         controller.unregister = { removals += 1; status = 0 }
+        #expect(controller.state == .unread)
 
         controller.setEnabled(false)
 
@@ -208,6 +156,137 @@ struct LaunchAtLoginControllerTests {
         controller.refresh()
 
         #expect(controller.state == .off)
+    }
+
+    // MARK: - The row's binding
+
+    /// A getter reading `!= .on` shows the switch backwards, and nothing
+    /// else in the suite would notice: the row is a SwiftUI body, and a
+    /// grouped `Form` renders blank through `ImageRenderer`.
+    @Test func theSwitchReadsOnOnlyWhenTheSystemSaidOn() {
+        let controller = makeController(status: 1)
+        controller.refresh()
+        #expect(LaunchAtLoginRow.binding(for: controller).wrappedValue)
+
+        let off = makeController(status: 0)
+        off.refresh()
+        #expect(LaunchAtLoginRow.binding(for: off).wrappedValue == false)
+    }
+
+    /// And a setter calling `setEnabled(!$0)` would unregister when asked to
+    /// register. One character, invisible everywhere else.
+    @Test func theSwitchWritesInTheDirectionItWasMoved() {
+        var registrations = 0
+        var removals = 0
+        let controller = makeController()
+        controller.register = { registrations += 1 }
+        controller.unregister = { removals += 1 }
+
+        LaunchAtLoginRow.binding(for: controller).wrappedValue = true
+        #expect((registrations, removals) == (1, 0))
+
+        LaunchAtLoginRow.binding(for: controller).wrappedValue = false
+        #expect((registrations, removals) == (1, 1))
+    }
+
+    /// The deep link is the only part of "open System Settings" with a right
+    /// answer; `NSWorkspace.shared.open` is not seamed.
+    @Test func theManualRouteHasAUsableDeepLink() throws {
+        let url = try #require(LaunchAtLoginController.loginItemsSettingsURL)
+        #expect(url.scheme == "x-apple.systempreferences")
+        #expect(url.absoluteString.hasSuffix("com.apple.LoginItems-Settings.extension"))
+    }
+
+    // MARK: - Pinned by source scans, because nothing else can reach them
+
+    /// **The seam is only a seam if nothing goes around it.**
+    ///
+    /// The injected closures catch an initialiser that reads through
+    /// `readStatus`. They cannot catch one that calls the service directly:
+    /// the spy is never consulted, and the real service answers about the
+    /// test runner's own bundle. That mutation was applied and every
+    /// behavioural test passed.
+    ///
+    /// Scanned across the **whole** `Sources/` tree, not just the
+    /// controller: a one-line shim in a neighbouring file, called from
+    /// `init`, defeated the single-file version of this check completely.
+    ///
+    /// Same shape as `PanelTabBarTests.theBodyRendersTheListItWasGiven`:
+    /// where behaviour is unreachable, scan the source and say so.
+    @Test func theServiceIsCalledOnlyInTheThreeInjectedSeams() throws {
+        // Assembled rather than written out, so this file does not contain
+        // the needle it is searching for -- which is what lets the scan
+        // below cover every file including this one.
+        let needle = "SMAppService" + ".mainApp"
+        var total = 0
+
+        for (name, text) in try Self.swiftSources(under: "Sources") {
+            let hits = Self.callSites(of: needle, in: text)
+            total += hits
+            if hits > 0 {
+                #expect(name == "LaunchAtLoginController.swift",
+                        "\(name) calls the login-item service outside the seams")
+            }
+        }
+
+        #expect(total == 3, "expected exactly three calls, one per seam, found \(total)")
+    }
+
+    /// And no test reaches the real service.
+    ///
+    /// **A known gap, stated rather than papered over:** this catches a
+    /// direct call. It cannot catch a test that constructs a
+    /// `LaunchAtLoginController` with an *installed* path and leaves the
+    /// default closures bound, then calls `refresh()` — that performs a real
+    /// read, and therefore a real repoint, with the needle appearing
+    /// nowhere. Every construction in this file overrides all three seams;
+    /// a reviewer adding one elsewhere has to do the same.
+    @Test func noTestInThisRepoCallsTheRealService() throws {
+        let needle = "SMAppService" + ".mainApp"
+        for (name, text) in try Self.swiftSources(under: "Tests") {
+            #expect(Self.callSites(of: needle, in: text) == 0,
+                    "\(name) reaches the real login-item service")
+        }
+    }
+
+    /// Every `.swift` file under a top-level directory, as (filename, text).
+    private static func swiftSources(under directory: String) throws -> [(String, String)] {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(directory)
+        let enumerator = try #require(
+            FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil)
+        )
+        var found: [(String, String)] = []
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            found.append((url.lastPathComponent, try String(contentsOf: url, encoding: .utf8)))
+        }
+        #expect(!found.isEmpty, "scanned \(directory) and found no sources")
+        return found
+    }
+
+    /// Occurrences of `needle` that are neither commented out nor inside a
+    /// string literal.
+    ///
+    /// Line comments and string contents are dropped rather than the whole
+    /// line, so a trailing `// via SMAppService` no longer breaks the count
+    /// and a doc comment can discuss the framework freely.
+    private static func callSites(of needle: String, in text: String) -> Int {
+        var total = 0
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            var code = Substring(line)
+            if let comment = code.range(of: "//") { code = code[code.startIndex..<comment.lowerBound] }
+            let outsideStrings = code
+                .split(separator: "\"", omittingEmptySubsequences: false)
+                .enumerated()
+                .filter { $0.offset.isMultiple(of: 2) }
+                .map(\.element)
+                .joined()
+            total += outsideStrings.components(separatedBy: needle).count - 1
+        }
+        return total
     }
 }
 

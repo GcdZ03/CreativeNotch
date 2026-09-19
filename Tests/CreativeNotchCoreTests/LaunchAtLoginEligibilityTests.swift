@@ -51,19 +51,47 @@ struct LaunchAtLoginEligibilityTests {
             installDirectories: dirs) == .eligible)
     }
 
-    /// `/private/tmp` and `/tmp` are the same directory, and `bundlePath`
-    /// reports the resolved one. An install directory written either way
-    /// has to match.
-    @Test func equivalentSpellingsOfADirectoryMatch() {
+    /// A `/./` component is noise and must not change the answer.
+    ///
+    /// Named for what it asserts. It previously claimed to be about
+    /// `/private/tmp` versus `/tmp`, which is true of `standardizingPath`
+    /// but is not what the assertion exercises.
+    @Test func aDotComponentChangesNothing() {
         #expect(LaunchAtLoginEligibility.resolve(
             bundlePath: "/Applications/./CreativeNotch.app",
             installDirectories: dirs) == .eligible)
     }
 
-    @Test func theDefaultDirectoriesAreApplicationsAndTheUsersOwn() {
-        let defaults = LaunchAtLoginEligibility.defaultInstallDirectories
-        #expect(defaults.contains("/Applications"))
-        #expect(defaults.contains(NSHomeDirectory() + "/Applications"))
+    /// **The one input that resolved eligible when it must not.**
+    ///
+    /// `standardizingPath` removes `..` lexically, so this collapses to
+    /// `/Applications/CreativeNotch.app` — while `/tmp` is a symlink to
+    /// `/private/tmp`, making the real parent `/private/Applications`. A
+    /// path that has to be resolved against the filesystem to be judged is
+    /// one this function refuses outright.
+    @Test func aPathThatClimbsOutOfASymlinkIsRefused() {
+        #expect(LaunchAtLoginEligibility.resolve(
+            bundlePath: "/tmp/../Applications/CreativeNotch.app",
+            installDirectories: dirs) == .notInstalled)
+    }
+
+    /// And the refusal is on the component, not the spelling: a directory
+    /// legitimately named `..something` is not affected.
+    @Test func aFilenameContainingDotsIsNotRefused() {
+        #expect(LaunchAtLoginEligibility.resolve(
+            bundlePath: "/Applications/..Creative..Notch.app",
+            installDirectories: dirs) == .eligible)
+    }
+
+    /// Pinned by equality, not by `contains`.
+    ///
+    /// With two `contains` assertions, **adding** `/tmp` and `~/Downloads`
+    /// to the whitelist passed — which is the exact class of bug this
+    /// module exists to prevent, since every extra directory is another
+    /// throwaway location allowed to seize the login-item record.
+    @Test func theDefaultDirectoriesAreExactlyApplicationsAndTheUsersOwn() {
+        #expect(LaunchAtLoginEligibility.defaultInstallDirectories
+                == ["/Applications", NSHomeDirectory() + "/Applications"])
     }
 }
 
@@ -92,5 +120,50 @@ struct LaunchAtLoginStateTests {
     @Test func anUnknownValueIsOff() {
         #expect(LaunchAtLoginState.from(rawStatus: 99) == .off)
         #expect(LaunchAtLoginState.from(rawStatus: -1) == .off)
+    }
+}
+
+/// The row's presentation, which lives in Core because a SwiftUI body is not
+/// reachable from a test.
+struct LaunchAtLoginPresentationTests {
+
+    /// Only a registration the system confirmed reads as on.
+    @Test func onlyOnIsOn() {
+        #expect(LaunchAtLoginState.on.isOn)
+        for state: LaunchAtLoginState in [.unread, .off, .needsApproval, .unavailable(bundlePath: "/x")] {
+            #expect(state.isOn == false, "\(state) read as on")
+        }
+    }
+
+    /// The second barrier in front of the eligibility rule: the controller
+    /// refuses the call, and the row refuses the gesture.
+    @Test func onlyAnUnavailableRowIsInoperable() {
+        #expect(LaunchAtLoginState.unavailable(bundlePath: "/x").isOperable == false)
+        for state: LaunchAtLoginState in [.unread, .on, .off, .needsApproval] {
+            #expect(state.isOperable, "\(state) could not be operated")
+        }
+    }
+
+    /// The path in `.unavailable` is the whole reason that case carries a
+    /// payload: a refusal that does not say which copy is running is a
+    /// mystery rather than a message.
+    @Test func theUnavailableDetailNamesTheCopyThatIsRunning() {
+        let detail = LaunchAtLoginState.unavailable(
+            bundlePath: "/Users/someone/dist/CreativeNotch.app"
+        ).detail
+        #expect(detail.contains("/Users/someone/dist/CreativeNotch.app"))
+    }
+
+    /// A held registration must not read like a working one.
+    @Test func needsApprovalSaysSoAndPointsAtSystemSettings() {
+        let detail = LaunchAtLoginState.needsApproval.detail
+        #expect(detail != LaunchAtLoginState.on.detail)
+        #expect(detail.contains("Login Items"))
+    }
+
+    @Test func everyStateHasSomethingToSay() {
+        for state: LaunchAtLoginState in [.unread, .on, .off, .needsApproval, .unavailable(bundlePath: "/x")] {
+            #expect(!state.detail.isEmpty)
+        }
     }
 }
