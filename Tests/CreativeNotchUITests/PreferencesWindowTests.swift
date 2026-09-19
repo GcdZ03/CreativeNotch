@@ -210,9 +210,11 @@ struct PreferencesWindowTests {
         var reads = 0
         let launchAtLogin = LaunchAtLoginController(
             bundlePath: "/Applications/CreativeNotch.app",
-            installDirectories: ["/Applications"]
+            installDirectories: ["/Applications"],
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
         )
-        launchAtLogin.readStatus = { reads += 1; return 1 }
         let delegate = makeDelegate()
         let controller = PreferencesController(
             switchboard: delegate.switchboard,
@@ -234,9 +236,11 @@ struct PreferencesWindowTests {
         var reads = 0
         let launchAtLogin = LaunchAtLoginController(
             bundlePath: "/Users/someone/dist/CreativeNotch.app",
-            installDirectories: ["/Applications"]
+            installDirectories: ["/Applications"],
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
         )
-        launchAtLogin.readStatus = { reads += 1; return 1 }
         let delegate = makeDelegate()
         let controller = PreferencesController(
             switchboard: delegate.switchboard,

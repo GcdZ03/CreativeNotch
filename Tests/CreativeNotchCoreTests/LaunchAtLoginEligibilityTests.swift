@@ -83,6 +83,53 @@ struct LaunchAtLoginEligibilityTests {
             installDirectories: dirs) == .eligible)
     }
 
+    // MARK: - Two spellings of one directory
+
+    /// A symlinked install directory is still the install directory.
+    ///
+    /// Deterministic on any volume, unlike a case-only difference, which
+    /// only demonstrates anything on a case-insensitive one. The strings
+    /// disagree here — the bundle's parent is the real directory, the
+    /// whitelist holds the link — so this can only pass through the
+    /// identity comparison.
+    @Test func aSymlinkedInstallDirectoryIsTheSameDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cn-eligibility-\(UUID().uuidString)")
+        let real = root.appendingPathComponent("Real")
+        let link = root.appendingPathComponent("Link")
+        try FileManager.default.createDirectory(at: real, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: real)
+
+        let bundle = real.appendingPathComponent("CreativeNotch.app").path
+        #expect(LaunchAtLoginEligibility.resolve(
+            bundlePath: bundle, installDirectories: [link.path]) == .eligible)
+    }
+
+    /// And identity is not a licence to accept a *different* directory that
+    /// happens to exist next door.
+    @Test func twoRealDirectoriesAreNotOneDirectory() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cn-eligibility-\(UUID().uuidString)")
+        let a = root.appendingPathComponent("A")
+        let b = root.appendingPathComponent("B")
+        try FileManager.default.createDirectory(at: a, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: b, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        #expect(LaunchAtLoginEligibility.resolve(
+            bundlePath: a.appendingPathComponent("CreativeNotch.app").path,
+            installDirectories: [b.path]) == .notInstalled)
+    }
+
+    /// A whitelist entry that does not exist cannot match anything, and must
+    /// not throw or crash on the way to saying so.
+    @Test func aMissingInstallDirectoryMatchesNothing() {
+        #expect(LaunchAtLoginEligibility.resolve(
+            bundlePath: "/Users/someone/dist/CreativeNotch.app",
+            installDirectories: ["/no/such/directory/anywhere"]) == .notInstalled)
+    }
+
     /// Pinned by equality, not by `contains`.
     ///
     /// With two `contains` assertions, **adding** `/tmp` and `~/Downloads`

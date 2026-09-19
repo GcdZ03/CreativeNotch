@@ -22,13 +22,13 @@ struct LaunchAtLoginControllerTests {
         path: String = installed,
         status: Int = 0
     ) -> LaunchAtLoginController {
-        let controller = LaunchAtLoginController(
-            bundlePath: path, installDirectories: Self.dirs
+        LaunchAtLoginController(
+            bundlePath: path,
+            installDirectories: Self.dirs,
+            readStatus: { status },
+            register: {},
+            unregister: {}
         )
-        controller.readStatus = { status }
-        controller.register = {}
-        controller.unregister = {}
-        return controller
     }
 
     // MARK: - The read that must not happen
@@ -44,9 +44,12 @@ struct LaunchAtLoginControllerTests {
     @Test func anUninstalledCopyNeverReadsTheStatus() {
         var reads = 0
         let controller = LaunchAtLoginController(
-            bundlePath: Self.devBuild, installDirectories: Self.dirs
+            bundlePath: Self.devBuild,
+            installDirectories: Self.dirs,
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
         )
-        controller.readStatus = { reads += 1; return 1 }
 
         controller.refresh()
 
@@ -64,9 +67,12 @@ struct LaunchAtLoginControllerTests {
     @Test func constructingAControllerReadsNothing() {
         var reads = 0
         let controller = LaunchAtLoginController(
-            bundlePath: Self.installed, installDirectories: Self.dirs
+            bundlePath: Self.installed,
+            installDirectories: Self.dirs,
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
         )
-        controller.readStatus = { reads += 1; return 1 }
 
         #expect(reads == 0, "the initialiser read through the seam")
         #expect(controller.state == .unread,
@@ -77,10 +83,12 @@ struct LaunchAtLoginControllerTests {
     @Test func anUninstalledCopyNeverRegisters() {
         var registrations = 0
         let controller = LaunchAtLoginController(
-            bundlePath: Self.devBuild, installDirectories: Self.dirs
+            bundlePath: Self.devBuild,
+            installDirectories: Self.dirs,
+            readStatus: { 1 },
+            register: { registrations += 1 },
+            unregister: {}
         )
-        controller.readStatus = { 1 }
-        controller.register = { registrations += 1 }
 
         controller.setEnabled(true)
 
@@ -234,13 +242,13 @@ struct LaunchAtLoginControllerTests {
 
     /// And no test reaches the real service.
     ///
-    /// **A known gap, stated rather than papered over:** this catches a
-    /// direct call. It cannot catch a test that constructs a
-    /// `LaunchAtLoginController` with an *installed* path and leaves the
-    /// default closures bound, then calls `refresh()` — that performs a real
-    /// read, and therefore a real repoint, with the needle appearing
-    /// nowhere. Every construction in this file overrides all three seams;
-    /// a reviewer adding one elsewhere has to do the same.
+    /// This catches a direct call. The other route into the real service —
+    /// constructing a controller with an *installed* path and leaving the
+    /// default closures bound — is not catchable by any scan, because the
+    /// needle appears nowhere. It is closed structurally instead: the only
+    /// initialiser that binds the real service takes no path, and the one
+    /// that takes a path requires all three seams. See
+    /// `LaunchAtLoginController.init()`.
     @Test func noTestInThisRepoCallsTheRealService() throws {
         let needle = "SMAppService" + ".mainApp"
         for (name, text) in try Self.swiftSources(under: "Tests") {

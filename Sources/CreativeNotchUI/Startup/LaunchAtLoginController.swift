@@ -34,19 +34,46 @@ public final class LaunchAtLoginController {
     private let eligibility: LaunchAtLoginEligibility
 
     @ObservationIgnored
-    var readStatus: () -> Int = { SMAppService.mainApp.status.rawValue }
+    var readStatus: () -> Int
 
     @ObservationIgnored
-    var register: () throws -> Void = { try SMAppService.mainApp.register() }
+    var register: () throws -> Void
 
     @ObservationIgnored
-    var unregister: () throws -> Void = { try SMAppService.mainApp.unregister() }
+    var unregister: () throws -> Void
 
-    public init(
-        bundlePath: String = Bundle.main.bundlePath,
-        installDirectories: [String] = LaunchAtLoginEligibility.defaultInstallDirectories
+    /// The app's own controller: this bundle, the real service.
+    ///
+    /// **The only initialiser that binds the real service, and it takes no
+    /// path.** That pairing is deliberate. Review found that the seams alone
+    /// did not close the hazard: a test could construct a controller with an
+    /// *installed* path, leave the defaults bound, and call `refresh()` —
+    /// performing a real read, and therefore a real repoint of the
+    /// developer's own login item — with nothing in the source for a scan to
+    /// notice. Requiring every caller who names a path to supply all three
+    /// seams makes that unconstructible rather than merely documented.
+    public convenience init() {
+        self.init(
+            bundlePath: Bundle.main.bundlePath,
+            installDirectories: LaunchAtLoginEligibility.defaultInstallDirectories,
+            readStatus: { SMAppService.mainApp.status.rawValue },
+            register: { try SMAppService.mainApp.register() },
+            unregister: { try SMAppService.mainApp.unregister() }
+        )
+    }
+
+    /// Every other caller: say which bundle, and bring your own seams.
+    init(
+        bundlePath: String,
+        installDirectories: [String],
+        readStatus: @escaping () -> Int,
+        register: @escaping () throws -> Void,
+        unregister: @escaping () throws -> Void
     ) {
         self.bundlePath = bundlePath
+        self.readStatus = readStatus
+        self.register = register
+        self.unregister = unregister
         self.eligibility = LaunchAtLoginEligibility.resolve(
             bundlePath: bundlePath, installDirectories: installDirectories
         )

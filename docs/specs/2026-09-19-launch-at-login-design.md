@@ -91,6 +91,20 @@ the user can read rather than a mystery.
 `/Applications/X.app`, and a prefix match would also accept
 `/Applications.old/X.app`.
 
+**Two spellings of one directory are one directory.** Strings decide first,
+and when they disagree the *identity* of the two directories decides —
+resolved through symlinks, compared by file resource identifier. That settles
+a case-only difference on a case-insensitive volume, a firmlink, and a
+symlinked install directory in one step, and it only ever converts a wrong
+refusal into a correct accept: it runs when the strings already disagreed,
+and answers only when the filesystem says the two paths are the same
+directory. Anything it cannot resolve stays refused.
+
+Comparing case-*insensitively* instead would be a real hole, because on a
+case-sensitive volume those are genuinely different directories. Identity is
+the question actually being asked; case is a proxy for it that is wrong half
+the time.
+
 **The ineligible row still says something true.** It is not hidden — a row
 that vanishes teaches nothing. It is shown, switched off, not operable, with
 the path it is running from and the manual route (§5).
@@ -110,8 +124,21 @@ Closures rather than a protocol, for the same reason `AppState.onMediaCommand`
 is one: **a real call changes the machine running the tests.** Registering a
 login item from the suite would put a real record in the developer's BTM
 database, and the suite would then pass or fail depending on whether it had
-ever been run before. Nothing in `Tests/` may reach the real service, and the
-injection is what makes that structural rather than a rule people remember.
+ever been run before.
+
+**The seams alone were not enough, and review found the hole.** A test could
+construct a controller with an *installed* path, leave the defaults bound,
+and call `refresh()` — a real read, and therefore a real repoint of the
+developer's own login item, with nothing in the source for a scan to notice.
+So the initialisers are split by what they promise:
+
+- `init()` — no path, binds the real service. The app's own.
+- `init(bundlePath:installDirectories:readStatus:register:unregister:)` —
+  every caller that names a path must bring all three seams.
+
+Naming a fake path and keeping the real service is now a **compile error**
+rather than a convention, which is the only form of this rule that survives
+someone who has not read this document.
 
 Two operations, and both end the same way:
 
@@ -256,3 +283,7 @@ is precisely the bug.
   question moot rather than answering it.
 - **Registering automatically on first launch.** Nothing in this app turns
   itself on.
+- **Withdrawing a pending registration.** In `.needsApproval` the switch reads
+  off, so the row offers only "turn on". Reading it as on would claim a login
+  item that does not yet work. The manual route is the button beside it, and
+  the state itself is unmeasured — the probe cannot produce it.

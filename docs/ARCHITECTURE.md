@@ -1184,6 +1184,18 @@ inside `/Applications` or `~/Applications` — because the blacklist of
 throwaway locations cannot be enumerated and guessing wrong fails silently.
 Compared as whole paths, never as a prefix: a prefix match accepts
 `/Applications.old/`, and a `contains` accepts `/Applications/Utilities/`.
+When the strings disagree, the **identity** of the two directories decides —
+resolved through symlinks, compared by file resource identifier — which
+settles case-only differences, firmlinks and symlinked install directories at
+once. That fallback can only turn a wrong refusal into a correct accept, and
+anything it cannot resolve stays refused.
+
+The seams are not the whole of the safety, either. A test could once
+construct a controller with an installed path and the real service still
+bound, and a read from it would repoint the developer's own login item with
+nothing in the source to scan for. The initialiser that binds the real
+service now takes no path, and the one that takes a path requires all three
+seams, so that construction is a compile error.
 
 The test that protects this is a **negative** one: with an ineligible path and
 a spy on the status read, the spy must never be called. Asserting only that

@@ -38,15 +38,21 @@ public enum LaunchAtLoginEligibility: Equatable, Sendable {
     /// match accepts `/Applications.old/CreativeNotch.app`, and a bare
     /// `contains` accepts `/Applications/Utilities/CreativeNotch.app`.
     ///
-    /// **Known limit, and it fails closed.** `standardizingPath` does not
-    /// canonicalise case, so on a case-insensitive volume
-    /// `/applications/CreativeNotch.app` is refused even though it is the
-    /// same directory. Comparing case-insensitively would be worse: on a
-    /// case-*sensitive* volume those are genuinely different directories,
-    /// and treating them as one would hand the record to a copy that had not
-    /// earned it. Refusing a real install is recoverable — the row says
-    /// which path it is running from — and the other direction is the silent
-    /// failure this whole rule exists to prevent.
+    /// Two spellings of the same directory are the same directory, so when
+    /// the strings disagree the **identity** of the two directories decides.
+    /// That settles three things at once and in the only safe direction:
+    /// a case-only difference on a case-insensitive volume
+    /// (`/applications` versus `/Applications`), a firmlink
+    /// (`/System/Volumes/Data/Applications`), and a symlinked install
+    /// directory. Comparing case-*insensitively* instead would be a real
+    /// hole — on a case-sensitive volume those are genuinely different
+    /// directories — whereas identity is the question actually being asked.
+    ///
+    /// The fallback only ever turns a wrong refusal into a correct accept:
+    /// it runs when the strings already disagreed, and answers only when the
+    /// filesystem says both paths are one directory. Anything it cannot
+    /// resolve — either path missing, no identifier available — stays
+    /// refused.
     public static func resolve(
         bundlePath: String,
         installDirectories: [String] = defaultInstallDirectories
@@ -65,11 +71,44 @@ public enum LaunchAtLoginEligibility: Equatable, Sendable {
         // `standardizingPath` returns a `String`, hence the second cast.
         let standardized = (bundlePath as NSString).standardizingPath
         let parent = (standardized as NSString).deletingLastPathComponent
-        for directory in installDirectories
-        where (directory as NSString).standardizingPath == parent {
+
+        let directories = installDirectories.map { ($0 as NSString).standardizingPath }
+
+        // Strings first: pure, allocation-cheap, and the answer for every
+        // path macOS actually hands a running app.
+        if directories.contains(parent) { return .eligible }
+
+        // Only then the filesystem, and only for the ones that disagreed.
+        for directory in directories where isSameDirectory(parent, directory) {
             return .eligible
         }
         return .notInstalled
+    }
+
+    /// Whether two paths name one directory on disk.
+    ///
+    /// Compared by file resource identifier rather than by string, which is
+    /// what makes case, firmlinks and symlinks all moot in a single step.
+    /// Everything about it fails closed: a path that does not exist, a
+    /// volume that supplies no identifier, or any thrown error answers
+    /// `false`, leaving the caller's refusal standing.
+    private static func isSameDirectory(_ lhs: String, _ rhs: String) -> Bool {
+        guard lhs != rhs else { return true }
+        let keys: Set<URLResourceKey> = [.fileResourceIdentifierKey, .isDirectoryKey]
+        // `resourceValues` does NOT follow a symlink: asked about a link to a
+        // directory it answers `isDirectory == false` and hands back the
+        // link's own identifier, so the comparison would fail for exactly the
+        // case this fallback exists to catch. Measured, not assumed.
+        guard
+            let left = try? URL(fileURLWithPath: lhs).resolvingSymlinksInPath()
+                .resourceValues(forKeys: keys),
+            let right = try? URL(fileURLWithPath: rhs).resolvingSymlinksInPath()
+                .resourceValues(forKeys: keys),
+            left.isDirectory == true, right.isDirectory == true,
+            let leftID = left.fileResourceIdentifier,
+            let rightID = right.fileResourceIdentifier
+        else { return false }
+        return leftID.isEqual(rightID)
     }
 }
 
@@ -91,6 +130,15 @@ public enum LaunchAtLoginState: Equatable, Sendable {
     case on
     case off
     /// macOS is holding the registration until the user allows it.
+    ///
+    /// The switch reads **off** here, so the only gesture the row offers is
+    /// "turn on", which registers again. There is deliberately no way to
+    /// withdraw a pending registration from this app: reading it as on would
+    /// claim a login item that does not yet work, and that is the one
+    /// direction this module must never fail in. The manual route is the
+    /// button beside the switch. Unmeasured — the probe could not produce
+    /// this state, because it needs a person to deny the item in System
+    /// Settings.
     case needsApproval
     /// This copy is not installed, so it never asked. Carries the path, so
     /// the row can say which copy is running rather than only that
