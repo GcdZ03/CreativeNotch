@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-1031-brightgreen" alt="1031 tests">
+  <img src="https://img.shields.io/badge/tests-1070-brightgreen" alt="1070 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -280,7 +280,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 1031 tests, ~2s, no window server needed
+swift test           # 1070 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -306,8 +306,8 @@ Sources/
                        menu bar, onboarding, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   442 tests
-  CreativeNotchUITests/     589 tests
+  CreativeNotchCoreTests/   463 tests
+  CreativeNotchUITests/     607 tests
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -368,6 +368,10 @@ build that gets deleted on the next rebuild. The switch therefore refuses to
 so much as ask unless it is running from `/Applications`, and says so when it
 is not. It stores nothing: macOS owns that state, you can change it in System
 Settings, and the row reads it back every time it appears.
+
+A registration is a database row, not a launch, and the two can disagree — so
+the switch was not believed until a human logged out twice and found the app
+already running: verified 2026-09-19 on macOS 26.6.2.
 
 The camera module puts the FaceTime feed in the open panel: a mirror for
 checking framing, a shutter, and a record button, with what you capture
@@ -461,6 +465,7 @@ Before module work starts, see
 | [`docs/plans/2026-09-13-ui-redesign.md`](docs/plans/2026-09-13-ui-redesign.md) | How the redesign was built |
 | [`docs/specs/2026-09-19-launch-at-login-design.md`](docs/specs/2026-09-19-launch-at-login-design.md) | Launch at login: the module that runs nothing |
 | [`docs/research/2026-09-19-launch-at-login-probe.md`](docs/research/2026-09-19-launch-at-login-probe.md) | What the login-item probe measured, including one finding nobody asked for |
+| [`docs/plans/2026-09-19-launch-at-login.md`](docs/plans/2026-09-19-launch-at-login.md) | How launch at login was built |
 | [`docs/plans/2026-08-30-timer.md`](docs/plans/2026-08-30-timer.md) | How the timer was built |
 | [`docs/plans/2026-08-22-file-shelf.md`](docs/plans/2026-08-22-file-shelf.md) | How it was built |
 | [`docs/plans/2026-08-22-foundation.md`](docs/plans/2026-08-22-foundation.md) | The foundation implementation plan |

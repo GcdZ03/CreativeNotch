@@ -333,7 +333,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-1031 tests, all headless. `swift test` takes
+1070 tests, all headless. `swift test` takes
 about two seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -1202,14 +1202,27 @@ a spy on the status read, the spy must never be called. Asserting only that
 the state came out `unavailable` would pass against a controller that read
 first and discarded the answer, which is precisely the bug.
 
-### What is still not proven
+### The one thing no measurement above proves — and how it was settled
 
 Every measurement above is about the *record*. **None of them proves macOS
 actually starts an ad-hoc-signed app after a logout** — only a logout and a
-`pgrep` does, and that needs a human. The row's "Open Login Items" button is
-therefore unconditional rather than shown on failure: a user for whom the
-launch silently does not happen should not have to work out that they are in
-a failure case before finding the manual route.
+`pgrep` does, and that needs a human.
+
+It has been done. `Scripts/verify-login-item.sh`, two logout/login cycles on
+2026-09-19, macOS 26.6.2, Apple Silicon, against an ad-hoc signed,
+unquarantined copy in `/Applications`: **macOS started it both times**. The
+app appeared seven seconds after Finder, with a process id that differed
+from the one recorded before the logout, so nothing but the login item
+started it. The record's promise is kept.
+
+That closes the module's one open question; it does not make the row's
+"Open Login Items" button conditional. Two passes on one machine at one OS
+version are not a guarantee for every machine, and the failure being guarded
+against is silent — a user for whom the launch does not happen should not
+have to work out that they are in a failure case before finding the manual
+route. Two things here remain unmeasured, both narrower than the question
+above: whether quarantine blocks a login launch, and the `.needsApproval`
+state, which the probe could not produce.
 
 ## Deliberately absent
 

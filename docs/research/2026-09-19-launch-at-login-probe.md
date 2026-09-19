@@ -134,6 +134,19 @@ one failure this module is built to make impossible, and it is the reason the
 spec keeps the manual fallback text in the UI rather than behind a condition
 (§5). **Run the logout check before believing the toggle.**
 
+**Measured on 2026-09-19, after the module was built.** The logout check was
+run and **it passed, both cycles**: macOS 26.6.2, Apple Silicon, the real app
+ad-hoc signed and unquarantined in `/Applications`, record
+`[enabled, allowed, notified]`. The app was running before anything was
+touched, seven seconds after Finder, under a process id that differed from
+the one recorded before the logout — so macOS started it, and the record's
+promise is kept for an ad-hoc-signed, non-notarised bundle.
+
+That answers the question this section says the probe could not reach; it
+does not move the question inside the probe's reach, which is why the section
+above stands as written. Still unmeasured, and still not reachable from here:
+a **quarantined** copy at login, and the `.needsApproval` state.
+
 ## Reproducing it
 
 The probe is not kept. It was ~40 lines: `SMAppService.mainApp`, a

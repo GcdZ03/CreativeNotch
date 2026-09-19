@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 1031
+swift test                              # all 1070
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -108,6 +108,11 @@ The script never launches the app, never registers anything, and never calls
 `SMAppService`. Any of those would be the thing under test doing itself a
 favour.
 
+**Last run 2026-09-19, macOS 26.6.2, Apple Silicon: passed, both cycles.**
+Re-run it when the signing identity changes, when the install location
+changes, or on a new major macOS — those are the variables it is measuring,
+and a pass on one of them is not a pass on the next.
+
 ## Debugging in Xcode
 
 Open `Package.swift` directly — there is no `.xcodeproj` to maintain, and
@@ -133,8 +138,8 @@ Sources/
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
 Tests/
-  CreativeNotchCoreTests/     442 tests
-  CreativeNotchUITests/       589 tests
+  CreativeNotchCoreTests/     463 tests
+  CreativeNotchUITests/       607 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above

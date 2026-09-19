@@ -261,6 +261,14 @@ is precisely the bug.
   leaving it to be worked out on the day. The manual route is unconditional
   (§5) for exactly this reason, and the roadmap's demand stands: a real
   logout and a `pgrep` before believing the toggle.
+
+  **Run on 2026-09-19: it passed, both cycles.** macOS 26.6.2, Apple
+  Silicon, an ad-hoc signed and unquarantined copy in `/Applications`; the
+  app came up seven seconds after Finder under a process id that differed
+  from the one recorded before the logout. The demand above has been met
+  rather than withdrawn — it stands for the next machine, and for anyone
+  changing how the app is signed or installed. What is still unmeasured is
+  narrower: a *quarantined* copy, and `.needsApproval`.
 - **A read that never happens again.** The stale-`.onAppear` bug above. Caught
   by `everyPresentationRereadsTheSystem`, which opens three times and counts
   three reads.
@@ -280,6 +288,8 @@ is precisely the bug.
   work — but it is a second mechanism with its own enable/disable state, and
   two sources of truth for one switch is the thing §2 is about. It is the
   answer only if the logout check shows the public API's record is ignored.
+  **It does not** (§7, 2026-09-19), so this stays unbuilt — and the condition
+  for building it is unchanged, should a later OS stop honouring the record.
 - **Detecting which copy currently owns the record.** No public API exposes
   the URL; `sfltool dumpbtm` needs `sudo`. The eligibility gate makes the
   question moot rather than answering it.

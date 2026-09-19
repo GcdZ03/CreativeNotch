@@ -54,6 +54,13 @@ Their entries have been removed as they shipped:
   the module: reading `.status` repoints the system's record at the copy doing
   the reading, so a dev build drawing the Settings row would silently steal a
   user's login item. Measurement found that; no amount of argument would have.
+  The one claim no probe could reach — that macOS *starts* the app, rather
+  than merely keeping a record saying it will — is now **verified**: two
+  logout/login cycles on macOS 26.6.2, against an ad-hoc signed,
+  unquarantined copy in `/Applications`, via
+  `Scripts/verify-login-item.sh`. It came up seven seconds after Finder, so
+  nothing but the login item started it. The spec's §8 fallback is not
+  needed.
 
 Every module in this project so far has gone spec → plan → implementation,
 and the two that touched private or undocumented API (the system HUD, media
@@ -119,7 +126,7 @@ changes on every build. Measured consequences:
 | --- | --- |
 | Accessibility grant dies on every rebuild | already documented; `Scripts/setup-signing.sh` exists for it |
 | Camera grant re-prompts on every update | **measured** — module 5 |
-| ~~Launch at login may be refused outright~~ | **measured, and it is not** — an ad-hoc bundle registers cleanly, and the record survives a new code hash |
+| ~~Launch at login may be refused outright~~ | **measured, and it is not** — an ad-hoc bundle registers cleanly, the record survives a new code hash, and a real logout confirms macOS honours it |
 | Downloads carry quarantine | why install instructions need `xattr -dr` |
 
 A Developer ID would remove the rest. That is a **distribution decision**, it
