@@ -333,7 +333,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-1031 tests, all headless. `swift test` takes
+1070 tests, all headless. `swift test` takes
 about two seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -1128,6 +1128,101 @@ Above the timer and above now-playing, below this app's own recording:
 Both glyphs can show at once, and the slot is the two-glyph width whichever is
 showing — a badge that grew when the second device started would resize the
 closed notch mid-call.
+
+## Launch at login
+
+The only module that **runs nothing at all**, and the only switch in the app
+whose state is not ours.
+
+A registration is a row in the system's Background Task Management database,
+not a process. There is nothing to start, nothing to stop, no lifecycle hook
+and no `SystemActivity` consumer — and the app is not running at the moment
+the record matters. So it is deliberately **not** a `ModuleID`: no stored
+`Bool`, no `Preferences` field, no `ModuleSwitchboard` leg. The switchboard's
+contract is that every leg stops something, and a leg that did nothing would
+be the first one to lie about that.
+
+The stored flag is absent for a second reason, and it is the same failure
+Preferences exists to prevent, arrived at from the opposite direction. There,
+the lie would be a switch reading `on` over a subsystem *we* had stopped.
+Here it would be a switch reading `on` over a registration the **user**
+removed in System Settings, which macOS never tells us about. So the row reads
+the system on every **presentation**, and after construction `refresh()` — the
+only writer of the published state — reads it rather than trusting the
+argument it was just handed.
+
+*On every presentation*, not on every appearance, and the difference is a bug
+that review caught. The Settings window is cached and never released, so
+SwiftUI's `.onAppear` fires once per process; with the read living only there,
+a login item switched off in System Settings went on reading `on` for the life
+of the app. The call belongs in `PreferencesController.show()`.
+
+The initial value is `.unread`, distinct from `.off`, so a seed is never
+mistaken for a measurement — and so "the initialiser read nothing" can be
+asserted at all, which it could not while an unread controller and an
+unregistered app both said `.off`. A `register()` that throws is caught and followed by a read anyway, so
+a refused registration shows the switch falling back to off, which is what
+happened.
+
+### A status read is a write
+
+Measured, and documented nowhere: there is **one record per bundle
+identifier**, and its URL follows whichever copy last called `.status`. No
+registration call needed. A plain read is a write.
+(`docs/research/2026-09-19-launch-at-login-probe.md`, Q3.)
+
+That is a hazard manufactured by how this project is developed. `dev.sh`
+builds to `dist/CreativeNotch.app` and begins by deleting it. A user with the
+released app in `/Applications` and the switch on would have their login item
+repointed at `dist/` the moment a dev build's Settings window drew the row —
+and at the next login macOS would start the dev build, or nothing. No error,
+no log line, and a symptom appearing days later with no connection to a cause.
+
+So **eligibility is decided from the bundle path before the read**, and an
+ineligible copy never touches the service. The rule is a whitelist — directly
+inside `/Applications` or `~/Applications` — because the blacklist of
+throwaway locations cannot be enumerated and guessing wrong fails silently.
+Compared as whole paths, never as a prefix: a prefix match accepts
+`/Applications.old/`, and a `contains` accepts `/Applications/Utilities/`.
+When the strings disagree, the **identity** of the two directories decides —
+resolved through symlinks, compared by file resource identifier — which
+settles case-only differences, firmlinks and symlinked install directories at
+once. That fallback can only turn a wrong refusal into a correct accept, and
+anything it cannot resolve stays refused.
+
+The seams are not the whole of the safety, either. A test could once
+construct a controller with an installed path and the real service still
+bound, and a read from it would repoint the developer's own login item with
+nothing in the source to scan for. The initialiser that binds the real
+service now takes no path, and the one that takes a path requires all three
+seams, so that construction is a compile error.
+
+The test that protects this is a **negative** one: with an ineligible path and
+a spy on the status read, the spy must never be called. Asserting only that
+the state came out `unavailable` would pass against a controller that read
+first and discarded the answer, which is precisely the bug.
+
+### The one thing no measurement above proves — and how it was settled
+
+Every measurement above is about the *record*. **None of them proves macOS
+actually starts an ad-hoc-signed app after a logout** — only a logout and a
+`pgrep` does, and that needs a human.
+
+It has been done. `Scripts/verify-login-item.sh`, two logout/login cycles on
+2026-09-19, macOS 26.6.2, Apple Silicon, against an ad-hoc signed,
+unquarantined copy in `/Applications`: **macOS started it both times**. The
+app appeared seven seconds after Finder, with a process id that differed
+from the one recorded before the logout, so nothing but the login item
+started it. The record's promise is kept.
+
+That closes the module's one open question; it does not make the row's
+"Open Login Items" button conditional. Two passes on one machine at one OS
+version are not a guarantee for every machine, and the failure being guarded
+against is silent — a user for whom the launch does not happen should not
+have to work out that they are in a failure case before finding the manual
+route. Two things here remain unmeasured, both narrower than the question
+above: whether quarantine blocks a login launch, and the `.needsApproval`
+state, which the probe could not produce.
 
 ## Deliberately absent
 

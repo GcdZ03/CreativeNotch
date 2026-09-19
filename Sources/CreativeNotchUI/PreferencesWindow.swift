@@ -29,9 +29,19 @@ final class PreferencesController {
     private let presenter: (PreferencesController) -> Void
     private var window: NSWindow?
 
-    init(switchboard: ModuleSwitchboard, state: AppState) {
+    /// The login-item toggle. Handed in rather than built here, so the window
+    /// and the app agree about one controller -- and so a test can supply one
+    /// pinned to a path of its choosing.
+    let launchAtLogin: LaunchAtLoginController
+
+    init(
+        switchboard: ModuleSwitchboard,
+        state: AppState,
+        launchAtLogin: LaunchAtLoginController
+    ) {
         self.switchboard = switchboard
         self.state = state
+        self.launchAtLogin = launchAtLogin
         // Taking the instance as a parameter rather than `[weak self]`, which
         // would capture `self` before every stored property has a value --
         // the same reason `OnboardingController` does it this way.
@@ -44,14 +54,37 @@ final class PreferencesController {
     init(
         switchboard: ModuleSwitchboard,
         state: AppState,
+        launchAtLogin: LaunchAtLoginController,
         presenter: @escaping (PreferencesController) -> Void
     ) {
         self.switchboard = switchboard
         self.state = state
+        self.launchAtLogin = launchAtLogin
         self.presenter = presenter
     }
 
-    func show() { presenter(self) }
+    /// **Refreshing here rather than in the view is load-bearing.**
+    ///
+    /// `presentRealWindow()` caches the window and sets
+    /// `isReleasedWhenClosed = false`, so closing Settings and reopening it
+    /// reuses the same `NSHostingView` — and SwiftUI's `.onAppear` fires
+    /// exactly once per process. Measured, not assumed: after close and
+    /// reopen, `onAppear` does not fire again and `onDisappear` never fires
+    /// at all.
+    ///
+    /// With the read living only in `.onAppear`, a login item switched off
+    /// in System Settings would go on reading `on` here for the life of the
+    /// process, which is precisely the lie this module exists to prevent.
+    /// The presentation boundary fires every time; the view's `.onAppear`
+    /// stays as well, for the first show and for any future presentation
+    /// path that does not come through here.
+    ///
+    /// `refresh()` is eligibility-guarded, so this still touches nothing
+    /// from an uninstalled copy.
+    func show() {
+        launchAtLogin.refresh()
+        presenter(self)
+    }
 
     /// The one write path. Persists and applies in the same call, because two
     /// calls are two chances to do one without the other.
@@ -222,6 +255,18 @@ struct PreferencesView: View {
 
     var body: some View {
         Form {
+            // First, and outside the `ForEach`: this is about the app rather
+            // than about a module, and `PreferencesSection`'s cases are module
+            // groups -- adding a case with no module rows would make the
+            // "every section has rows" test meaningless.
+            Section {
+                LaunchAtLoginRow(controller: controller.launchAtLogin)
+            } header: {
+                Text("Startup")
+            } footer: {
+                Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
+            }
+
             ForEach(PreferencesSection.allCases, id: \.self) { section in
                 Section {
                     ForEach(Self.rows.filter { $0.section == section }) { row in
@@ -304,5 +349,70 @@ struct PreferencesView: View {
         default:
             return nil
         }
+    }
+}
+
+/// The one row in this window that stores nothing.
+///
+/// Its switch shows `LaunchAtLoginController.state`, which is read from the
+/// system, so a registration removed in System Settings shows up here on the
+/// next open without anything having told us.
+///
+/// Everything with a right answer — whether the switch reads on, whether the
+/// row can be operated, what the line underneath says — lives on
+/// `LaunchAtLoginState` in Core, because a SwiftUI body is not reachable
+/// from a test. What is left here is arrangement.
+struct LaunchAtLoginRow: View {
+    let controller: LaunchAtLoginController
+
+    /// Built by a function rather than inline so both directions can be
+    /// exercised without rendering: a getter reading `!= .on` and a setter
+    /// calling `setEnabled(!$0)` are each a one-character bug that shows the
+    /// switch backwards or unregisters when asked to register, and neither
+    /// is visible to any other kind of test.
+    static func binding(for controller: LaunchAtLoginController) -> Binding<Bool> {
+        Binding(
+            get: { controller.state.isOn },
+            set: { controller.setEnabled($0) }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Self.binding(for: controller)) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Open at login")
+                            .font(.body.weight(.medium))
+                        Text(controller.state.detail)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "power")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.teal)
+                        )
+                }
+            }
+            .disabled(!controller.state.isOperable)
+
+            // Unconditional, not shown only on failure: no probe in this repo
+            // can prove macOS actually starts the app after a logout, and a
+            // user for whom it silently does not should not have to deduce
+            // that they are in a failure case to find the manual route.
+            // (Spec section 5.)
+            Button("Open Login Items") {
+                LaunchAtLoginController.openLoginItemsSettings()
+            }
+            .padding(.leading, 36)
+        }
+        // The first show comes through here; every later one comes through
+        // `PreferencesController.show()`, because this fires only once per
+        // process. See that method.
+        .onAppear { controller.refresh() }
     }
 }

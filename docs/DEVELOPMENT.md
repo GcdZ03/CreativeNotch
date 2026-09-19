@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 1031
+swift test                              # all 1070
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -77,6 +77,42 @@ for **Code Signing** to **Always Trust**.
 Releases are always ad-hoc signed regardless, because a personal
 certificate would mean nothing to anyone else.
 
+## The one check that needs a human
+
+Launch at login is the only module whose central claim cannot be tested
+headlessly. Everything measurable about it is about the *record* macOS keeps,
+never about a launch — and `SMAppService` reporting `enabled` is not evidence,
+because a record survives deleting the app entirely. The switch can therefore
+read on over nothing, which is the one failure the module exists to prevent.
+
+`Scripts/verify-login-item.sh` captures the state before you log out and
+checks it after you log back in, so the comparison is recorded rather than
+remembered:
+
+```bash
+CODESIGN_IDENTITY=- ./Scripts/bundle.sh release   # ad-hoc, like a release
+cp -R dist/CreativeNotch.app /Applications/
+open /Applications/CreativeNotch.app              # then flip the switch in Settings
+
+./Scripts/verify-login-item.sh arm                # before logging out
+# log out, log back in, TOUCH NOTHING
+./Scripts/verify-login-item.sh check              # twice, over two cycles
+```
+
+Sign it **ad-hoc**. Releases are, and whether macOS starts an ad-hoc,
+non-notarised app at login is the entire question; a pass with the local
+certificate would answer a case no user has. The installer cannot stand in
+either — it fetches the latest release, which may predate the module.
+
+The script never launches the app, never registers anything, and never calls
+`SMAppService`. Any of those would be the thing under test doing itself a
+favour.
+
+**Last run 2026-09-19, macOS 26.6.2, Apple Silicon: passed, both cycles.**
+Re-run it when the signing identity changes, when the install location
+changes, or on a new major macOS — those are the variables it is measuring,
+and a pass on one of them is not a pass on the next.
+
 ## Debugging in Xcode
 
 Open `Package.swift` directly — there is no `.xcodeproj` to maintain, and
@@ -102,13 +138,14 @@ Sources/
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
 Tests/
-  CreativeNotchCoreTests/     442 tests
-  CreativeNotchUITests/       589 tests
+  CreativeNotchCoreTests/     463 tests
+  CreativeNotchUITests/       607 tests
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
   setup-signing.sh     one-time stable signing identity
   install.sh           the public curl installer
+  verify-login-item.sh the one check that needs a human -- see below
 ```
 
 New code belongs in `CreativeNotchCore` unless it genuinely needs AppKit or

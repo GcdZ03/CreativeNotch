@@ -1,11 +1,13 @@
 # Roadmap
 
-One module is planned. **It is not implemented, and it is not blocked on code.** Nothing in this
-document describes code that exists — it records what each module would have
-to do, and the specific problem each one has to solve before it can be
-written.
+**Nothing is planned. Every module this document ever described has shipped.**
 
-Three have shipped, and their entries have been removed:
+It is kept because what it recorded was never a feature list — it was the
+specific problem each module had to solve before it could be written, and the
+entries that turned out to be *wrong about that problem* are the useful part.
+Three of them were, and each is noted below.
+
+Their entries have been removed as they shipped:
 
 - **Battery and power state** (2026-08-30) — `docs/plans/2026-08-30-battery.md`,
   `docs/research/2026-08-30-battery-estimate-noise.md`.
@@ -40,6 +42,25 @@ Three have shipped, and their entries have been removed:
   disabled media helper, and the power module could not be restarted at all —
   plus a dead `state.hasBattery` read that two doc comments described as the
   mechanism.
+
+- **Launch at login** (2026-09-19) —
+  `docs/specs/2026-09-19-launch-at-login-design.md`,
+  `docs/research/2026-09-19-launch-at-login-probe.md`. **This document was
+  wrong about it twice.** It said the module might not exist as a toggle at
+  all, because an ad-hoc signature might be refused: it is not, and the record
+  also survives a new code hash, so the entry's central worry — that the
+  signing identity was the variable — was the one row of its own table that
+  did not hold. What it never thought to ask is the thing that actually shapes
+  the module: reading `.status` repoints the system's record at the copy doing
+  the reading, so a dev build drawing the Settings row would silently steal a
+  user's login item. Measurement found that; no amount of argument would have.
+  The one claim no probe could reach — that macOS *starts* the app, rather
+  than merely keeping a record saying it will — is now **verified**: two
+  logout/login cycles on macOS 26.6.2, against an ad-hoc signed,
+  unquarantined copy in `/Applications`, via
+  `Scripts/verify-login-item.sh`. It came up seven seconds after Finder, so
+  nothing but the login item started it. The spec's §8 fallback is not
+  needed.
 
 Every module in this project so far has gone spec → plan → implementation,
 and the two that touched private or undocumented API (the system HUD, media
@@ -78,83 +99,22 @@ it *draws* when nobody is looking, and gate those separately.
 
 ---
 
-## 1. Launch at login
+## There is no order left to suggest
 
-**What it is.** A toggle that registers the app to start with the session.
+Every module has shipped. Everything this document warned about ordering —
+retrofitting enable/disable wiring, modules wanting somewhere to live — was
+paid once, by Preferences.
 
-**How.** `SMAppService.mainApp.register()`. macOS 13+, public, and it costs
-nothing at runtime — the registration is state, not a process.
+**What that leaves for whoever builds an eleventh.** Adding a module means
+adding a `ModuleID` case, a row in `PreferencesView.rows`, and a leg to
+`ModuleSwitchboard.setEnabled` — and the leg has to *stop something*, because
+every one of them is mutation-verified against its own subsystem rather than
+against a stored boolean.
 
-**The thing to get right, and it is specific to this app.**
-CreativeNotch is **ad-hoc signed, not notarised**, and installed by a shell
-script rather than dragged from a disk image. `SMAppService` cares about
-where the bundle lives and about its signature, and a login item whose
-registration silently fails is worse than no toggle at all — the user
-believes it is on. The toggle must read back the service's actual `status`
-and show that, rather than showing whatever the user last clicked.
-
-The same applies to a dev build: an ad-hoc signature's designated
-requirement is the code hash, so a registration made by one build may not
-survive the next. See `docs/DEVELOPMENT.md` on why local signing exists.
-
-**The variable is the identity, not the path.** This entry used to say the
-spike had to confirm registration survives "the install script's path". The
-path is almost certainly irrelevant. An ad-hoc signature's designated
-requirement is the **code hash**, so every build is a different identity —
-which is already why this project loses its Accessibility grant on every
-rebuild, and, now measured, its camera grant too. Whether Background Task
-Management tracks a `mainApp` login item by that identity is stated nowhere
-in Apple's documentation.
-
-**Two questions, neither answerable from documentation:**
-
-1. Does `mainApp.register()` accept an ad-hoc signature at all? Apple says
-   apps using these APIs "must be code signed" and never defines *properly*
-   signed. If the answer is `kSMErrorInvalidSignature`, **this ships as an
-   explanation rather than a toggle**.
-2. Does a registration survive replacement by a different cdhash at the same
-   path?
-
-**A warning about researching this one.** A web search returns, as flat fact,
-*"Ad hoc signing is not sufficient for SMAppService operations."* Apple has
-never written that; it is a generalisation of one reply about an **embedded
-helper**, whose identity must match its container — a code path `mainApp`
-does not use. It is the brightness-callback failure again, and it is now in
-the search index. Design against Apple's own text, and measure the rest.
-
-**Needs a spike:** yes, and it is the one that needs a human: a throwaway
-ad-hoc bundle, installed the real way, and **two logout/login cycles**.
-`status == .enabled` is not evidence — a BTM record survives deleting the app
-entirely. Only a `pgrep` after a real logout proves anything.
-
----
-
-## Suggested order
-
-**Preferences has shipped**, which removes the argument that used to lead this
-section: the remaining four wanted somewhere to live, and now they have one.
-Every module is switchable, and switching one off stops what it runs.
-
-**There is no order left to suggest.** One module remains, and what it needs
-is not engineering time:
-
-1. **Launch at login**, conditional on the signing decision below. It is the
-   only module that might not exist as a toggle at all, and no amount of
-   building settles that — the question is whether `SMAppService` accepts an
-   ad-hoc signature, and the only thing that answers it is a throwaway bundle,
-   a real install, and two logout/login cycles.
-
-Everything this document has warned about ordering — retrofitting
-enable/disable wiring, modules wanting somewhere to live — is paid. Adding the
-tenth module took a `ModuleID` case, a row, and a switchboard leg, and the
-compiler refused to build until all three existed.
-
-**What Preferences leaves for whoever builds the next module.** Adding a
-module now means adding a `ModuleID` case, a row in `PreferencesView.rows`, and
-a leg to `ModuleSwitchboard.setEnabled` — and the leg has to *stop something*,
-because every one of them is mutation-verified against its own subsystem rather
-than against a stored boolean. That is the enable/disable retrofit this
-document kept warning about, paid once.
+Unless it stops nothing, in which case it is not a `ModuleID` at all. Launch
+at login is the precedent: the system owns its state, so it has no stored
+flag, no switchboard leg and no lifecycle hook, and it reads the truth back
+on every appearance instead. See its spec, §2.
 
 ### The decision that sits above all of this: a signing identity
 
@@ -166,13 +126,17 @@ changes on every build. Measured consequences:
 | --- | --- |
 | Accessibility grant dies on every rebuild | already documented; `Scripts/setup-signing.sh` exists for it |
 | Camera grant re-prompts on every update | **measured** — module 5 |
-| Launch at login may be refused outright | unmeasured — module 2 |
+| ~~Launch at login may be refused outright~~ | **measured, and it is not** — an ad-hoc bundle registers cleanly, the record survives a new code hash, and a real logout confirms macOS honours it |
 | Downloads carry quarantine | why install instructions need `xattr -dr` |
 
-A Developer ID would remove all four. That is a **distribution decision, not
-a launch-at-login decision**, it costs money rather than time, and it gates
-how modules 2 and 5 are specified. It should be settled before either is
-built, and it is the reason module 2 sits last rather than second.
+A Developer ID would remove the rest. That is a **distribution decision**, it
+costs money rather than time, and it no longer gates any module: launch at
+login turned out not to need it, and the camera ships with a re-prompt on
+every update rather than waiting for one.
+
+What it would still buy: an Accessibility grant that survives rebuilds
+without a local certificate, no camera re-prompt, and downloads that are not
+quarantined.
 
 ## Still deliberately not planned
 

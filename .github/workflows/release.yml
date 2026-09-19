@@ -118,8 +118,24 @@ jobs:
             track moves only when its digits do. The closed notch, the peeks and the
             badges are unchanged. Settings is a grouped form in five sections.
 
-            **Launch at login is the one module not built yet.** It is blocked on a
-            signing decision, not on code.
+            ## Launch at login
+
+            The last thing the roadmap was waiting on: a switch in Settings that
+            **reads macOS rather than remembering an answer**.
+            Turn the login item off in System Settings and the row shows it off,
+            because there is no stored flag left to disagree with the system.
+
+            It is not an eleventh entry in the table above and has no module
+            toggle, because it runs nothing — there would be nothing for the
+            toggle to stop. The switch also refuses to so much as ask unless the
+            app is running from `/Applications`: reading the login-item status
+            repoints the system's record at whichever copy did the reading, so a
+            build run from anywhere else would quietly steal the record from your
+            installed copy.
+
+            A registration is a database row, not a launch, and the two can
+            disagree. So it was not believed until a human logged out twice and
+            found the app already running.
 
             ## The point of it
 

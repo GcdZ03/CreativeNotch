@@ -31,7 +31,11 @@ struct PreferencesWindowTests {
     }
 
     private func makeController(_ delegate: AppDelegate) -> PreferencesController {
-        PreferencesController(switchboard: delegate.switchboard, state: delegate.state)
+        PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin
+        )
     }
 
     // MARK: - The write path
@@ -150,6 +154,125 @@ struct PreferencesWindowTests {
         }
     }
 
+    // MARK: - Launch at login
+
+    /// It is deliberately **not** a module: the system owns the state, so
+    /// there is no stored `Bool` and nothing to stop. `rows` stays a list of
+    /// modules, which is what keeps `everyModuleHasASwitch` meaningful.
+    @Test func launchAtLoginIsNotAModuleRow() {
+        #expect(ModuleID.allCases.count == 10)
+        #expect(PreferencesView.rows.allSatisfy { $0.title != "Open at login" })
+        #expect(PreferencesView.rows.count == ModuleID.allCases.count)
+    }
+
+    /// The real controller respects the path it is running from.
+    ///
+    /// The suite runs from a build directory, never `/Applications`, so it
+    /// must be in the state that touches nothing at all -- if this ever
+    /// reports otherwise, a test run has been repointing the developer's own
+    /// login item, which is the failure the whole eligibility rule exists to
+    /// prevent and the one that would never announce itself.
+    ///
+    /// **This deliberately does not assert that the window and the app share
+    /// one controller.** An `===` check here passed against a
+    /// `showPreferences()` mutated to build a fresh controller every time,
+    /// because the test supplies the controller it then reads back. Rather
+    /// than prop it up with a source scan, the claim is dropped: sharing is
+    /// not load-bearing, since construction reads nothing and `show()`
+    /// refreshes on every presentation.
+    ///
+    /// It also no longer calls `setEnabled` on that controller. It used to,
+    /// and the assertion was vacuous -- `refresh()` has its own guard, so
+    /// the state came out `.unavailable` whether or not the write escaped --
+    /// while the prescribed mutation for it, removing the guard from
+    /// `setEnabled`, would have made a reviewer following CONTRIBUTING.md
+    /// register a real login item on their own machine. `anUninstalledCopy
+    /// NeverRegisters` counts the write instead, against injected seams.
+    @Test func theRealControllerRefusesAnUninstalledCopy() {
+        let delegate = makeDelegate()
+
+        guard case .unavailable = delegate.launchAtLogin.state else {
+            Issue.record("a test-run bundle was treated as installed: \(delegate.launchAtLogin.state)")
+            return
+        }
+    }
+
+    /// **Opening Settings must read the system every time, not once.**
+    ///
+    /// `presentRealWindow()` caches the window with
+    /// `isReleasedWhenClosed = false`, and SwiftUI's `.onAppear` fires
+    /// exactly once per process for a reused hosting view. With the read
+    /// living only there, a login item switched off in System Settings went
+    /// on reading `on` for the life of the app -- the precise lie this
+    /// module exists to prevent, and one that shipped past the first round
+    /// of tests because nothing exercised the second open.
+    @Test func everyPresentationRereadsTheSystem() {
+        var reads = 0
+        let launchAtLogin = LaunchAtLoginController(
+            bundlePath: "/Applications/CreativeNotch.app",
+            installDirectories: ["/Applications"],
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
+        )
+        let delegate = makeDelegate()
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: launchAtLogin,
+            presenter: { _ in }
+        )
+
+        controller.show()
+        controller.show()
+        controller.show()
+
+        #expect(reads == 3, "the window read the system \(reads) times across three opens")
+    }
+
+    /// And that path is still refused from an uninstalled copy, so the fix
+    /// above did not buy freshness by giving up the rule.
+    @Test func presentingFromAnUninstalledCopyStillTouchesNothing() {
+        var reads = 0
+        let launchAtLogin = LaunchAtLoginController(
+            bundlePath: "/Users/someone/dist/CreativeNotch.app",
+            installDirectories: ["/Applications"],
+            readStatus: { reads += 1; return 1 },
+            register: {},
+            unregister: {}
+        )
+        let delegate = makeDelegate()
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: launchAtLogin,
+            presenter: { _ in }
+        )
+
+        controller.show()
+
+        #expect(reads == 0)
+    }
+
+    /// The row has to actually be in the form.
+    ///
+    /// Deleting the whole `Section { LaunchAtLoginRow(...) }` removed the
+    /// feature from Settings and left the entire suite green: a grouped
+    /// `Form` renders blank through `ImageRenderer`, so there is no pixel to
+    /// assert on. Scanned instead, the way `PanelTabBarTests` scans its body.
+    @Test func theStartupSectionIsInTheForm() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI/PreferencesWindow.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        #expect(text.contains("LaunchAtLoginRow(controller: controller.launchAtLogin)"),
+                "the Settings form no longer contains the launch-at-login row")
+        #expect(text.contains("Text(\"Startup\")"))
+    }
+
     // MARK: - Reaching it
 
     /// The escape hatch. With every tab-bearing module switched off the panel
@@ -161,6 +284,7 @@ struct PreferencesWindowTests {
         let controller = PreferencesController(
             switchboard: delegate.switchboard,
             state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin,
             presenter: { _ in shown += 1 }
         )
 
