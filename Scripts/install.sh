@@ -30,6 +30,24 @@ if [ "$MAJOR" -lt 26 ]; then
   die "requires macOS 26 or later (found $(sw_vers -productVersion))."
 fi
 
+# The published .tar.gz is a single-architecture arm64 build -- the release
+# workflow runs on macos-latest and passes no --arch. Without this check an
+# Intel Mac on macOS 26 passes every test above, reports a successful install,
+# and then fails at launch with nothing to explain why. Refuse here instead,
+# where there is somewhere to put the reason.
+#
+# `uname -m` is the wrong probe: a Terminal opened under Rosetta reports
+# x86_64 on an Apple Silicon Mac, which would turn away a machine that is
+# perfectly capable. `hw.optional.arm64` describes the hardware rather than
+# the calling process, so it survives translation. It is absent, not 0, on
+# Intel.
+if [ "$(sysctl -n hw.optional.arm64 2>/dev/null)" != "1" ]; then
+  die "requires an Apple Silicon Mac. The published build is arm64 only.
+  You can still build from source on Intel:
+    git clone https://github.com/$REPO && cd CreativeNotch
+    ./Scripts/bundle.sh release && cp -R dist/$APP_NAME /Applications/"
+fi
+
 info "looking up the latest release"
 JSON=$(curl -fsSL "$API") || die "could not reach GitHub. Is the repo public and has a release been published?"
 

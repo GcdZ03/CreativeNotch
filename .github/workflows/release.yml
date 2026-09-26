@@ -175,5 +175,7 @@ jobs:
             quarantine flag and macOS will refuse to open it. The installer
             script avoids this entirely because `curl` never sets the flag.
 
-            **Requires macOS 26 or later.** A physical notch is optional —
-            notchless Macs get a pill under the menu bar.
+            **Requires macOS 26 or later, on an Apple Silicon Mac** — this
+            build is arm64 only, and the installer will say so rather than
+            leaving you with an app that cannot launch. A physical notch is
+            optional; notchless Macs get a pill under the menu bar.
