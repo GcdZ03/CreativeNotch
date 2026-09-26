@@ -39,19 +39,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     var stateObserverCount: Int { state.observerCount }
 
     public let state = AppState()
-    private let onboarding = OnboardingController()
-
-    // MARK: - HUD (F8)
-
-    /// Internal rather than private so the switchboard and the tests can
-    /// reach it. It was the one controller built outside `install(metrics:)`
-    /// and unreachable from outside this file — while the comment below cited
-    /// it as a precedent for exactly the opposite. The comment was wrong, not
-    /// aspirational; this makes it true.
-    private(set) var hud: HUDController?
 
     /// Internal rather than private so the peek wiring is provable — the
-    /// same reason `hud`, `clipboard` and `activity` are internal.
+    /// same reason `clipboard` and `activity` are internal.
     var arbiter = PeekArbiter()
 
     /// Internal rather than private so the wiring is provable.
@@ -103,36 +93,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the TTL, the same reason `dismissGrace` and `growthDelay` exist.
     var now: () -> TimeInterval = { Date().timeIntervalSince1970 }
 
-    /// How long the HUD occupies the peek slot before this re-checks the
-    /// arbiter. Mirrors `PeekArbiter.hudTTL`.
-    public static let defaultHUDTTLDelay: Duration = .milliseconds(1500)
-
-    /// Overridable so tests need not wait out the real 1.5 seconds.
-    var hudTTLDelay: Duration = AppDelegate.defaultHUDTTLDelay
-
     /// How long a power peek occupies the slot before this re-checks the
     /// arbiter. Mirrors `PeekArbiter.powerTTL`.
     public static let defaultPowerTTLDelay: Duration = .milliseconds(3000)
 
-    /// Overridable for the same reason `hudTTLDelay` is.
+    /// Overridable so tests need not wait out the real 3 seconds.
     var powerTTLDelay: Duration = AppDelegate.defaultPowerTTLDelay
 
     /// How long a finished-timer peek occupies the slot before this
     /// re-checks the arbiter. Mirrors `PeekArbiter.timerDoneTTL`.
     ///
-    /// Three orders of magnitude longer than the others, and deliberately:
-    /// the HUD and power peeks expire so the slot returns to ambient
-    /// content, while this one is only a backstop for a completion nobody
-    /// acknowledged. Dismissing it is what normally clears it.
+    /// Two orders of magnitude longer than the power peek, and deliberately:
+    /// a power peek expires so the slot returns to ambient content, while
+    /// this one is only a backstop for a completion nobody acknowledged.
+    /// Dismissing it is what normally clears it.
     public static let defaultTimerDoneTTLDelay: Duration = .seconds(600)
 
-    /// Overridable for the same reason `hudTTLDelay` is — a test must not
+    /// Overridable for the same reason `powerTTLDelay` is — a test must not
     /// wait out ten minutes.
     var timerDoneTTLDelay: Duration = AppDelegate.defaultTimerDoneTTLDelay
 
     /// Exposed so tests can await the real re-evaluation instead of
     /// sleeping and hoping, exactly like `graceTask`.
-    private(set) var hudTTLTask: Task<Void, Never>?
+    private(set) var peekTTLTask: Task<Void, Never>?
 
     // MARK: - Preferences
 
@@ -274,7 +257,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
-            onShowOnboarding: { [weak self] in self?.showOnboarding() },
             onClearShelf: { [weak self] in try? self?.shelf?.clear() },
             shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
@@ -288,8 +270,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // registered more than once and never at a point where the tokens
         // had an owner.
         observeScreenChanges()
-
-        onboarding.showIfNeeded()
 
         startSubsystems()
     }
@@ -344,7 +324,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Split out of `applicationDidFinishLaunching` because that method is not
     /// drivable from a test: it reads `NSScreen.main`, installs a real status
-    /// item, and pops a real onboarding window on a fresh defaults domain.
+    /// item.
     /// `grep applicationDidFinishLaunching Tests/` returns nothing, and never
     /// did. Behaviour that only ever ran there was behaviour nothing could
     /// assert — which is precisely where a preference that applies on change
@@ -362,10 +342,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         removeScreenObservers()
         switchboard.stopAll()
         activity.stop()
-    }
-
-    public func showOnboarding() {
-        onboarding.show()
     }
 
     /// What the hotkey does: open the panel, or close it if it is already
@@ -503,7 +479,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // neither.
         //
         // The per-module reasoning — why the timer is never suspended, why
-        // power keeps observing, why the HUD has no activity axis at all —
+        // power keeps observing, which modules belong on this axis at all —
         // moved with the code, to `ModuleSwitchboard.setActivity`. It does not
         // survive being split from what it explains.
         activity.onChange = { [weak self] state in
@@ -573,21 +549,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // it, and `start()` runs after `install(metrics:)`. The flag has one
         // writer and it is the first snapshot, in `powerDidChange`.
 
-        // Constructed here like every other controller, so the switchboard
-        // and the tests can reach it; started in `applicationDidFinishLaunching`,
-        // because building a panel must not install a global event tap.
-        //
-        // Guarded: `install(metrics:)` is not safely re-entrant, and an
-        // orphaned `HUDController` is the only one that would keep a
-        // system-global resource — the tap, its run-loop source and a
-        // retained `TapContext` — with nothing left able to remove it.
-        if hud == nil {
-            hud = HUDController { [weak self] kind in self?.showHUD(kind) }
-        }
-
         // No object to own: `MediaRemoteBridge` is stateless beyond its
         // cached handle, and there is nothing to start or stop. Unlike the
-        // HUD and clipboard controllers it needs no lifecycle hook in
+        // clipboard controller it needs no lifecycle hook in
         // `applicationDidFinishLaunching` or `applicationWillTerminate` —
         // a command is sent only because a button was clicked.
         state.showsMediaControls = mediaRemoteAvailable()
@@ -776,9 +740,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // chimes -- the interruption is precisely what the user asked for --
         // but does not take the peek slot.
         //
-        // `timerDoneTTL` is 600s and outranks both `.hud` and `.power`, so
-        // recording here would hold the shared slot for ten minutes on behalf
-        // of a switched-off module, swallowing volume feedback. And it would
+        // `timerDoneTTL` is 600s and outranks `.power`, so recording here
+        // would hold the shared slot for ten minutes on behalf of a
+        // switched-off module, swallowing the peeks behind it. And it would
         // be unclearable: `dismissTimerDone()`'s only caller sits behind a
         // transition to `.open`, and there is no tab left to reach.
         if state.preferences.timer {
@@ -866,15 +830,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         presentPeek()
     }
 
-    /// A level changed and the HUD decided it is worth showing.
-    ///
-    /// Internal rather than private: the test target reaches it through
-    /// `@testable import` to drive the funnel without a real hardware
-    /// change.
-    func showHUD(_ kind: HUDKind) {
-        presentPeek(recording: kind)
-    }
-
     /// Current power state into the panel.
     ///
     /// A method rather than a closure body so a test can drive the real
@@ -894,9 +849,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// A power event into the peek slot.
     ///
-    /// Recorded into the arbiter and then *asked* what to show, never
-    /// shown directly — priority against a HUD peek or a drag is the
-    /// arbiter's call alone, exactly as it is for `showHUD`.
+    /// Recorded into the arbiter and then *asked* what to show, never shown
+    /// directly — priority against a finished timer or a drag is the
+    /// arbiter's call alone, never the caller's.
     func showPowerPeek(_ event: PowerEvent) {
         let now = self.now()
         arbiter.recordPower(event, now: now)
@@ -905,17 +860,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The only path to a `.peek` state.
     ///
-    /// `.open` and `.receiving` are deliberate user states -- a passing
-    /// volume change, or a hover dwell that lands mid-drag, must not
-    /// destroy them. Whatever `kind` names is recorded into the arbiter
-    /// first, but what is actually shown is whatever the arbiter then
-    /// decides, never `kind` directly: priority among drag, HUD and
-    /// now-playing is the arbiter's call alone, not the caller's.
-    private func presentPeek(recording kind: HUDKind? = nil) {
+    /// `.open` and `.receiving` are deliberate user states -- a hover dwell
+    /// that lands mid-drag must not destroy them. What is shown is whatever
+    /// the arbiter decides: priority among drag, power and now-playing is
+    /// its call alone, not the caller's.
+    private func presentPeek() {
         let now = self.now()
-        if let kind {
-            arbiter.recordHUD(HUDEvent(kind: kind), now: now)
-        }
 
         switch state.state {
         case .open, .receiving:
@@ -932,15 +882,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Re-reads the arbiter once the showing content's TTL is expected to
     /// have elapsed, and transitions to whatever it now says -- `.closed`
     /// if nothing. Mirrors `startDismissGrace`: cancel-and-replace, and
-    /// exposed as `hudTTLTask` so tests can await it instead of sleeping.
+    /// exposed as `peekTTLTask` so tests can await it instead of sleeping.
     ///
-    /// The delay follows the content, which it did not have to before this
-    /// module: with one TTL in the app, one constant was the whole story.
-    /// A power peek lives twice as long as a HUD one, so a fixed 1.5s
-    /// re-check would fire while the power peek was still live, find the
-    /// arbiter still returning it, transition to the state it was already
-    /// in — and never look again. The notch would stay open until some
-    /// unrelated event moved it.
+    /// The delay follows the content, which it did not have to while the app
+    /// had a single TTL. A finished-timer peek outlives a power one by two
+    /// orders of magnitude, so a fixed re-check would fire while the longer
+    /// peek was still live, find the arbiter still returning it, transition
+    /// to the state it was already in — and never look again. The notch
+    /// would stay open until some unrelated event moved it.
     /// Which TTL a given peek is re-checked on.
     ///
     /// Static and internal so a test can read the choice directly. Proving
@@ -951,32 +900,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// static builder rather than an inline expression.
     static func reevaluationDelay(
         for content: PeekContent,
-        hud: Duration,
         power: Duration,
         timerDone: Duration
     ) -> Duration {
         switch content {
-        case .hud:       return hud
         case .power:     return power
         case .timerDone: return timerDone
         // `.nowPlaying` and `.dragTarget` have no expiry of their own —
         // they end when the track stops or the drag does. The delay is
         // irrelevant for them; `reevaluatePeek` does not reschedule.
         case .nowPlaying, .dragTarget:
-            return hud
+            return power
         }
     }
 
     private func schedulePeekReevaluation(for content: PeekContent) {
         let delay = Self.reevaluationDelay(
             for: content,
-            hud: hudTTLDelay,
             power: powerTTLDelay,
             timerDone: timerDoneTTLDelay
         )
 
-        hudTTLTask?.cancel()
-        hudTTLTask = Task { @MainActor [weak self] in
+        peekTTLTask?.cancel()
+        peekTTLTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled else { return }
@@ -991,15 +937,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard case .peek = state.state else { return }
         if let content = arbiter.content(now: self.now()) {
             state.transition(to: .peek(content))
-            // Something transient may still be live underneath the one
-            // that just lapsed — a HUD peek fired while a power peek was
-            // showing expires first and reveals it. Without this the
+            // Something transient may still be live underneath the one that
+            // just lapsed — a power peek recorded while a finished timer held
+            // the slot is revealed when that one goes. Without this the
             // revealed peek would never be re-checked. It terminates
             // because every transient source strictly expires; ambient
             // content reached here simply stays until its own source
             // changes.
             switch content {
-            case .hud, .power, .timerDone: schedulePeekReevaluation(for: content)
+            case .power, .timerDone: schedulePeekReevaluation(for: content)
             case .nowPlaying, .dragTarget: break
             }
         } else {
@@ -1088,7 +1034,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Opening the panel is acknowledgement. Without this the finished
         // timer sits in the arbiter for the rest of its ten-minute TTL and
         // reappears on the next hover, long after the user has dealt with
-        // it — and it outranks the HUD, so volume feedback would be
+        // it — and it outranks power, so the charger peek would be
         // swallowed by it too. Cleared here rather than at the tap site
         // because every route to `.open` — the notch tap, a drop, a
         // restored tab — comes through the funnel and lands right here,

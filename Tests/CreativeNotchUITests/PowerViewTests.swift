@@ -57,8 +57,7 @@ struct PowerViewTests {
 
     // MARK: - What it shows
 
-    /// Unlike `HUDView`, which deliberately shows no number because
-    /// Apple's volume HUD shows none, the battery peek shows a percentage:
+    /// The battery peek shows a percentage, not just a bar:
     /// the menu bar item people compare it against has one, and a bar at
     /// 19% is not actionably different from a bar at 25%.
     @Test func theLevelIsShownAsAPercentage() {

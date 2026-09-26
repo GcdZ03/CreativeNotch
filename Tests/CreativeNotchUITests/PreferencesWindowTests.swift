@@ -7,7 +7,7 @@ import CreativeNotchCore
 /// The settings surface.
 ///
 /// Driven through a spy presenter so no test ever creates or presents a real
-/// `NSWindow` -- the same split `OnboardingController` established.
+/// `NSWindow`, so the logic is testable without presenting anything.
 @MainActor
 struct PreferencesWindowTests {
 
@@ -123,29 +123,6 @@ struct PreferencesWindowTests {
         #expect(warning?.contains("finish and chime") == true)
     }
 
-    /// The honesty rule with teeth. `CGEventTapCreate` genuinely fails without
-    /// Accessibility, and `MediaKeyMonitor.start()` records that as
-    /// `isRunning = token != nil` with no retry -- so a switch reading "on"
-    /// over a dead subsystem is the exact inversion of the failure this whole
-    /// module exists to prevent. The warning tracks the PERMISSION, never the
-    /// preference.
-    @Test func theHudRowReportsThePermissionNotThePreference() {
-        let delegate = makeDelegate()
-        let controller = makeController(delegate)
-
-        let warning = PreferencesView.warning(for: .hud, controller: controller)
-        if Permissions.isAccessibilityTrusted {
-            #expect(warning == nil)
-        } else {
-            #expect(warning?.contains("Accessibility is not granted") == true)
-        }
-
-        // Switching the module off must not change what the warning says: it
-        // is about the grant, not about the toggle.
-        controller.setEnabled(false, for: .hud)
-        #expect(PreferencesView.warning(for: .hud, controller: controller) == warning)
-    }
-
     @Test func noOtherRowCarriesAWarning() {
         let delegate = makeDelegate()
         let controller = makeController(delegate)
@@ -160,7 +137,7 @@ struct PreferencesWindowTests {
     /// there is no stored `Bool` and nothing to stop. `rows` stays a list of
     /// modules, which is what keeps `everyModuleHasASwitch` meaningful.
     @Test func launchAtLoginIsNotAModuleRow() {
-        #expect(ModuleID.allCases.count == 10)
+        #expect(ModuleID.allCases.count == 9)
         #expect(PreferencesView.rows.allSatisfy { $0.title != "Open at login" })
         #expect(PreferencesView.rows.count == ModuleID.allCases.count)
     }

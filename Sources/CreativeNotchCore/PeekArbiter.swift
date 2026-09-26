@@ -4,33 +4,25 @@ import Foundation
 ///
 /// Transient sources preempt ambient ones, then fall back — the same model
 /// as the iPhone Dynamic Island. Priority is drag, then a finished timer,
-/// then HUD, then power, then media.
+/// then power, then media.
 ///
 /// `content(now:)` takes the time as a parameter rather than reading a
 /// clock so TTL expiry is testable without sleeping.
 public struct PeekArbiter: Equatable, Sendable {
 
-    public static let hudTTL: TimeInterval = 1.5
-
-    /// A power peek lives twice as long as a HUD one.
-    ///
-    /// A HUD peek confirms something the user did a moment ago and only
-    /// has to be caught in passing. A power peek tells them something
-    /// they did not know — the charger slipped out, the machine dropped
-    /// into Low Power Mode — and needs long enough to be read rather than
-    /// glimpsed.
+    /// A power peek tells the user something they did not know — the
+    /// charger slipped out, the machine dropped into Low Power Mode — so it
+    /// needs long enough to be read rather than glimpsed.
     public static let powerTTL: TimeInterval = 3.0
 
     /// Ten minutes, and an outlier among these TTLs for a reason: the
     /// others expire so the slot returns to ambient content, while this one
     /// exists only so an *unacknowledged* completion cannot hold the slot
-    /// forever. A timer nobody came back to would otherwise block the HUD,
-    /// power and now-playing peeks queued behind it, and volume feedback
-    /// would silently stop working until someone clicked.
+    /// forever. A timer nobody came back to would otherwise block the power
+    /// and now-playing peeks queued behind it, and they would silently stop
+    /// appearing until someone clicked.
     public static let timerDoneTTL: TimeInterval = 600
 
-    private var hud: HUDEvent?
-    private var hudExpiry: TimeInterval = 0
     private var power: PowerEvent?
     private var powerExpiry: TimeInterval = 0
     private var dragActive = false
@@ -39,11 +31,6 @@ public struct PeekArbiter: Equatable, Sendable {
     private var timerDoneExpiry: TimeInterval = 0
 
     public init() {}
-
-    public mutating func recordHUD(_ event: HUDEvent, now: TimeInterval) {
-        hud = event
-        hudExpiry = now + Self.hudTTL
-    }
 
     public mutating func recordPower(_ event: PowerEvent, now: TimeInterval) {
         power = event
@@ -58,10 +45,9 @@ public struct PeekArbiter: Equatable, Sendable {
         nowPlaying = track
     }
 
-    /// Above the HUD: a finished timer is something the user explicitly
-    /// asked to be interrupted by, and volume feedback is not. Below drag:
-    /// interrupting an in-flight drag would tear down a drop target
-    /// mid-gesture.
+    /// Above power: a finished timer is something the user explicitly asked
+    /// to be interrupted by. Below drag: interrupting an in-flight drag
+    /// would tear down a drop target mid-gesture.
     public mutating func recordTimerFinished(_ completion: TimerCompletion, now: TimeInterval) {
         timerDone = completion
         timerDoneExpiry = now + Self.timerDoneTTL
@@ -73,24 +59,18 @@ public struct PeekArbiter: Equatable, Sendable {
         timerDone = nil
     }
 
-    /// Withdraws a HUD peek whose module has just been switched off.
+    /// Withdraws a power peek whose module has just been switched off.
     ///
     /// The counterpart to `dismissTimerDone`, and needed for the same reason:
     /// toggles take effect immediately, so a peek already in the slot has to
-    /// be withdrawn rather than waited out. A volume peek that outlives the
-    /// HUD being disabled is small, visible, and exactly what makes a
-    /// preference feel unreliable.
+    /// be withdrawn rather than waited out. A peek that outlives its module
+    /// being disabled is small, visible, and exactly what makes a preference
+    /// feel unreliable.
     ///
     /// It clears only its own module. Blanking the arbiter would pass the
     /// obvious test while silently cancelling another module's interruption,
     /// and would hide whatever was queued behind this one -- the arbiter is a
     /// priority list, so withdrawing the top entry reveals the next.
-    public mutating func clearHUD() {
-        hud = nil
-    }
-
-    /// Withdraws a power peek whose module has just been switched off. See
-    /// `clearHUD()`; the same reasoning applies unchanged.
     public mutating func clearPower() {
         power = nil
     }
@@ -98,12 +78,9 @@ public struct PeekArbiter: Equatable, Sendable {
     public func content(now: TimeInterval) -> PeekContent? {
         if dragActive { return .dragTarget }
         if let timerDone, now < timerDoneExpiry { return .timerDone(timerDone) }
-        if let hud, now < hudExpiry { return .hud(hud) }
-        // Between the two deliberately. A HUD peek answers a key the user
-        // pressed a fraction of a second ago, and preempting it makes
-        // their own keypress feel dropped. Now-playing is ambient
-        // wallpaper and yields to anything. Power is unsolicited but
-        // consequential, which is exactly the middle.
+        // Above now-playing deliberately: now-playing is ambient wallpaper
+        // and yields to anything, while power is unsolicited but
+        // consequential.
         if let power, now < powerExpiry { return .power(power) }
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil

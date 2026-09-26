@@ -6,7 +6,7 @@ struct PreferencesStoreTests {
 
     /// A fresh, isolated suite per test, cleared before use, so runs never see
     /// each other's state and never touch the real `com.gcdz.creativenotch`
-    /// domain -- the same shape `OnboardingControllerTests` uses.
+    /// domain, never the developer's real one.
     private func makeIsolatedDefaults() -> UserDefaults {
         let suiteName = "com.gcdz.creativenotch.preferences-tests.\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!
@@ -57,13 +57,13 @@ struct PreferencesStoreTests {
     @Test func switchingBackOnIsPersistedRatherThanJustClearingTheKey() {
         let defaults = makeIsolatedDefaults()
         let store = PreferencesStore(defaults: defaults)
-        store.setEnabled(false, for: .hud)
-        #expect(store.load().hud == false)
+        store.setEnabled(false, for: .clipboard)
+        #expect(store.load().clipboard == false)
 
-        store.setEnabled(true, for: .hud)
-        #expect(store.load().hud == true)
+        store.setEnabled(true, for: .clipboard)
+        #expect(store.load().clipboard == true)
         // An explicit `true` is written, not merely absent-and-defaulting.
-        #expect(defaults.object(forKey: PreferenceKeys.enabled(.hud)) != nil)
+        #expect(defaults.object(forKey: PreferenceKeys.enabled(.clipboard)) != nil)
     }
 
     /// The store writes under the documented key and nowhere else, so a person

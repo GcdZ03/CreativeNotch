@@ -12,6 +12,5 @@ struct TimerTabTests {
     @Test func theExistingTabRawValuesAreUnchanged() {
         #expect(Tab.shelf.rawValue == "shelf")
         #expect(Tab.clipboard.rawValue == "clipboard")
-        #expect(Tab.hud.rawValue == "hud")
     }
 }

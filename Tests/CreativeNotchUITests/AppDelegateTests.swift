@@ -116,15 +116,15 @@ struct AppDelegateStateFunnelTests {
     // MARK: - Mouse exit (M1)
 
     /// The dwell shows whatever the arbiter has. An empty arbiter has
-    /// nothing, so record a HUD event first — which is also the real
-    /// sequence: a level changes, then the notch shows it.
+    /// nothing, so record a power event first — which is also the real
+    /// sequence: the charger moves, then the notch shows it.
     @Test func theDwellPeeksThroughTheFunnel() {
         let delegate = makeDelegate()
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
 
         // Close, then dwell — so the assertion runs through the real
-        // peek() -> arbiter.content(now:) path rather than showHUD's
-        // direct transition. Without this, gutting peek() passes.
+        // peek() -> arbiter.content(now:) path rather than the direct
+        // transition. Without this, gutting peek() passes.
         delegate.state.transition(to: .closed)
         delegate.hoverView?.onDwell()
 
@@ -198,7 +198,7 @@ struct AppDelegateStateFunnelTests {
     /// Everything that starts a subsystem, in one method a test can call.
     /// `applicationDidFinishLaunching` cannot be driven from a test -- it
     /// reads `NSScreen.main`, installs a real status item and pops a real
-    /// onboarding window on a fresh defaults domain -- so behaviour that only
+    /// status item -- so behaviour that only
     /// ever ran there was behaviour nothing could assert.
     @Test func startingSubsystemsStartsThem() throws {
         let delegate = makeDelegate()
@@ -255,43 +255,10 @@ struct AppDelegateStateFunnelTests {
         let body = ends.min().map { String(after[..<$0]) } ?? String(after)
 
         #expect(body.contains("startSubsystems()"))
-        for banned in ["hud?.start()", "clipboard?.start()", "media?.start()",
+        for banned in ["clipboard?.start()", "media?.start()",
                        "power?.start()", "activity.start()"] {
             #expect(body.contains(banned) == false, "\(banned) is back in the launch path")
         }
-    }
-
-    // MARK: - The HUD controller is reachable
-
-    /// The switchboard cannot start or stop a controller it cannot see, and
-    /// nor can a test. Until this, `hud` was the one controller built outside
-    /// `install` and unreachable from outside the file -- while the comment
-    /// on `arbiter` cited it as a precedent for being internal.
-    @Test func installingBuildsTheHudController() {
-        let delegate = makeDelegate()
-        #expect(delegate.hud != nil)
-    }
-
-    /// And building it must not start it. Fourteen suites reach
-    /// `install(metrics:)` and then inject their fakes; a tap created here
-    /// would be a real global event monitor in every one of them.
-    @Test func installingDoesNotStartTheHud() throws {
-        let delegate = makeDelegate()
-        let hud = try #require(delegate.hud)
-        #expect(hud.keys.isRunning == false)
-        #expect(hud.volume.isRunning == false)
-        #expect(hud.brightness.isRunning == false)
-    }
-
-    /// `install` twice must not leave an orphaned controller holding a second
-    /// event tap that nothing can reach to tear down. The HUD is the only
-    /// module whose orphan would hold a system-global resource; every other
-    /// one is at least idle.
-    @Test func installingTwiceKeepsOneHudController() {
-        let delegate = makeDelegate()
-        let first = delegate.hud
-        delegate.install(metrics: Self.notched)
-        #expect(delegate.hud === first)
     }
 
     /// F3: each token has to go back to the centre that issued it.
@@ -343,14 +310,13 @@ struct AppDelegateStateFunnelTests {
     }
 }
 
-/// `presentPeek` is the single owner of the `.peek` state: `showHUD` and
-/// the hover dwell both route through it. It must refuse to override a
-/// deliberate user state (`.open`, `.receiving`), and the HUD's transient
-/// occupancy of the peek slot must actually expire and fall back, per
-/// spec §5 -- nothing re-read the arbiter after the initial transition
-/// before this.
+/// `presentPeek` is the single owner of the `.peek` state: every peek source
+/// and the hover dwell route through it. It must refuse to override a
+/// deliberate user state (`.open`, `.receiving`), and a peek's transient
+/// occupancy of the slot must actually expire and fall back, per spec §5 --
+/// nothing re-read the arbiter after the initial transition before this.
 @MainActor
-struct HUDPeekOwnershipTests {
+struct PeekOwnershipTests {
 
     private static let notched = ScreenMetrics(
         frame: CGRect(x: 1470, y: 200, width: 1470, height: 956),
@@ -380,79 +346,79 @@ struct HUDPeekOwnershipTests {
 
     // MARK: - C1: the peek expires and falls back
 
-    @Test func aHUDPeekExpiresAndFallsBackToClosed() async {
+    @Test func aPeekExpiresAndFallsBackToClosed() async {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
-        delegate.hudTTLDelay = .milliseconds(5)
+        delegate.powerTTLDelay = .milliseconds(5)
 
-        delegate.showHUD(.volume(0.5))
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        delegate.showPowerPeek(.unplugged(level: 66))
+        #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
 
-        clock.value += 1.7   // past the 1.5s TTL
-        await delegate.hudTTLTask?.value
+        clock.value += 3.1   // past the 3s power TTL
+        await delegate.peekTTLTask?.value
 
         #expect(delegate.state.state == .closed)
     }
 
-    @Test func aHUDPeekThatHasNotExpiredYetSurvivesReevaluation() async {
+    @Test func aPeekThatHasNotExpiredYetSurvivesReevaluation() async {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
-        delegate.hudTTLDelay = .milliseconds(5)
+        delegate.powerTTLDelay = .milliseconds(5)
 
-        delegate.showHUD(.volume(0.5))
-        clock.value += 0.2   // well inside the 1.5s TTL
-        await delegate.hudTTLTask?.value
+        delegate.showPowerPeek(.unplugged(level: 66))
+        clock.value += 0.2   // well inside the 3s power TTL
+        await delegate.peekTTLTask?.value
 
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
     }
 
-    // MARK: - C2: showHUD must not transition from any state
+    // MARK: - C2: a peek must not transition from any state
 
-    @Test func aHUDEventDoesNotOverrideReceiving() {
+    @Test func aPeekDoesNotOverrideReceiving() {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
         delegate.state.transition(to: .receiving)
 
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
 
         #expect(delegate.state.state == .receiving)
     }
 
-    @Test func aHUDEventDoesNotOverrideOpen() {
+    @Test func aPeekDoesNotOverrideOpen() {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
         delegate.state.transition(to: .open(.shelf))
 
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
 
         #expect(delegate.state.state == .open(.shelf))
     }
 
-    @Test func aHUDEventStillUpdatesAnAlreadyShowingPeek() {
+    @Test func aSecondEventStillUpdatesAnAlreadyShowingPeek() {
         // `.peek` is not a deliberate user state the way `.open` and
-        // `.receiving` are -- a second HUD event while one is already
-        // showing must still update the pill.
+        // `.receiving` are -- a second event while one is already showing
+        // must still update the pill.
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
-        delegate.showHUD(.volume(0.5))
-        delegate.showHUD(.volume(0.6))
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.6)))))
+        delegate.showPowerPeek(.unplugged(level: 66))
+        delegate.showPowerPeek(.unplugged(level: 67))
+        #expect(delegate.state.state == .peek(.power(.unplugged(level: 67))))
     }
 
     // MARK: - C3: the drag is wired into the arbiter
 
     /// `container.onDragEntered` sets `.receiving` directly, which already
-    /// refuses a HUD event on its own (C2). This test isolates the
+    /// refuses a peek on its own (C2). This test isolates the
     /// *arbiter's* half of the wiring: force the state back to `.closed`
     /// without going through `onDragExited`, so `dragActive` is still true
     /// only inside the arbiter, then dwell -- the arbiter, not the state
     /// guard, must be what keeps the drag on top.
-    @Test func dragOutranksAHUDEventThroughTheArbiter() throws {
+    @Test func dragOutranksAPeekThroughTheArbiter() throws {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
         let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
 
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
         container.onDragEntered()
         delegate.state.transition(to: .closed)
         delegate.hoverView?.onDwell()
@@ -463,17 +429,17 @@ struct HUDPeekOwnershipTests {
     /// The mirror image: once the drag actually ends, the arbiter must
     /// stop reporting it, or a drop that completes would leave `.dragTarget`
     /// permanently wedged into the peek slot's priority.
-    @Test func endingTheDragStopsItOutrankingTheHUD() throws {
+    @Test func endingTheDragStopsItOutrankingLaterPeeks() throws {
         let clock = FakeClock(1_000)
         let delegate = makeDelegate(clock: clock)
         let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
 
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
         container.onDragEntered()
         container.onDragExited()
         delegate.hoverView?.onDwell()
 
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
     }
 }
 

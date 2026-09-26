@@ -11,8 +11,7 @@ import Foundation
 /// So the rule is: **read the value, do not react to the notification.** A
 /// callback is a prompt to re-read, and a re-read that matches what is already
 /// shown changes nothing. That is the same shape `MediaCoalescer` uses for
-/// now-playing and `HUDSignificanceGate` uses for the ambient light sensor --
-/// this project keeps meeting the same problem.
+/// now-playing -- this project keeps meeting the same problem.
 public struct CaptureDebounce: Equatable, Sendable {
 
     private var current: CaptureUse

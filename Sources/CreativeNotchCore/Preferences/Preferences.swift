@@ -12,7 +12,6 @@ import Foundation
 /// decided once, at the boundary, by `PreferenceKeys.resolveEnabled`.
 public struct Preferences: Equatable, Sendable {
     public var shelf: Bool
-    public var hud: Bool
     public var clipboard: Bool
     public var mediaMetadata: Bool
     public var mediaControls: Bool
@@ -24,7 +23,6 @@ public struct Preferences: Equatable, Sendable {
 
     public init(
         shelf: Bool = true,
-        hud: Bool = true,
         clipboard: Bool = true,
         mediaMetadata: Bool = true,
         mediaControls: Bool = true,
@@ -35,7 +33,6 @@ public struct Preferences: Equatable, Sendable {
         captureIndicator: Bool = true
     ) {
         self.shelf = shelf
-        self.hud = hud
         self.clipboard = clipboard
         self.mediaMetadata = mediaMetadata
         self.mediaControls = mediaControls
@@ -54,7 +51,6 @@ public struct Preferences: Equatable, Sendable {
         get {
             switch module {
             case .shelf:         return shelf
-            case .hud:           return hud
             case .clipboard:     return clipboard
             case .mediaMetadata: return mediaMetadata
             case .mediaControls: return mediaControls
@@ -68,7 +64,6 @@ public struct Preferences: Equatable, Sendable {
         set {
             switch module {
             case .shelf:         shelf = newValue
-            case .hud:           hud = newValue
             case .clipboard:     clipboard = newValue
             case .mediaMetadata: mediaMetadata = newValue
             case .mediaControls: mediaControls = newValue

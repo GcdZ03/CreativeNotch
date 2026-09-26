@@ -152,7 +152,7 @@ struct PowerWiringTests {
         #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
 
         clock += PeekArbiter.powerTTL + 1
-        await delegate.hudTTLTask?.value
+        await delegate.peekTTLTask?.value
 
         #expect(delegate.state.state == .closed)
     }
@@ -168,33 +168,34 @@ struct PowerWiringTests {
 
         delegate.showPowerPeek(.unplugged(level: 66))
         clock += PeekArbiter.powerTTL + 1
-        await delegate.hudTTLTask?.value
+        await delegate.peekTTLTask?.value
 
         #expect(delegate.state.state == .peek(.nowPlaying(track)))
     }
 
-    /// A HUD peek fired over a live power peek expires first and reveals
-    /// it — and the revealed peek must still be re-checked, or it stays on
+    /// A peek layered over a live power peek is revealed when the top one
+    /// goes — and the revealed peek must still be re-checked, or it stays on
     /// screen indefinitely.
-    @Test func aHUDPeekOverAPowerPeekRevealsItAndStillClears() async {
+    @Test func aRevealedPowerPeekIsStillRechecked() async {
         let delegate = makeDelegate()
-        delegate.hudTTLDelay = .zero
         delegate.powerTTLDelay = .zero
+        delegate.timerDoneTTLDelay = .zero
         var clock: TimeInterval = 100
         delegate.now = { clock }
 
+        let done = TimerCompletion(duration: 60, lateness: 0)
         delegate.showPowerPeek(.unplugged(level: 66))
-        delegate.showHUD(.volume(0.5))
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        delegate.arbiter.recordTimerFinished(done, now: clock)
+        delegate.state.transition(to: .peek(.timerDone(done)))
 
-        // The HUD lapses; the power peek is still live underneath.
-        clock += PeekArbiter.hudTTL + 0.1
-        await delegate.hudTTLTask?.value
+        // The completion is dismissed; the power peek is still live underneath.
+        delegate.arbiter.dismissTimerDone()
+        delegate.showPowerPeek(.unplugged(level: 66))
         #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
 
         // And the revealed power peek clears in its turn.
         clock += PeekArbiter.powerTTL
-        await delegate.hudTTLTask?.value
+        await delegate.peekTTLTask?.value
 
         #expect(delegate.state.state == .closed)
     }
@@ -205,34 +206,26 @@ struct PowerWiringTests {
     /// zero to avoid real sleeps, and at zero the two are
     /// indistinguishable — swapping them left the whole suite green.
     @Test func eachPeekIsRecheckedOnItsOwnTTL() {
-        let hud = Duration.milliseconds(11)
         let power = Duration.milliseconds(22)
         let timerDone = Duration.milliseconds(33)
 
         #expect(AppDelegate.reevaluationDelay(
-            for: .hud(HUDEvent(kind: .volume(0.5))),
-            hud: hud, power: power, timerDone: timerDone
-        ) == hud)
-
-        #expect(AppDelegate.reevaluationDelay(
             for: .power(.unplugged(level: 66)),
-            hud: hud, power: power, timerDone: timerDone
+            power: power, timerDone: timerDone
         ) == power)
 
-        // Three distinct values, so a case returning the wrong neighbour's
-        // delay is caught rather than passing by coincidence.
+        // Distinct values, so a case returning the wrong neighbour's delay is
+        // caught rather than passing by coincidence.
         #expect(AppDelegate.reevaluationDelay(
             for: .timerDone(TimerCompletion(duration: 1500, lateness: 0)),
-            hud: hud, power: power, timerDone: timerDone
+            power: power, timerDone: timerDone
         ) == timerDone)
     }
 
-    /// And the two constants match the arbiter they mirror. A TTL delay
-    /// shorter than the arbiter's would re-check while the peek was still
-    /// live; longer would leave it on screen past its own expiry.
+    /// And the constant matches the arbiter it mirrors. A TTL delay shorter
+    /// than the arbiter's would re-check while the peek was still live;
+    /// longer would leave it on screen past its own expiry.
     @Test func theTTLDelaysMirrorTheArbiter() {
-        #expect(AppDelegate.defaultHUDTTLDelay
-            == .milliseconds(Int(PeekArbiter.hudTTL * 1000)))
         #expect(AppDelegate.defaultPowerTTLDelay
             == .milliseconds(Int(PeekArbiter.powerTTL * 1000)))
     }

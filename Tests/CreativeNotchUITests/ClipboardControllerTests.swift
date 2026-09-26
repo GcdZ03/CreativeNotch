@@ -5,7 +5,7 @@ import CreativeNotchCore
 
 /// The wiring between the poller, the activity gate and the ring.
 ///
-/// Shaped after `HUDController`: the sources are dumb, and everything that
+/// Dumb sources, one owner: the sources know nothing, and everything that
 /// connects them lives in one object that can be built in a test.
 @MainActor
 struct ClipboardControllerTests {

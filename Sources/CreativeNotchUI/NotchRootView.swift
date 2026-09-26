@@ -27,9 +27,9 @@ public final class AppState {
     /// The tab the panel was last opened on.
     ///
     /// Reopening returns here rather than always to the shelf. Only
-    /// `.open` touches it: HUD peeks fire constantly, and letting one
-    /// reset the tab would move the panel out from under the user for
-    /// reasons they never see.
+    /// `.open` touches it: peeks fire unprompted, and letting one reset the
+    /// tab would move the panel out from under the user for reasons they
+    /// never see.
     ///
     /// Qualified because SwiftUI has a `Tab` of its own, the same reason
     /// `anchor` spells out `CreativeNotchCore.Anchor`.
@@ -447,10 +447,10 @@ public struct NotchRootView: View {
     /// The horizontal band a centred peek has to leave empty, because on a
     /// notched Mac that band is the camera housing.
     ///
-    /// One name for one value. `HUDView` and `NowPlayingPeekView` each
-    /// spelled `anchor.isNotch ? anchor.rect.width : 0` out for
-    /// themselves, two lines apart — and two independent derivations of a
-    /// single value is the exact shape of this project's only Critical
+    /// One name for one value. Two peek views each spelled
+    /// `anchor.isNotch ? anchor.rect.width : 0` out for themselves, two lines
+    /// apart — and two independent derivations of a single value is the
+    /// exact shape of this project's only Critical
     /// bug. (Follow-up F3.)
     ///
     /// Zero on a pill Mac and on external displays, where the middle of
@@ -664,12 +664,6 @@ public struct NotchRootView: View {
                             .padding(.bottom, 20)
                     }
 
-                case .peek(.hud(let event)):
-                    HUDView(
-                        kind: event.kind,
-                        notchGap: Self.notchGap(for: app.anchor)
-                    )
-
                 // A peek is a glance, not a panel: one truncating line,
                 // plus a 16pt cover when there is one to show.
                 //
@@ -696,8 +690,8 @@ public struct NotchRootView: View {
                     Self.powerPeek(for: app, event: event)
 
                 case .peek(.nowPlaying(let track)):
-                    // Same notch-gap treatment `HUDView` gets above, from
-                    // the same named function: on a notched Mac the middle
+                    // Same notch-gap treatment the power peek gets above,
+                    // from the same named function: on a notched Mac the middle
                     // of this band is the camera housing, and a centred
                     // line renders straight behind it. Built by
                     // `nowPlayingPeek(for:track:)` rather than inline so a
@@ -778,12 +772,6 @@ public struct NotchRootView: View {
                     }
                 }
             }
-
-        case .hud:
-            // Not built. `PanelTabBar.visible` does not offer this tab, so
-            // it is unreachable — but `Tab` is exhaustive and the compiler
-            // wants a case.
-            EmptyView()
 
         case .timer:
             // Through `AppState`, never to a controller this view holds —

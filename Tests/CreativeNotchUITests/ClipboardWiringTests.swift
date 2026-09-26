@@ -42,7 +42,6 @@ struct ClipboardWiringTests {
     @Test func theClearItemReportsAnEmptyRing() {
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
             onClearClipboard: {},
@@ -55,7 +54,6 @@ struct ClipboardWiringTests {
     @Test func theClearItemCountsTheRing() {
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
             onClearClipboard: {},
@@ -71,7 +69,6 @@ struct ClipboardWiringTests {
 
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
             onClearClipboard: { store.clear() },

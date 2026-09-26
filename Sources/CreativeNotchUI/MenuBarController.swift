@@ -10,20 +10,18 @@ import AppKit
 /// is what makes an empty tab list a legal state rather than a trap.
 ///
 /// `NSObject` (not a plain `final class`) because target-action —
-/// `accessibility.target = self` / `#selector(openOnboarding)` — requires
-/// it; a plain Swift class has no Objective-C runtime identity for the
-/// selector to resolve against.
+/// `settings.target = self` / `#selector(openPreferences)` — requires it; a
+/// plain Swift class has no Objective-C runtime identity for the selector to
+/// resolve against.
 @MainActor
 public final class MenuBarController: NSObject {
 
     private var item: NSStatusItem?
     private(set) var settingsItem: NSMenuItem?
-    private var accessibilityItem: NSMenuItem?
     private var clearShelfItem: NSMenuItem?
     private var clearClipboardItem: NSMenuItem?
 
     private let onShowPreferences: () -> Void
-    private let onShowOnboarding: () -> Void
     private let onClearShelf: () -> Void
     private let shelfCount: () -> Int
     private let onClearClipboard: () -> Void
@@ -31,14 +29,12 @@ public final class MenuBarController: NSObject {
 
     public init(
         onShowPreferences: @escaping () -> Void,
-        onShowOnboarding: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
         shelfCount: @escaping () -> Int,
         onClearClipboard: @escaping () -> Void,
         clipboardCount: @escaping () -> Int
     ) {
         self.onShowPreferences = onShowPreferences
-        self.onShowOnboarding = onShowOnboarding
         self.onClearShelf = onClearShelf
         self.shelfCount = shelfCount
         self.onClearClipboard = onClearClipboard
@@ -68,15 +64,6 @@ public final class MenuBarController: NSObject {
         menu.addItem(settings)
         menu.addItem(.separator())
         self.settingsItem = settings
-
-        let accessibility = NSMenuItem(
-            title: Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted),
-            action: #selector(openOnboarding),
-            keyEquivalent: ""
-        )
-        accessibility.target = self
-        menu.addItem(accessibility)
-        self.accessibilityItem = accessibility
 
         let clear = NSMenuItem(
             title: clearShelfTitle(),
@@ -111,15 +98,6 @@ public final class MenuBarController: NSObject {
         self.item = item
     }
 
-    /// Pure formatting, pulled out of `Permissions.isAccessibilityTrusted`'s
-    /// call site so it can be tested without touching Accessibility
-    /// permission state.
-    public static func accessibilityTitle(trusted: Bool) -> String {
-        trusted
-            ? "Accessibility: granted"
-            : "Accessibility: not granted — set up…"
-    }
-
     /// Read when the menu opens, never polled.
     func clearShelfTitle() -> String {
         let count = shelfCount()
@@ -143,19 +121,12 @@ public final class MenuBarController: NSObject {
     @objc private func openPreferences() {
         onShowPreferences()
     }
-
-    @objc private func openOnboarding() {
-        onShowOnboarding()
-    }
 }
 
 extension MenuBarController: NSMenuDelegate {
-    /// Refreshes the Accessibility line each time the menu opens, so a
-    /// permission grant made in System Settings while the app was already
-    /// running shows up without polling `Permissions.isAccessibilityTrusted`
-    /// on a timer.
+    /// Refreshes the dynamic titles each time the menu opens, so counts are
+    /// current without anything polling on a timer.
     public func menuWillOpen(_ menu: NSMenu) {
-        accessibilityItem?.title = Self.accessibilityTitle(trusted: Permissions.isAccessibilityTrusted)
         clearShelfItem?.title = clearShelfTitle()
         clearShelfItem?.isEnabled = shelfCount() > 0
         clearClipboardItem?.title = clearClipboardTitle()

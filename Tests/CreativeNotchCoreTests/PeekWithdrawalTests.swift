@@ -14,19 +14,8 @@ struct PeekWithdrawalTests {
 
     private let now: TimeInterval = 100
 
-    private func hudEvent() -> HUDEvent { HUDEvent(kind: .volume(0.5)) }
     private func track() -> TrackSnapshot {
         TrackSnapshot(title: "T", artist: "A", isPlaying: true)
-    }
-
-    @Test func clearingTheHudWithdrawsItsPeek() {
-        var arbiter = PeekArbiter()
-        arbiter.recordHUD(hudEvent(), now: now)
-        #expect(arbiter.content(now: now) != nil)
-
-        arbiter.clearHUD()
-
-        #expect(arbiter.content(now: now) == nil)
     }
 
     @Test func clearingPowerWithdrawsItsPeek() {
@@ -43,33 +32,24 @@ struct PeekWithdrawalTests {
     /// that blanked the whole arbiter would pass the two tests above while
     /// silently cancelling another module's interruption.
     @Test func clearingOneModulesPeekLeavesTheOthers() {
+        let done = TimerCompletion(duration: 60, lateness: 0)
         var arbiter = PeekArbiter()
         arbiter.recordPower(.pluggedIn(level: 80), now: now)
+        arbiter.recordTimerFinished(done, now: now)
 
-        arbiter.clearHUD()
-        #expect(arbiter.content(now: now) == .power(.pluggedIn(level: 80)),
-                "clearing the HUD withdrew the power peek")
-
-        arbiter.recordHUD(hudEvent(), now: now)
         arbiter.clearPower()
-        #expect(arbiter.content(now: now) == .hud(hudEvent()),
-                "clearing power withdrew the HUD peek")
+        #expect(arbiter.content(now: now) == .timerDone(done),
+                "clearing power withdrew the finished-timer peek")
+
+        arbiter.recordPower(.pluggedIn(level: 80), now: now)
+        arbiter.dismissTimerDone()
+        #expect(arbiter.content(now: now) == .power(.pluggedIn(level: 80)),
+                "dismissing the timer withdrew the power peek")
     }
 
     /// Withdrawing reveals whatever was queued behind it rather than blanking
     /// the slot -- which is the whole reason the arbiter is a priority list
     /// and not a single value.
-    @Test func clearingTheHudRevealsWhatWasBehindIt() {
-        var arbiter = PeekArbiter()
-        arbiter.setNowPlaying(track())
-        arbiter.recordHUD(hudEvent(), now: now)
-        #expect(arbiter.content(now: now) == .hud(hudEvent()))
-
-        arbiter.clearHUD()
-
-        #expect(arbiter.content(now: now) == .nowPlaying(track()))
-    }
-
     @Test func clearingPowerRevealsWhatWasBehindIt() {
         var arbiter = PeekArbiter()
         arbiter.setNowPlaying(track())
@@ -85,19 +65,18 @@ struct PeekWithdrawalTests {
     /// clock has not yet passed its TTL.
     @Test func aWithdrawnPeekDoesNotReturnBeforeItsTTL() {
         var arbiter = PeekArbiter()
-        arbiter.recordHUD(hudEvent(), now: now)
-        arbiter.clearHUD()
+        arbiter.recordPower(.pluggedIn(level: 80), now: now)
+        arbiter.clearPower()
 
-        #expect(arbiter.content(now: now + PeekArbiter.hudTTL / 2) == nil)
+        #expect(arbiter.content(now: now + PeekArbiter.powerTTL / 2) == nil)
     }
 
     /// And the verbs are idempotent, so a switchboard that clears on every
     /// re-derivation does not have to ask first.
     @Test func clearingTwiceIsHarmless() {
         var arbiter = PeekArbiter()
-        arbiter.recordHUD(hudEvent(), now: now)
-        arbiter.clearHUD()
-        arbiter.clearHUD()
+        arbiter.recordPower(.pluggedIn(level: 80), now: now)
+        arbiter.clearPower()
         arbiter.clearPower()
 
         #expect(arbiter.content(now: now) == nil)

@@ -9,9 +9,9 @@ import Foundation
 /// asleep and it comes back believing it is on schedule. Deriving from a
 /// stored target makes sleep a non-event.
 ///
-/// `now` is a parameter for the same reason `PeekArbiter` and
-/// `HUDAttribution` take one: it makes the whole lifecycle testable by
-/// passing timestamps, with no waiting and no clock to stub.
+/// `now` is a parameter for the same reason `PeekArbiter` takes one: it makes
+/// the whole lifecycle testable by passing timestamps, with no waiting and no
+/// clock to stub.
 public struct Countdown: Equatable, Sendable {
 
     /// Beyond about an hour and a half, a calendar event is the right tool.

@@ -4,7 +4,7 @@ import CreativeNotchCore
 /// Turns the helper's newline-delimited JSON stream into published
 /// now-playing state.
 ///
-/// Shaped after `HUDController` and `ClipboardController`: `MediaHelperSupervisor`
+/// Shaped after `ClipboardController`: `MediaHelperSupervisor`
 /// is a dumb source (it only decides *whether* the helper runs and hands
 /// back raw lines), and every judgement about what those lines *mean* lives
 /// here, where a test can drive it directly through `handle(line:)` without
@@ -52,7 +52,7 @@ public final class MediaController {
     public var onChange: ((TrackSnapshot?) -> Void)?
 
     /// Internal rather than private so the lifecycle is provable, the way
-    /// `HUDController` exposes its observers and `ClipboardController`
+    /// `ClipboardController` likewise
     /// exposes its poller.
     let supervisor = MediaHelperSupervisor()
 

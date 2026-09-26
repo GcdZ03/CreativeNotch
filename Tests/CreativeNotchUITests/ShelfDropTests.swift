@@ -162,11 +162,11 @@ struct ShelfDropTests {
     /// AppKit does not call `draggingExited` after an accepted drop -- only
     /// the drop path's own `defer { arbiter.setDragActive(false) }` clears
     /// the arbiter's drag flag in that case. Without it, `.dragTarget` would
-    /// silently outrank every HUD event forever after the first successful
+    /// silently outrank every later peek forever after the first successful
     /// drop, exactly the failure the drag fix was meant to foreclose. Mirrors
-    /// `AppDelegateStateFunnelTests.endingTheDragStopsItOutrankingTheHUD`,
+    /// `AppDelegateStateFunnelTests.endingTheDragStopsItOutrankingLaterPeeks`,
     /// which pins the same invariant for `onDragExited`.
-    @Test func droppingClearsTheDragFlagSoALaterHUDEventIsNotOutranked() throws {
+    @Test func droppingClearsTheDragFlagSoALaterPeekIsNotOutranked() throws {
         let delegate = try makeDelegate()
         let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
 
@@ -178,8 +178,8 @@ struct ShelfDropTests {
         // `onDragExited`, so the only thing that could have cleared
         // `dragActive` in the arbiter is the drop path's own defer.
         delegate.state.transition(to: .closed)
-        delegate.showHUD(.volume(0.5))
+        delegate.showPowerPeek(.unplugged(level: 66))
 
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
     }
 }

@@ -9,7 +9,7 @@ import Foundation
 /// is the worst shape a test failure can take.
 ///
 /// Cleared with `removePersistentDomain` before use, the same shape
-/// `OnboardingControllerTests` established.
+/// the preferences tests established.
 enum TestDefaults {
     static func isolated(_ label: String = "wiring") -> UserDefaults {
         let suiteName = "com.gcdz.creativenotch.\(label)-tests.\(UUID().uuidString)"

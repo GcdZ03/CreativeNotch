@@ -83,14 +83,13 @@ jobs:
 
             ## What is in it
 
-            The foundation and **ten modules**, every one of which can be switched
+            The foundation and **nine modules**, every one of which can be switched
             off in Settings — and switching one off stops what it runs, rather than
             hiding it:
 
             | | |
             |---|---|
             | **File shelf** | Drag a file onto the notch to stash it, drag it out later; remove one, or clear all, from the panel |
-            | **System HUD** | Volume and brightness, in the notch, alongside Apple's |
             | **Media controls** | Play, pause, and skip from the panel |
             | **Clipboard history** | The last things you copied, with the time each was copied, gated on activity |
             | **Media metadata** | Now-playing title, artist, artwork, and an ambient badge |
@@ -152,27 +151,6 @@ jobs:
             a hole: its **redraws** are gated, its **deadline** never is. A countdown
             whose whole purpose is to fire while nobody is watching cannot be
             suspended for not being watched.
-
-            ## What the HUD does — and deliberately does not do
-
-            It shows volume and brightness **where macOS shows you nothing**: changes
-            from Control Center, from Siri, or from another app.
-
-            When you press the physical volume or brightness keys, the notch stays
-            **silent** and Apple's own HUD appears as it always has. That is the
-            intended behaviour, not a missing feature — the two coexist rather than
-            one replacing the other, so nothing is hidden and nothing is shown twice.
-
-            Staying silent for the keys needs **Accessibility** (System Settings →
-            Privacy & Security → Accessibility) so the app can tell a keypress from
-            any other cause. Without it the HUD still works, but you will see both
-            overlays at once when you use the keys.
-
-            It also ignores your **ambient light sensor**. Auto-brightness changes
-            the backlight constantly, and those are real changes — 2301 of them
-            measured in one session with nothing touched. The notch stays quiet for
-            them. The trade-off: a Control Center brightness drag slower than about
-            three seconds moves in steps too small to register, and will not show.
 
             ## Install
 

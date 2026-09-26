@@ -58,8 +58,7 @@ struct ModuleToggleTests {
     }
 
     /// R8. Twice, in both directions: a preference snapshotted at
-    /// construction works exactly once, and `HUDController` has an in-repo
-    /// example of that pattern which must not be copied.
+    /// construction works exactly once.
     @Test func aModuleFollowsTheToggleEveryTimeItMoves() throws {
         let delegate = makeDelegate()
         let clipboard = try #require(delegate.clipboard)
@@ -116,52 +115,6 @@ struct ModuleToggleTests {
         delegate.switchboard.setEnabled(false, for: .power)
 
         #expect(delegate.state.hasBattery, "hasBattery is a capability, not a preference")
-    }
-
-    // MARK: - System HUD
-
-    /// The HUD owns the app's one admitted always-installed global monitor --
-    /// a `CGEventTap` -- so this is the highest-value toggle in the set.
-    ///
-    /// The running half needs Accessibility, which a CI runner cannot grant,
-    /// so the flag is captured once and asserted softly; the hard consequence
-    /// is asserted unconditionally only inside `if started`. That is the shape
-    /// `HUDControllerTests.stopStopsAllThreeOwnedSources` worked out, and a
-    /// genuine regression on a host where the source did start is still caught
-    /// loudly.
-    @Test func disablingTheHudReleasesItsObservers() throws {
-        let delegate = makeDelegate()
-        delegate.startSubsystems()
-        let hud = try #require(delegate.hud)
-
-        let keysStarted = hud.keys.isRunning
-        expectOrKnownHardwareIssue(
-            keysStarted,
-            "CGEventTapCreate fails without Accessibility granted to the process, which a CI runner cannot grant"
-        )
-        let volumeStarted = hud.volume.isRunning
-        expectOrKnownHardwareIssue(
-            volumeStarted,
-            "CI runners intermittently have no audio device (actions/runner-images#13668)"
-        )
-
-        delegate.switchboard.setEnabled(false, for: .hud)
-
-        if keysStarted { #expect(hud.keys.isRunning == false) }
-        if volumeStarted { #expect(hud.volume.isRunning == false) }
-        delegate.activity.stop()
-    }
-
-    /// And the HUD's peek is withdrawn rather than waited out. This half
-    /// needs no hardware: the arbiter is driven directly.
-    @Test func disablingTheHudWithdrawsItsPeek() {
-        let delegate = makeDelegate()
-        delegate.showHUD(.volume(0.5))
-        #expect(delegate.state.state == .peek(.hud(HUDEvent(kind: .volume(0.5)))))
-
-        delegate.switchboard.setEnabled(false, for: .hud)
-
-        #expect(delegate.state.state == .closed)
     }
 
     // MARK: - Media metadata

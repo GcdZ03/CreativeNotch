@@ -9,7 +9,6 @@ struct MenuBarShelfTests {
         var cleared = false
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: { cleared = true },
             shelfCount: { 3 },
             onClearClipboard: {},
@@ -23,7 +22,6 @@ struct MenuBarShelfTests {
     @Test func anEmptyShelfSaysSo() {
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 0 },
             onClearClipboard: {},
@@ -35,7 +33,6 @@ struct MenuBarShelfTests {
     @Test func oneItemIsNotPluralised() {
         let controller = MenuBarController(
             onShowPreferences: {},
-            onShowOnboarding: {},
             onClearShelf: {},
             shelfCount: { 1 },
             onClearClipboard: {},

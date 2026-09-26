@@ -7,8 +7,8 @@ import Foundation
 /// crossing them but not re-crossing them: IOKit reports whole percent
 /// over a continuous charge, so a battery near a threshold jitters back
 /// and forth across it, and an ungated check would fire the same peek
-/// indefinitely. That is the same failure `HUDSignificanceGate` exists to
-/// prevent for the ambient light sensor.
+/// indefinitely -- a peek firing over and over with nobody having touched
+/// anything.
 ///
 /// So each threshold is *armed* or not. It fires once when crossed, and
 /// re-arms only when the level rises back above it — charging to 21% arms

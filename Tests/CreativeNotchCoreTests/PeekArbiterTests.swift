@@ -2,7 +2,6 @@ import Testing
 @testable import CreativeNotchCore
 
 private let track = TrackSnapshot(title: "Song", artist: "Artist", isPlaying: true)
-private let volumeUp = HUDEvent(kind: .volume(0.6))
 
 @Test func emptyArbiterShowsNothing() {
     let a = PeekArbiter()
@@ -21,39 +20,19 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
     #expect(a.content(now: 0) == nil)
 }
 
-@Test func hudPreemptsAmbientMedia() {
+/// The strictness of the expiry comparison, which no other test pins:
+/// `aPowerPeekExpires` checks a moment *past* the boundary and would stay
+/// green if `<` became `<=`.
+@Test func aPeekIsExpiredAtExactlyTheTTLBoundary() {
     var a = PeekArbiter()
-    a.setNowPlaying(track)
-    a.recordHUD(volumeUp, now: 100)
-    #expect(a.content(now: 100.5) == .hud(volumeUp))
-}
-
-@Test func hudExpiresAndFallsBackToMedia() {
-    var a = PeekArbiter()
-    a.setNowPlaying(track)
-    a.recordHUD(volumeUp, now: 100)
-    #expect(a.content(now: 100 + PeekArbiter.hudTTL + 0.01) == .nowPlaying(track))
-}
-
-@Test func hudExpiresToNothingWhenNoMedia() {
-    var a = PeekArbiter()
-    a.recordHUD(volumeUp, now: 100)
-    #expect(a.content(now: 200) == nil)
-}
-
-@Test func hudIsExpiredAtExactlyTheTTLBoundary() {
-    // The implementation checks `now < hudExpiry` (strict). At now ==
-    // hudExpiry the HUD must already be gone — substituting `<=` for `<`
-    // would make this pass incorrectly.
-    var a = PeekArbiter()
-    a.recordHUD(volumeUp, now: 100)
-    #expect(a.content(now: 100 + PeekArbiter.hudTTL) == nil)
+    a.recordPower(.unplugged(level: 66), now: 100)
+    #expect(a.content(now: 100 + PeekArbiter.powerTTL) == nil)
 }
 
 @Test func dragPreemptsEverything() {
     var a = PeekArbiter()
     a.setNowPlaying(track)
-    a.recordHUD(volumeUp, now: 100)
+    a.recordPower(.unplugged(level: 66), now: 100)
     a.setDragActive(true)
     #expect(a.content(now: 100.1) == .dragTarget)
 }
@@ -81,13 +60,6 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
 
 // MARK: - Power
 
-/// A power peek is longer-lived than a HUD one. A HUD peek confirms
-/// something the user just did and can be caught in passing; a power
-/// peek tells them something they did not know.
-@Test func aPowerPeekOutlivesAHUDPeek() {
-    #expect(PeekArbiter.powerTTL > PeekArbiter.hudTTL)
-}
-
 @Test func aPowerEventOccupiesTheSlot() {
     var arbiter = PeekArbiter()
     arbiter.recordPower(.unplugged(level: 66), now: 100)
@@ -102,16 +74,6 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
     #expect(arbiter.content(now: 100 + PeekArbiter.powerTTL + 0.01) == nil)
 }
 
-/// The user pressed a key a fraction of a second ago. Preempting that
-/// makes their own keypress feel dropped.
-@Test func aHUDPeekOutranksAPowerPeek() {
-    var arbiter = PeekArbiter()
-    arbiter.recordPower(.unplugged(level: 66), now: 100)
-    arbiter.recordHUD(HUDEvent(kind: .volume(0.5)), now: 100)
-
-    #expect(arbiter.content(now: 100) == .hud(HUDEvent(kind: .volume(0.5))))
-}
-
 /// Now-playing is ambient wallpaper and yields to anything.
 @Test func aPowerPeekOutranksNowPlaying() {
     var arbiter = PeekArbiter()
@@ -121,8 +83,7 @@ private let volumeUp = HUDEvent(kind: .volume(0.6))
     #expect(arbiter.content(now: 100) == .power(.unplugged(level: 66)))
 }
 
-/// And falls back to it, rather than to nothing — the same
-/// transient-over-ambient model the HUD already follows.
+/// And falls back to it, rather than to nothing — transient over ambient.
 @Test func nowPlayingReturnsWhenThePowerPeekExpires() {
     let track = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
     var arbiter = PeekArbiter()

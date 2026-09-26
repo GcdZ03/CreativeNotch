@@ -3,7 +3,7 @@
 #
 #   ./Scripts/dev.sh              debug build, relaunch
 #   ./Scripts/dev.sh --release    release build
-#   ./Scripts/dev.sh --fresh      also reset onboarding, so first-run UI replays
+#   ./Scripts/dev.sh --fresh      also clear stored preferences, for first-run behaviour
 #   ./Scripts/dev.sh --logs       stream the app's log output after launching
 #
 # Most work does not need this at all — `swift test` runs the whole suite in
@@ -30,7 +30,7 @@ echo "==> stopping any running instance"
 pkill -f 'CreativeNotch.app/Contents/MacOS/CreativeNotch' 2>/dev/null || true
 
 if $FRESH; then
-  echo "==> resetting onboarding state"
+  echo "==> clearing stored preferences"
   defaults delete com.gcdz.creativenotch 2>/dev/null || true
 fi
 

@@ -3,7 +3,7 @@ import CreativeNotchCore
 
 /// Turns workspace and distributed notifications into a `SystemActivity`.
 ///
-/// A dumb source, like the HUD's observers: every judgement — including
+/// A dumb source, like every other observer here: every judgement — including
 /// the sleep-outranks-lock precedence that makes waking behind a lock
 /// screen safe — lives in `SystemActivityReducer`, in Core, where it runs
 /// headlessly.

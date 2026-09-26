@@ -7,7 +7,7 @@
 #
 #     # designated => cdhash H"bf2759a7674105c875b1207d4a9389135a30cc74"
 #
-# TCC pins Accessibility grants to that requirement. Change one line of
+# TCC pins its grants to that requirement. Change one line of
 # Swift and the hash changes, the requirement stops matching, and macOS
 # silently revokes the grant — so you re-authorise on every single build.
 #

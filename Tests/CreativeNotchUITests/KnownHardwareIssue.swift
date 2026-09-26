@@ -13,7 +13,7 @@ import Testing
 /// softly, and then asserts anything that only makes sense when it held
 /// *hard and unconditionally*, outside this helper.
 ///
-/// Extracted from `HUDControllerTests.stopStopsAllThreeOwnedSources`,
+/// Extracted from the controller lifecycle tests,
 /// which worked out this shape first; `VolumeObserverTests` and
 /// `BrightnessObserverTests` had the identical risk with a bare
 /// `#expect` and no such treatment.

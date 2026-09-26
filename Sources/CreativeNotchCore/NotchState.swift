@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Tab: String, CaseIterable, Equatable, Sendable {
-    case shelf, clipboard, hud, power, timer, camera
+    case shelf, clipboard, power, timer, camera
 }
 
 public struct TrackSnapshot: Equatable, Sendable {
@@ -14,18 +14,6 @@ public struct TrackSnapshot: Equatable, Sendable {
         self.artist = artist
         self.isPlaying = isPlaying
     }
-}
-
-public enum HUDKind: Equatable, Sendable {
-    case volume(Double)
-    case brightness(Double)
-    case mute(Bool)
-}
-
-public struct HUDEvent: Equatable, Sendable {
-    public var kind: HUDKind
-
-    public init(kind: HUDKind) { self.kind = kind }
 }
 
 /// What the completion peek shows: the duration that was set and how late
@@ -64,7 +52,6 @@ public enum PowerEvent: Equatable, Sendable {
 
 /// What occupies the single peek slot.
 public enum PeekContent: Equatable, Sendable {
-    case hud(HUDEvent)
     case dragTarget
     case nowPlaying(TrackSnapshot)
     case timerDone(TimerCompletion)
