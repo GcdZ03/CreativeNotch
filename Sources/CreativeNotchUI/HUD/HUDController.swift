@@ -13,6 +13,37 @@ public final class HUDController {
     private var significanceGate = HUDSignificanceGate()
     private var lastKeyAt: TimeInterval?
 
+    /// How long the event stream may go quiet before the noise floor's
+    /// baseline is treated as unusable rather than merely old.
+    ///
+    /// The ambient light sensor fires continuously while the display is
+    /// on -- median gap between brightness events 0.017s, p99 0.018s -- so
+    /// a silence of this length means the stream stopped, and the usual
+    /// reason is that the display slept. Whatever moved the level while it
+    /// was asleep then arrives as a single apparent step.
+    ///
+    /// 60s from the measured distribution of a real session: of 116
+    /// brightness peeks, 84 followed a gap under 30s and only 2 fell
+    /// between 30s and 60s, while 30 followed a gap over 60s. The log
+    /// records no display state, so the last group cannot be proven
+    /// spurious one by one -- but the small jumps within it can, at 0.0052
+    /// and 0.0053, below anything a person produces.
+    ///
+    /// The cost of being wrong is bounded and already accepted elsewhere:
+    /// one swallowed change, and only a *single* one, since a drag or a
+    /// keypress delivers its next event ~16ms later. `start()` accepts the
+    /// same trade when it primes at launch.
+    public static let silenceThatStalesTheBaseline: TimeInterval = 60
+
+    /// When the last level event arrived, or nil before any has.
+    ///
+    /// nil means "no reason to distrust the baseline" rather than "stale":
+    /// at launch the baseline was just read from the live system, so it is
+    /// as fresh as it can be. `start()` stamps it for that reason -- an
+    /// app launched and then left alone for an hour would otherwise
+    /// measure its first event against an hour-old prime.
+    private var lastEventAt: TimeInterval?
+
     private let onPeek: (HUDKind) -> Void
 
     /// Internal rather than private so the lifecycle is provable: a
@@ -47,6 +78,8 @@ public final class HUDController {
         // be measured against, is treated as the first thing ever seen,
         // and pops a HUD for ambient drift that was already under way —
         // which is precisely the startup flicker this module must not have.
+        lastEventAt = Date().timeIntervalSince1970
+
         if let level = brightness.currentLevel() {
             noteBaseline(.brightness(level))
             diagnostics?.record("primed brightness baseline at \(level)")
@@ -105,6 +138,27 @@ public final class HUDController {
     /// Time is a parameter, not a clock read, so the whole path is testable.
     public func handle(_ kind: HUDKind, at time: TimeInterval) {
         diagnostics?.record("event \(kind)")
+
+        // Staleness before every other filter, because a baseline that
+        // cannot be trusted makes all of them meaningless: the noise floor
+        // measures this event against the last one, and there was no last
+        // one for the length of a display sleep.
+        //
+        // Mute is exempt. It carries no magnitude and so has no
+        // noise-floor baseline to go stale, and long gaps between mute
+        // events are ordinary rather than evidence of anything -- treating
+        // one as a re-prime would swallow a genuine mute nobody could get
+        // back.
+        if case .mute = kind {
+            // No baseline to stale; fall through.
+        } else if let last = lastEventAt, time - last >= Self.silenceThatStalesTheBaseline {
+            noteBaseline(kind)
+            lastEventAt = time
+            diagnostics?.record("  re-primed: baseline stale after \(time - last)s of silence")
+            return
+        }
+        lastEventAt = time
+
         // Duplicates first: CoreAudio fires twice per change, and letting
         // both through flickers the pill and restarts the peek TTL twice.
         guard coalescer.accept(kind, at: time) else {

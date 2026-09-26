@@ -333,7 +333,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-1070 tests, all headless. `swift test` takes
+1073 tests, all headless. `swift test` takes
 about two seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -420,6 +420,49 @@ Two gotchas cost real debugging time and are worth restating here:
   (`BrightnessObserver.lastQueriedDisplay`) so a regression back to the
   callback's `0` is provable from a test rather than only from a silent
   `nil` on real hardware.
+
+### A baseline that goes stale is a change that never happened
+
+The noise floor measures each event against the **previous event**, which
+assumes the stream is continuous. While the display is on it is: the ambient
+sensor fires constantly, median gap between brightness events 0.017s, p99
+0.018s.
+
+When the display sleeps, `DisplayServices` stops firing. On wake, the first
+event is measured against a level from before the sleep, so whatever moved in
+between arrives as one apparent step — indistinguishable from a deliberate
+one, with no keypress to attribute it to. Measured in a real session: **19 of
+121 peeks were the first event after a gap of five minutes or more.** The
+giveaway is their size. Jumps of 0.0052 and 0.0053 appear among them, which is
+precisely the drift the noise floor exists to reject; they got through only
+because the events either side of them never arrived.
+
+So a level event arriving after `HUDController.silenceThatStalesTheBaseline`
+(60s) of silence is taken as a **baseline rather than a change**: recorded,
+shown to nobody. It extends the gate's existing "nothing seen yet" branch from
+*no* baseline to no *usable* one, and costs what priming at launch already
+costs — one swallowed change, and only one, since a drag or a keypress
+delivers its next event ~16ms later.
+
+**`NSWorkspace.screensDidWakeNotification` cannot be used for this.** It does
+not fire for display sleep on macOS 26 — probed across two sleep/wake cycles
+against a control notification (`didLaunchApplication`) that fired correctly
+in the same process, so the silence is the API's and not the probe's.
+`CGDisplayRegisterReconfigurationCallback` does not fire either. What does
+fire is `com.apple.screenIsLocked`, which the app already consumes — but it
+depends on the user's lock settings, so a Mac that sleeps its display without
+locking would get no signal at all. Inferring staleness from the gap needs no
+signal and does not care why the stream stopped.
+
+60s comes from the same session's distribution: of 116 brightness peeks, 84
+followed a gap under 30s, 2 fell between 30s and 60s, and 30 followed a gap
+over 60s. The known limit is a *brief* display sleep — a few seconds of
+silence stays under the threshold, and lowering it to catch that would start
+swallowing the deliberate changes this module exists to show.
+
+Mute is exempt: it carries no magnitude and so has no noise-floor baseline to
+go stale, and long gaps between mute events are ordinary rather than evidence
+of anything.
 
 `MediaKeyMonitor` is the **one admitted always-installed global monitor** in
 the project. The no-polling rule exists to stop monitors that fire

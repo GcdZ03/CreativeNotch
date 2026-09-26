@@ -27,6 +27,64 @@ struct HUDControllerTests {
         #expect(peeked.value == [.volume(0.4)])
     }
 
+    /// The display sleeping stops the event stream, and the baseline the
+    /// noise floor measures against goes stale with it. On wake the first
+    /// event is compared to a level from before the sleep, so whatever
+    /// moved in between — an ambient re-correction, or macOS resetting the
+    /// level — arrives as one apparent step and is indistinguishable from
+    /// a deliberate one.
+    ///
+    /// Measured in a real session: 19 of 121 peeks were the first event
+    /// after a gap of five minutes or more. The giveaway is their size —
+    /// jumps of 0.0052 and 0.0053, which is precisely the drift the noise
+    /// floor exists to reject, let through only because the events either
+    /// side of it never arrived.
+    ///
+    /// `NSWorkspace.screensDidWakeNotification` cannot be used to detect
+    /// this: it does not fire for display sleep on macOS 26. Probed twice,
+    /// against a control notification that did fire.
+    @Test func theFirstEventAfterALongSilenceIsABaselineRatherThanAChange() {
+        let (controller, peeked) = makeController()
+        controller.noteBaseline(.brightness(0.5654))
+        controller.handle(.brightness(0.5654), at: 100)
+
+        // The display sleeps here: no events at all for 25 minutes.
+        controller.handle(.brightness(0.5000), at: 100 + 1500)
+
+        #expect(peeked.value.isEmpty, "the first event after a long silence must re-prime, not peek")
+    }
+
+    /// Re-priming must cost exactly one event, not leave the module deaf.
+    /// Forgetting to stamp the clock inside the re-prime branch measures
+    /// every later event against the *pre-sleep* time, so every one of
+    /// them looks stale too and the HUD never speaks again for the life of
+    /// the session -- a far worse bug than the one being fixed, and
+    /// silent in the same way.
+    @Test func theChangeAfterAReprimeStillPeeks() {
+        let (controller, peeked) = makeController()
+        controller.noteBaseline(.brightness(0.5654))
+        controller.handle(.brightness(0.5654), at: 100)
+        controller.handle(.brightness(0.5000), at: 100 + 1500)   // swallowed: re-prime
+        #expect(peeked.value.isEmpty)
+
+        controller.handle(.brightness(0.4500), at: 100 + 1501)   // a real change now
+        #expect(peeked.value == [.brightness(0.4500)], "re-priming must cost one event, not all of them")
+    }
+
+    /// Mute has no magnitude and therefore no noise-floor baseline to go
+    /// stale. Long gaps between mute events are ordinary -- muting twice
+    /// in a day is two events an hour apart -- so applying the silence
+    /// rule to mute would swallow a genuine mute the user would never get
+    /// back, and muting is the one HUD you most need to see.
+    @Test func muteAfterALongSilenceStillPeeks() {
+        let (controller, peeked) = makeController()
+        controller.noteBaseline(.mute(false))
+        controller.handle(.brightness(0.5), at: 100)
+
+        controller.handle(.mute(true), at: 100 + 3600)
+        #expect(peeked.value == [.mute(true)], "mute has no baseline to stale")
+    }
+
     @Test func aChangeRightAfterAKeypressStaysSilent() {
         let (controller, peeked) = makeController()
         controller.noteKeyPress(at: 100)

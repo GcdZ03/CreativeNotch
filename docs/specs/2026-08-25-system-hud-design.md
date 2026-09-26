@@ -215,6 +215,30 @@ switch, a wake — popped a speaker HUD every time. Mute is now significant
 only when it differs from the state last shown, and its baseline is primed
 at launch so an already-muted machine does not announce itself.
 
+**3. The baseline went stale across a display sleep.** *(Added 2026-09-26,
+after the shipped build was reported popping a brightness HUD on wake.)* The
+noise floor compares each event with the previous one, which assumes the
+stream is continuous — true while the display is on, false the moment it
+sleeps and `DisplayServices` stops firing. On wake the first event is measured
+against a pre-sleep level, so an ambient re-correction that happened in the
+dark arrives as one apparent step. **19 of 121 peeks in a real session were
+the first event after a gap of five minutes or more**, and the small ones
+among them (0.0052, 0.0053) are below anything a person produces, which is
+what rules out "the level really did change".
+
+A level event after 60s of silence is now taken as a baseline rather than a
+change. Same shape as the two fixes above: the failure is an absent or
+untrustworthy baseline, and the answer is to prime one and show nothing.
+
+Measured while fixing it, and worth recording because the obvious approach
+does not work: **`NSWorkspace.screensDidWakeNotification` does not fire for
+display sleep on macOS 26**, nor does `screensDidSleepNotification` or
+`CGDisplayRegisterReconfigurationCallback`. Probed over two sleep/wake cycles
+with a control notification in the same process that fired correctly, so the
+silence belongs to the API. `com.apple.screenIsLocked` does fire — but only
+when the Mac actually locks, which is a user setting, so it cannot be relied
+on either.
+
 **Diagnosing this class of bug.** Both were found with:
 
 ```bash
