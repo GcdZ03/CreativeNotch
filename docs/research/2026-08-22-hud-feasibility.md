@@ -5,6 +5,12 @@
 Findings from a throwaway spike before writing the HUD spec. The probes
 were deleted; this is the record.
 
+**The module these findings supported was removed on 2026-09-26.** The
+measurements below still stand as measurements -- `DisplayServices` behaves as
+described, and the `CGDirectDisplayID`-of-zero trap is still a trap for anyone
+who goes near it -- but nothing in the app reads them any more. See the spec's
+header for why the module went.
+
 ## Summary
 
 The **observation half is solved and better than the spec assumed**. The

@@ -6,10 +6,10 @@ import CreativeNotchCore
 /// `ROADMAP.md` asks for module toggles "next to the `SystemActivity` gate, in
 /// the same place that already knows how to start and stop these subsystems".
 /// That place was `AppDelegate` — and it was **three straight-line lists that
-/// did not agree with each other**: `hud` in the start and stop lists but not
-/// the fan-out, `timer` in the fan-out but neither of the others, the shelf and
-/// the transport controls in none of the three. A seven-way preference across
-/// three disagreeing lists is twenty-one chances to miss one, silently.
+/// did not agree with each other**: a module in the start and stop lists but
+/// not the fan-out, `timer` in the fan-out but neither of the others, the shelf
+/// and the transport controls in none of the three. A seven-way preference
+/// across three disagreeing lists is twenty-one chances to miss one, silently.
 ///
 /// It holds the resolved `Preferences` and the current `SystemActivity` and
 /// composes them per module. **Deliberately not one formula.** "Enabled AND
@@ -57,7 +57,6 @@ final class ModuleSwitchboard {
         preferences = delegate.preferencesStore.load()
         delegate.state.preferences = preferences
 
-        setEnabled(preferences.hud, for: .hud)
         setEnabled(preferences.clipboard, for: .clipboard)
         setEnabled(preferences.mediaMetadata, for: .mediaMetadata)
         setEnabled(preferences.mediaControls, for: .mediaControls)
@@ -75,7 +74,6 @@ final class ModuleSwitchboard {
     /// consults a preference is a quit path that can be wrong.** The old stop
     /// list had five entries while the switchboard owns seven.
     func stopAll() {
-        delegate.hud?.stop()
         delegate.clipboard?.stop()
         delegate.media?.setEnabled(false)
         delegate.media?.stop()
@@ -114,13 +112,12 @@ final class ModuleSwitchboard {
     /// notification-driven source costs nothing idle and suspending it would
     /// mean missing the charger moving while the lid is shut.
     ///
-    /// **The HUD has no activity axis and must not gain one.** A uniform
-    /// formula would newly stop it on every screen lock, tearing down and
-    /// recreating a `CGEventTap` per lock/unlock cycle — and
-    /// `MediaKeyMonitor.start()` records success as `isRunning = token != nil`
-    /// with no retry, so one `CGEventTapCreate` failure in an unlock window
-    /// would leave the HUD silently dead for the session. That window does not
-    /// exist today. Do not create it.
+    /// **Not every module belongs on this axis.** The rule that earned the
+    /// exception, when the system HUD still held a `CGEventTap`: a uniform
+    /// formula would have torn the tap down and rebuilt it on every lock,
+    /// and one failure in an unlock window would have left the module
+    /// silently dead for the session. Before adding a leg here, ask what a
+    /// lock/unlock cycle actually costs the subsystem.
     func setActivity(_ next: SystemActivity) {
         activity = next
         let now = Date().timeIntervalSince1970
@@ -146,14 +143,6 @@ final class ModuleSwitchboard {
         delegate.state.preferences = preferences
 
         switch module {
-        case .hud:
-            if enabled {
-                delegate.hud?.start()
-            } else {
-                delegate.hud?.stop()
-                delegate.arbiter.clearHUD()
-            }
-
         case .clipboard:
             if enabled {
                 delegate.clipboard?.start()
@@ -259,10 +248,9 @@ final class ModuleSwitchboard {
             // failure this module exists to prevent -- and dropping the last
             // one takes the process-wide Carbon handler with it.
             //
-            // No activity axis, like the HUD: a hotkey whose purpose is to
-            // open the panel from anywhere must keep working while the panel
-            // is closed, and there is nothing running between presses to
-            // suspend.
+            // No activity axis: a hotkey whose purpose is to open the panel
+            // from anywhere must keep working while the panel is closed, and
+            // there is nothing running between presses to suspend.
             delegate.hotkey?.setEnabled(enabled)
 
         case .shelf:

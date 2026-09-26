@@ -11,18 +11,6 @@ import Testing
             == [.shelf, .clipboard, .timer, .camera])
 }
 
-/// `.hud` owns no panel content. It is never offered however the preferences
-/// are set -- a tab that opens onto a placeholder is worse than no tab.
-@Test func theHUDIsNeverATab() {
-    for hasBattery in [true, false] {
-        var everything = Preferences.allEnabled
-        everything.hud = true
-        #expect(!TabVisibility.visible(enabled: everything, hasBattery: hasBattery).contains(.hud))
-        everything.hud = false
-        #expect(!TabVisibility.visible(enabled: everything, hasBattery: hasBattery).contains(.hud))
-    }
-}
-
 /// Replaces `PanelTabBarTests.hidingThePowerTabLeavesTheOthersInPlace`, whose
 /// `prefix` assertion assumed only *trailing* tabs are conditional. Now that
 /// any tab can vanish, the honest invariant is that relative order survives
@@ -102,8 +90,10 @@ import Testing
     #expect(TabVisibility.fallback(from: .shelf, enabled: nothing, hasBattery: true) == nil)
 }
 
-/// `.hud` is never visible, so asking for it always falls back -- the case that
-/// would otherwise let a caller hold a selection no list contains.
-@Test func theHUDAlwaysFallsBack() {
-    #expect(TabVisibility.fallback(from: .hud, enabled: .allEnabled, hasBattery: true) == .shelf)
+/// A tab whose module is off always falls back -- the case that would
+/// otherwise let a caller hold a selection no list contains.
+@Test func aHiddenTabAlwaysFallsBack() {
+    var noCamera = Preferences.allEnabled
+    noCamera.camera = false
+    #expect(TabVisibility.fallback(from: .camera, enabled: noCamera, hasBattery: true) == .shelf)
 }

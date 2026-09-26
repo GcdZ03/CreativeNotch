@@ -153,6 +153,5 @@ struct ModuleSwitchboardTests {
         #expect(delegate.switchboard.preferences == .allEnabled)
         #expect(clipboard.poller.scheduledInterval == nil)
         #expect(delegate.power?.isObserving == false)
-        #expect(delegate.hud?.keys.isRunning == false)
     }
 }

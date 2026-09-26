@@ -13,7 +13,6 @@ import Foundation
 /// two: `module.media-metadata.enabled`, not `module.mediaMetadata.enabled`.
 public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case shelf
-    case hud
     case clipboard
     case mediaMetadata = "media-metadata"
     case mediaControls = "media-controls"

@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-1070-brightgreen" alt="1070 tests">
+  <img src="https://img.shields.io/badge/tests-974-brightgreen" alt="974 tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -57,16 +57,15 @@ distributed, not sold, and not on the App Store.
 
 ## Status
 
-**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
+**The foundation is complete. All nine modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
 | ✅ Hover to peek, click to open | Built |
 | ✅ Follows the focused screen | Built |
-| ✅ Menu bar item, first-launch onboarding | Built |
+| ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
-| ✅ **System HUD** — volume and brightness in the notch, alongside Apple's | Built |
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
 | ✅ **Media metadata** — now-playing title, artist, artwork, and an ambient badge | Done |
@@ -83,33 +82,11 @@ The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
 back out anywhere later.
 
-The system HUD is the second. It shows volume and brightness feedback
-wherever macOS gives none — Control Center, Siri, another app — and stays
-silent for the physical keys, which macOS already covers with its own
-overlay.
+Peeks draw into the **ears either side of the notch**, so nothing is ever
+hidden behind the camera housing. Notchless Macs get a single centred pill
+instead; there is no housing to work around, so two empty ears would be worse.
 
-It draws into the **ears either side of the notch** — icon on the left,
-level bar on the right — so nothing is ever hidden behind the camera
-housing:
-
-```
-     ┌────┬─────────────┬──────┐
-═════│ ☀  │   notch     │▓▓▓░░ │═════   menu bar
-     └────┴─────────────┴──────┘
-```
-
-Notchless Macs get a single centred pill instead; there is no housing to
-work around, so two empty ears would be worse.
-
-It also ignores your **ambient light sensor**. Auto-brightness ramps the
-backlight constantly, and those are real changes — measured on an M-series
-MacBook doing nothing at all: 2301 events in one session. Changes smaller
-than 0.005 in a single step are treated as the sensor rather than as you.
-The trade-off is deliberate and worth knowing: a Control Center drag slower
-than about three seconds moves in steps too small to register, so it will
-not show.
-
-Clipboard history is the third, and the only one that genuinely polls. Fifty
+Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images, in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
 content is read. It backs off when nothing is happening and suspends
@@ -203,26 +180,22 @@ immediately.
 
 ### Permissions
 
-On first launch an onboarding window explains that **Accessibility** access is
-needed, and why: to notice when you press the volume or brightness keys, so
-the HUD can stay quiet for them and leave Apple's own overlay alone.
+**It needs none.** The file shelf's drag detection and drop target work
+through AppKit's own drag events, clipboard history needs no permission, and
+the global shortcut is registered with the window server rather than a
+monitor. The camera asks for camera access the first time you open that tab,
+and only then.
 
-Nothing else needs it. The file shelf's drag detection and drop target both
-work through AppKit's own drag events, and clipboard history needs no
-permission either. Without Accessibility the HUD still works, but it reacts
-to the keys too — doubled feedback, not silence. You can skip the prompt and
-grant it later from the menu bar item.
+Accessibility *used* to be required, for the system HUD's keypress detection.
+That module has been removed, and the requirement went with it.
 
 ### Uninstalling
 
 ```bash
 pkill -f CreativeNotch
 rm -rf /Applications/CreativeNotch.app
-defaults delete com.gcdz.creativenotch        # only exists after onboarding
+defaults delete com.gcdz.creativenotch        # only exists once you change a setting
 ```
-
-Also remove CreativeNotch from **System Settings → Privacy & Security →
-Accessibility** if you granted it.
 
 The file shelf keeps its copies in
 `~/Library/Application Support/CreativeNotch`. Removing the app leaves that
@@ -236,13 +209,6 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 |---|---|
 | Pause on the notch for ~300 ms | Peeks open |
 | Move away | Collapses |
-| Change volume from Control Center, Siri, or another app | Peeks a speaker icon and level bar |
-| Change brightness from Control Center or another app | Peeks a sun icon and level bar |
-| Press the volume or brightness keys | Apple's own HUD appears; the notch stays silent |
-| Auto-brightness adjusts to the room | Nothing — the sensor is not you |
-| Launch the app | Nothing; the current levels become the baseline |
-| A device or route change re-reports the same mute state | Nothing; only an actual toggle shows |
-| Drag the brightness slider very slowly (>3s end to end) | Nothing; the steps fall under the ambient noise floor |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
@@ -265,7 +231,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause it | The countdown dims, and stops redrawing entirely |
 | Let it finish | The notch peeks and chimes once, and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Settings…, Accessibility status, Clear Shelf, Clear Clipboard, Quit |
+| Menu bar icon | Settings…, Clear Shelf, Clear Clipboard, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path.
@@ -280,16 +246,17 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 1070 tests, ~2s, no window server needed
+swift test           # 974 tests, ~2s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
 Xcode opens `Package.swift` directly — there is no project file to maintain.
 
-**Set up signing before touching any module that needs Accessibility.** An
-ad-hoc signature's designated requirement is the hash of the code, so macOS
-revokes your Accessibility grant on every rebuild. A one-time local
-certificate fixes it:
+**A stable signing identity is worth setting up.** An ad-hoc signature's
+designated requirement is the hash of the code, so macOS treats every rebuild
+as a different app and any permission you granted is revoked. Nothing in the
+app requires a permission today, but the camera re-prompts on every rebuild
+without this. A one-time local certificate fixes it:
 
 ```bash
 ./Scripts/setup-signing.sh
@@ -303,7 +270,7 @@ Sources/
   CreativeNotchCore/   pure logic — geometry, hit-test shapes, state machine,
                        peek arbitration. Never imports AppKit or SwiftUI.
   CreativeNotchUI/     AppKit + SwiftUI — panel, hosting view, hover tracker,
-                       menu bar, onboarding, app delegate.
+                       menu bar, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
   CreativeNotchCoreTests/   463 tests
@@ -345,12 +312,12 @@ wiring, which is a different thing from retrofitting a constant.
 Preferences has shipped, which is what the rest wanted somewhere to live.
 Every module is now switchable, and switching one off **stops what it runs**
 rather than hiding it — the clipboard's poller, the media helper's subprocess,
-the HUD's global event tap, the shortcut's registration.
+the shortcut's registration.
 
 The **global shortcut** followed it, and deliberately does not use a global
 event monitor: `RegisterEventHotKey` hands the combination to the window
 server, which delivers an event only when that combination is pressed. Nothing
-runs in between, and it needs no Accessibility permission. It also asks you to
+runs in between, and it needs no permission at all. It also asks you to
 press the shortcut once after choosing it — because neither the registration
 result nor any system API can prove a combination actually *delivers*, and one
 keystroke can.
@@ -358,7 +325,7 @@ keystroke can.
 **Launch at login shipped last, and it was the one that might not have shipped
 at all** — the roadmap said it would become an explanation rather than a toggle
 if macOS refused an ad-hoc signature. It does not refuse: an ad-hoc bundle
-registers cleanly, and unlike an Accessibility grant, the registration survives
+registers cleanly, and unlike a TCC grant, the registration survives
 a rebuild under a new code hash. What the probe found instead was a hazard
 nobody had asked about. The system keeps one login-item record per bundle
 identifier, and **reading its status repoints that record at whichever copy
@@ -400,11 +367,9 @@ half has nothing of ours to exclude at all.
 
 Underneath all of it sits one decision that is not about any single module.
 CreativeNotch is **ad-hoc signed**, so its identity changes on every build —
-which is why the Accessibility grant dies on every rebuild, why a camera
-grant would re-prompt on every update, why launch-at-login may be refused
-outright, and why downloads need `xattr -dr`. A signing identity would remove
-all four at once. That is a distribution decision, and it gates how two of
-the remaining modules get specified.
+which is why a camera grant re-prompts on every update and why downloads need
+`xattr -dr`. A signing identity would remove both at once. That is a
+distribution decision, and it now gates no module.
 
 The one that is not merely unbuilt but genuinely unsettled is preferences,
 for an architectural reason: turning a module off has to *stop its
@@ -416,8 +381,7 @@ Full analysis, including which need feasibility spikes first, is in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
 Each shipped module got its own spec and plan before any code. See
-[`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md)
-for the HUD's design, section 5.3 of
+section 5.3 of
 [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md)
 for the clipboard's, and
 [`docs/specs/2026-08-29-media-metadata-design.md`](docs/specs/2026-08-29-media-metadata-design.md)
@@ -455,7 +419,7 @@ Before module work starts, see
 | [`docs/ROADMAP.md`](docs/ROADMAP.md) | The one module still planned, and what it has to solve first |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
-| [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module |
+| [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module — **removed 2026-09-26**, kept as the record of what it was |
 | [`docs/specs/2026-08-29-media-metadata-design.md`](docs/specs/2026-08-29-media-metadata-design.md) | The media metadata module |
 | [`docs/specs/2026-08-30-timer-design.md`](docs/specs/2026-08-30-timer-design.md) | The timer module |
 | [`docs/specs/2026-09-13-preferences-design.md`](docs/specs/2026-09-13-preferences-design.md) | Preferences: a toggle that stops the subsystem |
@@ -472,7 +436,7 @@ Before module work starts, see
 | [`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md) | Known issues carried out of the build |
 | [`docs/plans/2026-08-29-media-controls.md`](docs/plans/2026-08-29-media-controls.md) | How the transport controls were built |
 | [`docs/plans/2026-08-29-media-metadata.md`](docs/plans/2026-08-29-media-metadata.md) | How the media metadata module was built |
-| [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | The feasibility spike behind the HUD module, and what it proved |
+| [`docs/research/2026-08-22-hud-feasibility.md`](docs/research/2026-08-22-hud-feasibility.md) | The feasibility spike behind the HUD module, and what it proved — the module is gone, the DisplayServices findings are not |
 | [`docs/research/2026-08-29-media-feasibility.md`](docs/research/2026-08-29-media-feasibility.md) | The feasibility spike behind the media transport module, and what it proved |
 | [`docs/research/2026-08-29-media-metadata-feasibility.md`](docs/research/2026-08-29-media-metadata-feasibility.md) | The feasibility spike behind the media metadata module, and what it proved |
 

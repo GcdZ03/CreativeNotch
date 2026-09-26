@@ -3,7 +3,7 @@ import CreativeNotchCore
 
 /// Owns the clipboard module's moving parts and the wiring between them.
 ///
-/// Shaped after `HUDController`: `ClipboardPoller` and
+/// Dumb sources, one owner: `ClipboardPoller` and
 /// `SystemActivityObserver` are dumb sources, and everything that connects
 /// them lives here rather than being spread through `AppDelegate`, where
 /// it could not be tested.
@@ -13,7 +13,7 @@ public final class ClipboardController {
     public let store: ClipboardStore
 
     /// Internal rather than private so the lifecycle is provable, the way
-    /// `HUDController` exposes its three observers.
+    /// the other controllers expose their own sources.
     let poller: ClipboardPoller
 
     private let pasteboard: NSPasteboard

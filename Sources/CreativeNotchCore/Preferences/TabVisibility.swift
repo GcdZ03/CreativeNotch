@@ -18,9 +18,7 @@ import Foundation
 /// notification and would clobber a preference folded into it.
 public enum TabVisibility {
     /// `.power` is appended rather than inserted, so hiding it never reorders
-    /// the tabs that were already there. `.hud` is never offered at all: it
-    /// owns no panel content, and a tab that opens onto a placeholder is worse
-    /// than no tab.
+    /// the tabs that were already there.
     public static func visible(enabled: Preferences, hasBattery: Bool) -> [Tab] {
         var tabs: [Tab] = []
         if enabled.shelf { tabs.append(.shelf) }

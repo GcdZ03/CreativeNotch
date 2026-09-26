@@ -1,7 +1,21 @@
 # System HUD — Design
 
 **Date:** 2026-08-25
-**Status:** Approved design, pre-implementation
+**Status:** **REMOVED 2026-09-26.** Shipped, then taken out of the app
+entirely. The module and its tests are deleted; this document is kept as the
+record of what it was and why, in the same way the foundation follow-ups are.
+Nothing below describes code that still exists.
+
+**Why it went.** The decision was the maintainer's call, not a defect nobody
+could fix. What it cost to keep: the project's one admitted always-installed
+global monitor, the only reason the app required **Accessibility** at all, and
+a filtering problem that kept producing new edge cases -- the last of them a
+brightness peek on display wake, diagnosed and fixed the day before removal
+(see the commit history for `HUDController.silenceThatStalesTheBaseline`).
+Removing it took the permission, the onboarding window and ~2,100 lines with
+it, and the app now requires no permissions at all.
+
+**Original status:** Approved design, pre-implementation
 **Target:** macOS 26+, builds on the completed foundation and file shelf
 **Supersedes:** section 5.1 of `2026-08-22-creativenotch-design.md`
 **Research:** [`../research/2026-08-22-hud-feasibility.md`](../research/2026-08-22-hud-feasibility.md)

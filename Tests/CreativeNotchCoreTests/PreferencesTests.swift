@@ -11,7 +11,6 @@ import Testing
 /// coming back, with nothing failing.
 @Test func theModuleRawValuesAreUnchanged() {
     #expect(ModuleID.shelf.rawValue == "shelf")
-    #expect(ModuleID.hud.rawValue == "hud")
     #expect(ModuleID.clipboard.rawValue == "clipboard")
     #expect(ModuleID.mediaMetadata.rawValue == "media-metadata")
     #expect(ModuleID.mediaControls.rawValue == "media-controls")
@@ -24,7 +23,7 @@ import Testing
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 10)
+    #expect(keys.count == 9)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }

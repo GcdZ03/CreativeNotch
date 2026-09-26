@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 1070
+swift test                              # all 974
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -19,7 +19,7 @@ change can be verified here, verify it here.
 ```bash
 ./Scripts/dev.sh              # debug build, relaunch
 ./Scripts/dev.sh --release    # release build
-./Scripts/dev.sh --fresh      # also reset onboarding, replaying first-run UI
+./Scripts/dev.sh --fresh      # also clear stored preferences, for first-run behaviour
 ./Scripts/dev.sh --logs       # stream the app's log output
 ```
 
@@ -28,13 +28,13 @@ need to install to `/Applications` while developing — run it from `dist/`.
 
 ### 3. Fresh-install behaviour
 
-`--fresh` clears the `com.gcdz.creativenotch` defaults domain, so onboarding
-and the Accessibility prompt replay from scratch.
+`--fresh` clears the `com.gcdz.creativenotch` defaults domain, so every
+module returns to its shipped default and the panel forgets its last tab.
 
-## Set up signing first — or lose Accessibility on every build
+## Set up signing first — or lose every TCC grant on each build
 
-Do this once, before working on any module that needs Accessibility (the
-HUD and the file shelf both will):
+Do this once, before working on any module that asks for a permission (the
+camera does):
 
 ```bash
 ./Scripts/setup-signing.sh
@@ -46,9 +46,9 @@ loudly if it ever falls back to ad-hoc. Set `CODESIGN_IDENTITY` only to
 override it with a different certificate.
 
 > Earlier versions required you to `export CODESIGN_IDENTITY` yourself,
-> and silently signed ad-hoc when you forgot — revoking Accessibility
-> with nothing on screen to say so. A build in a fresh shell looked
-> completely normal and the media keys simply stopped being detected.
+> and silently signed ad-hoc when you forgot — revoking whatever had been
+> granted, with nothing on screen to say so. A build in a fresh shell
+> looked completely normal and the permission simply stopped holding.
 
 **Why.** An ad-hoc signature's designated requirement is the hash of the
 code itself:
@@ -57,9 +57,9 @@ code itself:
 # designated => cdhash H"bf2759a7674105c875b1207d4a9389135a30cc74"
 ```
 
-TCC pins your Accessibility grant to that requirement. Change one line of
-Swift, the hash changes, the requirement stops matching, and macOS silently
-revokes the grant. You would re-authorise in System Settings on every build.
+TCC pins a grant to that requirement. Change one line of Swift, the hash
+changes, the requirement stops matching, and macOS silently revokes the
+grant. You would re-authorise in System Settings on every build.
 
 Signing with a stable certificate makes the requirement identity-based
 instead, so the grant survives rebuilds.
@@ -120,7 +120,7 @@ generating one would be a file to keep in sync for no benefit.
 
 Note that `swift run` produces a **bare executable with no bundle**, so it
 has no `Info.plist`, no `LSUIElement`, and no stable identity for TCC —
-Accessibility will not stick and the app will show a Dock icon. Always go
+TCC grants will not stick and the app will show a Dock icon. Always go
 through `./Scripts/dev.sh` and launch the `.app`.
 
 To debug: launch via `dev.sh`, then **Debug → Attach to Process** in Xcode.
@@ -181,36 +181,6 @@ So, for every test you add:
 If you cannot make a test fail, it is not protecting anything — either
 rewrite it or rename it to describe what it actually checks.
 
-## Why did the HUD just appear?
-
-Turn on the decision log rather than guessing:
-
-```bash
-defaults write com.gcdz.creativenotch HUDDiagnostics -bool YES
-# relaunch, then:
-tail -f ~/Library/Logs/CreativeNotch-hud.log
-```
-
-Every event is logged with the filter that dropped it, or `SHOWN`. This
-found two spurious sources that reading the code had missed: a racy
-baseline priming that popped a HUD on some launches and not others, and
-`.mute` being exempt from every filter so a redundant re-notification
-popped a speaker HUD. Off by default.
-
-## The brightness noise floor is calibrated, not universal
-
-`HUDSignificanceGate.noiseFloor` (0.005) is what stops the ambient light
-sensor popping the HUD. It was measured on one M-series MacBook: 2063
-ambient steps, worst case 0.00326, against 0.0625 for a keypress.
-
-If the HUD pops on your hardware with nothing touched, that machine's
-sensor is noisier than the one this was calibrated against. Measure before
-changing the constant — `HUDNoiseFloorTests` pins it above the measured
-worst case, and lowering it silently brings the spurious HUDs back.
-
-Raising it too far costs the other direction: a Control Center drag whose
-steps fall under the floor stops showing entirely.
-
 ## Never sleep in a test
 
 There is no `Task.sleep` anywhere in the suite, and there should not be.
@@ -260,17 +230,14 @@ fake diverges from the real thing, and those are the cases that can lose a
 file. `ShelfStore` takes `now` as a parameter, like `PeekArbiter`, so the
 7-day purge is testable without waiting a week.
 
-**`HUDAttribution` and `HUDCoalescer` take time as a parameter too**, like
-`PeekArbiter`. `HUDAttribution.isKeyDriven(changeAt:lastKeyAt:)` and
-`HUDCoalescer.accept(_:at:)` are pure functions of the timestamps they are
-given — never `Date()` internally — so the whole HUD decision path (coalesce
-duplicates, attribute to a keypress, decide whether to peek) is testable
-without a keyboard, real audio hardware, or a sleep.
+**`MediaCoalescer` compares values rather than reading a clock**, and
+`PeekArbiter` takes `now` as a parameter. Between them the whole peek
+decision path is testable without hardware or a sleep.
 
 **`removeItem` must never appear in the shelf module.** Removal is
 `trashItem`, always.
 
-**Never call `Permissions.requestAccessibility()` from a test** — it pops a
+**Never call a permission-requesting API from a test** — it pops a
 real system dialog. `AXIsProcessTrusted()` is a safe read.
 
 **A media helper verified from a terminal proves nothing.** A
@@ -296,7 +263,7 @@ music is playing" rather than like a bug.
 
 **Never spawn a real helper in a test, and never `Task.sleep` to wait for
 one.** The whole media module is tested against injected pipes and injected
-clocks, the same way `PeekArbiter` and `HUDAttribution` take time as a
+clocks, the same way `PeekArbiter` takes time as a
 parameter.
 
 **Do not drive a real media player from a test or a script.** An agent doing

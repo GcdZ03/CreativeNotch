@@ -6,7 +6,7 @@ import Testing
 ///
 /// The spike measured about six emissions for a single press of play.
 /// Passing all of them through would rebuild the header and restart peek
-/// arbitration six times for one user action. Same problem `HUDCoalescer`
+/// arbitration six times for one user action. The same problem the now-
 /// solves for CoreAudio.
 ///
 /// Deduping on `TrackSnapshot` equality is what makes this cheap — artwork

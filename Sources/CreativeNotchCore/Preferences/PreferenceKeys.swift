@@ -3,17 +3,17 @@ import Foundation
 /// The defaults keys, and the one function that decides what a stored value
 /// means.
 ///
-/// **Deliberately not private.** `OnboardingController`'s `private static let
-/// seenKey` forced its tests to re-spell the literal four times; with one key
-/// that is tolerable, with seven a typo in the *source* makes the test pass
-/// against a key nobody writes — a test asserting a literal against itself.
+/// **Deliberately not private.** A `private static let` for each key would
+/// force the tests to re-spell every literal; with one key that is tolerable,
+/// with seven a typo in the *source* makes the test pass against a key nobody
+/// writes — a test asserting a literal against itself.
 public enum PreferenceKeys {
     /// `module.<id>.enabled`, e.g. `module.media-metadata.enabled`.
     ///
     /// Dotted, lowercase, module-first: it sorts by module under `defaults
     /// read`, it greps, and it namespaces away from the two legacy keys
-    /// (`hasCompletedOnboarding`, `HUDDiagnostics`), which are grandfathered
-    /// exactly as they are.
+    /// (`hasCompletedOnboarding`, `HUDDiagnostics`) left behind by the
+    /// onboarding window and the system HUD, both since removed.
     public static func enabled(_ module: ModuleID) -> String {
         "module.\(module.rawValue).enabled"
     }

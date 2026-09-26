@@ -4,10 +4,9 @@ import Foundation
 ///
 /// The spike measured about six notifications for one press of play.
 /// Letting them all through would rebuild the header and re-run peek
-/// arbitration six times for a single user action — the same problem
-/// `HUDCoalescer` solves for CoreAudio's duplicate callbacks.
+/// arbitration six times for a single user action.
 ///
-/// Unlike the HUD's, this needs no time window. Artwork lives in
+/// It needs no time window. Artwork lives in
 /// `MediaArtworkCache`, so a `TrackSnapshot` holds only identity and
 /// playback state, and exact equality is both cheap and exactly the right
 /// question: if nothing in it changed, there is nothing to redraw.

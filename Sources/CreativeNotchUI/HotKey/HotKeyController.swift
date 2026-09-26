@@ -11,7 +11,7 @@ import CreativeNotchCore
 ///
 /// It has **no activity axis**. A hotkey whose whole purpose is to open the
 /// panel from anywhere must keep working while the panel is closed, and there
-/// is nothing running between presses to suspend. Like the HUD, it joins the
+/// is nothing running between presses to suspend. It joins the
 /// switchboard on the preference alone.
 @MainActor
 final class HotKeyController {

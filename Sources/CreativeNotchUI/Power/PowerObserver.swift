@@ -5,7 +5,7 @@ import CreativeNotchCore
 /// Turns IOKit power-source notifications and
 /// `processInfoPowerStateDidChange` into a `PowerSnapshot`.
 ///
-/// A dumb source, like `SystemActivityObserver` and the HUD's observers:
+/// A dumb source, like `SystemActivityObserver`:
 /// every judgement — whether an estimate is trustworthy, whether a
 /// threshold has been crossed, whether anything should be shown — lives
 /// above this in Core, where it runs headlessly. This file knows about

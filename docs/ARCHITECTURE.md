@@ -250,23 +250,22 @@ it and leaves a monitor running.
 
 ### Peek arbitration
 
-One slot, four competitors. `PeekArbiter` resolves them: **drag > HUD >
-power > now-playing**. Transient content preempts ambient content and then
-falls back, the same model as the iPhone Dynamic Island. The HUD has a 1.5 s
-TTL, power has 3 s; a drag has none and lasts until cleared.
+One slot, four competitors. `PeekArbiter` resolves them: **drag > finished
+timer > power > now-playing**. Transient content preempts ambient content and
+then falls back, the same model as the iPhone Dynamic Island. Power has a 3 s
+TTL and a finished timer 600 s; a drag has none and lasts until cleared.
 
-Power sits between the two for a reason. A HUD peek answers a key the user
-pressed a fraction of a second ago, and preempting it makes their own
-keypress feel dropped. Now-playing is ambient wallpaper and yields to
-anything. Power is unsolicited but consequential, which is exactly the
-middle.
+Power sits above now-playing for a reason: now-playing is ambient wallpaper
+and yields to anything, while power is unsolicited but consequential. A
+finished timer outranks both, because being interrupted by it is exactly what
+the user asked for.
 
-**Two TTLs mean the re-evaluation delay has to follow the content.** With one
-TTL in the app, `AppDelegate` could re-read the arbiter after a single fixed
-delay. A 3 s power peek re-checked after 1.5 s finds the arbiter still
+**Differing TTLs mean the re-evaluation delay has to follow the content.**
+With one TTL in the app, `AppDelegate` could re-read the arbiter after a
+single fixed delay. A long peek re-checked too early finds the arbiter still
 returning it, transitions to the state it is already in, and is never looked
 at again — the notch stays open until something unrelated moves it. So
-`AppDelegate.reevaluationDelay(for:hud:power:)` picks the delay, and
+`AppDelegate.reevaluationDelay(for:power:timerDone:)` picks the delay, and
 `reevaluatePeek` reschedules when what it reveals is itself transient. It
 terminates because every transient source strictly expires; ambient content
 is never rescheduled, which is what stops this being a timer that runs for
@@ -276,9 +275,9 @@ as long as music plays.
 a clock. That is what makes TTL expiry testable without sleeping. Do not
 replace it with `Date()`.
 
-`PeekArbiter` is wired: the HUD is its first consumer, and
-`AppDelegate.peek()` no longer fabricates a placeholder `TrackSnapshot`
-(closes follow-up **F8**).
+`PeekArbiter` is wired to real consumers, and `AppDelegate.peek()` no longer
+fabricates a placeholder `TrackSnapshot` (closes follow-up **F8**). The system
+HUD was its first consumer; power and the timer outlived it.
 
 ## Fullscreen
 
@@ -292,10 +291,6 @@ collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 
 That omission is load-bearing and easy to "fix" by accident, so
 `NotchPanelTests` asserts the exact collection behaviour set.
-
-A consequence worth knowing: the HUD module does nothing in fullscreen.
-Since Apple's own OSD is not suppressed, native volume feedback still
-appears there, so it degrades cleanly rather than silently.
 
 ## Concurrency
 
@@ -315,25 +310,24 @@ will need to hop. This is documented in the source too.
 
 ## Permissions
 
-Accessibility is needed for exactly one thing: `MediaKeyMonitor` detecting
-volume and brightness keypresses, so the HUD knows when to stay quiet. The
-file shelf's drag detection and drop target both work through AppKit's own
-drag events and need nothing; clipboard needs nothing either.
+**The app requires none.** The file shelf's drag detection and drop target
+work through AppKit's own drag events, clipboard needs nothing, and the global
+shortcut goes through the window server rather than a monitor. The camera asks
+for camera access when that tab is first opened, and only then.
 
-Requested during first-launch onboarding, re-checkable from the menu bar.
-The "has it been granted yet?" refresh is driven by
-`didBecomeActiveNotification` — which fires when the user returns from
-System Settings — rather than by polling `AXIsProcessTrusted()`.
-
-`Permissions.requestAccessibility()` pops a real system dialog. **Never call
-it from a test.** `AXIsProcessTrusted()` is a safe read.
+Accessibility was required until the system HUD was removed: `MediaKeyMonitor`
+needed it to detect volume and brightness keypresses. `Permissions`,
+`OnboardingController` and the menu bar's grant line went with that module.
+Anything reintroducing a permission should reintroduce the onboarding
+explanation with it — a prompt with no stated reason is worse than the
+feature is worth.
 
 The app is not sandboxed. A private framework and a `perl` subprocess make
 sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-1070 tests, all headless. `swift test` takes
+974 tests, all headless. `swift test` takes
 about two seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
@@ -345,8 +339,8 @@ adequate after a reviewer showed they covered half the bug.
 When adding a test: introduce the bug, watch it fail, revert, watch it pass.
 
 Not covered, and known: anything requiring a screen (notch alignment, hover
-feel, the onboarding window), anything requiring a real `NSScreen` (the menu
-bar height measurement), and observer removal on terminate.
+feel), anything requiring a real `NSScreen` (the menu bar height
+measurement), and observer removal on terminate.
 
 ## The file shelf
 
@@ -391,52 +385,6 @@ exactly as the cursor moves into the panel it just opened.
 
 No global monitor and no permission: AppKit already delivers dragging events to
 the window under the cursor.
-
-## The system HUD
-
-Observes the **value**, not the keypress. `VolumeObserver` watches CoreAudio
-and `BrightnessObserver` watches the private `DisplayServices` framework;
-neither is TCC-gated, and both catch a change whatever caused it — Control
-Center, Siri, another app, or the keys. Apple's own HUD only appears for the
-keys, so this is what fills the gap everywhere else.
-
-Attribution is a separate, pure decision (`HUDAttribution`, in
-`CreativeNotchCore`): a level change within 0.25s of a detected keypress is
-assumed to be Apple's HUD already covering it, and the notch stays silent.
-`HUDCoalescer` sits in front of it, because CoreAudio fires its volume
-listener twice per change; letting both through would flicker the pill and
-restart the peek TTL twice.
-
-Two gotchas cost real debugging time and are worth restating here:
-
-- **CoreAudio fires its volume-change listener twice per change.**
-  `HUDCoalescer` exists solely to absorb the duplicate.
-- **The brightness callback's `CGDirectDisplayID` argument is always `0`**,
-  not a valid display — the signature circulated online is wrong. Reading
-  brightness with that ID returns status 1000 and writes nothing, which
-  degrades silently to `nil`, indistinguishable from a host with no
-  readable brightness at all. `BrightnessObserver` always reads with
-  `CGMainDisplayID()` instead, and records the ID it last queried
-  (`BrightnessObserver.lastQueriedDisplay`) so a regression back to the
-  callback's `0` is provable from a test rather than only from a silent
-  `nil` on real hardware.
-
-`MediaKeyMonitor` is the **one admitted always-installed global monitor** in
-the project. The no-polling rule exists to stop monitors that fire
-continuously; this one fires only a few dozen times a day, on physical
-keypresses, and it exists purely to detect *that a keypress happened* for
-attribution — the level change itself is read from CoreAudio/DisplayServices,
-not from the key event. A session `CGEventTap` does the listening, not
-`NSEvent.addGlobalMonitorForEvents`: instrumenting a live app showed the
-`NSEvent` monitor delivers **zero** system-defined events on macOS 26, even
-with Accessibility granted. Unlike that old monitor — which always returned a
-token and only had its *delivery* gated by Accessibility — `CGEventTapCreate`
-itself genuinely **fails** without Accessibility granted, returning no tap at
-all. Either way `onKey` never fires, so without Accessibility, attribution
-**fails open**: `HUDAttribution` never sees a key timestamp to correlate
-against, and the notch reacts to every change, including ones caused by the
-keys. That is doubled feedback (Apple's HUD and the notch both showing), not
-silence — silence would be indistinguishable from the module being broken.
 
 ## Clipboard history
 
@@ -582,7 +530,7 @@ Removing the feature made the module cheaper as well as more honest.
 `PanelTabBar.visible(hasBattery:)` was a `static let` and is now a function,
 because `.power` is the first tab whose existence depends on the hardware.
 Three of its four facts are meaningless on a Mac mini, and the rule that
-already hid `.hud` hides it there too.
+already hides a contentless tab hides it there too.
 
 ## The timer
 
@@ -699,11 +647,11 @@ not agree with each other**:
 
 | List | Contained |
 | --- | --- |
-| Start | `hud`, `activity`, `clipboard`, `media`, `power` |
-| Stop | screen observers, `hud`, `clipboard`, `media`, `power`, `activity` |
+| Start | `activity`, `clipboard`, `media`, `power`, and the system HUD |
+| Stop | screen observers, the HUD, `clipboard`, `media`, `power`, `activity` |
 | Activity fan-out | `clipboard`, `media`, `timer`, `power` |
 
-`hud` was in the first two and not the third. `timer` was in the third and
+The HUD was in the first two and not the third. `timer` was in the third and
 neither of the others. The shelf and the transport controls were in none. A
 seven-way preference across three disagreeing lists is twenty-one chances to
 miss one, silently.
@@ -724,12 +672,12 @@ because a developer's machine has every module on.
 wrong applied uniformly. Two modules are exceptions, and both would be bugs if
 smoothed over:
 
-- **The HUD has no activity axis and must not gain one.** A uniform formula
-  would newly stop it on every screen lock, tearing down and recreating a
-  `CGEventTap` per lock/unlock cycle. `MediaKeyMonitor.start()` records success
-  as `isRunning = token != nil` with **no retry**, so a single
-  `CGEventTapCreate` failure inside an unlock window would leave the HUD
-  silently dead for the session. That window does not exist today.
+- **Not every module belongs on the axis.** The system HUD was the standing
+  exception while it existed: a uniform formula would have torn its
+  `CGEventTap` down and rebuilt it on every lock, and one `CGEventTapCreate`
+  failure inside an unlock window would have left it silently dead for the
+  session. The module is gone; the question it raises is not. Before adding a
+  leg, ask what a lock/unlock cycle costs that subsystem.
 - **`setActive` still reaches the timer while the timer is switched off**, for
   as long as a countdown is running. It is a scheduling-rate verb, not a
   lifecycle one: freezing `isActive` at `true` on a disabled-but-running
@@ -797,11 +745,12 @@ dismissed on a 400ms grace when the cursor leaves, taking key focus for exactly
 one tab. A form that closes 400ms after your cursor strays and does not hold
 the keyboard is the wrong container.
 
-One rule with teeth: **the window must not report the HUD as on when the tap
-failed.** `CGEventTapCreate` genuinely fails without Accessibility, and a
-switch reading "on" over a dead subsystem is the exact inversion of the failure
-this module exists to prevent. The HUD row reports the permission, never the
-preference.
+One rule with teeth: **a switch must not read "on" over a subsystem that is
+not actually running.** The system HUD was where this bit — its `CGEventTap`
+failed without Accessibility, and the row had to report the permission rather
+than the preference. No module carries that hazard today, but the rule is the
+reason `PreferencesView.warning(for:)` exists at all, and any module that can
+fail to start owes the user a warning rather than a switch that lies.
 
 ## The global shortcut
 
@@ -813,7 +762,7 @@ forever. This document names permanently-installed global monitors as not
 allowed, and this is the case it had in mind.
 `RegisterEventHotKey` hands the combination to the window server, which
 delivers an event only when that combination is pressed. Nothing runs in
-between, and it needs no Accessibility permission because it never sees any key
+between, and it needs no permission at all because it never sees any key
 but the one it registered. `MediaKeyMonitor` remains the project's one admitted
 always-installed monitor.
 
@@ -1075,7 +1024,7 @@ CoreAudio fires **one** event per edge. CoreMediaIO fires **three** on start
 and one on stop. Neither shape can be relied on, so a callback is a prompt to
 re-read and a re-read matching what is shown changes nothing. That is
 `CaptureDebounce`, and it is the third time this project has needed the shape —
-`MediaCoalescer` and `HUDSignificanceGate` are the others.
+`MediaCoalescer` is the other.
 
 ### It must not point at itself
 

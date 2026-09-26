@@ -8,7 +8,7 @@ import CreativeNotchCore
 /// previous snapshot can say the charger just moved, which is why that one
 /// piece of state lives here rather than in either pure type.
 ///
-/// Shaped after `HUDController` and `ClipboardController`: built in
+/// Shaped after `ClipboardController`: built in
 /// `AppDelegate.install`, started and stopped from the app lifecycle,
 /// gated by `setActivity`.
 @MainActor

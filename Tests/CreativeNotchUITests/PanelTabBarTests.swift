@@ -7,11 +7,10 @@ import CreativeNotchCore
 @MainActor
 struct PanelTabBarTests {
 
-    /// `.hud` stays in the `Tab` enum — `PeekArbiter` and `AppDelegate`
-    /// both reference it — but HUD history does not exist, and a tab that
-    /// opens onto a placeholder is worse than no tab.
+    /// Every tab in the list owns real panel content — a tab that opens onto
+    /// a placeholder is worse than no tab.
     ///
-    /// `.timer` is the opposite case and so it is listed: `TimerTabView`
+    /// `.timer` is worth calling out: `TimerTabView`
     /// is real content with a real controller behind it. Left out, the
     /// whole timer module would be unreachable from the UI — every task in
     /// it dead code — and nothing else in the suite would notice. That is
@@ -20,7 +19,6 @@ struct PanelTabBarTests {
     @Test func onlyTabsWithContentAreShown() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: true)
                 == [.shelf, .clipboard, .timer, .power, .camera])
-        #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: true).contains(.hud) == false)
     }
 
     // MARK: - The view must not keep its own list
@@ -93,7 +91,7 @@ struct PanelTabBarTests {
     }
 
     /// Three of the four facts on the power tab are meaningless without a
-    /// battery. The same rule that hides `.hud` hides this on a Mac mini.
+    /// battery, so it is hidden on a Mac mini.
     @Test func thePowerTabIsHiddenWithoutABattery() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false)
                 == [.shelf, .clipboard, .timer, .camera])
@@ -152,12 +150,12 @@ struct PanelTabBarTests {
         #expect(state.lastOpenTab == .clipboard)
     }
 
-    /// A peek is not a tab. HUD peeks fire constantly, and letting one
-    /// touch this would reset the user's tab out from under them.
+    /// A peek is not a tab. Letting one touch this would reset the user's
+    /// tab out from under them.
     @Test func peeksDoNotDisturbTheRememberedTab() {
         let state = AppState()
         state.transition(to: .open(.clipboard))
-        state.transition(to: .peek(.hud(HUDEvent(kind: .volume(0.5)))))
+        state.transition(to: .peek(.power(.unplugged(level: 50))))
 
         #expect(state.lastOpenTab == .clipboard)
     }

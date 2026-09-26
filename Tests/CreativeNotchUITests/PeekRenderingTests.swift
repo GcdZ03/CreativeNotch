@@ -8,7 +8,7 @@ import CreativeNotchCore
 ///
 /// Every other view here is tested through the pure function it leans on,
 /// and that is exactly how the ambient peek shipped broken: `NotchRootView`
-/// handled `.peek(.hud)` and let `.peek(.nowPlaying)` fall through to
+/// handled some peek cases and let `.peek(.nowPlaying)` fall through to
 /// `default`, which draws the literal string "CreativeNotch". Nothing about
 /// `NowPlayingLabel` — the pure part — was wrong, so no pure test could
 /// have caught it. What was missing was a `case` in a `switch`, and the
@@ -74,8 +74,8 @@ struct PeekRenderingTests {
 
     /// A notched Mac must not draw the track down the middle of the band —
     /// that is where the camera housing is, and the text would sit behind
-    /// it. `HUDView` already learned this the expensive way: a centred slab
-    /// put 72% of its level bar under the notch.
+    /// it. This project already learned that the expensive way: a centred
+    /// slab put 72% of itself under the notch.
     ///
     /// Make `NowPlayingPeekView` ignore `notchGap` and both renders become
     /// identical, so this fails.
@@ -187,8 +187,8 @@ struct PeekRenderingTests {
 /// is the peek exactly as `body` builds it, which puts the argument
 /// somewhere a plain `#expect` can read — no pixels, no panel shape, no
 /// second variable moving underneath the assertion. This is the regression
-/// class that has already cost this project twice: `HUDView`'s centred slab
-/// put 72% of its level bar behind the notch, and commit `dfe9142`.
+/// class that has already cost this project twice: a centred slab that put
+/// 72% of itself behind the notch, and commit `dfe9142`.
 /// (Follow-up F2.)
 @MainActor
 struct PeekNotchGapWiringTests {
@@ -236,8 +236,8 @@ struct PeekNotchGapWiringTests {
         #expect(NotchRootView.nowPlayingPeek(for: state, track: Self.track).notchGap == 0)
     }
 
-    /// `HUDView` reads the same named value from the same place, which is
-    /// the point of naming it: the two were spelled out separately, two
+    /// The power peek reads the same named value from the same place, which
+    /// is the point of naming it: the two were spelled out separately, two
     /// lines apart, and this is the assertion that they cannot drift.
     /// (Follow-up F3.)
     @Test func theNamedGapIsWhatBothPeeksAreBuiltFrom() {
@@ -300,7 +300,7 @@ struct PowerPeekRenderingTests {
 
     /// The reference has to be a peek that genuinely reaches `default`.
     ///
-    /// The first draft compared against a HUD peek, which has a `case` of
+    /// The first draft compared against another peek that has a `case` of
     /// its own — so deleting the power `case` still produced two different
     /// images and this test passed while the bug it exists to catch was
     /// present. `.dragTarget` is the content that actually falls through,

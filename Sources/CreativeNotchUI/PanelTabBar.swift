@@ -6,7 +6,6 @@ public extension CreativeNotchCore.Tab {
         switch self {
         case .shelf:     return "Shelf"
         case .clipboard: return "Clipboard"
-        case .hud:       return "HUD"
         case .power:     return "Power"
         case .timer:     return "Timer"
         case .camera:    return "Camera"
@@ -25,14 +24,10 @@ struct PanelTabBar: View {
 
     /// Only tabs that have something behind them.
     ///
-    /// `.hud` stays in the `Tab` enum because two exhaustive switches --
-    /// `title` and `openContent` -- would stop compiling without it. It is
-    /// never offered as a tab: HUD history is not built, and a tab that opens
-    /// onto a placeholder is worse than no tab.
-    ///
-    /// This comment used to claim `PeekArbiter` and `AppDelegate` reference
-    /// the case. They do not -- those are `PeekContent.hud`, a different
-    /// type -- and the wrong reason survived because nothing tested it.
+    /// Every case in `Tab` is offered: a tab that opens onto a placeholder is
+    /// worse than no tab, so a case that owns no panel content does not earn
+    /// one. `.hud` was the standing exception until the system HUD was
+    /// removed, and it is gone with it.
     ///
     /// `.timer` is unconditional: the tab has real content
     /// (`TimerTabView`), a real controller behind it, and a badge in the

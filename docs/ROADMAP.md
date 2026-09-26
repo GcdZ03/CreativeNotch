@@ -1,6 +1,36 @@
 # Roadmap
 
-**Nothing is planned. Every module this document ever described has shipped.**
+**Nothing is planned. Every module this document ever described has shipped —
+and one of them has since been removed.**
+
+## The system HUD was removed on 2026-09-26
+
+Volume and brightness in the notch shipped, ran for a month, and is gone. It
+was a product decision rather than a defect nobody could fix: the last bug in
+it — a brightness peek on display wake — was diagnosed and fixed the day
+before, and the module left with the fix still green.
+
+What the project got back is the interesting part, because it is all things
+this document argued about at length:
+
+- **The app now requires no permissions.** Accessibility existed for exactly
+  one thing, `MediaKeyMonitor` detecting keypresses so the notch could stay
+  quiet while Apple's own HUD showed. The permission, `Permissions`, the
+  onboarding window that explained it and the menu bar's grant line all went
+  with the module.
+- **The one admitted exception to the no-polling rule is gone.** `README.md`
+  listed "a permanently-installed global event monitor" as not allowed while
+  the HUD held a `CGEventTap`; the exception no longer needs an asterisk.
+- **`ModuleSwitchboard` loses its standing carve-out.** "The HUD has no
+  activity axis and must not gain one" was the one module that could not join
+  the gate uniformly. The reasoning is kept where the rule lives, because the
+  next module to claim an exception should have to argue against it.
+
+~2,100 lines of source and tests, one `ModuleID`, one `PeekContent` case and
+one `Tab` case. The spec and the feasibility findings are kept, marked
+removed, because what they measured about `DisplayServices` is still true and
+still a trap.
+
 
 It is kept because what it recorded was never a feature list — it was the
 specific problem each module had to solve before it could be written, and the
@@ -63,7 +93,8 @@ Their entries have been removed as they shipped:
   needed.
 
 Every module in this project so far has gone spec → plan → implementation,
-and the two that touched private or undocumented API (the system HUD, media
+and the two that touched private or undocumented API (the system HUD -- since
+removed -- and media
 metadata) got a feasibility spike before the spec. The notes below say which
 of these need one, and why.
 
@@ -124,7 +155,6 @@ changes on every build. Measured consequences:
 
 | | |
 | --- | --- |
-| Accessibility grant dies on every rebuild | already documented; `Scripts/setup-signing.sh` exists for it |
 | Camera grant re-prompts on every update | **measured** — module 5 |
 | ~~Launch at login may be refused outright~~ | **measured, and it is not** — an ad-hoc bundle registers cleanly, the record survives a new code hash, and a real logout confirms macOS honours it |
 | Downloads carry quarantine | why install instructions need `xattr -dr` |
@@ -134,9 +164,8 @@ costs money rather than time, and it no longer gates any module: launch at
 login turned out not to need it, and the camera ships with a re-prompt on
 every update rather than waiting for one.
 
-What it would still buy: an Accessibility grant that survives rebuilds
-without a local certificate, no camera re-prompt, and downloads that are not
-quarantined.
+What it would still buy: no camera re-prompt on every update, and downloads
+that are not quarantined.
 
 ## Still deliberately not planned
 

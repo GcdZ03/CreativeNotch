@@ -4,9 +4,8 @@ import CreativeNotchCore
 
 /// Pure formatting for the one-line case.
 ///
-/// Pulled out so it is testable without rendering anything — the same
-/// split `HUDView` and `MediaControlsView` do not need, because they have
-/// no string to compose.
+/// Pulled out so it is testable without rendering anything — a split
+/// `MediaControlsView` does not need, because it has no string to compose.
 ///
 /// Used by the **peek**, which has one line to work with. The open
 /// panel's header has room for two and sets title and artist separately,
@@ -25,10 +24,10 @@ enum NowPlayingLabel {
 /// What the closed notch shows while music plays.
 ///
 /// On a Mac with a physical notch, the middle of this band is the camera
-/// housing — anything drawn there is invisible. `HUDView` learned this the
-/// expensive way (a centred slab put 72% of its level bar behind the
-/// notch), so this follows the same shape: content lives in the ears, and
-/// the gap between them is left empty.
+/// housing — anything drawn there is invisible. This project learned that the
+/// expensive way, with a centred slab that put 72% of itself behind the notch,
+/// so every peek follows the same shape: content lives in the ears, and the
+/// gap between them is left empty.
 ///
 /// The split is not arbitrary. Title hugs the notch's left edge and artist
 /// its right, so the pair reads as one line interrupted by the hardware

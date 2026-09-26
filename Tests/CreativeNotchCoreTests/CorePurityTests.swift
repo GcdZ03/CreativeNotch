@@ -22,7 +22,7 @@ struct CorePurityTests {
     }
 
     /// Recursive: `contentsOfDirectory` only lists the top level, which
-    /// silently stopped covering `HUD/` and `Shelf/` the moment those
+    /// silently stopped covering `Shelf/` and `Timer/` the moment those
     /// subdirectories appeared — the purity check kept passing, but it had
     /// stopped scanning most of the module.
     private static var swiftFiles: [URL] {
@@ -67,9 +67,6 @@ struct CorePurityTests {
         // one per directory — a walk that recurses one level but not
         // further, or that mis-skips a sibling file, still shows up here.
         let expectedInSubdirectories = [
-            "HUDAttribution.swift",
-            "HUDCoalescer.swift",
-            "HUDSignificanceGate.swift",
             "DropPayload.swift",
             "ShelfItem.swift",
             "ShelfStore.swift",

@@ -4,19 +4,14 @@ import CreativeNotchCore
 /// What the notch shows for the three seconds after the power state
 /// changes.
 ///
-/// Shaped after `HUDView`, not after `NowPlayingBadgeView`. The badge is
-/// the *closed-notch* ambient tab and this module ships no persistent
-/// badge; the peek slot's existing occupants are `HUDView` and
-/// `NowPlayingPeekView`, and both split around `notchGap` because on a
-/// notched Mac the middle of this band is the camera housing. `HUDView` is
-/// an icon plus a level bar, which is exactly what a battery indicator is.
+/// A peek, not a badge. `NowPlayingBadgeView` is the *closed-notch* ambient
+/// tab and this module ships no persistent badge; like `NowPlayingPeekView`
+/// this splits around `notchGap`, because on a notched Mac the middle of this
+/// band is the camera housing.
 ///
-/// The one thing this adds over `HUDView` is a number. `HUDView`
-/// deliberately shows none, because Apple's volume HUD shows none and
-/// matching it makes the notch read as familiar. Battery is the opposite
-/// case: the menu bar item people already compare against has a
-/// percentage, and a bar at 19% is not actionably different from a bar at
-/// 25%.
+/// It shows a number as well as a bar. The menu bar item people already
+/// compare against has a percentage, and a bar at 19% is not actionably
+/// different from a bar at 25%.
 struct PowerPeekView: View {
 
     let event: PowerEvent

@@ -13,10 +13,10 @@ struct TimerPeekArbitrationTests {
         #expect(a.content(now: t0) == .timerDone(done))
     }
 
-    /// Above the HUD: you explicitly asked to be interrupted by this.
-    @Test func aFinishedTimerOutranksTheHUD() {
+    /// Above power: you explicitly asked to be interrupted by this.
+    @Test func aFinishedTimerOutranksPower() {
         var a = PeekArbiter()
-        a.recordHUD(HUDEvent(kind: .volume(0.5)), now: t0)
+        a.recordPower(.unplugged(level: 50), now: t0)
         a.recordTimerFinished(done, now: t0)
         #expect(a.content(now: t0) == .timerDone(done))
     }
@@ -38,7 +38,7 @@ struct TimerPeekArbitrationTests {
     }
 
     /// The safety expiry. Without it an unattended completion holds the
-    /// peek forever and silently blocks HUD and now-playing peeks behind
+    /// peek forever and silently blocks power and now-playing peeks behind
     /// it -- volume feedback would just stop working.
     @Test func anUnacknowledgedCompletionExpiresAndUnblocksTheOthers() {
         var a = PeekArbiter()

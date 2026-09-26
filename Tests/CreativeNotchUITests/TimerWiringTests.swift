@@ -271,7 +271,7 @@ struct TimerWiringTests {
     ///
     /// Without the `dismissTimerDone()`, the finished timer sits in the
     /// arbiter for the rest of its ten-minute TTL and reappears on the next
-    /// hover — and because it outranks the HUD, volume feedback would be
+    /// hover — and because it outranks power, that feedback would be
     /// swallowed by it for ten minutes too.
     @Test func openingThePanelClearsTheCompletion() throws {
         let delegate = NotchedDelegate.make()
@@ -401,17 +401,16 @@ struct TimerWiringTests {
 
         #expect(!AppDelegate.shouldTakeKey(for: .open(.shelf)))
         #expect(!AppDelegate.shouldTakeKey(for: .open(.clipboard)))
-        #expect(!AppDelegate.shouldTakeKey(for: .open(.hud)))
         #expect(!AppDelegate.shouldTakeKey(for: .open(.power)))
     }
 
-    /// Peeks are ambient and fire constantly — a HUD peek on every volume
+    /// Peeks are ambient and fire constantly — a power peek on every charger
     /// change stealing the cursor would make the app unusable.
     @Test func noPeekOrClosedStateTakesKeyboardFocus() {
         #expect(!AppDelegate.shouldTakeKey(for: .closed))
         #expect(!AppDelegate.shouldTakeKey(for: .receiving))
         #expect(!AppDelegate.shouldTakeKey(for: .peek(.dragTarget)))
-        #expect(!AppDelegate.shouldTakeKey(for: .peek(.hud(HUDEvent(kind: .volume(0.5))))))
+        #expect(!AppDelegate.shouldTakeKey(for: .peek(.power(.unplugged(level: 50)))))
         #expect(!AppDelegate.shouldTakeKey(
             for: .peek(.timerDone(TimerCompletion(duration: 60, lateness: 0)))
         ))

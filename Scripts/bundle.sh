@@ -9,7 +9,7 @@
 #                              so macOS revokes TCC grants on every rebuild.
 #
 #   $CODESIGN_IDENTITY         a stable local identity (see setup-signing.sh).
-#                              Accessibility survives rebuilds. Use for dev.
+#                              TCC grants survive rebuilds. Use for dev.
 set -euo pipefail
 
 CONFIG="${1:-release}"
@@ -49,7 +49,7 @@ echo "version $VERSION"
 
 # Prefer the local dev identity whenever it exists, rather than defaulting
 # to ad-hoc. Ad-hoc's designated requirement is the code hash, so every
-# rebuild revokes Accessibility — and because that fallback was silent, a
+# rebuild revokes every TCC grant — and because that fallback was silent, a
 # rebuild in a shell that happened not to export CODESIGN_IDENTITY dropped
 # the grant with nothing on screen to say so. An explicit CODESIGN_IDENTITY
 # still wins; ad-hoc is now only ever chosen out loud.
@@ -59,7 +59,7 @@ if [ -z "$IDENTITY" ]; then
     IDENTITY="CreativeNotch Dev"
   else
     IDENTITY="-"
-    echo "warning: signing ad-hoc — Accessibility will be revoked on every rebuild." >&2
+    echo "warning: signing ad-hoc — TCC grants will be revoked on every rebuild." >&2
     echo "         run Scripts/setup-signing.sh once to fix this permanently." >&2
   fi
 fi

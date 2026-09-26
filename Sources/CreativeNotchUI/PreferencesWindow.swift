@@ -44,7 +44,7 @@ final class PreferencesController {
         self.launchAtLogin = launchAtLogin
         // Taking the instance as a parameter rather than `[weak self]`, which
         // would capture `self` before every stored property has a value --
-        // the same reason `OnboardingController` does it this way.
+        // the same reason the other window controllers do it this way.
         self.presenter = { $0.presentRealWindow() }
     }
 
@@ -147,14 +147,13 @@ final class PreferencesController {
 /// section's footer, so the form reads as a form and the honesty is still
 /// there for anyone who reads to the end of a group.
 enum PreferencesSection: CaseIterable {
-    case notch, music, camera, system, shortcut
+    case notch, music, camera, shortcut
 
     var title: String {
         switch self {
         case .notch:    return "In the notch"
         case .music:    return "Music"
         case .camera:   return "Camera and privacy"
-        case .system:   return "System"
         case .shortcut: return "Shortcut"
         }
     }
@@ -167,8 +166,6 @@ enum PreferencesSection: CaseIterable {
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
             return "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing."
-        case .system:
-            return "Volume and brightness feedback where macOS shows none. Releases a global event tap when switched off."
         case .shortcut:
             return "No shortcut is set until you choose one. Any default would risk colliding with a launcher you already use."
         }
@@ -240,11 +237,6 @@ struct PreferencesView: View {
             module: .captureIndicator, section: .camera, symbolName: "record.circle", tint: .red,
             title: "Camera and microphone indicator",
             detail: "Shows in the notch when another app is using the camera or the microphone."
-        ),
-        PreferencesRow(
-            module: .hud, section: .system, symbolName: "speaker.wave.2", tint: .indigo,
-            title: "System HUD",
-            detail: "Volume and brightness in the notch, where macOS shows you nothing."
         ),
         PreferencesRow(
             module: .hotkey, section: .shortcut, symbolName: "command", tint: .gray,
@@ -339,13 +331,6 @@ struct PreferencesView: View {
             // Required by the spec: the tab you would cancel it from is what
             // disappears, so say what happens to the countdown.
             return "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
-        case .hud where !Permissions.isAccessibilityTrusted:
-            // The honesty rule with teeth. `CGEventTapCreate` genuinely fails
-            // without Accessibility and `MediaKeyMonitor.start()` records that
-            // as `isRunning = token != nil` with no retry, so a switch reading
-            // "on" over a dead subsystem is the exact inversion of the failure
-            // this module exists to prevent.
-            return "Accessibility is not granted, so the HUD cannot tell a keypress from any other cause. It will show both overlays at once when you use the keys."
         default:
             return nil
         }
