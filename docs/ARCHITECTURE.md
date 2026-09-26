@@ -310,10 +310,19 @@ will need to hop. This is documented in the source too.
 
 ## Permissions
 
-**The app requires none.** The file shelf's drag detection and drop target
-work through AppKit's own drag events, clipboard needs nothing, and the global
-shortcut goes through the window server rather than a monitor. The camera asks
-for camera access when that tab is first opened, and only then.
+**Nothing is requested at launch. The camera is the one module that needs a
+grant at all.** The file shelf's drag detection and drop target work through
+AppKit's own drag events, clipboard needs nothing, and the global shortcut
+goes through the window server rather than a monitor.
+
+`CameraController.reevaluate()` reads `authorizationStatus()` before building
+the capture graph. `.denied` and `.restricted` short-circuit to the denied
+state, because **a denied camera vends black frames rather than an error** and
+is otherwise indistinguishable from a bug. `.notDetermined` falls through to
+`applyRunState`, and starting the session is what makes macOS show the prompt
+— the app never calls `requestAccess` itself. `NSCameraUsageDescription` in
+`Info.plist` is the text that prompt shows. There is deliberately no
+`NSMicrophoneUsageDescription`: clips are silent.
 
 Accessibility was required until the system HUD was removed: `MediaKeyMonitor`
 needed it to detect volume and brightness keypresses. `Permissions`,
