@@ -13,7 +13,9 @@ before, and the module left with the fix still green.
 What the project got back is the interesting part, because it is all things
 this document argued about at length:
 
-- **The app now requires no permissions.** Accessibility existed for exactly
+- **Nothing is prompted at launch any more.** The camera still asks, the
+  first time that tab runs, and is now the only module that asks at all.
+  Accessibility existed for exactly
   one thing, `MediaKeyMonitor` detecting keypresses so the notch could stay
   quiet while Apple's own HUD showed. The permission, `Permissions`, the
   onboarding window that explained it and the menu bar's grant line all went

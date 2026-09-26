@@ -180,14 +180,23 @@ immediately.
 
 ### Permissions
 
-**It needs none.** The file shelf's drag detection and drop target work
-through AppKit's own drag events, clipboard history needs no permission, and
-the global shortcut is registered with the window server rather than a
-monitor. The camera asks for camera access the first time you open that tab,
-and only then.
+**Nothing is asked for at launch, and one module asks later.**
 
-Accessibility *used* to be required, for the system HUD's keypress detection.
-That module has been removed, and the requirement went with it.
+The file shelf's drag detection and drop target work through AppKit's own
+drag events, clipboard history needs no permission, and the global shortcut
+is registered with the window server rather than a monitor. Eight of the nine
+modules work with nothing granted.
+
+**The camera is the exception.** macOS prompts for camera access the first
+time the camera tab actually runs — not at launch, and never if you do not
+open that tab. Deny it and the camera module reports itself denied rather
+than showing you the black frames a denied camera vends; everything else
+carries on unaffected.
+
+Accessibility *used* to be required, prompted on first launch, for the system
+HUD's keypress detection. That module has been removed and the requirement
+went with it — so unlike before, starting the app grants nothing and asks
+nothing.
 
 ### Uninstalling
 
