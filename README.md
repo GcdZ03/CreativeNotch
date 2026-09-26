@@ -117,9 +117,13 @@ one subprocess is the budget for this project, and it never outlives it.
 
 - **macOS 26 (Tahoe) or later.** There is no compatibility shim; the app
   targets 26 exclusively.
-- **Apple Silicon or Intel.** Ad-hoc signing is applied either way (on
-  Apple Silicon it is mandatory — an unsigned `arm64` binary will not
-  launch at all).
+- **Apple Silicon, for the published build.** The `.tar.gz` on the Releases
+  page is a single-architecture `arm64` binary, and `install.sh` refuses
+  anything else rather than installing an app that cannot launch. Building
+  from source works on Intel — `swift build` targets whatever host it runs
+  on — but no Intel binary is published. Ad-hoc signing is applied either
+  way; on Apple Silicon it is mandatory, since an unsigned `arm64` binary
+  will not launch at all.
 - A physical notch is **not** required. Notchless Macs get a pill centred
   under the menu bar with identical behaviour.
 - To build: **Xcode 26+** (or just the Command Line Tools — no `.xcodeproj`
@@ -139,10 +143,16 @@ checks the installed version and exits early if you are current.
 <details>
 <summary>What that script does, before you pipe it to bash</summary>
 
-Checks you are on macOS 26+, fetches the latest release from the GitHub API,
-downloads the `.tar.gz`, verifies its code signature, stops any running copy,
-and moves it into `/Applications`. It asks for `sudo` only if `/Applications`
-needs it. Read it first if you like — it is
+Checks you are on macOS 26+ and on Apple Silicon, fetches the latest release
+from the GitHub API, downloads the `.tar.gz`, verifies its code signature,
+stops any running copy, and moves it into `/Applications`. It asks for `sudo`
+only if `/Applications` needs it, which on a normal admin account it does not.
+
+**It does not launch the app.** It prints the command; opening CreativeNotch
+is a separate step, and there is no Dock icon when you do — look at the notch
+and the menu bar.
+
+Read it first if you like — it is
 [`Scripts/install.sh`](Scripts/install.sh), and piping a script from the
 internet into your shell deserves a look.
 
