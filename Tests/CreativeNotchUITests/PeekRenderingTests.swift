@@ -37,7 +37,10 @@ struct PeekRenderingTests {
         state.transition(to: .peek(content))
 
         let renderer = ImageRenderer(
-            content: NotchRootView(app: state).frame(width: 400, height: 120)
+            content: NotchRootView(app: state)
+                .frame(width: 400, height: 120)
+                // The peek's bars loop; pinned so two renders can match.
+                .environment(\.animatesEqualizer, false)
         )
         renderer.scale = 1
         guard
@@ -61,7 +64,9 @@ struct PeekRenderingTests {
             content: NowPlayingPeekView(
                 track: Self.playing, artwork: artwork, notchGap: notchGap
             )
-            .frame(width: 400, height: 32)
+            // The notch's 32pt band plus the 76pt player hanging below it.
+            .frame(width: 400, height: 32 + NotchGeometry.mediaPeekBodyHeight)
+            .environment(\.animatesEqualizer, false)
         )
         renderer.scale = 1
         guard
@@ -266,6 +271,25 @@ struct PeekNotchGapWiringTests {
 
         #expect(peek.track == Self.track)
         #expect(peek.artwork == SolidArtwork.red)
+    }
+
+    /// The peek's play/pause goes out through `AppState.onMediaCommand`,
+    /// the one route to `MediaRemoteBridge`, never to the bridge itself.
+    @Test func thePeeksPlayPauseReachesTheMediaCommandRoute() {
+        let state = Self.app(anchor: .notch(CGRect(x: 0, y: 0, width: 230, height: 38)))
+        var sent: [MediaCommand] = []
+        state.onMediaCommand = { sent.append($0) }
+
+        NotchRootView.nowPlayingPeek(for: state, track: Self.track).onCommand(.togglePlayPause)
+
+        #expect(sent == [.togglePlayPause])
+    }
+
+    /// The band the bars sit in is the anchor's own height, so they line up
+    /// with the notch on a 14" and a 16" Mac alike.
+    @Test func thePeekBandIsTheAnchorsHeight() {
+        let state = Self.app(anchor: .notch(CGRect(x: 0, y: 0, width: 230, height: 38)))
+        #expect(NotchRootView.nowPlayingPeek(for: state, track: Self.track).bandHeight == 38)
     }
 }
 

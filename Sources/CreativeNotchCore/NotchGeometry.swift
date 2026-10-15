@@ -14,13 +14,22 @@ public enum NotchGeometry {
     /// or a readable bar without crowding the menu bar items either side.
     public static let peekEarWidth: CGFloat = 110
 
-    /// How far the ambient now-playing badge extends past the trailing
-    /// edge of a physical notch.
+    /// How far the music peek hangs below the notch's own band.
     ///
-    /// Deliberately a fraction of `peekEarWidth`, and deliberately on one
-    /// side only. The closed notch's own rect *is* the camera housing, so
-    /// a badge drawn inside it would be invisible — it has to grow into
-    /// the right ear, which is the menu bar. Unlike a peek, which appears
+    /// Holds a 48pt cover with 12pt above and 16pt below it — room for
+    /// title over artist beside it and a play/pause button, and the
+    /// progress bar planned to follow.
+    public static let mediaPeekBodyHeight: CGFloat = 76
+
+    /// How far the ambient now-playing badge extends past *each* edge of a
+    /// physical notch: the cover in the leading ear, the equalizer in the
+    /// trailing one (spec 2026-10-15).
+    ///
+    /// Deliberately a fraction of `peekEarWidth`. The closed notch's own
+    /// rect *is* the camera housing, so a badge drawn inside it would be
+    /// invisible — it has to grow into the ears, which are menu bar. Media
+    /// was trailing-only until 2026-10-15; it now gives up 34pt beside the
+    /// app menus too, for the symmetric look. Unlike a peek, which appears
     /// for a moment and goes, this sits there for as long as music plays,
     /// so every point of it is menu-bar real estate taken permanently.
     /// 34pt holds a 22pt cover with 6pt either side and stops well short

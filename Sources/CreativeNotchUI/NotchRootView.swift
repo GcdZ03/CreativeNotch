@@ -35,6 +35,23 @@ public final class AppState {
     /// `anchor` spells out `CreativeNotchCore.Anchor`.
     public private(set) var lastOpenTab: CreativeNotchCore.Tab = .shelf
 
+    /// Whether the last state change grew the panel, so the view can pick
+    /// a bouncy spring for growing and a snappy one for shrinking (spec
+    /// 2026-10-15). Set by `transition(to:)` alongside `state`, so the two
+    /// cannot describe different changes.
+    ///
+    /// One peek replacing another counts as growing: it is a swap, not a
+    /// collapse.
+    public private(set) var lastChangeGrew: Bool = true
+
+    /// Whether the cursor is over the notch, for the drawn-only hover
+    /// reaction (`NotchRootView.hoverInflated`).
+    ///
+    /// Visual only, and deliberately outside the funnel: nothing derived
+    /// from it reaches the hit test or the tracking rect, which is what
+    /// lets it change without a re-sync.
+    public internal(set) var isHovering: Bool = false
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -193,7 +210,20 @@ public final class AppState {
     /// `clipboard`, which are `@Observable` stores that publish their own
     /// changes, this is a plain value the header reads directly.
     public internal(set) var nowPlaying: TrackSnapshot?
-    public internal(set) var nowPlayingArtwork: Data?
+    public internal(set) var nowPlayingArtwork: Data? {
+        didSet {
+            guard nowPlayingArtwork != oldValue else { return }
+            nowPlayingBarTint = nowPlayingArtwork.flatMap(ArtworkTint.barColor(for:))
+        }
+    }
+
+    /// The equalizer's colour, sampled from the artwork once per artwork
+    /// change (spec 2026-10-15).
+    ///
+    /// Here rather than in a `.task(id:)` in each view that draws bars, so
+    /// the closed notch and the peek share one sample, and a render — in
+    /// the app or in a test — never races an asynchronous one.
+    public private(set) var nowPlayingBarTint: Color?
 
     /// The observed storage behind `countdown`, whose entire job is to
     /// **not** be `Equatable`.
@@ -283,6 +313,7 @@ public final class AppState {
     public func transition(to next: NotchState) {
         guard next != state else { return }
         if case .open(let tab) = next { lastOpenTab = tab }
+        lastChangeGrew = next.presentation.rank >= state.presentation.rank
         state = next
         notify(.state(next))
     }
@@ -330,6 +361,10 @@ public final class AppState {
 public struct NotchRootView: View {
     @Bindable var app: AppState
 
+    /// The one now-playing cover the badge, the music peek and the panel
+    /// share, so it slides between them (spec 2026-10-15).
+    @Namespace private var coverSpace
+
     /// The instant the badge slot is decided at, or `nil` to read the wall
     /// clock once per `body` evaluation.
     ///
@@ -367,13 +402,15 @@ public struct NotchRootView: View {
         state: NotchState,
         anchor: CreativeNotchCore.Anchor,
         panelFrame: CGRect,
-        badgeWidth: CGFloat = 0
+        badgeWidth: CGFloat = 0,
+        leadingBadgeWidth: CGFloat = 0
     ) -> CGRect {
         let visible = NotchShape.visibleRect(
             presentation: state.presentation,
             anchor: anchor,
             panelFrame: panelFrame,
-            badgeWidth: badgeWidth
+            badgeWidth: badgeWidth,
+            leadingBadgeWidth: leadingBadgeWidth
         )
         return CGRect(
             x: visible.minX,
@@ -408,7 +445,8 @@ public struct NotchRootView: View {
             state: app.state,
             anchor: app.anchor,
             panelFrame: app.panelFrame,
-            badgeWidth: slot.width
+            badgeWidth: slot.width,
+            leadingBadgeWidth: slot.leadingWidth
         )
     }
 
@@ -481,12 +519,40 @@ public struct NotchRootView: View {
     /// tests cover, and they are the tests that caught C2.
     static func nowPlayingPeek(
         for app: AppState,
-        track: TrackSnapshot
+        track: TrackSnapshot,
+        coverNamespace: Namespace.ID? = nil
     ) -> NowPlayingPeekView {
         NowPlayingPeekView(
             track: track,
             artwork: app.nowPlayingArtwork,
-            notchGap: notchGap(for: app.anchor)
+            notchGap: notchGap(for: app.anchor),
+            bandHeight: app.anchor.rect.height,
+            barTint: app.nowPlayingBarTint,
+            coverNamespace: coverNamespace,
+            onCommand: { app.onMediaCommand?($0) }
+        )
+    }
+
+    /// The drawn rect, grown a few points while the cursor rests on the
+    /// closed notch (spec 2026-10-15).
+    ///
+    /// The notch reacts the moment the cursor arrives, rather than doing
+    /// nothing until the 300ms dwell decides whether there is anything to
+    /// peek. **Drawn only.** The accepted hit/hover region is not grown,
+    /// so it stays no larger than what is drawn — the invariant the growth
+    /// lag exists for. The few points it does not cover are a margin, not
+    /// a target.
+    ///
+    /// Closed only: a peek or a panel is already larger, and a few more
+    /// points on top would make the next change jump.
+    static func hoverInflated(_ drawn: CGRect, isHovering: Bool, state: NotchState) -> CGRect {
+        guard isHovering, state == .closed else { return drawn }
+        let g = NotchMotion.hoverGrowth
+        return CGRect(
+            x: drawn.minX - g.width / 2,
+            y: drawn.minY,
+            width: drawn.width + g.width,
+            height: drawn.height + g.height
         )
     }
 
@@ -509,7 +575,11 @@ public struct NotchRootView: View {
         // it.
         let instant = now ?? Date()
         let slot = Self.badgeSlot(for: app, at: instant)
-        let drawn = Self.drawnRect(for: app, badge: slot)
+        let drawn = Self.hoverInflated(
+            Self.drawnRect(for: app, badge: slot),
+            isHovering: app.isHovering,
+            state: app.state
+        )
         ZStack(alignment: .topLeading) {
             Color.clear
             shape(badge: slot, at: instant)
@@ -517,7 +587,10 @@ public struct NotchRootView: View {
                 .offset(x: drawn.minX, y: drawn.minY)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .animation(.spring(response: 0.32, dampingFraction: 0.82), value: app.state)
+        .animation(NotchMotion.hover, value: app.isHovering)
+        // Keyed on the state, with the spring chosen by which way it moved:
+        // bouncy growing, snappy shrinking.
+        .animation(NotchMotion.animation(growing: app.lastChangeGrew), value: app.state)
     }
 
     /// Derived from `NotchShape.cornerRadii` — the same tested function
@@ -557,7 +630,7 @@ public struct NotchRootView: View {
                 }
             }
             .overlay {
-                switch app.state {
+                Group { switch app.state {
                 case .closed:
                     // Trailing-aligned, so it lands exactly in the region
                     // `visibleRect` grew for it on a notch — and inside
@@ -600,12 +673,23 @@ public struct NotchRootView: View {
                             EmptyView()
                         }
                     case .nowPlaying:
-                        NowPlayingBadgeView(artwork: app.nowPlayingArtwork)
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: .trailing
+                        // The cover in the leading ear and the bars in the
+                        // trailing one, the housing empty between them —
+                        // exactly the two strips `visibleRect` grew.
+                        HStack(spacing: 0) {
+                            NowPlayingBadgeView(
+                                artwork: app.nowPlayingArtwork,
+                                coverNamespace: coverSpace
                             )
+                            Spacer(minLength: 0)
+                            EqualizerBarsView(
+                                isPlaying: true,
+                                animates: false,
+                                color: app.nowPlayingBarTint ?? .white
+                            )
+                            .frame(width: NotchGeometry.nowPlayingBadgeWidth)
+                        }
+                        .frame(maxHeight: .infinity)
                     case .none:
                         EmptyView()
                     }
@@ -639,7 +723,8 @@ public struct NotchRootView: View {
                                 MediaColumn(
                                     snapshot: app.nowPlaying,
                                     artwork: app.nowPlayingArtwork,
-                                    showsControls: app.showsMediaControls
+                                    showsControls: app.showsMediaControls,
+                                    coverNamespace: coverSpace
                                 ) { app.onMediaCommand?($0) }
                             }
                             // `at: now` keeps the pane on the single instant
@@ -649,8 +734,6 @@ public struct NotchRootView: View {
                         }
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
-                    // One fade in, on the state change (spec §5.11).
-                    .transition(.opacity.combined(with: .scale(scale: 0.96)))
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -664,40 +747,26 @@ public struct NotchRootView: View {
                             .padding(.bottom, 20)
                     }
 
-                // A peek is a glance, not a panel: one truncating line,
-                // plus a 16pt cover when there is one to show.
+                // The music peek is a mini player that grows down from the
+                // notch (spec 2026-10-15); power and timer peeks stay one
+                // line in the ears.
                 //
-                // Artwork here was a stated non-goal in section 10 of the
-                // spec, reversed on the user's request after they saw the
-                // shipped panel. The spec is amended rather than silently
-                // contradicted: see "Reversed after the fact" there. Its
-                // stated reason — that the cache can legitimately be empty
-                // when a peek fires — is answered by
-                // `NowPlayingPeekView.cover`, which in that case draws
-                // nothing at all rather than a placeholder tile.
-                //
-                // Without this case the state fell through to `default`
-                // and drew the literal string "CreativeNotch" over playing
-                // music — the ambient peek this whole module exists for
-                // was never once drawn. Text comes from
-                // `NowPlayingLabel.text(for:)`, the same function the
-                // panel header uses, so the two cannot drift apart.
-                // A real case rather than a fall-through to `default`.
-                // That fall-through is bug C2: `.peek(.nowPlaying)` hit
+                // Without the now-playing case the state fell through to
                 // `default` and drew the literal string "CreativeNotch"
-                // over playing music for a whole module's development.
+                // over playing music — bug C2, for a whole module's
+                // development. Every `PeekContent` case is named rather
+                // than left to `default` for that reason.
                 case .peek(.power(let event)):
                     Self.powerPeek(for: app, event: event)
 
                 case .peek(.nowPlaying(let track)):
-                    // Same notch-gap treatment the power peek gets above,
-                    // from the same named function: on a notched Mac the middle
-                    // of this band is the camera housing, and a centred
-                    // line renders straight behind it. Built by
-                    // `nowPlayingPeek(for:track:)` rather than inline so a
-                    // test can read the arguments without rendering — see
-                    // its doc comment.
-                    Self.nowPlayingPeek(for: app, track: track)
+                    // The same notch gap the power peek gets, from the same
+                    // named function: the bars in its top band must start
+                    // clear of the camera housing. Built by
+                    // `nowPlayingPeek(for:track:coverNamespace:)` rather than
+                    // inline so a test can read the arguments without
+                    // rendering — see its doc comment.
+                    Self.nowPlayingPeek(for: app, track: track, coverNamespace: coverSpace)
 
                 // Same notch-gap treatment the other peeks get: a finished
                 // timer's text must not be drawn behind the camera housing
@@ -715,8 +784,15 @@ public struct NotchRootView: View {
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))
-                }
+                } }
+                // Every state's content blurs in as the shape grows and
+                // fades fast as it shrinks (spec 2026-10-15). Replaces the
+                // panel's own opacity-and-scale, so all states move alike.
+                .transition(NotchMotion.content)
             }
+            // Content never spills past the shape, including a cover in
+            // flight between two states.
+            .clipShape(backgroundShape)
             .onTapGesture {
                 // Through the funnel, like every other mutation.
                 switch app.state {
@@ -821,3 +897,4 @@ public struct NotchRootView: View {
         }
     }
 }
+

@@ -7,10 +7,8 @@ import CreativeNotchCore
 /// Pulled out so it is testable without rendering anything — a split
 /// `MediaControlsView` does not need, because it has no string to compose.
 ///
-/// Used by the **peek**, which has one line to work with. The open
-/// panel's header has room for two and sets title and artist separately,
-/// so it does not go through here. Two presentations of the same data,
-/// each sized to the space it has.
+/// The accessibility label for the peek and the panel, which both set
+/// title and artist on separate lines but read as one phrase.
 enum NowPlayingLabel {
     /// `"title — artist"`, or just `title` when there is no artist to
     /// join. Some tracks genuinely have no artist — podcasts, voice
@@ -21,94 +19,140 @@ enum NowPlayingLabel {
     }
 }
 
-/// What the closed notch shows while music plays.
+/// The music peek: what hovering the notch shows while there is a track
+/// (spec 2026-10-15).
 ///
-/// On a Mac with a physical notch, the middle of this band is the camera
-/// housing — anything drawn there is invisible. This project learned that the
-/// expensive way, with a centred slab that put 72% of itself behind the notch,
-/// so every peek follows the same shape: content lives in the ears, and the
-/// gap between them is left empty.
+/// It grows **down** from the notch into a mini player. The top band keeps
+/// the notch's own height and holds the moving equalizer in its trailing
+/// ear; the body below holds the cover, title over artist, and play/pause.
 ///
-/// The split is not arbitrary. Title hugs the notch's left edge and artist
-/// its right, so the pair reads as one line interrupted by the hardware
-/// rather than as two unrelated labels. Title takes the left because that
-/// is where reading starts and it is the thing you are actually checking.
+/// On a Mac with a physical notch, the middle of that band is the camera
+/// housing — anything drawn there is invisible. This project learned that
+/// the expensive way, with a centred slab that put 72% of itself behind the
+/// notch, so the bars start just past `notchGap` and never inside it. The
+/// body hangs below the housing and has nothing to avoid.
 ///
 /// `notchGap` is zero on a notchless Mac and on external displays, where
-/// there is nothing to avoid and the single centred line is correct.
+/// the bars simply sit at the band's trailing edge.
 struct NowPlayingPeekView: View {
     let track: TrackSnapshot
     var artwork: Data?
     var notchGap: CGFloat = 0
+    var bandHeight: CGFloat = 32
+    /// `AppState.nowPlayingBarTint`, sampled once per artwork change.
+    var barTint: Color? = nil
+    var coverNamespace: Namespace.ID? = nil
+    var onCommand: (MediaCommand) -> Void = { _ in }
+
+    private let coverSize: CGFloat = 48
 
     var body: some View {
+        VStack(spacing: 0) {
+            band
+                .frame(height: bandHeight)
+            player
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .frame(maxHeight: .infinity, alignment: .top)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(NowPlayingLabel.text(for: track))
+    }
+
+    /// The notch's own band: empty except for the bars, which sit in the
+    /// trailing ear just clear of the housing.
+    @ViewBuilder
+    private var band: some View {
+        let bars = EqualizerBarsView(isPlaying: track.isPlaying, animates: true, color: barTint ?? .white)
         if notchGap > 0 {
             HStack(spacing: 0) {
-                HStack(spacing: 7) {
-                    cover
-                    text(track.title, weight: .semibold, opacity: 0.95)
-                }
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, 12)
-
+                Color.clear
                 Color.clear.frame(width: notchGap)
-
-                text(track.artist, weight: .regular, opacity: 0.6)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                bars
                     .padding(.leading, 12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(NowPlayingLabel.text(for: track))
         } else {
-            HStack(spacing: 7) {
-                cover
-                text(NowPlayingLabel.text(for: track), weight: .medium, opacity: 0.9)
-            }
-            .padding(.horizontal, 14)
-            .accessibilityElement(children: .combine)
-            .accessibilityLabel(NowPlayingLabel.text(for: track))
+            bars
+                .padding(.trailing, 16)
+                .frame(maxWidth: .infinity, alignment: .trailing)
         }
     }
 
-    /// A 16pt cover, and nothing at all when there is none.
-    ///
-    /// The panel header reserves a blank tile so its text cannot shift
-    /// sideways when artwork lands late. The peek deliberately does the
-    /// opposite and omits it, because a peek is transient: an empty grey
-    /// square in a glance reads worse than no square at all.
-    ///
-    /// **The shift that buys is accepted, not overlooked.**
-    /// `MediaController` republishes when artwork arrives after the
-    /// snapshot it belongs to, so `app.nowPlayingArtwork` genuinely can
-    /// change while a peek is on screen — and when it does, the tile
-    /// appears and moves the title 23pt sideways mid-glance. That is the
-    /// known cost of not reserving space, and it was weighed against the
-    /// alternative: a grey placeholder on *every* peek, including the many
-    /// whose art was already cached and never needed one. A rare shift
-    /// beats a permanent blank. Do not "fix" this by reserving the tile
-    /// without revisiting that trade-off first. (Spec section 10,
-    /// "Reversed after the fact".)
-    @ViewBuilder
-    private var cover: some View {
-        if let artwork, let image = NSImage(data: artwork) {
-            Image(nsImage: image)
-                .resizable()
-                .aspectRatio(contentMode: .fill)
-                .frame(width: 16, height: 16)
-                .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 3, style: .continuous)
-                        .strokeBorder(.white.opacity(0.15), lineWidth: 0.5)
+    private var player: some View {
+        HStack(spacing: 12) {
+            cover
+            VStack(alignment: .leading, spacing: 2) {
+                Text(track.title)
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .contentTransition(.opacity)
+                // Dropped rather than reserved, as in the panel, so a
+                // track with no artist sits level with the cover.
+                if !track.artist.isEmpty {
+                    Text(track.artist)
+                        .font(.system(size: 12, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .contentTransition(.opacity)
                 }
-        }
-    }
-
-    private func text(_ string: String, weight: Font.Weight, opacity: Double) -> some View {
-        Text(string)
-            .font(.system(size: 12, weight: weight, design: .rounded))
-            .foregroundStyle(.white.opacity(opacity))
+            }
             .lineLimit(1)
             .truncationMode(.tail)
+            // Scoped to the text, so a new track cross-fades its title
+            // without animating anything that sizes the shape.
+            .animation(.smooth(duration: 0.35), value: track)
+            Spacer(minLength: 8)
+            playPause
+        }
+    }
+
+    /// The icon follows the snapshot's `isPlaying`, which the bridge
+    /// queries rather than infers — the same value the badge relies on.
+    private var playPause: some View {
+        Button {
+            onCommand(.togglePlayPause)
+        } label: {
+            Image(systemName: track.isPlaying ? "pause.fill" : "play.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 34, height: 34)
+                .background(Circle().fill(.white.opacity(0.14)))
+                .contentShape(Circle())
+                .contentTransition(.symbolEffect(.replace))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(track.isPlaying ? "Pause" : "Play")
+    }
+
+    /// A note glyph rather than nothing when there is no artwork.
+    ///
+    /// The old one-line peek omitted its 16pt cover in that case, because
+    /// a blank square in a glance read worse than none. At 48pt the cover
+    /// is the layout's anchor and the text is set against it, so it holds
+    /// its place, as the badge's and the panel's do.
+    @ViewBuilder
+    private var cover: some View {
+        Group {
+            if let artwork, let image = NSImage(data: artwork) {
+                Image(nsImage: image)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
+            } else {
+                ZStack {
+                    Rectangle().fill(.white.opacity(0.08))
+                    Image(systemName: "music.note")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.5))
+                }
+            }
+        }
+        .frame(width: coverSize, height: coverSize)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+        }
+        .nowPlayingCover(in: coverNamespace)
     }
 }
 

@@ -26,7 +26,7 @@ struct GrowthLagTests {
     private static let openRect   = CGRect(x: 0, y: 0, width: 620, height: 260)
     /// 230 + the badge's 34, written out rather than derived from the
     /// constant the production code uses. See `NowPlayingBadgeTests`.
-    private static let badgedRect = CGRect(x: 195, y: 222, width: 264, height: 38)
+    private static let badgedRect = CGRect(x: 161, y: 222, width: 298, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
@@ -45,8 +45,8 @@ struct GrowthLagTests {
     }
 
     @Test func theShippedDelayMatchesTheExpandAnimation() {
-        #expect(AppDelegate.defaultGrowthDelay == .milliseconds(320))
-        #expect(AppDelegate().growthDelay == .milliseconds(320))
+        #expect(AppDelegate.defaultGrowthDelay == .milliseconds(420))
+        #expect(AppDelegate().growthDelay == .milliseconds(420))
     }
 
     @Test func installSeedsTheAcceptedRegionImmediately() {

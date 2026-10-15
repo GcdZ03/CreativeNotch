@@ -68,6 +68,7 @@ public enum NotchState: Equatable, Sendable {
     public var presentation: NotchShape.Presentation {
         switch self {
         case .closed:            return .closed
+        case .peek(.nowPlaying): return .mediaPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }
