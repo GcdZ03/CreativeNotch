@@ -24,6 +24,19 @@ public enum BadgeSlot: Equatable, Sendable {
         case .capture:    return NotchGeometry.captureBadgeWidth
         }
     }
+
+    /// How far the closed notch grows on its *leading* side for this slot.
+    ///
+    /// Only media claims one: the cover sits left of the notch and the
+    /// equalizer right of it (spec 2026-10-15). A property of the slot
+    /// rather than a second rule, so "which badge" and "how wide on each
+    /// side" stay one decision.
+    public var leadingWidth: CGFloat {
+        switch self {
+        case .nowPlaying: return NotchGeometry.nowPlayingBadgeWidth
+        case .none, .timer, .recording, .capture: return 0
+        }
+    }
 }
 
 /// The visible region of the panel, in panel-local coordinates.
@@ -38,7 +51,22 @@ public enum NotchShape {
     public enum Presentation: Equatable, Sendable {
         case closed
         case peek
+        /// The music peek: grows down from the notch into a mini player,
+        /// where `.peek` grows sideways and keeps the notch's height.
+        case mediaPeek
         case expanded
+
+        /// Orders presentations by how much of the panel they draw, so the
+        /// view can tell a growing change from a shrinking one and pick
+        /// its spring accordingly.
+        public var rank: Int {
+            switch self {
+            case .closed:    return 0
+            case .peek:      return 1
+            case .mediaPeek: return 2
+            case .expanded:  return 3
+            }
+        }
     }
 
     /// The four corner radii the panel is drawn with.
@@ -142,7 +170,8 @@ public enum NotchShape {
         presentation: Presentation,
         anchor: Anchor,
         panelFrame: CGRect,
-        badgeWidth: CGFloat = 0
+        badgeWidth: CGFloat = 0,
+        leadingBadgeWidth: CGFloat = 0
     ) -> CGRect {
         let local = CGRect(
             x: anchor.rect.minX - panelFrame.minX,
@@ -167,12 +196,32 @@ public enum NotchShape {
             // slab alone.
             //
             // Non-positive is "no badge" — see the doc comment above.
-            guard badgeWidth > 0, anchor.isNotch else { return local }
+            //
+            // Media is the one exception to "trailing only": its cover
+            // takes a leading ear while the equalizer takes the trailing
+            // one (spec 2026-10-15, "Reversed after the fact").
+            guard anchor.isNotch else { return local }
+            let trailing = max(badgeWidth, 0)
+            let leading = max(leadingBadgeWidth, 0)
             return CGRect(
-                x: local.minX,
+                x: local.minX - leading,
                 y: local.minY,
-                width: local.width + badgeWidth,
+                width: leading + local.width + trailing,
                 height: local.height
+            )
+
+        case .mediaPeek:
+            // Grows down rather than sideways: the top band keeps the
+            // notch's height, so its ears stay clear of the housing, and
+            // the player hangs below it. Centred on the anchor and flush
+            // with its top edge, on a notch and on a pill alike.
+            let ear = NotchGeometry.peekEarWidth
+            let height = local.height + NotchGeometry.mediaPeekBodyHeight
+            return CGRect(
+                x: local.minX - ear,
+                y: local.maxY - height,
+                width: local.width + ear * 2,
+                height: height
             )
 
         case .peek:

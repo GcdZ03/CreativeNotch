@@ -153,7 +153,12 @@ struct TabRenderingTests {
 
     /// Stock styles resolve colours against the appearance and once drew
     /// black-on-black (`NotchPanel.swift`). The panel has its own; and
-    /// nothing in the UI may loop (spec §9).
+    /// nothing in the UI may loop (spec §9) — with one named exception.
+    ///
+    /// `EqualizerBarsView` repeats while the music peek is on screen and
+    /// only then (spec 2026-10-15). The exemption is by file, not by
+    /// token, so a loop anywhere else still fails here, and `TimelineView`
+    /// stays banned even there.
     @Test func noStockControlStyleOrRepeatingAnimationSurvivesInTheUI() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -162,6 +167,7 @@ struct TabRenderingTests {
             .appendingPathComponent("Sources/CreativeNotchUI")
         let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
         let banned = [".borderedProminent", ".bordered)", ".roundedBorder", "TimelineView", ".repeatForever"]
+        let loopAllowed = ["EqualizerBarsView.swift"]
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
             // Code only. A doc comment that says "no `TimelineView`" is the
@@ -170,6 +176,7 @@ struct TabRenderingTests {
                 .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
                 .joined(separator: "\n")
             for token in banned {
+                if token == ".repeatForever", loopAllowed.contains(url.lastPathComponent) { continue }
                 #expect(!code.contains(token), "\(url.lastPathComponent) still uses \(token)")
             }
         }

@@ -15,6 +15,9 @@ struct MediaColumn: View {
     let snapshot: TrackSnapshot?
     let artwork: Data?
     let showsControls: Bool
+    /// Ties the cover to the badge's and the peek's, so it slides in
+    /// from wherever the notch was (spec 2026-10-15).
+    var coverNamespace: Namespace.ID? = nil
     let onCommand: (MediaCommand) -> Void
 
     @State private var tint: Color?
@@ -97,5 +100,6 @@ struct MediaColumn: View {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
                 .strokeBorder(.white.opacity(0.12), lineWidth: 1)
         }
+        .nowPlayingCover(in: coverNamespace)
     }
 }

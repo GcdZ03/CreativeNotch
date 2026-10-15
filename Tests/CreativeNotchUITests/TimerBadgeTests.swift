@@ -40,8 +40,9 @@ struct TimerBadgeTests {
     /// side.
     private static let timedRect = CGRect(x: 195, y: 222, width: 274, height: 38)
 
-    /// The media badge's rect, for the ranking test: 230 + 34.
-    private static let mediaRect = CGRect(x: 195, y: 222, width: 264, height: 38)
+    /// The media badge's rect, for the ranking test: 34 + 230 + 34 — the
+    /// cover's leading ear and the equalizer's trailing one.
+    private static let mediaRect = CGRect(x: 161, y: 222, width: 298, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
@@ -112,9 +113,9 @@ struct TimerBadgeTests {
     ///
     /// This drives the real publish path: the countdown is already set when
     /// `nowPlayingDidChange` re-syncs, so the slot is decided with both
-    /// claimants present. 274, not 264 — if the hit test resolved the tie
-    /// the other way the user would see a countdown 10pt wider than the
-    /// region that accepts clicks on it.
+    /// claimants present. 274, not media's 298 — if the hit test resolved
+    /// the tie the other way it would accept clicks on a leading ear the
+    /// countdown never draws.
     @Test func aRunningTimerOutranksPlayingMediaInAllThreeRects() {
         let delegate = makeDelegate(countdown: Self.running())
         delegate.nowPlayingDidChange(Self.playing)
@@ -122,7 +123,7 @@ struct TimerBadgeTests {
         #expect(delegate.acceptedRect == Self.timedRect)
         #expect(delegate.hoverView?.trackingRect == Self.timedRect)
         #expect(NotchRootView.drawnRect(for: delegate.state).width == Self.timedRect.width)
-        #expect(Self.timedRect.width > Self.mediaRect.width)
+        #expect(Self.timedRect != Self.mediaRect)
     }
 
     // MARK: - The click actually lands
@@ -172,8 +173,10 @@ struct TimerBadgeTests {
     @Test func peekAndOpenAreUnaffectedByTheCountdown() {
         let delegate = makeDelegate(countdown: Self.running())
 
+        // The music peek grows down from the notch (spec 2026-10-15): as
+        // wide as the other peeks, `mediaPeekBodyHeight` (76) taller.
         delegate.state.transition(to: .peek(.nowPlaying(Self.playing)))
-        #expect(delegate.acceptedRect == CGRect(x: 85, y: 222, width: 450, height: 38))
+        #expect(delegate.acceptedRect == CGRect(x: 85, y: 146, width: 450, height: 114))
 
         delegate.state.transition(to: .open(.shelf))
         #expect(delegate.acceptedRect == CGRect(x: 0, y: 0, width: 620, height: 260))

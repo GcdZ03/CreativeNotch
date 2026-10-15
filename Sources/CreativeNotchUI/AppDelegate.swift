@@ -221,7 +221,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// app accepted clicks on a region that was not visibly there yet --
     /// the same "swallows clicks you cannot see" failure the hit test
     /// exists to prevent, just briefly.
-    public static let defaultGrowthDelay: Duration = .milliseconds(320)
+    ///
+    /// Follows `NotchMotion.openResponse`, the spring that grows the shape.
+    public static let defaultGrowthDelay: Duration = .milliseconds(Int(NotchMotion.openResponse * 1000))
 
     /// Overridable so tests need not wait out a real animation.
     var growthDelay: Duration = AppDelegate.defaultGrowthDelay
@@ -400,9 +402,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let hover = HoverTracker(frame: CGRect(origin: .zero, size: size))
         hover.autoresizingMask = [.width, .height]
-        hover.onEnter = { [weak self] in self?.cancelDismissGrace() }
+        hover.onEnter = { [weak self] in
+            self?.state.isHovering = true
+            self?.cancelDismissGrace()
+        }
         hover.onDwell = { [weak self] in self?.peek() }
-        hover.onExit  = { [weak self] in self?.collapse() }
+        hover.onExit  = { [weak self] in
+            self?.state.isHovering = false
+            self?.collapse()
+        }
 
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
 
@@ -663,7 +671,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             presentation: state.state.presentation,
             anchor: currentAnchor,
             panelFrame: currentFrame,
-            badgeWidth: currentBadgeWidth
+            badgeWidth: currentBadgeSlot.width,
+            leadingBadgeWidth: currentBadgeSlot.leadingWidth
         )
     }
 
@@ -676,14 +685,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// because that is all the three rects need — `visibleRect` grows by
     /// a number and stays ignorant of which badge asked. Internal so a
     /// test can assert the source of the width directly.
-    var currentBadgeWidth: CGFloat {
+    var currentBadgeWidth: CGFloat { currentBadgeSlot.width }
+
+    /// The slot itself, for the one consumer that needs both of its
+    /// widths: `visibleRect()`, which grows the leading ear for media's
+    /// cover as well as the trailing one (spec 2026-10-15).
+    var currentBadgeSlot: BadgeSlot {
         NotchShape.badgeSlot(
             countdown: state.countdown,
             nowPlaying: state.nowPlaying,
             isRecording: state.isRecordingClip,
             capture: state.captureUse,
             at: Date()
-        ).width
+        )
     }
 
     /// What is playing changed.

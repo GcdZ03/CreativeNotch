@@ -60,17 +60,21 @@ struct BadgeRenderingTests {
     private static let panel  = CGRect(x: 1895, y: 896, width: 620, height: 260)
 
     /// The badged closed rect in the top-left space SwiftUI lays out in:
-    /// panel-local (195, 222, 264, 38) mirrored in y against a 260pt panel
-    /// puts it flush with the panel's top edge.
+    /// panel-local (161, 222, 298, 38) mirrored in y against a 260pt panel
+    /// puts it flush with the panel's top edge. 34 + 230 + 34: the cover's
+    /// leading ear and the equalizer's trailing one (spec 2026-10-15).
     ///
     /// Literals, not `NotchRootView.drawnRect(for:)`: a test that asks the
     /// production code where it drew and then checks it drew there proves
     /// only that it agrees with itself.
-    private static let drawn = CGRect(x: 195, y: 0, width: 264, height: 38)
+    private static let drawn = CGRect(x: 161, y: 0, width: 298, height: 38)
 
-    /// The strip the shape grew for the badge — the 34pt trailing the
-    /// notch's own 230pt. Nothing else in the closed notch may be painted.
-    private static let badgeStrip = CGRect(x: 425, y: 0, width: 34, height: 38)
+    /// The strip the shape grew for the cover — the 34pt leading the
+    /// notch's own 230pt.
+    private static let coverStrip = CGRect(x: 161, y: 0, width: 34, height: 38)
+
+    /// The strip it grew for the equalizer — the 34pt trailing the notch.
+    private static let barsStrip = CGRect(x: 425, y: 0, width: 34, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
     private static let paused  = TrackSnapshot(title: "Song", artist: "Band", isPlaying: false)
@@ -126,11 +130,17 @@ struct BadgeRenderingTests {
     /// Deliberately generous about the exact channel values: the cover is
     /// resampled, clipped to a rounded rect and stroked, so its edge pixels
     /// are blends. Only the interior has to be recognisably the marker.
-    private static func paintedBox(_ bitmap: NSBitmapImageRep, _ marker: NSColor) -> CGRect? {
+    ///
+    /// `region` limits the search, for a marker that legitimately appears
+    /// twice: the equalizer takes its tint from the same red cover.
+    private static func paintedBox(
+        _ bitmap: NSBitmapImageRep, _ marker: NSColor, in region: CGRect? = nil
+    ) -> CGRect? {
         let want = marker.usingColorSpace(.deviceRGB)!
+        let area = region ?? CGRect(x: 0, y: 0, width: bitmap.pixelsWide, height: bitmap.pixelsHigh)
         var box: CGRect?
-        for y in 0..<bitmap.pixelsHigh {
-            for x in 0..<bitmap.pixelsWide {
+        for y in Int(area.minY)..<Int(area.maxY) {
+            for x in Int(area.minX)..<Int(area.maxX) {
                 guard let raw = bitmap.colorAt(x: x, y: y),
                       let c = raw.usingColorSpace(.deviceRGB),
                       c.alphaComponent > 0.5,
@@ -184,28 +194,42 @@ struct BadgeRenderingTests {
 
     /// The one that matters most, and the one no comparison of two images
     /// can make: a closed notch's own rect *is* the camera housing, so a
-    /// cover drawn anywhere but the 34pt strip trailing it is invisible on
+    /// cover drawn anywhere but the 34pt strip leading it is invisible on
     /// real hardware while every pixel-difference test still passes.
     ///
-    /// Flip the overlay's `alignment` to `.leading` and the cover lands at
-    /// x 201 — dead centre of the housing — and this fails. Delete the
-    /// overlay and there is no cover to find at all.
-    @Test func theBadgeIsDrawnInTheStripTheShapeGrewForIt() throws {
+    /// Centre the cover and it lands in the housing, and this fails.
+    /// Delete the overlay and there is no cover to find at all.
+    @Test func theCoverIsDrawnInTheLeadingStripTheShapeGrewForIt() throws {
         let image = try #require(Self.closedNotch(nowPlaying: Self.playing, artwork: SolidArtwork.red))
-        let cover = try #require(Self.paintedBox(image, .systemRed))
+        // Everything left of the trailing strip: the leading ear and the
+        // housing, so a cover that drifted into the housing is still found.
+        let leftOfBars = CGRect(x: 0, y: 0, width: Self.barsStrip.minX, height: Self.drawn.height)
+        let cover = try #require(Self.paintedBox(image, .systemRed, in: leftOfBars))
 
-        #expect(Self.badgeStrip.contains(cover))
+        #expect(Self.coverStrip.contains(cover))
         // The exact tile, not merely "somewhere inside": this is the
         // drawn consequence of `nowPlayingBadgeWidth == 34` holding
         // `NowPlayingBadgeView`'s 22pt cover with 6pt gutters, which is
         // the constant's stated rationale and was otherwise unenforced.
-        // Widen the constant to 50 and the cover slides to x 447.
-        #expect(cover == CGRect(x: 431, y: 8, width: 22, height: 22))
-        #expect(cover.minX - Self.badgeStrip.minX == 6)
-        #expect(Self.badgeStrip.maxX - cover.maxX == 6)
-        // And the strip really is outside the notch it trails.
-        #expect(Self.badgeStrip.minX == Self.drawn.minX + Self.anchor.width)
-        #expect(Self.badgeStrip.maxX == Self.drawn.maxX)
+        #expect(cover == CGRect(x: 167, y: 8, width: 22, height: 22))
+        #expect(cover.minX - Self.coverStrip.minX == 6)
+        #expect(Self.coverStrip.maxX - cover.maxX == 6)
+        // And the strip really is outside the notch it leads.
+        #expect(Self.coverStrip.minX == Self.drawn.minX)
+        #expect(Self.coverStrip.maxX == Self.drawn.minX + NotchGeometry.nowPlayingBadgeWidth)
+    }
+
+    /// The equalizer lands in the trailing strip, tinted from the cover:
+    /// right of the housing, never inside it.
+    @Test func theEqualizerIsDrawnInTheTrailingStrip() throws {
+        let image = try #require(Self.closedNotch(nowPlaying: Self.playing, artwork: SolidArtwork.red))
+        let rightOfCover = CGRect(
+            x: Self.coverStrip.maxX, y: 0,
+            width: CGFloat(image.pixelsWide) - Self.coverStrip.maxX, height: Self.drawn.height
+        )
+        let bars = try #require(Self.paintedBox(image, .systemRed, in: rightOfCover))
+
+        #expect(Self.barsStrip.contains(bars))
     }
 
     /// The mirror image: paused media is not playing media, so nothing may
@@ -241,7 +265,7 @@ struct BadgeRenderingTests {
     /// reach the view. Without this, a `countdown` that never arrived
     /// would make "no cover was painted" pass for the wrong reason.
     ///
-    /// The difference is the shape — 230 + 44 rather than 230 + 34 — and
+    /// The difference is the shape — 230 + 44 rather than 34 + 230 + 34 — and
     /// the cover's absence. It says the countdown changed the render; it
     /// does not say what changed, which is what the assertion above is for.
     @Test func aRunningTimerChangesTheClosedNotch() throws {
