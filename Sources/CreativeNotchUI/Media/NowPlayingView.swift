@@ -50,10 +50,18 @@ struct NowPlayingPeekView: View {
         VStack(spacing: 0) {
             band
                 .frame(height: bandHeight)
-            player
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-                .frame(maxHeight: .infinity, alignment: .top)
+            VStack(spacing: 10) {
+                player
+                if let position = track.position {
+                    PlaybackProgressView(position: position, isPlaying: track.isPlaying)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, track.position == nil ? 0 : 12)
+            // The body's height is fixed (`mediaPeekBodyHeight`), so a
+            // track without a position centres its row in the same space
+            // rather than leaving a gap where the bar would be.
+            .frame(maxHeight: .infinity, alignment: track.position == nil ? .center : .top)
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(NowPlayingLabel.text(for: track))

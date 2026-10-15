@@ -8,11 +8,16 @@ public struct TrackSnapshot: Equatable, Sendable {
     public var title: String
     public var artist: String
     public var isPlaying: Bool
+    /// Where playback is, when the player publishes it. Part of equality on
+    /// purpose: a seek is a change worth republishing, and MediaRemote only
+    /// sends one on play, pause and seek, never on a clock.
+    public var position: PlaybackPosition?
 
-    public init(title: String, artist: String, isPlaying: Bool) {
+    public init(title: String, artist: String, isPlaying: Bool, position: PlaybackPosition? = nil) {
         self.title = title
         self.artist = artist
         self.isPlaying = isPlaying
+        self.position = position
     }
 }
 

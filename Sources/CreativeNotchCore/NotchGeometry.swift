@@ -16,10 +16,15 @@ public enum NotchGeometry {
 
     /// How far the music peek hangs below the notch's own band.
     ///
-    /// Holds a 48pt cover with 12pt above and 16pt below it — room for
-    /// title over artist beside it and a play/pause button, and the
-    /// progress bar planned to follow.
-    public static let mediaPeekBodyHeight: CGFloat = 76
+    /// Holds a 48pt cover with 12pt above it — title over artist and a
+    /// play/pause button beside it — then the progress bar and its two
+    /// times below, with 12pt under those.
+    ///
+    /// Fixed, whether or not the track publishes a position: a peek whose
+    /// height depended on it would need the position threaded into
+    /// `visibleRect`, and would resize mid-glance when a reading arrived.
+    /// Without one, the player row sits centred in the same space.
+    public static let mediaPeekBodyHeight: CGFloat = 100
 
     /// How far the ambient now-playing badge extends past *each* edge of a
     /// physical notch: the cover in the leading ear, the equalizer in the
