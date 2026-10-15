@@ -59,12 +59,14 @@ struct PeekRenderingTests {
     /// changes the drawn panel *shape*, so the two images differed whether
     /// or not the text respected the gap. Rendering the peek view directly
     /// is what isolates the only variable that matters.
-    private static func peekViewPixels(notchGap: CGFloat, artwork: Data? = nil) -> Data? {
+    private static func peekViewPixels(
+        notchGap: CGFloat, artwork: Data? = nil, track: TrackSnapshot = Self.playing
+    ) -> Data? {
         let renderer = ImageRenderer(
             content: NowPlayingPeekView(
-                track: Self.playing, artwork: artwork, notchGap: notchGap
+                track: track, artwork: artwork, notchGap: notchGap
             )
-            // The notch's 32pt band plus the 76pt player hanging below it.
+            // The notch's 32pt band plus the player hanging below it.
             .frame(width: 400, height: 32 + NotchGeometry.mediaPeekBodyHeight)
             .environment(\.animatesEqualizer, false)
         )
@@ -167,6 +169,48 @@ struct PeekRenderingTests {
         let withCover = try #require(Self.peekViewPixels(notchGap: 0, artwork: SolidArtwork.red))
 
         #expect(bare != withCover)
+    }
+
+    // MARK: - The progress bar
+
+    /// Paused, so the render is a fixed value rather than wherever the wall
+    /// clock happens to put a playing track.
+    private static func paused(at elapsed: Double) -> TrackSnapshot {
+        TrackSnapshot(
+            title: "Blinding Lights", artist: "The Weeknd", isPlaying: false,
+            position: PlaybackPosition(elapsed: elapsed, duration: 200, anchoredAt: Date(timeIntervalSince1970: 0))
+        )
+    }
+
+    @Test func thePeekDrawsTheProgressWhenTheTrackHasAPosition() throws {
+        let without = try #require(Self.peekViewPixels(notchGap: 179, track: TrackSnapshot(
+            title: "Blinding Lights", artist: "The Weeknd", isPlaying: false
+        )))
+        let with = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
+
+        #expect(without != with)
+    }
+
+    /// And the bar is drawn at the position, not as fixed chrome.
+    @Test func theBarFollowsThePosition() throws {
+        let early = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 20)))
+        let late = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 180)))
+
+        #expect(early != late)
+    }
+
+    @Test func pausedRendersAreRepeatable() throws {
+        let once = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
+        let twice = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
+
+        #expect(once == twice)
+    }
+
+    @Test func theTimesReadAsMinutesAndSeconds() {
+        #expect(PlaybackProgressView.clock(0) == "0:00")
+        #expect(PlaybackProgressView.clock(5.97) == "0:05")
+        #expect(PlaybackProgressView.clock(226.666) == "3:46")
+        #expect(PlaybackProgressView.clock(-3) == "0:00")
     }
 
     /// And it is the track's own art, not a fixed tile that appears

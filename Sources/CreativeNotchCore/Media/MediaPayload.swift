@@ -19,12 +19,17 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
     public var isPlaying: Bool
     public var contentID: String?
 
+    /// Where playback is, or `nil` when the helper sent no complete,
+    /// usable reading. See `PlaybackPosition`.
+    public var position: PlaybackPosition?
+
     /// Base64 as it arrives on the wire. Kept encoded until asked for, so
     /// decoding a payload never allocates an image-sized buffer.
     public var artworkBase64: String?
 
     private enum CodingKeys: String, CodingKey {
         case title, artist, album, contentID
+        case elapsed, duration, elapsedAt
         case isPlaying = "playing"
         case artworkBase64 = "artwork"
     }
@@ -37,6 +42,18 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
         isPlaying = try c.decodeIfPresent(Bool.self, forKey: .isPlaying) ?? false
         contentID = try c.decodeIfPresent(String.self, forKey: .contentID)
         artworkBase64 = try c.decodeIfPresent(String.self, forKey: .artworkBase64)
+
+        // All three or nothing, and `try?` so a mistyped field drops the
+        // position rather than the line: losing the title over a progress
+        // bar would be a bad trade, for the reason text fields default.
+        if let elapsed = try? c.decodeIfPresent(Double.self, forKey: .elapsed),
+           let duration = try? c.decodeIfPresent(Double.self, forKey: .duration),
+           let anchor = try? c.decodeIfPresent(Double.self, forKey: .elapsedAt) {
+            position = PlaybackPosition(
+                elapsed: elapsed, duration: duration,
+                anchoredAt: Date(timeIntervalSince1970: anchor)
+            )
+        }
     }
 
     /// Decoded artwork, or `nil` if absent or unusable.
@@ -88,7 +105,7 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
     /// cases so the two cannot drift apart again. (Follow-up F1.)
     public var snapshot: TrackSnapshot? {
         guard !title.isEmpty || !artist.isEmpty else { return nil }
-        return TrackSnapshot(title: title, artist: artist, isPlaying: isPlaying)
+        return TrackSnapshot(title: title, artist: artist, isPlaying: isPlaying, position: position)
     }
 
     /// Returns `nil` for anything that is not a JSON object — including

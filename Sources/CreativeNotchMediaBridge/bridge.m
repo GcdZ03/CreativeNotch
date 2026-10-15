@@ -119,6 +119,25 @@ static void CNEmit(NSDictionary *info, BOOL playing) {
             payload[@"contentID"] = contentID;
         }
 
+        // Position: the elapsed time, the duration, and when that elapsed
+        // reading was true. MediaRemote does not tick `elapsed`; it
+        // republishes it with a fresh timestamp on play, pause and seek, so
+        // the consumer advances it itself (PlaybackPosition). Measured
+        // against Spotify on 2026-10-15. Each is sent only when it is a
+        // number (or a date), and the consumer needs all three.
+        id elapsed = info[@"kMRMediaRemoteNowPlayingInfoElapsedTime"];
+        if ([elapsed isKindOfClass:[NSNumber class]]) {
+            payload[@"elapsed"] = elapsed;
+        }
+        id duration = info[@"kMRMediaRemoteNowPlayingInfoDuration"];
+        if ([duration isKindOfClass:[NSNumber class]]) {
+            payload[@"duration"] = duration;
+        }
+        id timestamp = info[@"kMRMediaRemoteNowPlayingInfoTimestamp"];
+        if ([timestamp isKindOfClass:[NSDate class]]) {
+            payload[@"elapsedAt"] = @([(NSDate *)timestamp timeIntervalSince1970]);
+        }
+
         // Artwork is OMITTED ENTIRELY when absent — never "" and never
         // null. It flaps present/absent for one unchanged track (the spike
         // saw 138061 → 0 → 0 → 138061 …), and the consumer caches by track

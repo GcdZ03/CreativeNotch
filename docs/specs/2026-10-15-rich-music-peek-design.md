@@ -41,10 +41,24 @@ Width matches the other peeks (`peekEarWidth` either side of the anchor).
 The body is `NotchGeometry.mediaPeekBodyHeight` tall. On a pill Mac it is
 the same rect, centred and hanging from the pill's top edge.
 
-A progress bar is **out of scope** and comes in a follow-up PR: it needs elapsed
-time and duration from the media bridge, and MediaRemote's playback rate
-has already proved unreliable for Spotify, so those fields need checking
-against real playback first.
+**Progress bar (follow-up, same day).** Below the player row: a thin bar and
+elapsed / remaining times. The body grew to 100pt to hold it, and keeps that
+height without a position, centring the row instead.
+
+- **Source.** The bridge sends `elapsed`, `duration` and `elapsedAt`
+  (MediaRemote's `ElapsedTime`, `Duration` and `Timestamp`). MediaRemote
+  does not tick `elapsed`: it republishes it with a fresh timestamp on play,
+  pause and seek. Measured against Spotify on 2026-10-15: elapsed + (now −
+  timestamp) matched `player position` to within the gap between reads, and
+  duration matched exactly. Whether time is passing comes from the queried
+  `isPlaying`, never the playback rate.
+- **Model.** `PlaybackPosition` stores the reading and its anchor, and every
+  question takes `now`. It rides on `TrackSnapshot`, so a seek republishes
+  through the existing coalescer. No duration (live streams) means no bar.
+- **No clock in the view.** The bar is set to now and given one linear
+  animation to the end of the track, restarted only when the position or
+  play state changes. The times are `Text(timerInterval:)`. Paused, both are
+  plain values. Shown in the peek only; the panel is unchanged.
 
 ### Motion
 

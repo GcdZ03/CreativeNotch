@@ -178,9 +178,9 @@ struct NowPlayingBadgeTests {
         delegate.nowPlayingDidChange(Self.playing)
 
         // The music peek grows down from the notch (spec 2026-10-15): as
-        // wide as the other peeks, `mediaPeekBodyHeight` (76) taller.
+        // wide as the other peeks, `mediaPeekBodyHeight` (100) taller.
         delegate.state.transition(to: .peek(.nowPlaying(Self.playing)))
-        #expect(delegate.acceptedRect == CGRect(x: 85, y: 146, width: 450, height: 114))
+        #expect(delegate.acceptedRect == CGRect(x: 85, y: 122, width: 450, height: 138))
 
         delegate.state.transition(to: .open(.shelf))
         #expect(delegate.acceptedRect == CGRect(x: 0, y: 0, width: 620, height: 260))
