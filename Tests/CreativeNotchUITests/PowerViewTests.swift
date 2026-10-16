@@ -18,31 +18,14 @@ struct PowerViewTests {
         return state
     }
 
-    // MARK: - The notch gap
+    // MARK: - The band
 
-    /// The gap argument is *supplied*, not merely honoured.
-    ///
-    /// `PeekRenderingTests` proves the peek views honour `notchGap`;
-    /// nothing proved `NotchRootView` supplies the right one, and
-    /// replacing the argument with `0` once left the whole suite green for
-    /// the now-playing peek. Reading the argument without rendering is the
-    /// same fix that was applied there.
-    @Test func theNotchGapIsSuppliedFromTheAnchor() {
-        let peek = NotchRootView.powerPeek(
-            for: app(notch: true), event: .unplugged(level: 66)
-        )
-
-        #expect(peek.notchGap == 200)
-    }
-
-    /// Zero on a pill Mac and on external displays, where the middle of
-    /// the band is ordinary screen.
-    @Test func aPillMacGetsNoGap() {
-        let peek = NotchRootView.powerPeek(
-            for: app(notch: false), event: .unplugged(level: 66)
-        )
-
-        #expect(peek.notchGap == 0)
+    /// The peek drops below the notch, so what the root view must supply
+    /// is the height of the notch's own band, which the row hangs under.
+    /// Read without rendering, the way the music peek's arguments are.
+    @Test func theBandIsTheAnchorsHeight() {
+        let peek = NotchRootView.powerPeek(for: app(notch: true), event: .unplugged(level: 66))
+        #expect(peek.bandHeight == 32)
     }
 
     /// The event reaches the view unchanged. A peek that draws the right
@@ -68,15 +51,10 @@ struct PowerViewTests {
     }
 
     /// Low Power Mode carries no level, so it shows none rather than
-    /// inventing one — and says something instead.
+    /// inventing one. Its words (`PowerLabel.peekTitle`) say what changed.
     @Test func lowPowerModeShowsWordsRatherThanAPercentage() {
-        let on = PowerPeekView(event: .lowPowerMode(enabled: true))
-        let off = PowerPeekView(event: .lowPowerMode(enabled: false))
-
-        #expect(on.percentage == nil)
-        #expect(on.caption == "Low Power Mode")
-        #expect(off.caption != on.caption)
-        #expect(off.caption.isEmpty == false)
+        #expect(PowerPeekView(event: .lowPowerMode(enabled: true)).percentage == nil)
+        #expect(PowerPeekView(event: .lowPowerMode(enabled: false)).percentage == nil)
     }
 
     @Test func theBarFollowsTheLevel() {

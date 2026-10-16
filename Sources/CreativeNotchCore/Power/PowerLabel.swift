@@ -32,4 +32,19 @@ public enum PowerLabel {
         if isCharging { return "Charging" }
         return isCharged ? "Fully charged" : "Not charging"
     }
+
+    /// The battery peek's words (2026-10-17), naming the event that fired.
+    ///
+    /// "Plugged In" rather than "Charging": the event says power arrived,
+    /// and a Mac holding at 80% for battery health is plugged in without
+    /// charging. `state(...)` above, which reads the live source, is where
+    /// charging is named.
+    public static func peekTitle(for event: PowerEvent) -> String {
+        switch event {
+        case .pluggedIn:                 return "Plugged In"
+        case .unplugged:                 return "On Battery"
+        case .lowBattery:                return "Low Battery"
+        case .lowPowerMode(let enabled): return enabled ? "Low Power Mode On" : "Low Power Mode Off"
+        }
+    }
 }

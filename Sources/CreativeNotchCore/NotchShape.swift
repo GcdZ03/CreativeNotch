@@ -51,6 +51,10 @@ public enum NotchShape {
     public enum Presentation: Equatable, Sendable {
         case closed
         case peek
+        /// The battery peek: one row hanging below the notch (2026-10-17),
+        /// so the icon, its words, the bar and the percentage read together
+        /// instead of being split by the camera housing.
+        case statusPeek
         /// The music peek: grows down from the notch into a mini player,
         /// where `.peek` grows sideways and keeps the notch's height.
         case mediaPeek
@@ -62,9 +66,19 @@ public enum NotchShape {
         public var rank: Int {
             switch self {
             case .closed:    return 0
-            case .peek:      return 1
-            case .mediaPeek: return 2
-            case .expanded:  return 3
+            case .peek:       return 1
+            case .statusPeek: return 2
+            case .mediaPeek:  return 3
+            case .expanded:   return 4
+            }
+        }
+
+        /// Any of the three peeks: what hover or an event shows briefly,
+        /// between the closed notch and the panel.
+        public var isPeek: Bool {
+            switch self {
+            case .peek, .statusPeek, .mediaPeek: return true
+            case .closed, .expanded:             return false
             }
         }
     }
@@ -210,13 +224,16 @@ public enum NotchShape {
                 height: local.height
             )
 
-        case .mediaPeek:
+        case .mediaPeek, .statusPeek:
             // Grows down rather than sideways: the top band keeps the
             // notch's height, so its ears stay clear of the housing, and
-            // the player hangs below it. Centred on the anchor and flush
+            // the content hangs below it. Centred on the anchor and flush
             // with its top edge, on a notch and on a pill alike.
             let ear = NotchGeometry.peekEarWidth
-            let height = local.height + NotchGeometry.mediaPeekBodyHeight
+            let body = presentation == .mediaPeek
+                ? NotchGeometry.mediaPeekBodyHeight
+                : NotchGeometry.statusPeekBodyHeight
+            let height = local.height + body
             return CGRect(
                 x: local.minX - ear,
                 y: local.maxY - height,

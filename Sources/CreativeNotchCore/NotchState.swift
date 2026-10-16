@@ -74,6 +74,7 @@ public enum NotchState: Equatable, Sendable {
         switch self {
         case .closed:            return .closed
         case .peek(.nowPlaying): return .mediaPeek
+        case .peek(.power):      return .statusPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }

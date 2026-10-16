@@ -64,7 +64,7 @@ struct MediaPeekShapeTests {
     @Test func aMusicPeekPresentsAsAMediaPeek() {
         let track = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
         #expect(NotchState.peek(.nowPlaying(track)).presentation == .mediaPeek)
-        #expect(NotchState.peek(.power(.pluggedIn(level: 50))).presentation == .peek)
+        #expect(NotchState.peek(.power(.pluggedIn(level: 50))).presentation == .statusPeek)
         #expect(NotchState.peek(.dragTarget).presentation == .peek)
     }
 
@@ -106,13 +106,46 @@ struct MediaPeekShapeTests {
         #expect(r.bottomTrailing == NotchGeometry.panelCornerRadius)
     }
 
+    // MARK: - The battery peek drops down too (2026-10-17)
+
+    /// One row below the notch: as wide as the other peeks, hanging from
+    /// the screen's top edge, `statusPeekBodyHeight` taller than the notch.
+    @Test func theBatteryPeekGrowsDownFromTheNotch() {
+        let r = NotchShape.visibleRect(presentation: .statusPeek, anchor: notch, panelFrame: panel)
+        let ear = NotchGeometry.peekEarWidth
+        #expect(r.minX == notchLocal.minX - ear)
+        #expect(r.width == notchLocal.width + ear * 2)
+        #expect(r.maxY == notchLocal.maxY)
+        #expect(r.height == notchLocal.height + NotchGeometry.statusPeekBodyHeight)
+    }
+
+    /// A single row, so shorter than the music player.
+    @Test func theBatteryPeekIsShorterThanTheMusicPeek() {
+        #expect(NotchGeometry.statusPeekBodyHeight < NotchGeometry.mediaPeekBodyHeight)
+    }
+
+    /// What the spring choice treats as a swap rather than a collapse.
+    @Test func exactlyTheThreePeeksArePeeks() {
+        #expect(NotchShape.Presentation.peek.isPeek)
+        #expect(NotchShape.Presentation.statusPeek.isPeek)
+        #expect(NotchShape.Presentation.mediaPeek.isPeek)
+        #expect(!NotchShape.Presentation.closed.isPeek)
+        #expect(!NotchShape.Presentation.expanded.isPeek)
+    }
+
+    @Test func theBatteryPeekUsesThePanelRadius() {
+        #expect(NotchShape.cornerRadii(presentation: .statusPeek, anchor: notch)
+                == NotchShape.cornerRadii(presentation: .mediaPeek, anchor: notch))
+    }
+
     // MARK: - Which way the shape is moving
 
     /// The spring is chosen by direction, so the order has to be total and
     /// match how much of the panel each presentation draws.
     @Test func presentationsAreOrderedBySize() {
         #expect(NotchShape.Presentation.closed.rank < NotchShape.Presentation.peek.rank)
-        #expect(NotchShape.Presentation.peek.rank < NotchShape.Presentation.mediaPeek.rank)
+        #expect(NotchShape.Presentation.peek.rank < NotchShape.Presentation.statusPeek.rank)
+        #expect(NotchShape.Presentation.statusPeek.rank < NotchShape.Presentation.mediaPeek.rank)
         #expect(NotchShape.Presentation.mediaPeek.rank < NotchShape.Presentation.expanded.rank)
     }
 }

@@ -67,7 +67,7 @@ public struct NotchSwipe: Equatable, Sendable {
     public func pull(on presentation: NotchShape.Presentation) -> CGFloat {
         guard axis == .vertical else { return 0 }
         switch presentation {
-        case .closed, .peek, .mediaPeek:
+        case .closed, .peek, .statusPeek, .mediaPeek:
             return dy > 0 ? Self.stretch(dy / Self.commitDistance) : 0
         case .expanded:
             return dy < 0 ? -Self.stretch(-dy / Self.commitDistance) : 0
@@ -81,7 +81,7 @@ public struct NotchSwipe: Equatable, Sendable {
             return .none
         case .vertical:
             switch presentation {
-            case .closed, .peek, .mediaPeek:
+            case .closed, .peek, .statusPeek, .mediaPeek:
                 return dy >= Self.commitDistance ? .open : .none
             case .expanded:
                 return dy <= -Self.commitDistance ? .close : .none
