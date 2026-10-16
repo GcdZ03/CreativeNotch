@@ -52,6 +52,12 @@ public final class AppState {
     /// lets it change without a re-sync.
     public internal(set) var isHovering: Bool = false
 
+    /// How far a two-finger swipe has pulled the shape: positive toward
+    /// opening, negative toward closing, 1 at the commit threshold
+    /// (`NotchSwipe.pull`). Visual only, like `isHovering`: the accepted
+    /// region does not follow it.
+    public internal(set) var pullProgress: CGFloat = 0
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -593,11 +599,21 @@ public struct NotchRootView: View {
         // it.
         let instant = now ?? Date()
         let slot = Self.badgeSlot(for: app, at: instant)
-        let drawn = Self.hoverInflated(
-            Self.drawnRect(for: app, badge: slot),
-            isHovering: app.isHovering,
-            state: app.state,
-            reduceMotion: reduceMotion
+        let resting = Self.drawnRect(for: app, badge: slot)
+        let drawn = Self.pulled(
+            Self.hoverInflated(
+                resting,
+                isHovering: app.isHovering,
+                state: app.state,
+                reduceMotion: reduceMotion
+            ),
+            opening: Self.drawnRect(state: .open(app.lastOpenTab), anchor: app.anchor, panelFrame: app.panelFrame),
+            closing: Self.drawnRect(
+                state: .closed, anchor: app.anchor, panelFrame: app.panelFrame,
+                badgeWidth: slot.width, leadingBadgeWidth: slot.leadingWidth
+            ),
+            pull: app.pullProgress,
+            state: app.state
         )
         ZStack(alignment: .topLeading) {
             Color.clear
@@ -613,7 +629,38 @@ public struct NotchRootView: View {
             NotchMotion.animation(growing: app.lastChangeGrew, reduceMotion: reduceMotion),
             value: app.state
         )
+        // Outermost, so a commit — which changes the state *and* zeroes the
+        // pull — springs with the state's animation above; on its own the
+        // pull tracks the fingers closely and snaps back the same way.
+        .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.82), value: app.pullProgress)
         .environment(\.animatesEqualizer, !reduceMotion)
+    }
+
+    /// The shape, stretched by a swipe in progress (spec 2026-10-17).
+    ///
+    /// A pull toward opening grows it a quarter of the way to the panel at
+    /// the threshold — a promise of what letting go will do, not the panel
+    /// itself. A pull toward closing shrinks the open panel a little toward
+    /// the notch. Drawn only: the accepted region stays where it is.
+    static func pulled(
+        _ drawn: CGRect, opening: CGRect, closing: CGRect, pull: CGFloat, state: NotchState
+    ) -> CGRect {
+        if pull > 0, state.presentation != .expanded {
+            return lerp(drawn, opening, min(pull, 1.6) * 0.25)
+        }
+        if pull < 0, case .open = state {
+            return lerp(drawn, closing, min(-pull, 1.6) * 0.12)
+        }
+        return drawn
+    }
+
+    private static func lerp(_ a: CGRect, _ b: CGRect, _ t: CGFloat) -> CGRect {
+        CGRect(
+            x: a.minX + (b.minX - a.minX) * t,
+            y: a.minY + (b.minY - a.minY) * t,
+            width: a.width + (b.width - a.width) * t,
+            height: a.height + (b.height - a.height) * t
+        )
     }
 
     /// Derived from `NotchShape.cornerRadii` — the same tested function
