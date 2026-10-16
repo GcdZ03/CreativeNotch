@@ -8,10 +8,12 @@ import CreativeNotchCore
 /// tests, so the suite must never send one — injecting the sink is what
 /// lets the button-to-command mapping be proven without that.
 ///
-/// There is no play/pause *state* here, and the icon does not change: this
-/// module cannot read whether anything is playing, because that read is
-/// code-signing gated. Hence one toggle button rather than separate play
-/// and pause buttons — the app genuinely does not know which it would be.
+/// One toggle rather than separate play and pause buttons, because
+/// MediaRemote takes one toggle command. Its icon follows the snapshot's
+/// `isPlaying` when there is a track — the value the bridge *queries*
+/// through the perl helper, which the code-signing gate does not block,
+/// and the same one the music peek's button follows. With no track it
+/// shows the combined glyph, since there is no state to show.
 struct MediaControlsView: View {
 
     /// In transport order, left to right, as they appear on every physical
@@ -22,20 +24,33 @@ struct MediaControlsView: View {
         (.nextTrack, "forward.fill", "Next track"),
     ]
 
+    let isPlaying: Bool?
     let onCommand: (MediaCommand) -> Void
 
-    init(onCommand: @escaping (MediaCommand) -> Void) {
+    init(isPlaying: Bool? = nil, onCommand: @escaping (MediaCommand) -> Void) {
+        self.isPlaying = isPlaying
         self.onCommand = onCommand
+    }
+
+    /// What the toggle shows: what pressing it will do.
+    static func toggle(isPlaying: Bool?) -> (symbol: String, label: String) {
+        switch isPlaying {
+        case true?:  return ("pause.fill", "Pause")
+        case false?: return ("play.fill", "Play")
+        case nil:    return ("playpause.fill", "Play or pause")
+        }
     }
 
     var body: some View {
         HStack(spacing: 8) {
             ForEach(Self.buttons, id: \.command) { button in
                 let isToggle = button.command == .togglePlayPause
+                let symbol = isToggle ? Self.toggle(isPlaying: isPlaying).symbol : button.symbol
+                let label = isToggle ? Self.toggle(isPlaying: isPlaying).label : button.label
                 Button {
                     onCommand(button.command)
                 } label: {
-                    Image(systemName: button.symbol)
+                    Image(systemName: symbol)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: isToggle ? 40 : 32, height: 28)
@@ -44,9 +59,10 @@ struct MediaControlsView: View {
                                 .fill(.white.opacity(isToggle ? 0.16 : 0.08))
                         }
                         .contentShape(.rect)
+                        .contentTransition(.symbolEffect(.replace))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(button.label)
+                .accessibilityLabel(label)
             }
         }
     }

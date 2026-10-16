@@ -464,23 +464,44 @@ the app: it is supervised with bounded restarts, started only while
 
 The panel's music column shows artwork, title and artist above the transport
 buttons, and stays at its fixed width with a placeholder tile when nothing is
-playing (see "The open panel's layout"). Hovering the closed notch
-peeks the same information laid out **around** the camera housing — title
-against its left edge, artist against its right — because anything drawn in
-the middle of that band is invisible. While something is playing, a small
-static album-cover badge extends from the trailing edge of the closed notch.
+playing (see "The open panel's layout"). The transport toggle's icon follows
+the snapshot's queried `isPlaying`.
 
-The badge grows the closed shape, which means it has to grow *three* things
+While something is playing, the closed notch grows a 34pt ear on **each**
+side: the cover in the leading one, still equalizer bars in the trailing one,
+and the camera housing empty between them. Hovering opens the music peek, a
+presentation of its own (`.mediaPeek`) that grows *down* from the notch
+rather than sideways: its top band keeps the notch's height with moving bars
+in the trailing ear, and the player hangs below the housing — cover, title
+over artist, play/pause, and a progress bar. Power and timer peeks keep the
+one-line `.peek` in the ears. One cover is shared by the badge, the peek and
+the panel through `matchedGeometryEffect`, so it slides between them. See
+`docs/specs/2026-10-15-rich-music-peek-design.md`.
+
+The ears grow the closed shape, which means they have to grow *three* things
 that must agree: what is drawn, what accepts clicks, and what tracks hover.
-All three derive from `NotchShape.visibleRect`, which takes a `badge` flag —
-deliberately, because two independent derivations of one rectangle is the
-shape of this project's only Critical bug. Playback changes do not pass
-through the `AppState` funnel, so starting or stopping music re-syncs the
-tracking rect explicitly.
+All three derive from `NotchShape.visibleRect`, which takes the slot's
+trailing and leading widths — deliberately, because two independent
+derivations of one rectangle is the shape of this project's only Critical
+bug. Playback changes do not pass through the `AppState` funnel, so starting
+or stopping music re-syncs the tracking rect explicitly.
 
-The badge is **static**. A looping equaliser would redraw continuously for
-as long as music played, and the clipboard poller remains the only timer in
-the project.
+**What moves, and what does not.** The closed notch's bars stand still: they
+are on screen for as long as music plays, and the clipboard poller remains
+the only timer in the project. The peek's bars loop only while the peek is
+open — the single exemption from the no-loop guard, by file name. The
+progress bar has no clock: it is set to now and given one linear animation
+to the end of the track, restarted when a play, pause or seek republishes
+the position, and its times are `Text(timerInterval:)`.
+
+### Playback position
+
+MediaRemote does not tick the elapsed time; it republishes it with a
+timestamp on each play, pause and seek. The bridge forwards `elapsed`,
+`duration` and `elapsedAt`, and `PlaybackPosition` advances the reading from
+its anchor, taking `now` as a parameter like `Countdown` does. It rides on
+`TrackSnapshot`, so a seek republishes through the existing coalescer.
+Measured against Spotify on 2026-10-15.
 
 ## Battery and power state
 

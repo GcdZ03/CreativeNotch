@@ -42,7 +42,7 @@ struct MediaColumn: View {
             }
 
             if showsControls {
-                MediaControlsView(onCommand: onCommand)
+                MediaControlsView(isPlaying: Self.controlsPlayState(for: snapshot), onCommand: onCommand)
                     .opacity(snapshot == nil ? 0.6 : 1)
             }
 
@@ -73,6 +73,11 @@ struct MediaColumn: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(snapshot.map(NowPlayingLabel.text(for:)) ?? "Nothing playing")
+    }
+
+    /// The play state the transport toggle shows, or `nil` with no track.
+    static func controlsPlayState(for snapshot: TrackSnapshot?) -> Bool? {
+        snapshot?.isPlaying
     }
 
     /// A 72pt cover with the hairline ring `NowPlayingView` established:

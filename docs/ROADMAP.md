@@ -172,7 +172,9 @@ that are not quarantined.
 ## Still deliberately not planned
 
 - **An audio visualiser.** Named in this category as a top CPU cost; it
-  contradicts the one rule directly.
+  contradicts the one rule directly. The music peek's equalizer bars are not
+  one: they read no audio, stand still in the closed notch, and loop only
+  while the hover peek is open (spec 2026-10-15).
 - **A screen-recording indicator.** Cut from module 1 above. No public API
   reports that another application is capturing the screen, and macOS
   already shows its own indicator for it.
