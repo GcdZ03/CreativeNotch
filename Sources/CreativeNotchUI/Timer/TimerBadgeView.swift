@@ -8,10 +8,11 @@ import CreativeNotchCore
 /// widths and the text would shuffle sideways every minute inside a fixed
 /// badge. `monospacedDigit` pins each glyph to the same advance.
 ///
-/// Static, like the now-playing badge. Nothing here animates: the view
-/// redraws only when `text` or `isPaused` changes, and the scheduler that
-/// owns `AppState.countdown` decides when that is — this view has no clock
-/// of its own.
+/// Static, like the now-playing badge. The view redraws only when `text`
+/// or `isPaused` changes, and the scheduler that owns `AppState.countdown`
+/// decides when that is — this view has no clock of its own. When the
+/// digits do change they roll to the new value (`rollingDigits`), a
+/// fraction of a second once a minute, never a loop.
 struct TimerBadgeView: View {
     let text: String
     let isPaused: Bool
@@ -20,6 +21,7 @@ struct TimerBadgeView: View {
         Text(text)
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .monospacedDigit()
+            .rollingDigits(text, countsDown: true)
             // Dimming is the paused signal. A pause glyph would compete
             // with three digits in a 44pt slot, and dimming has a property
             // worth having: a paused timer redraws zero times, because

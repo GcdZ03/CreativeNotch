@@ -95,6 +95,11 @@ public final class AppState {
     @ObservationIgnored
     public var onRemoveShelfItem: ((UUID) -> Void)?
 
+    /// Sends shelf files over AirDrop. A verb, like the others, so the view
+    /// never holds a sharing service (spec 2026-10-17).
+    @ObservationIgnored
+    public var onAirDropShelfItems: (([URL]) -> Void)?
+
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
 
@@ -365,6 +370,17 @@ public struct NotchRootView: View {
     /// share, so it slides between them (spec 2026-10-15).
     @Namespace private var coverSpace
 
+    /// The system's Reduce Motion setting (spec 2026-10-17). With it on,
+    /// springs become one short ease, content fades rather than blurs in,
+    /// the cover cross-fades rather than slides, hover does not grow the
+    /// notch, and the peek's bars stand still.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// The shared cover's namespace, or none under Reduce Motion.
+    private var sharedCover: Namespace.ID? {
+        NotchMotion.slidesCover(reduceMotion: reduceMotion) ? coverSpace : nil
+    }
+
     /// The instant the badge slot is decided at, or `nil` to read the wall
     /// clock once per `body` evaluation.
     ///
@@ -545,8 +561,10 @@ public struct NotchRootView: View {
     ///
     /// Closed only: a peek or a panel is already larger, and a few more
     /// points on top would make the next change jump.
-    static func hoverInflated(_ drawn: CGRect, isHovering: Bool, state: NotchState) -> CGRect {
-        guard isHovering, state == .closed else { return drawn }
+    static func hoverInflated(
+        _ drawn: CGRect, isHovering: Bool, state: NotchState, reduceMotion: Bool = false
+    ) -> CGRect {
+        guard isHovering, state == .closed, !reduceMotion else { return drawn }
         let g = NotchMotion.hoverGrowth
         return CGRect(
             x: drawn.minX - g.width / 2,
@@ -578,7 +596,8 @@ public struct NotchRootView: View {
         let drawn = Self.hoverInflated(
             Self.drawnRect(for: app, badge: slot),
             isHovering: app.isHovering,
-            state: app.state
+            state: app.state,
+            reduceMotion: reduceMotion
         )
         ZStack(alignment: .topLeading) {
             Color.clear
@@ -590,7 +609,11 @@ public struct NotchRootView: View {
         .animation(NotchMotion.hover, value: app.isHovering)
         // Keyed on the state, with the spring chosen by which way it moved:
         // bouncy growing, snappy shrinking.
-        .animation(NotchMotion.animation(growing: app.lastChangeGrew), value: app.state)
+        .animation(
+            NotchMotion.animation(growing: app.lastChangeGrew, reduceMotion: reduceMotion),
+            value: app.state
+        )
+        .environment(\.animatesEqualizer, !reduceMotion)
     }
 
     /// Derived from `NotchShape.cornerRadii` — the same tested function
@@ -679,7 +702,7 @@ public struct NotchRootView: View {
                         HStack(spacing: 0) {
                             NowPlayingBadgeView(
                                 artwork: app.nowPlayingArtwork,
-                                coverNamespace: coverSpace
+                                coverNamespace: sharedCover
                             )
                             Spacer(minLength: 0)
                             EqualizerBarsView(
@@ -724,7 +747,7 @@ public struct NotchRootView: View {
                                     snapshot: app.nowPlaying,
                                     artwork: app.nowPlayingArtwork,
                                     showsControls: app.showsMediaControls,
-                                    coverNamespace: coverSpace
+                                    coverNamespace: sharedCover
                                 ) { app.onMediaCommand?($0) }
                             }
                             // `at: now` keeps the pane on the single instant
@@ -766,7 +789,7 @@ public struct NotchRootView: View {
                     // `nowPlayingPeek(for:track:coverNamespace:)` rather than
                     // inline so a test can read the arguments without
                     // rendering — see its doc comment.
-                    Self.nowPlayingPeek(for: app, track: track, coverNamespace: coverSpace)
+                    Self.nowPlayingPeek(for: app, track: track, coverNamespace: sharedCover)
 
                 // Same notch-gap treatment the other peeks get: a finished
                 // timer's text must not be drawn behind the camera housing
@@ -788,7 +811,7 @@ public struct NotchRootView: View {
                 // Every state's content blurs in as the shape grows and
                 // fades fast as it shrinks (spec 2026-10-15). Replaces the
                 // panel's own opacity-and-scale, so all states move alike.
-                .transition(NotchMotion.content)
+                .transition(NotchMotion.content(reduceMotion: reduceMotion))
             }
             // Content never spills past the shape, including a cover in
             // flight between two states.
@@ -831,7 +854,11 @@ public struct NotchRootView: View {
                     count: Self.shelfCount(shelf.items.count),
                     action: shelf.items.isEmpty ? nil : ("Clear", { app.onClearShelf?() })
                 ) {
-                    ShelfView(store: shelf) { app.onRemoveShelfItem?($0) }
+                    ShelfView(
+                        store: shelf,
+                        onRemove: { app.onRemoveShelfItem?($0) },
+                        onAirDrop: { app.onAirDropShelfItems?([$0]) }
+                    )
                 }
             }
 

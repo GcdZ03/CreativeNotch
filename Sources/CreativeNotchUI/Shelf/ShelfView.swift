@@ -9,12 +9,14 @@ import CreativeNotchCore
 /// Empty, it shows the same dashed target the panel shows while a drag is
 /// in flight, dimmer, with a sentence about what the shelf does. Full, it
 /// shows tiles on a dark backing so a white document icon reads against
-/// black, and a remove affordance on hover that calls `onRemove` — the same
+/// black, and on hover a remove affordance that calls `onRemove` — the same
 /// `ShelfStore.remove(_:)` verb, which trashes an owned file, reached
-/// through `AppState` like every other verb in the panel.
+/// through `AppState` like every other verb in the panel — and an AirDrop
+/// one that calls `onAirDrop` with the file's URL.
 struct ShelfView: View {
     let store: ShelfStore
     var onRemove: (UUID) -> Void = { _ in }
+    var onAirDrop: (URL) -> Void = { _ in }
 
     private let itemSize = CGSize(width: 64, height: 64)
 
@@ -29,8 +31,13 @@ struct ShelfView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 12) {
                         ForEach(store.items) { item in
-                            ShelfItemView(item: item, size: itemSize) { onRemove(item.id) }
-                                .draggable(item.url)
+                            ShelfItemView(
+                                item: item,
+                                size: itemSize,
+                                onRemove: { onRemove(item.id) },
+                                onAirDrop: { onAirDrop(item.url) }
+                            )
+                            .draggable(item.url)
                         }
                     }
                     .padding(.horizontal, 6)
@@ -46,6 +53,7 @@ private struct ShelfItemView: View {
     let item: ShelfItem
     let size: CGSize
     let onRemove: () -> Void
+    let onAirDrop: () -> Void
 
     @State private var image: NSImage?
     @State private var hovering = false
@@ -78,6 +86,22 @@ private struct ShelfItemView: View {
                     .buttonStyle(.plain)
                     .offset(x: 5, y: -5)
                     .accessibilityLabel("Remove \(item.displayName)")
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if hovering {
+                    Button(action: onAirDrop) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.white)
+                            .frame(width: 18, height: 18)
+                            .background(Circle().fill(Color.accentColor.opacity(0.9)))
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 5, y: 5)
+                    .help("AirDrop")
+                    .accessibilityLabel("AirDrop \(item.displayName)")
                 }
             }
             .frame(width: size.width, height: size.height)

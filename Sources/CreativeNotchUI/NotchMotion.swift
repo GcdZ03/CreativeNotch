@@ -19,7 +19,19 @@ enum NotchMotion {
     /// The hover reaction is small, so it can afford to be quick.
     static let hover = Animation.spring(response: 0.22, dampingFraction: 0.7)
 
-    static func animation(growing: Bool) -> Animation { growing ? open : close }
+    /// Reduce Motion's stand-in for both springs: one short ease, no
+    /// bounce, the same either way (spec 2026-10-17).
+    static let reduced = Animation.easeInOut(duration: 0.2)
+
+    static func animation(growing: Bool, reduceMotion: Bool = false) -> Animation {
+        if reduceMotion { return reduced }
+        return growing ? open : close
+    }
+
+    /// Whether the now-playing cover slides between states. Under Reduce
+    /// Motion it cross-fades instead: a cover travelling across the top of
+    /// the screen is exactly the kind of motion the setting asks to avoid.
+    static func slidesCover(reduceMotion: Bool) -> Bool { !reduceMotion }
 
     /// How much the closed notch's *drawing* grows while the cursor is over
     /// it, before the dwell decides whether to peek: split evenly either
@@ -28,8 +40,9 @@ enum NotchMotion {
 
     /// State content arrives softly once the shape starts to grow, and
     /// leaves fast so a collapsing shape never carries it.
-    @MainActor static var content: AnyTransition {
-        .asymmetric(
+    @MainActor static func content(reduceMotion: Bool = false) -> AnyTransition {
+        if reduceMotion { return .opacity }
+        return .asymmetric(
             insertion: AnyTransition(.blurReplace),
             removal: AnyTransition.opacity.animation(.easeOut(duration: 0.1))
         )
@@ -47,5 +60,33 @@ extension View {
         } else {
             self
         }
+    }
+}
+
+/// Numbers that roll to their next value rather than snapping, the way
+/// Apple's Live Activity guidance asks for counts that tick (spec
+/// 2026-10-17). A fade under Reduce Motion.
+///
+/// The animation is scoped to `value`, so it runs only when the number
+/// itself changes — never on a clock of its own.
+struct RollingDigits<Value: Equatable>: ViewModifier {
+    let value: Value
+    let countsDown: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static func transition(countsDown: Bool, reduceMotion: Bool) -> ContentTransition {
+        reduceMotion ? .opacity : .numericText(countsDown: countsDown)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(Self.transition(countsDown: countsDown, reduceMotion: reduceMotion))
+            .animation(reduceMotion ? .easeInOut(duration: 0.15) : .snappy(duration: 0.3), value: value)
+    }
+}
+
+extension View {
+    func rollingDigits<Value: Equatable>(_ value: Value, countsDown: Bool = false) -> some View {
+        modifier(RollingDigits(value: value, countsDown: countsDown))
     }
 }

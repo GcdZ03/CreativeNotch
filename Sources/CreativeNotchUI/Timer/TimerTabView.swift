@@ -121,9 +121,11 @@ struct TimerTabView: View {
     private func running(_ countdown: Countdown) -> some View {
         VStack(spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
-                Text(TimerDisplay.text(remaining: countdown.remaining(at: now)))
+                let remaining = TimerDisplay.text(remaining: countdown.remaining(at: now))
+                Text(remaining)
                     .font(.system(size: 44, weight: .medium, design: .rounded))
                     .monospacedDigit()
+                    .rollingDigits(remaining, countsDown: true)
                 Text("left")
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .opacity(0.55)

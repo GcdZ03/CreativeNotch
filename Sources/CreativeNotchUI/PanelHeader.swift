@@ -70,6 +70,7 @@ struct BatteryCell: View {
             Text("\(level)%")
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .monospacedDigit()
+                .rollingDigits(level)
                 .foregroundStyle(.white.opacity(0.7))
         }
         .accessibilityElement(children: .ignore)
