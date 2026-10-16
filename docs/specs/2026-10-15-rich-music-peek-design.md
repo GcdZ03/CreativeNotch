@@ -112,3 +112,26 @@ Alcove have that fit this project's rules.
 - **AirDrop from the shelf.** A button on each tile, on hover, through
   `NSSharingService(named: .sendViaAirDrop)`: no permission, nothing
   running until it is asked. Files no longer on disk are left out.
+
+## Trackpad swipes (2026-10-17)
+
+Two-finger swipes on the notch, as Alcove and Boring Notch offer:
+
+- **Down** on the closed notch or a peek: the shape follows the fingers,
+  growing a quarter of the way toward the panel at the threshold (36pt of
+  finger travel) and rubber-banding past it. Let go past the threshold and
+  it springs open on the last tab; short of it, it springs back.
+- **Up** on the open panel: it shrinks a little with the fingers, and
+  closes past the threshold.
+- **Sideways** on the music peek only (60pt): left is the next track, right
+  the previous, through the same media-command route as the buttons and
+  only when those controls are available. Not on the open panel, whose
+  shelf scrolls sideways.
+
+`NotchSwipe` (Core) holds every rule, in finger space so the scroll
+direction setting does not matter, and locks to one axis per swipe. Scroll
+events already reach the hosting view while the cursor is over the drawn
+shape, so there is **no global monitor**; an event the swipe does not use
+goes on as an ordinary scroll, so lists in the panel still scroll. Mouse
+wheels and momentum are ignored. The pull is drawn only, like the hover
+growth. One haptic at the threshold; the panel it opens does not tap again.
