@@ -43,6 +43,37 @@ public final class PowerObserver {
     public private(set) var hasBattery: Bool = false
 
     private var source: CFRunLoopSource?
+
+    /// What IOKit's callback is handed: a box holding this observer
+    /// **weakly**, retained until `stop()`.
+    ///
+    /// It used to be `self`, unretained. An observer released without
+    /// `stop()` then left a raw pointer to freed memory registered with the
+    /// run loop, and the next battery change crashed the process — which is
+    /// what took the test process down twice (EXC_BAD_ACCESS in this
+    /// callback). Weak, a late delivery finds `nil` and does nothing. The
+    /// box itself is the only thing such a leak costs.
+    ///
+    /// `@unchecked Sendable` because it is only ever touched on the main
+    /// thread: created in `start()`, released in `stop()`, read in the
+    /// callback, which the main run loop delivers.
+    private final class Box: @unchecked Sendable {
+        weak var observer: PowerObserver?
+        init(_ observer: PowerObserver) { self.observer = observer }
+    }
+
+    private var box: Unmanaged<Box>?
+
+    /// The context the callback receives, for tests to deliver to.
+    var callbackContext: UnsafeMutableRawPointer? { box?.toOpaque() }
+
+    /// The callback's body, named so a test can deliver a power change
+    /// without IOKit. Runs on the main thread: the source is on the main
+    /// run loop.
+    nonisolated static func deliver(_ context: UnsafeMutableRawPointer) {
+        let box = Unmanaged<Box>.fromOpaque(context).takeUnretainedValue()
+        MainActor.assumeIsolated { box.observer?.read() }
+    }
     private var lowPowerToken: NSObjectProtocol?
 
     /// Internal rather than private so the lifecycle is provable.
@@ -80,17 +111,12 @@ public final class PowerObserver {
         // mistake, not a reason to receive every event twice.
         stop()
 
-        let context = Unmanaged.passUnretained(self).toOpaque()
+        let box = Unmanaged.passRetained(Box(self))
+        self.box = box
         if let source = IOPSNotificationCreateRunLoopSource({ context in
             guard let context else { return }
-            let observer = Unmanaged<PowerObserver>.fromOpaque(context)
-                .takeUnretainedValue()
-            // The source was added to the main run loop, so the callback
-            // arrives on the main thread. Unretained, so `stop()` must run
-            // before this object dies — the lifecycle is owned by
-            // `AppDelegate`, as every other observer's is.
-            MainActor.assumeIsolated { observer.read() }
-        }, context)?.takeRetainedValue() {
+            PowerObserver.deliver(context)
+        }, box.toOpaque())?.takeRetainedValue() {
             CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
             self.source = source
         }
@@ -116,6 +142,10 @@ public final class PowerObserver {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
             self.source = nil
         }
+        // After the source is gone, so nothing can deliver to the box once
+        // it is released.
+        box?.release()
+        box = nil
 
         if let lowPowerToken {
             NotificationCenter.default.removeObserver(lowPowerToken)
