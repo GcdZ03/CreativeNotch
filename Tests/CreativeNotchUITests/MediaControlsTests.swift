@@ -91,6 +91,28 @@ struct MediaControlsTests {
         #expect(nextLabel == "Next track")
     }
 
+    /// The toggle shows what it will do, from the snapshot's `isPlaying`
+    /// — the same queried value the music peek's button follows.
+    @Test func theToggleFollowsThePlayState() {
+        #expect(MediaControlsView.toggle(isPlaying: true).symbol == "pause.fill")
+        #expect(MediaControlsView.toggle(isPlaying: true).label == "Pause")
+        #expect(MediaControlsView.toggle(isPlaying: false).symbol == "play.fill")
+        #expect(MediaControlsView.toggle(isPlaying: false).label == "Play")
+    }
+
+    /// With no track there is no state to follow, so the combined glyph
+    /// stays — the panel shows the controls dimmed in that case.
+    @Test func withNoTrackTheToggleIsTheCombinedGlyph() {
+        #expect(MediaControlsView.toggle(isPlaying: nil).symbol == "playpause.fill")
+        #expect(MediaControlsView.toggle(isPlaying: nil).label == "Play or pause")
+    }
+
+    @Test func thePanelHandsTheControlsThePlayState() {
+        let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
+        #expect(MediaColumn.controlsPlayState(for: playing) == true)
+        #expect(MediaColumn.controlsPlayState(for: nil) == nil)
+    }
+
     /// The injected closure is what the panel wires to the bridge. If a
     /// button did not call it, the control would be dead on screen with
     /// nothing failing.

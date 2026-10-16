@@ -96,12 +96,16 @@ Media controls are the fourth: play/pause, next and previous, sent through
 the private MediaRemote framework to whatever application holds the media
 session.
 
-Media metadata is the fifth: the now-playing title, artist, and artwork,
-shown in the music column beside the tabs in the panel, in the ambient peek when
-hovering the closed notch, and as a small album-cover badge beside the
-closed notch while something is playing. The badge is deliberately
-**static** — a looping equaliser would redraw continuously for as long as
-music played, which is the exact cost this project exists to avoid.
+Media metadata is the fifth: the now-playing title, artist, artwork, and
+playback position. While something plays, the closed notch carries the cover
+beside its left edge and four equalizer bars beside its right. Hovering it
+drops down a small player — cover, title over artist, play/pause and a
+progress bar — and clicking opens the panel, with the cover sliding between
+all three. The closed notch is deliberately **static**: its bars stand
+still, because they are on screen for as long as music plays and a loop
+there would redraw for that long, which is the exact cost this project
+exists to avoid. They move only inside the hover player, and the progress
+bar is one animation to the end of the track rather than a ticking clock.
 Reading that information through
 MediaRemote is gated by code-signing identifier, which this app cannot
 satisfy directly — so the app spawns the system's own `perl`, signed as
