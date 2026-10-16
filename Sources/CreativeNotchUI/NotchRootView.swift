@@ -899,7 +899,7 @@ public struct NotchRootView: View {
                 ModulePane(
                     title: "Shelf",
                     count: Self.shelfCount(shelf.items.count),
-                    action: shelf.items.isEmpty ? nil : ("Clear", { app.onClearShelf?() })
+                    actions: Self.shelfActions(for: shelf, app: app)
                 ) {
                     ShelfView(
                         store: shelf,
@@ -915,7 +915,7 @@ public struct NotchRootView: View {
                     title: "Clipboard",
                     count: clipboard.entries.isEmpty
                         ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
-                    action: clipboard.entries.isEmpty ? nil : ("Clear", { app.onClearClipboard?() })
+                    actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
                     ClipboardView(store: clipboard, now: now) { entry in
                         app.onPasteClipboard?(entry)
@@ -945,6 +945,23 @@ public struct NotchRootView: View {
                 PowerView(snapshot: app.power)
             }
         }
+    }
+
+    /// The shelf's title-row verbs: "AirDrop All" then "Clear", or none
+    /// when it is empty.
+    ///
+    /// AirDrop All hands every file to AirDrop in one go — one picker, not
+    /// one per file — through the same `onAirDropShelfItems` verb the
+    /// tiles use. Clear stays last, at the edge, where the destructive verb
+    /// already was.
+    static func shelfActions(
+        for shelf: ShelfStore, app: AppState
+    ) -> [(label: String, perform: () -> Void)] {
+        guard !shelf.items.isEmpty else { return [] }
+        return [
+            ("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }),
+            ("Clear", { app.onClearShelf?() }),
+        ]
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.

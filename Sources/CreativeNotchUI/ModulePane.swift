@@ -3,12 +3,15 @@ import SwiftUI
 /// A tab's content with the title row above it (spec §5.3).
 ///
 /// The row is what the tab bar's text labels became when the tabs turned
-/// into icons: the tab's name, an optional dimmed count, and an optional
-/// action. Content fills what is left.
+/// into icons: the tab's name, an optional dimmed count, and its actions.
+/// Content fills what is left.
 struct ModulePane<Content: View>: View {
     let title: String
     var count: String? = nil
-    var action: (label: String, perform: () -> Void)? = nil
+    /// The title row's verbs, left to right. Several are allowed so the
+    /// shelf can offer "AirDrop All" beside "Clear"; most panes have one
+    /// or none.
+    var actions: [(label: String, perform: () -> Void)] = []
     @ViewBuilder let content: () -> Content
 
     var body: some View {
@@ -23,7 +26,7 @@ struct ModulePane<Content: View>: View {
                         .foregroundStyle(.white.opacity(0.45))
                 }
                 Spacer(minLength: 8)
-                if let action {
+                ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
                     Button(action.label, action: action.perform)
                         .buttonStyle(NotchButtonStyle(.quiet, compact: true))
                 }
