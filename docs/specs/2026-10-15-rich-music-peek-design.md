@@ -112,6 +112,8 @@ Alcove have that fit this project's rules.
 - **AirDrop from the shelf.** A button on each tile, on hover, through
   `NSSharingService(named: .sendViaAirDrop)`: no permission, nothing
   running until it is asked. Files no longer on disk are left out.
+  "AirDrop All" in the shelf's title row, before "Clear", sends every file
+  in one picker.
 
 ## Trackpad swipes (2026-10-17)
 

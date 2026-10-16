@@ -127,3 +127,50 @@ struct MotionPolishTests {
         #expect(delegate.state.onAirDropShelfItems != nil)
     }
 }
+
+/// "AirDrop All" in the shelf's title row, beside "Clear".
+@MainActor
+struct ShelfAirDropAllTests {
+
+    private func shelf(items: Int) throws -> ShelfStore {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
+        let store = try ShelfStore(directory: dir)
+        for i in 0..<items { _ = try store.add(.text("drop \(i)"), now: Date()) }
+        return store
+    }
+
+    @Test func anEmptyShelfOffersNoActions() throws {
+        let actions = NotchRootView.shelfActions(for: try shelf(items: 0), app: AppState())
+        #expect(actions.isEmpty)
+    }
+
+    /// AirDrop first, Clear last: the destructive verb stays at the edge,
+    /// where it already was.
+    @Test func aShelfWithItemsOffersAirDropAllThenClear() throws {
+        let actions = NotchRootView.shelfActions(for: try shelf(items: 2), app: AppState())
+        #expect(actions.map(\.label) == ["AirDrop All", "Clear"])
+    }
+
+    /// Every file, in shelf order, in one AirDrop — one picker, not one
+    /// per file.
+    @Test func airDropAllSendsEveryFileInOneGo() throws {
+        let store = try shelf(items: 3)
+        let app = AppState()
+        var sent: [[URL]] = []
+        app.onAirDropShelfItems = { sent.append($0) }
+
+        NotchRootView.shelfActions(for: store, app: app).first { $0.label == "AirDrop All" }?.perform()
+
+        #expect(sent == [store.items.map(\.url)])
+    }
+
+    @Test func clearStillClears() throws {
+        let app = AppState()
+        var cleared = 0
+        app.onClearShelf = { cleared += 1 }
+
+        NotchRootView.shelfActions(for: try shelf(items: 1), app: app).first { $0.label == "Clear" }?.perform()
+
+        #expect(cleared == 1)
+    }
+}
