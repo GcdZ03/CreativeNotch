@@ -20,4 +20,17 @@ public final class HitTestingHostingView<Content: View>: NSHostingView<Content> 
         guard visibleRectProvider().contains(inPanel) else { return nil }
         return super.hitTest(point)
     }
+
+    /// Two-finger swipes on the notch (spec 2026-10-17). Offered to the
+    /// delegate first; whatever it does not take goes on as an ordinary
+    /// scroll, so a list in the open panel still scrolls.
+    ///
+    /// No global monitor: these are scroll events AppKit already delivers
+    /// to this view, because the cursor is over the drawn shape — the hit
+    /// test above is what decides that.
+    public var onScroll: (NSEvent) -> Bool = { _ in false }
+
+    public override func scrollWheel(with event: NSEvent) {
+        if !onScroll(event) { super.scrollWheel(with: event) }
+    }
 }

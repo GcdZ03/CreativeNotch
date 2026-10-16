@@ -399,6 +399,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
         host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
+        host.onScroll = { [weak self] event in
+            self?.handleScroll(ScrollSample(event)) ?? false
+        }
 
         let hover = HoverTracker(frame: CGRect(origin: .zero, size: size))
         hover.autoresizingMask = [.width, .height]
@@ -855,14 +858,86 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var wasOpen = false
 
+    /// Set when a swipe has already tapped at its threshold, so the panel
+    /// it then opens does not tap a second time.
+    private var swipeTapped = false
+
     /// One tap as the panel opens, and none for a tab switch, a peek or a
     /// close: the panel opening is the deliberate action, and a peek fires
     /// unasked on hover.
     private func tapIfOpening(_ newState: NotchState) {
         let isOpen: Bool
         if case .open = newState { isOpen = true } else { isOpen = false }
-        if isOpen && !wasOpen { performHaptic() }
+        if isOpen && !wasOpen {
+            if swipeTapped { swipeTapped = false } else { performHaptic() }
+        }
         wasOpen = isOpen
+    }
+
+    // MARK: - Trackpad swipes
+
+    private var swipe = NotchSwipe()
+    private var swiping = false
+
+    /// One scroll event from the hosting view, as a swipe step (spec
+    /// 2026-10-17). Returns whether it was used; an unused one goes on as
+    /// an ordinary scroll.
+    ///
+    /// Internal so a test can drive it with samples: scroll events with
+    /// phases cannot be synthesised headlessly.
+    @discardableResult
+    func handleScroll(_ sample: ScrollSample) -> Bool {
+        // A mouse wheel has no fingers to follow, and momentum is the
+        // scroll coasting after the fingers lifted.
+        guard sample.isPrecise, !sample.isMomentum else { return false }
+        if case .receiving = state.state { return false }
+        let presentation = state.state.presentation
+
+        switch sample.phase {
+        case .began:
+            swipe.began()
+            swiping = true
+            return presentation != .expanded
+        case .changed:
+            guard swiping else { return false }
+            let crossed = swipe.changed(fingerDX: sample.finger.dx, fingerDY: sample.finger.dy)
+            let pull = swipe.pull(on: presentation)
+            state.pullProgress = pull
+            if crossed, pull != 0 {
+                performHaptic()
+                swipeTapped = true
+            }
+            if presentation == .expanded { return pull != 0 }
+            return true
+        case .ended, .cancelled:
+            guard swiping else { return false }
+            swiping = false
+            let outcome = sample.phase == .ended ? swipe.ended(on: presentation) : .none
+            state.pullProgress = 0
+            apply(outcome)
+            // A threshold tap that did not end in opening must not swallow
+            // the next open's tap.
+            if outcome != .open { swipeTapped = false }
+            return outcome != .none || presentation != .expanded
+        case .other:
+            return false
+        }
+    }
+
+    private func apply(_ outcome: NotchSwipe.Outcome) {
+        switch outcome {
+        case .none:
+            break
+        case .open:
+            state.transition(to: .open(state.lastOpenTab))
+        case .close:
+            state.transition(to: .closed)
+        case .nextTrack, .previousTrack:
+            // Only with working transport controls, the same gate the
+            // panel's buttons sit behind.
+            guard state.showsMediaControls else { return }
+            state.onMediaCommand?(outcome == .nextTrack ? .nextTrack : .previousTrack)
+        }
     }
 
     // MARK: - Hover
