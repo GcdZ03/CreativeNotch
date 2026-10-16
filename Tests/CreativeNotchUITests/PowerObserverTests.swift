@@ -133,6 +133,43 @@ struct PowerObserverTests {
     /// below cover: clearing the field and actually deregistering are two
     /// different things, and a count cannot tell them apart. Both of the
     /// mutations that matter here survived this test alone.
+    /// The crash this guards against was real: the test process died twice
+    /// with EXC_BAD_ACCESS inside this callback (2026-10-15, 2026-10-17).
+    /// An observer released without `stop()` left its run loop source
+    /// registered with a raw pointer to freed memory, and the next battery
+    /// change called into it. The callback now holds the observer weakly,
+    /// so a late delivery finds nothing and does nothing.
+    @Test func aCallbackAfterTheObserverIsGoneDoesNothing() throws {
+        var observer: PowerObserver? = PowerObserver()
+        observer?.start()
+        let context = try #require(observer?.callbackContext)
+        weak var gone = observer
+        observer = nil
+        #expect(gone == nil)
+
+        // What IOKit would call on the next power change.
+        PowerObserver.deliver(context)
+    }
+
+    @Test func aCallbackWhileTheObserverLivesReads() throws {
+        let observer = PowerObserver()
+        observer.start()
+        defer { observer.stop() }
+        let before = observer.readCount
+        PowerObserver.deliver(try #require(observer.callbackContext))
+        #expect(observer.readCount == before + 1)
+    }
+
+    /// Stopping hands the box back, so a stop-start cycle does not leak one
+    /// per cycle.
+    @Test func stoppingReleasesTheCallbackContext() {
+        let observer = PowerObserver()
+        observer.start()
+        #expect(observer.callbackContext != nil)
+        observer.stop()
+        #expect(observer.callbackContext == nil)
+    }
+
     @Test func stopUndoesEverythingStartRegistered() {
         let observer = PowerObserver()
         observer.start()
