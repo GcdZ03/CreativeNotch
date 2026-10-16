@@ -143,7 +143,7 @@ struct PowerObserverTests {
         var observer: PowerObserver? = PowerObserver()
         observer?.start()
         let context = try #require(observer?.callbackContext)
-        weak var gone = observer
+        weak let gone = observer
         observer = nil
         #expect(gone == nil)
 
