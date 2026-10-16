@@ -61,6 +61,7 @@ struct PowerPeekView: View {
                     .font(.system(size: 11, weight: .medium, design: .rounded))
                     .foregroundStyle(.white.opacity(0.9))
                     .monospacedDigit()
+                    .rollingDigits(percentage)
             }
         } else {
             Text(caption)

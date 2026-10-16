@@ -38,6 +38,7 @@ struct PowerView: View {
                         Text("\(snapshot.level)%")
                             .font(.system(size: 34, weight: .semibold, design: .rounded))
                             .monospacedDigit()
+                            .rollingDigits(snapshot.level)
                             .foregroundStyle(.white)
 
                         Text(PowerLabel.state(

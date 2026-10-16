@@ -21,7 +21,7 @@ struct PlaybackProgressView: View {
     let position: PlaybackPosition
     let isPlaying: Bool
 
-    @Environment(\.animatesEqualizer) private var motionAllowed
+    @Environment(\.animatesPlaybackProgress) private var motionAllowed
     @State private var shown: Double
 
     init(position: PlaybackPosition, isPlaying: Bool) {
@@ -111,4 +111,12 @@ struct PlaybackProgressView: View {
         let whole = max(0, Int(seconds.rounded(.down)))
         return String(format: "%d:%02d", whole / 60, whole % 60)
     }
+}
+
+extension EnvironmentValues {
+    /// Whether the progress bar runs and its times count. On everywhere in
+    /// the app, Reduce Motion included — a bar creeping along is the
+    /// information itself, not decoration. Off only where a render must be
+    /// repeatable.
+    @Entry var animatesPlaybackProgress: Bool = true
 }

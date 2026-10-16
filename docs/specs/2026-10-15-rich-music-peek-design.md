@@ -91,3 +91,24 @@ The guard exempts `EqualizerBarsView.swift` by name and nothing else, and
   that function the same way the trailing one does.
 - The badge slot is still one decision (`NotchShape.badgeSlot`); the
   leading width is a property of the slot, not a second rule.
+
+## Polish (2026-10-17)
+
+From the second competitor round: things Boring Notch, NotchNook and
+Alcove have that fit this project's rules.
+
+- **Reduce Motion.** With the system setting on, both springs become one
+  0.2s ease, content fades rather than blurs in, the cover cross-fades
+  rather than slides, hover does not grow the notch, and the peek's bars
+  stand still. The progress bar keeps running: its movement is the
+  information.
+- **Rolling digits.** The timer (badge and tab) and the battery percentage
+  (header, tab and peek) roll to each new value with `numericText`, scoped
+  to the value so it runs only when the number changes. A fade under
+  Reduce Motion.
+- **Haptics.** One light tap (`.levelChange`, at `.drawCompleted`) as the
+  panel opens; none for tab switches, peeks or closing. Felt only on a
+  Force Touch trackpad, and macOS drops it if haptics are off.
+- **AirDrop from the shelf.** A button on each tile, on hover, through
+  `NSSharingService(named: .sendViaAirDrop)`: no permission, nothing
+  running until it is asked. Files no longer on disk are left out.

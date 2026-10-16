@@ -470,6 +470,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // rather than captured, so a shelf rebuilt later is the one cleared.
         state.onClearShelf = { [weak self] in try? self?.shelf?.clear() }
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
+        state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
@@ -638,6 +639,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
+                self.tapIfOpening(newState)
             }
         }
 
@@ -836,6 +838,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
+
+    // MARK: - Haptics
+
+    /// The haptic itself. Injected so a test can count taps without a
+    /// trackpad (spec 2026-10-17).
+    ///
+    /// `.levelChange` is the lightest pattern, and `.drawCompleted` lands it
+    /// on the frame the panel is drawn on. It is felt only on a Force Touch
+    /// trackpad with a finger resting on it — which is exactly the click
+    /// that opened the panel — and macOS drops it if the user has turned
+    /// haptic feedback off.
+    var performHaptic: () -> Void = {
+        NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .drawCompleted)
+    }
+
+    private var wasOpen = false
+
+    /// One tap as the panel opens, and none for a tab switch, a peek or a
+    /// close: the panel opening is the deliberate action, and a peek fires
+    /// unasked on hover.
+    private func tapIfOpening(_ newState: NotchState) {
+        let isOpen: Bool
+        if case .open = newState { isOpen = true } else { isOpen = false }
+        if isOpen && !wasOpen { performHaptic() }
+        wasOpen = isOpen
+    }
 
     // MARK: - Hover
 
