@@ -4,10 +4,12 @@ import CreativeNotchCore
 /// What the notch shows for the three seconds after the power state
 /// changes.
 ///
-/// A peek, not a badge. `NowPlayingBadgeView` is the *closed-notch* ambient
-/// tab and this module ships no persistent badge; like `NowPlayingPeekView`
-/// this splits around `notchGap`, because on a notched Mac the middle of this
-/// band is the camera housing.
+/// One row **below** the notch (2026-10-17): icon, the words for what
+/// happened, the bar and the percentage, read left to right. It used to put
+/// the icon in the left ear and the bar in the right, with the camera
+/// housing between them and no words at all, so the two halves read as
+/// unrelated pieces. Hanging below the housing, nothing has to be split
+/// around it — the same move the music peek made.
 ///
 /// It shows a number as well as a bar. The menu bar item people already
 /// compare against has a percentage, and a bar at 19% is not actionably
@@ -16,33 +18,33 @@ struct PowerPeekView: View {
 
     let event: PowerEvent
 
-    /// Width of the physical notch to leave empty down the middle. Zero on
-    /// a notchless Mac, where there is no camera housing to avoid.
-    var notchGap: CGFloat = 0
+    /// The notch's own band, left empty; the row hangs below it.
+    var bandHeight: CGFloat = 32
 
     var body: some View {
-        if notchGap > 0 {
-            // Icon in the left ear, level in the right, nothing behind the
-            // notch. Both ears take an equal share of what is left, so the
-            // layout follows the real notch width on whatever Mac it is.
-            HStack(spacing: 0) {
+        VStack(spacing: 0) {
+            Color.clear.frame(height: bandHeight)
+            HStack(spacing: 8) {
                 icon
-                    .frame(maxWidth: .infinity)
-
-                Color.clear
-                    .frame(width: notchGap)
-
-                trailing
-                    .padding(.trailing, 16)
-                    .frame(maxWidth: .infinity)
+                Text(PowerLabel.peekTitle(for: event))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(event.isUrgent ? tint : .white.opacity(0.95))
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if let percentage {
+                    bar.frame(width: 56)
+                    Text(percentage)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .monospacedDigit()
+                        .rollingDigits(percentage)
+                        .frame(minWidth: 30, alignment: .trailing)
+                }
             }
-        } else {
-            HStack(spacing: 10) {
-                icon
-                trailing
-            }
-            .padding(.horizontal, 22)
+            .padding(.horizontal, 14)
+            .frame(maxHeight: .infinity)
         }
+        .accessibilityElement(children: .combine)
     }
 
     private var icon: some View {
@@ -50,25 +52,6 @@ struct PowerPeekView: View {
             .font(.system(size: 13, weight: .medium))
             .foregroundStyle(tint)
             .frame(width: 18)
-    }
-
-    @ViewBuilder
-    private var trailing: some View {
-        if let percentage {
-            HStack(spacing: 8) {
-                bar
-                Text(percentage)
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .monospacedDigit()
-                    .rollingDigits(percentage)
-            }
-        } else {
-            Text(caption)
-                .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
-                .lineLimit(1)
-        }
     }
 
     private var bar: some View {
@@ -110,16 +93,6 @@ struct PowerPeekView: View {
         }
     }
 
-    /// Words, for the one event that has no number to show.
-    var caption: String {
-        switch event {
-        case .lowPowerMode(let enabled):
-            return enabled ? "Low Power Mode" : "Low Power Mode off"
-        default:
-            return ""
-        }
-    }
-
     var symbol: String {
         switch event {
         case .pluggedIn:    return "battery.100.bolt"
@@ -139,5 +112,12 @@ struct PowerPeekView: View {
         case .lowBattery: return .yellow
         default:          return .white.opacity(0.9)
         }
+    }
+}
+
+private extension PowerEvent {
+    var isUrgent: Bool {
+        if case .lowBattery = self { return true }
+        return false
     }
 }

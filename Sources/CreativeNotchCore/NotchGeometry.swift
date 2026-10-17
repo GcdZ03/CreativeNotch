@@ -26,6 +26,19 @@ public enum NotchGeometry {
     /// Without one, the player row sits centred in the same space.
     public static let mediaPeekBodyHeight: CGFloat = 100
 
+    /// How far the battery peek hangs below the notch's band: one compact
+    /// row of icon, words, bar and percentage (2026-10-17). Trimmed from
+    /// 44pt after seeing it on screen: a three-second glance should not
+    /// look like a panel.
+    public static let statusPeekBodyHeight: CGFloat = 30
+
+    /// How far the battery peek extends past each side of the notch.
+    ///
+    /// Narrower than `peekEarWidth`: the row only has to hold "Low Power
+    /// Mode Off", or a short word plus a small bar and a percentage, so the
+    /// full peek width made it look larger than what it says.
+    public static let statusPeekEarWidth: CGFloat = 70
+
     /// How far the ambient now-playing badge extends past *each* edge of a
     /// physical notch: the cover in the leading ear, the equalizer in the
     /// trailing one (spec 2026-10-15).

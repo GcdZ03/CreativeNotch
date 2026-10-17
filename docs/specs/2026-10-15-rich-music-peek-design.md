@@ -137,3 +137,16 @@ shape, so there is **no global monitor**; an event the swipe does not use
 goes on as an ordinary scroll, so lists in the panel still scroll. Mouse
 wheels and momentum are ignored. The pull is drawn only, like the hover
 growth. One haptic at the threshold; the panel it opens does not tap again.
+
+## Battery peek drops down (2026-10-17)
+
+The battery peek put its icon in the left ear and its bar and percentage in
+the right, with the camera housing between and no words, so it read as two
+unrelated pieces. It now hangs below the notch like the music peek, as its
+own presentation `.statusPeek`: one compact row (30pt body, 70pt ears, so
+narrower than the other peeks; trimmed after seeing the first, larger cut) of icon, the words for
+what happened (`PowerLabel.peekTitle`: "Plugged In", "On Battery", "Low
+Battery", "Low Power Mode On/Off"), the bar and the percentage. "Plugged In"
+rather than "Charging", because a Mac holding at 80% is plugged in without
+charging. Low battery stays the one yellow thing. One peek replacing another
+still uses the opening spring, even when the new one is smaller.

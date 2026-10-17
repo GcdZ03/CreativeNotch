@@ -324,7 +324,10 @@ public final class AppState {
     public func transition(to next: NotchState) {
         guard next != state else { return }
         if case .open(let tab) = next { lastOpenTab = tab }
+        // One peek replacing another is a swap, not a collapse, even when the
+        // new one is smaller — a battery peek giving way to a drag target.
         lastChangeGrew = next.presentation.rank >= state.presentation.rank
+            || (next.presentation.isPeek && state.presentation.isPeek)
         state = next
         notify(.state(next))
     }
@@ -583,12 +586,11 @@ public struct NotchRootView: View {
     /// The power peek exactly as `body` builds it, arguments and all.
     ///
     /// Static for the same reason `nowPlayingPeek(for:track:)` is: it lets
-    /// a test read the `notchGap` this view *supplies* without rendering.
-    /// Proving the gap through a render is a documented trap — switching
-    /// the anchor changes the drawn panel shape as well as the content, so
-    /// the images differ whether or not the gap was honoured.
+    /// a test read the band height this view *supplies* without rendering.
+    /// The row hangs below the notch's own band, so the band must be the
+    /// anchor's real height.
     static func powerPeek(for app: AppState, event: PowerEvent) -> PowerPeekView {
-        PowerPeekView(event: event, notchGap: notchGap(for: app.anchor))
+        PowerPeekView(event: event, bandHeight: app.anchor.rect.height)
     }
 
     public var body: some View {

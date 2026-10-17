@@ -60,4 +60,17 @@ struct PowerLabelTests {
 
         #expect(Set(all).count == all.count)
     }
+
+    // MARK: - The battery peek's words (2026-10-17)
+
+    /// "Plugged In", not "Charging": the event says power arrived, and a
+    /// Mac holding at 80% for battery health is plugged in without
+    /// charging. The panel's own state line is where charging is named.
+    @Test func thePeekNamesEachEvent() {
+        #expect(PowerLabel.peekTitle(for: .pluggedIn(level: 60)) == "Plugged In")
+        #expect(PowerLabel.peekTitle(for: .unplugged(level: 60)) == "On Battery")
+        #expect(PowerLabel.peekTitle(for: .lowBattery(threshold: 10, level: 9)) == "Low Battery")
+        #expect(PowerLabel.peekTitle(for: .lowPowerMode(enabled: true)) == "Low Power Mode On")
+        #expect(PowerLabel.peekTitle(for: .lowPowerMode(enabled: false)) == "Low Power Mode Off")
+    }
 }

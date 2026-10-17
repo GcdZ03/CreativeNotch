@@ -473,8 +473,9 @@ and the camera housing empty between them. Hovering opens the music peek, a
 presentation of its own (`.mediaPeek`) that grows *down* from the notch
 rather than sideways: its top band keeps the notch's height with moving bars
 in the trailing ear, and the player hangs below the housing — cover, title
-over artist, play/pause, and a progress bar. Power and timer peeks keep the
-one-line `.peek` in the ears. One cover is shared by the badge, the peek and
+over artist, play/pause, and a progress bar. The battery peek drops down the
+same way (`.statusPeek`), as one row: icon, words, bar and percentage. The
+timer and drag-target peeks keep the one-line `.peek` in the ears. One cover is shared by the badge, the peek and
 the panel through `matchedGeometryEffect`, so it slides between them. See
 `docs/specs/2026-10-15-rich-music-peek-design.md`.
 
