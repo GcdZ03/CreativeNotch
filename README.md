@@ -14,7 +14,7 @@
   </a>
   <img src="https://img.shields.io/badge/platform-macOS%2026%2B-black" alt="macOS 26+">
   <img src="https://img.shields.io/badge/Swift-6.3-orange" alt="Swift 6.3">
-  <img src="https://img.shields.io/badge/tests-974-brightgreen" alt="974 tests">
+  <img src="https://img.shields.io/badge/tests-1000%2B-brightgreen" alt="1000+ tests">
   <img src="https://img.shields.io/badge/license-GPL--3.0-blue" alt="GPL-3.0">
 </p>
 
@@ -68,7 +68,7 @@ distributed, not sold, and not on the App Store.
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
-| ✅ **Media metadata** — now-playing title, artist, artwork, and an ambient badge | Done |
+| ✅ **Media metadata** — now-playing title, artist, artwork, playback position, and an ambient badge | Done |
 | ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
@@ -77,14 +77,21 @@ distributed, not sold, and not on the App Store.
 | ✅ **Capture indicator** — when another app is using your camera or microphone | Done |
 | ✅ **Redesigned panel** — tabs in the ears, music as a column, one control vocabulary | Done |
 | ✅ **Launch at login** — a switch that reads the system rather than remembering | Done |
+| ✅ **Music and battery peeks** — a mini player and a status row that drop below the notch | Done |
+| ✅ **Trackpad swipes** — down to open, following the fingers; up to close; sideways to skip | Done |
+| ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
+| ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
+| ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
 back out anywhere later.
 
-Peeks draw into the **ears either side of the notch**, so nothing is ever
-hidden behind the camera housing. Notchless Macs get a single centred pill
-instead; there is no housing to work around, so two empty ears would be worse.
+Nothing is ever drawn behind the camera housing. The closed notch's badges
+sit in the **ears either side of it**; the timer and drag-target peeks are one
+line in those ears; and the music and battery peeks **drop below the notch**,
+so their contents read together instead of being split by it. Notchless Macs
+get a single centred pill instead; there is no housing to work around.
 
 Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images, in memory only and gone on quit, with the
@@ -230,21 +237,26 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 
 | Action | Result |
 |---|---|
-| Pause on the notch for ~300 ms | Peeks open |
+| Move onto the notch | It grows a few points at once, so you know it noticed |
+| Pause on the notch for ~300 ms | Peeks, if there is something to show |
 | Move away | Collapses |
+| Two-finger swipe down on the notch | The notch follows your fingers and opens past a threshold, with one haptic tap |
+| Two-finger swipe up on the open panel | Closes it |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
-| Hover a shelf item | An × appears to remove just that one; Clear in the title row empties the shelf |
+| Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
-| Something starts playing | A small album-cover badge appears beside the notch; it goes away when you pause |
-| Hover the closed notch while something is playing | Peeks the now-playing track, with its cover; silent when paused |
+| Something starts playing | The cover appears left of the notch and still equalizer bars right of it; both go away when you pause |
+| Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
+| Two-finger swipe sideways on that player | Next track (left) or previous (right) |
+| Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
@@ -257,7 +269,11 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Menu bar icon | Settings…, Clear Shelf, Clear Clipboard, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
-300 ms dwell is deliberate, because the notch sits directly on that path.
+300 ms dwell is deliberate, because the notch sits directly on that path. If you
+would rather hovering opened the panel itself, Settings → Hover → **Open on
+hover** does that after a delay you choose (0.2–1.0 s). With **Reduce Motion**
+on in System Settings, springs become a short fade and the cover and bars stay
+still.
 
 The panel is hidden entirely over fullscreen apps, so it never covers a film
 or a presentation.
@@ -269,7 +285,7 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 974 tests, ~2s, no window server needed
+swift test           # 1000+ tests, ~3s, no window server needed
 ./Scripts/dev.sh     # stop, rebuild, sign, relaunch
 ```
 
@@ -279,11 +295,11 @@ Xcode opens `Package.swift` directly — there is no project file to maintain.
 designated requirement is the hash of the code, so macOS treats every rebuild
 as a different app and any permission you granted is revoked. Nothing in the
 app requires a permission today, but the camera re-prompts on every rebuild
-without this. A one-time local certificate fixes it:
+without this. A one-time local certificate fixes it, and `bundle.sh` picks it
+up from your keychain by name from then on:
 
 ```bash
 ./Scripts/setup-signing.sh
-export CODESIGN_IDENTITY="CreativeNotch Dev"
 ```
 
 ### Project layout
@@ -296,8 +312,8 @@ Sources/
                        menu bar, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
 Tests/
-  CreativeNotchCoreTests/   463 tests
-  CreativeNotchUITests/     607 tests
+  CreativeNotchCoreTests/   the pure logic, headless and fast
+  CreativeNotchUITests/     the views, the delegate and the wiring
 ```
 
 The split is load-bearing, not cosmetic. `CreativeNotchCore` importing AppKit
@@ -394,12 +410,6 @@ which is why a camera grant re-prompts on every update and why downloads need
 `xattr -dr`. A signing identity would remove both at once. That is a
 distribution decision, and it now gates no module.
 
-The one that is not merely unbuilt but genuinely unsettled is preferences,
-for an architectural reason: turning a module off has to *stop its
-subsystem*, not hide its UI. A switch that removes the feature while leaving
-the poller running would be worse than no switch — the user pays for
-something they explicitly declined.
-
 Full analysis, including which need feasibility spikes first, is in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
@@ -422,14 +432,16 @@ to 3s after two quiet minutes, floors at 2s under Low Power Mode, and is
 fully suspended while the screen is locked or the machine is asleep —
 resuming resyncs without capturing whatever was copied in the meantime.
 
-Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
-battery architecture), a screen-recording indicator (no public API reports
-it), iCloud sync, a synthetic black notch on notchless Macs, and the Mac App
-Store.
+Since the modules, the work has been on how the notch looks and moves — the
+music and battery peeks, swipes, AirDrop, Reduce Motion, open on hover and a
+fix for two notches showing mid desktop-swipe. The design and the reasoning
+are in [`docs/specs/2026-10-15-rich-music-peek-design.md`](docs/specs/2026-10-15-rich-music-peek-design.md).
 
-Before module work starts, see
-[`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md)
-— **F1** and **F2** are traps sitting directly in the file shelf's path.
+Deliberately **not** on the roadmap: an audio visualiser (it contradicts the
+battery architecture — the music peek's bars read no audio and move only while
+the peek is open), a screen-recording indicator (no public API reports it),
+iCloud sync, a synthetic black notch on notchless Macs, and the Mac App
+Store.
 
 ---
 
@@ -439,7 +451,7 @@ Before module work starts, see
 |---|---|
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | How it works, and the non-obvious parts |
 | [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) | Dev loops, signing setup, release process |
-| [`docs/ROADMAP.md`](docs/ROADMAP.md) | The one module still planned, and what it has to solve first |
+| [`docs/ROADMAP.md`](docs/ROADMAP.md) | What is deliberately not planned, ideas considered, and the signing decision |
 | [`docs/specs/2026-08-22-creativenotch-design.md`](docs/specs/2026-08-22-creativenotch-design.md) | The design decisions and why |
 | [`docs/specs/2026-08-22-file-shelf-design.md`](docs/specs/2026-08-22-file-shelf-design.md) | The file shelf module |
 | [`docs/specs/2026-08-25-system-hud-design.md`](docs/specs/2026-08-25-system-hud-design.md) | The system HUD module — **removed 2026-09-26**, kept as the record of what it was |
@@ -449,6 +461,7 @@ Before module work starts, see
 | [`docs/specs/2026-09-13-global-hotkey-design.md`](docs/specs/2026-09-13-global-hotkey-design.md) | The global shortcut |
 | [`docs/specs/2026-09-13-camera-design.md`](docs/specs/2026-09-13-camera-design.md) | The camera module |
 | [`docs/specs/2026-09-13-ui-redesign-design.md`](docs/specs/2026-09-13-ui-redesign-design.md) | The redesigned panel, tabs and Settings |
+| [`docs/specs/2026-10-15-rich-music-peek-design.md`](docs/specs/2026-10-15-rich-music-peek-design.md) | The music and battery peeks, motion, swipes, AirDrop, Reduce Motion, open on hover, and one notch across Spaces |
 | [`docs/plans/2026-09-13-ui-redesign.md`](docs/plans/2026-09-13-ui-redesign.md) | How the redesign was built |
 | [`docs/specs/2026-09-19-launch-at-login-design.md`](docs/specs/2026-09-19-launch-at-login-design.md) | Launch at login: the module that runs nothing |
 | [`docs/research/2026-09-19-launch-at-login-probe.md`](docs/research/2026-09-19-launch-at-login-probe.md) | What the login-item probe measured, including one finding nobody asked for |

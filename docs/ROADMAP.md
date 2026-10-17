@@ -169,6 +169,23 @@ every update rather than waiting for one.
 What it would still buy: no camera re-prompt on every update, and downloads
 that are not quarantined.
 
+## Ideas considered, not started
+
+From two rounds of comparing against Boring Notch, NotchNook, Alcove, Atoll
+and DynamicLake (October 2026). Each fits the one rule; none is planned.
+
+- **A calendar and reminders glance.** EventKit notifies on change rather
+  than being polled, but it adds a permission prompt — the first since the
+  camera.
+- **Synced lyrics.** The playback position now exists to sync them, but it
+  means sending the track's title and artist to a lyrics service, so it would
+  have to be opt-in.
+- **Bluetooth and AirPods connect alerts.** Connect and disconnect are easy;
+  per-device battery may need private API.
+- **Download progress**, from watching the Downloads folder.
+- **Liquid Glass (macOS 26) as an option** for the open panel and the pill.
+  The closed notch has to stay black to vanish into the housing.
+
 ## Still deliberately not planned
 
 - **An audio visualiser.** Named in this category as a top CPU cost; it
