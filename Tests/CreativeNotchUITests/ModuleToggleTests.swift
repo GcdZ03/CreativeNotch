@@ -37,6 +37,11 @@ struct ModuleToggleTests {
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}
         delegate.media?.supervisor.stopHelper = {}
+        // The camera tests below open the camera tab. The app already refuses
+        // the real camera here (no usage description), and this says so
+        // explicitly rather than relying on it.
+        delegate.camera?.applyRunState = { _ in }
+        delegate.performHaptic = {}
         return delegate
     }
 

@@ -240,6 +240,15 @@ decision path is testable without hardware or a sleep.
 **Never call a permission-requesting API from a test** — it pops a
 real system dialog. `AXIsProcessTrusted()` is a safe read.
 
+**Never reach hardware from a test.** No real clicks or keys, no window on
+screen, no real pasteboard, no media command, no sound, no Space created. Two
+of these are guarded in the app itself rather than left to each test: the
+camera refuses to start without `NSCameraUsageDescription`, which only the
+packaged app's Info.plist has, and the haptic does nothing outside a `.app`
+(`HostProcess.isPackagedApp`). Both were found reachable from the suite on
+2026-10-17 — three camera tests were safe only because the process exited
+first — and `HardwareIsolationTests` pins the guards.
+
 **A media helper verified from a terminal proves nothing.** A
 terminal-launched process inherits a valid stdin; the packaged `.app` does
 not provide one unless the code sets it. That difference shipped a Critical

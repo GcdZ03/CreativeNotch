@@ -40,6 +40,9 @@ enum NotchedDelegate {
     /// - `playChime` is silenced. No test may make the machine audible;
     ///   the suite that cares about the chime replaces this with a
     ///   counter.
+    /// - `performHaptic` is silenced too, for the same reason — though the
+    ///   real one is already inert outside the packaged app
+    ///   (`HardwareIsolationTests`).
     ///
     /// `countdown` is applied *before* `install`, which seeds the accepted
     /// region from `visibleRect()` directly — that is how a test reaches
@@ -52,6 +55,7 @@ enum NotchedDelegate {
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchNotched-\(UUID().uuidString)")
         delegate.playChime = {}
+        delegate.performHaptic = {}
         delegate.state.countdown = countdown
         delegate.install(metrics: metrics)
         // The indicator would otherwise read the developer's real

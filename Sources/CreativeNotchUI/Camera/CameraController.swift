@@ -75,6 +75,10 @@ final class CameraController {
         self.shelf = shelf
         let session = self.session
         self.applyRunState = { shouldRun in
+            // No usage description, no camera: that is `swift test`, and
+            // macOS terminates a process that starts the camera without one
+            // (2026-10-17). The packaged app's Info.plist has it.
+            guard CameraController.mayUseCamera(Bundle.main.infoDictionary) else { return }
             session.queue.async {
                 guard session.configure() else { return }
                 shouldRun ? session.start() : session.stop()
@@ -94,6 +98,16 @@ final class CameraController {
     }
 
     var captureSession: AVCaptureSession { session.captureSession }
+
+    /// The camera's own queue, so a test can wait for work sent to it.
+    var sessionQueue: DispatchQueue { session.queue }
+
+    /// Whether this process may touch the camera at all: only one that
+    /// declares why, in `NSCameraUsageDescription`.
+    nonisolated static func mayUseCamera(_ info: [String: Any]?) -> Bool {
+        guard let text = info?["NSCameraUsageDescription"] as? String else { return false }
+        return !text.isEmpty
+    }
 
     // MARK: - Inputs
 
