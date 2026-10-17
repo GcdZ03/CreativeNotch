@@ -255,6 +255,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // keeps the wiring path testable without putting a window on
             // screen.
             panel?.orderFrontRegardless()
+            // After ordering front, so the panel has a window number. Only
+            // here, never in `install`: tests build the delegate through
+            // `install`, and must not create Spaces in the session running
+            // them.
+            hostPanelInFixedSpace()
         }
 
         let menuBar = MenuBarController(
@@ -341,6 +346,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        fixedSpace?.tearDown()
+        fixedSpace = nil
         removeScreenObservers()
         switchboard.stopAll()
         activity.stop()
@@ -865,6 +872,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
+
+    // MARK: - A Space of its own
+
+    /// Where the window server functions come from. The real SkyLight ones
+    /// by default; a test hands in a fake, and only ever through
+    /// `hostPanelInFixedSpace()`, which nothing but the launch calls.
+    var makeSpaceServer: () -> SpaceServer? = { SkyLightSpaceServer.load() }
+
+    /// The Space the panel lives in so a desktop swipe does not carry it
+    /// (spec 2026-10-17), or `nil` before launch or where macOS lacks the
+    /// functions.
+    private(set) var fixedSpace: NotchSpace?
+
+    func hostPanelInFixedSpace() {
+        guard let panel else { return }
+        if fixedSpace == nil { fixedSpace = NotchSpace(server: makeSpaceServer()) }
+        fixedSpace?.host(windowNumber: panel.windowNumber)
+    }
 
     // MARK: - Haptics
 

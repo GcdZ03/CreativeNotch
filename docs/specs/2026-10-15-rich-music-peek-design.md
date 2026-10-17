@@ -172,3 +172,28 @@ costs more than an accidental peek.
 - The shortcut, a swipe and open-on-hover now share one `openPanel()`, which
   picks the first visible tab if the last one was switched off. The swipe
   used to open on the last tab unchecked.
+
+## One notch while Spaces switch (2026-10-17)
+
+The panel joins every Space and is `.stationary`, yet a desktop swipe still
+carried a copy out with the old Space and in with the new one, so two
+notches showed mid-swipe. The panel now lives in a Space of its own above
+all the others (`NotchSpace`), out of the slide entirely — the approach
+Boring Notch ships.
+
+- It uses the window server's private CGS* functions in SkyLight
+  (`CGSSpaceCreate`, `CGSSpaceSetAbsoluteLevel`, `CGSShowSpaces`,
+  `CGSAddWindowsToSpaces`, and their inverses). They are free — part of
+  macOS — but undocumented, like the MediaRemote this app already uses.
+- Resolved with `dlsym`, not linked, so a macOS without them falls back to
+  the old behaviour instead of failing to launch.
+- Created only in `applicationDidFinishLaunching`, after the panel is on
+  screen — never in `install`, which the tests use, so a test run creates
+  no Spaces. Destroyed in `applicationWillTerminate`.
+- **Measured on 2026-10-17:** the Space (569) exists while the app runs and
+  is gone after a normal quit, and a relaunched app's Space (570) is gone
+  after `kill -9` as well — the window server removes it with the process,
+  so a crash leaves nothing behind.
+- Still needs checking by eye: the swipe itself, full-screen apps (the
+  notch stayed hidden over them before), Mission Control, and a second
+  display.
