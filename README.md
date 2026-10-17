@@ -50,8 +50,8 @@ avoid polling — clipboard history, because `NSPasteboard` has no change
 notification — is gated centrally on system activity rather than trusted to
 behave.
 
-This is a personal tool built for its author's own Macs. It is not
-distributed, not sold, and not on the App Store.
+Built for its author's daily use, and free for anyone to install with one
+command. It is not sold, and it is not on the App Store.
 
 ---
 
@@ -146,11 +146,14 @@ one subprocess is the budget for this project, and it never outlives it.
 ## Installation
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash && open /Applications/CreativeNotch.app
 ```
 
-Installs to `/Applications`. Run the same command again to update — it
-checks the installed version and exits early if you are current.
+One line: it installs to `/Applications`, then opens the app. There is no
+Dock icon — look at the notch and the menu bar. Run the same line again to
+update; it checks the installed version and exits early if you are current.
+If the install fails — the wrong macOS, an Intel Mac — the `&&` means nothing
+is opened.
 
 <details>
 <summary>What that script does, before you pipe it to bash</summary>
@@ -160,9 +163,9 @@ from the GitHub API, downloads the `.tar.gz`, verifies its code signature,
 stops any running copy, and moves it into `/Applications`. It asks for `sudo`
 only if `/Applications` needs it, which on a normal admin account it does not.
 
-**It does not launch the app.** It prints the command; opening CreativeNotch
-is a separate step, and there is no Dock icon when you do — look at the notch
-and the menu bar.
+**The script itself does not launch the app** — the `&& open …` at the end
+of the line above does. Run the script on its own and it prints the command
+instead.
 
 Read it first if you like — it is
 [`Scripts/install.sh`](Scripts/install.sh), and piping a script from the
