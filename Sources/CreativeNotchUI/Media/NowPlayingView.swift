@@ -41,6 +41,8 @@ struct NowPlayingPeekView: View {
     var bandHeight: CGFloat = 32
     /// `AppState.nowPlayingBarTint`, sampled once per artwork change.
     var barTint: Color? = nil
+    /// Wide artwork gets a wider tile, as in the closed notch.
+    var artworkAspect: CGFloat? = nil
     var coverNamespace: Namespace.ID? = nil
     var onCommand: (MediaCommand) -> Void = { _ in }
 
@@ -154,7 +156,10 @@ struct NowPlayingPeekView: View {
                 }
             }
         }
-        .frame(width: coverSize, height: coverSize)
+        .frame(
+            width: NotchGeometry.coverWidth(height: coverSize, aspect: artwork == nil ? nil : artworkAspect),
+            height: coverSize
+        )
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)

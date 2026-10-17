@@ -260,6 +260,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // `install`, and must not create Spaces in the session running
             // them.
             hostPanelInFixedSpace()
+            watchForFullScreen()
         }
 
         let menuBar = MenuBarController(
@@ -346,6 +347,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     public func applicationWillTerminate(_ notification: Notification) {
+        fullScreenWatcher?.stop()
+        fullScreenWatcher = nil
         fixedSpace?.tearDown()
         fixedSpace = nil
         removeScreenObservers()
@@ -889,6 +892,47 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let panel else { return }
         if fixedSpace == nil { fixedSpace = NotchSpace(server: makeSpaceServer()) }
         fixedSpace?.host(windowNumber: panel.windowNumber)
+    }
+
+    // MARK: - Full-screen apps
+
+    /// Shows or hides the panel window. Injected so a test can check the
+    /// call without putting a window on screen.
+    var setPanelShown: (Bool) -> Void = { _ in }
+
+    private(set) var fullScreenWatcher: FullScreenWatcher?
+
+    /// Hides the notch over full-screen apps again (2026-10-17).
+    ///
+    /// Only needed because of `fixedSpace`: in a Space of its own above every
+    /// other, the panel shows over full-screen apps, where before omitting
+    /// `.fullScreenAuxiliary` hid it for free. So it is started only when
+    /// that Space exists, and only from the real launch.
+    private func watchForFullScreen() {
+        guard fixedSpace != nil, let read = FullScreenWatcher.skyLightReader() else { return }
+        setPanelShown = { [weak self] shown in
+            guard let self, let panel = self.panel else { return }
+            if shown {
+                panel.orderFrontRegardless()
+                self.hostPanelInFixedSpace()
+            } else {
+                panel.orderOut(nil)
+            }
+        }
+        let watcher = FullScreenWatcher(
+            readDisplays: read,
+            displayUUID: { [weak self] in FullScreenWatcher.uuid(of: self?.panel?.screen ?? NSScreen.main) }
+        )
+        watcher.onChange = { [weak self] in self?.applyFullScreen($0) }
+        fullScreenWatcher = watcher
+        watcher.start()
+    }
+
+    /// Full-screen: close the panel and take the notch off screen. Back to
+    /// a desktop: put it back.
+    func applyFullScreen(_ isFullScreen: Bool) {
+        if isFullScreen { state.transition(to: .closed) }
+        setPanelShown(!isFullScreen)
     }
 
     // MARK: - Haptics

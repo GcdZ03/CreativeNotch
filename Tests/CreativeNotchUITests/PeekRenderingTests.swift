@@ -90,7 +90,7 @@ struct PeekRenderingTests {
         let notchless = try #require(Self.peekViewPixels(notchGap: 0))
         let notched = try #require(Self.peekViewPixels(notchGap: 179))
 
-        #expect(notchless != notched)
+        #expect(Render.differs(notchless, notched))
     }
 
     /// And the gap tracks the real notch width rather than being a fixed
@@ -99,7 +99,7 @@ struct PeekRenderingTests {
         let narrow = try #require(Self.peekViewPixels(notchGap: 120))
         let wide = try #require(Self.peekViewPixels(notchGap: 200))
 
-        #expect(narrow != wide)
+        #expect(Render.differs(narrow, wide))
     }
 
     /// Without this, "the two images differ" would be worthless: if the
@@ -109,7 +109,7 @@ struct PeekRenderingTests {
         let once = try #require(Self.peekPixels(.nowPlaying(Self.playing)))
         let twice = try #require(Self.peekPixels(.nowPlaying(Self.playing)))
 
-        #expect(once == twice)
+        #expect(Render.same(once, twice))
     }
 
     /// The bug: hovering the closed notch with music playing drew the app
@@ -119,7 +119,7 @@ struct PeekRenderingTests {
         let track = try #require(Self.peekPixels(.nowPlaying(Self.playing)))
         let appName = try #require(Self.peekPixels(Self.appNameFallback))
 
-        #expect(track != appName)
+        #expect(Render.differs(track, appName))
     }
 
     /// And what it draws is the *track*, not some fixed now-playing chrome:
@@ -130,7 +130,7 @@ struct PeekRenderingTests {
             TrackSnapshot(title: "Redbone", artist: "Childish Gambino", isPlaying: true)
         )))
 
-        #expect(weeknd != other)
+        #expect(Render.differs(weeknd, other))
     }
 
     /// The peek and the panel header must not drift apart, so the peek is
@@ -145,7 +145,7 @@ struct PeekRenderingTests {
             TrackSnapshot(title: "Some Episode", artist: "", isPlaying: true)
         )))
 
-        #expect(withArtist != withoutArtist)
+        #expect(Render.differs(withArtist, withoutArtist))
     }
 
     /// The peek carries a cover too, and it has to survive on both of
@@ -161,14 +161,14 @@ struct PeekRenderingTests {
         let bare = try #require(Self.peekViewPixels(notchGap: 179))
         let withCover = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.red))
 
-        #expect(bare != withCover)
+        #expect(Render.differs(bare, withCover))
     }
 
     @Test func thePeekDrawsItsCoverInTheCentredLayout() throws {
         let bare = try #require(Self.peekViewPixels(notchGap: 0))
         let withCover = try #require(Self.peekViewPixels(notchGap: 0, artwork: SolidArtwork.red))
 
-        #expect(bare != withCover)
+        #expect(Render.differs(bare, withCover))
     }
 
     // MARK: - The progress bar
@@ -188,7 +188,7 @@ struct PeekRenderingTests {
         )))
         let with = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
 
-        #expect(without != with)
+        #expect(Render.differs(without, with))
     }
 
     /// And the bar is drawn at the position, not as fixed chrome.
@@ -196,14 +196,14 @@ struct PeekRenderingTests {
         let early = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 20)))
         let late = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 180)))
 
-        #expect(early != late)
+        #expect(Render.differs(early, late))
     }
 
     @Test func pausedRendersAreRepeatable() throws {
         let once = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
         let twice = try #require(Self.peekViewPixels(notchGap: 179, track: Self.paused(at: 100)))
 
-        #expect(once == twice)
+        #expect(Render.same(once, twice))
     }
 
     @Test func theTimesReadAsMinutesAndSeconds() {
@@ -219,7 +219,7 @@ struct PeekRenderingTests {
         let red = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.red))
         let blue = try #require(Self.peekViewPixels(notchGap: 179, artwork: SolidArtwork.blue))
 
-        #expect(red != blue)
+        #expect(Render.differs(red, blue))
     }
 }
 
@@ -377,7 +377,7 @@ struct PowerPeekRenderingTests {
         let power = try #require(Self.peekPixels(.power(.unplugged(level: 66))))
         let fallback = try #require(Self.peekPixels(.dragTarget))
 
-        #expect(power != fallback)
+        #expect(Render.differs(power, fallback))
     }
 
     /// And the content actually varies with the event, so the case is
@@ -389,9 +389,9 @@ struct PowerPeekRenderingTests {
         )
         let lpm = try #require(Self.peekPixels(.power(.lowPowerMode(enabled: true))))
 
-        #expect(unplugged != low)
-        #expect(unplugged != lpm)
-        #expect(low != lpm)
+        #expect(Render.differs(unplugged, low))
+        #expect(Render.differs(unplugged, lpm))
+        #expect(Render.differs(low, lpm))
     }
 
     /// The level moves the bar. A peek that drew the same image at 5% and
@@ -400,6 +400,6 @@ struct PowerPeekRenderingTests {
         let low = try #require(Self.peekPixels(.power(.unplugged(level: 5))))
         let high = try #require(Self.peekPixels(.power(.unplugged(level: 95))))
 
-        #expect(low != high)
+        #expect(Render.differs(low, high))
     }
 }

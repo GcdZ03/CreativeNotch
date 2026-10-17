@@ -40,9 +40,9 @@ struct TimerBadgeTests {
     /// side.
     private static let timedRect = CGRect(x: 195, y: 222, width: 274, height: 38)
 
-    /// The media badge's rect, for the ranking test: 34 + 230 + 34 — the
-    /// cover's leading ear and the equalizer's trailing one.
-    private static let mediaRect = CGRect(x: 161, y: 222, width: 298, height: 38)
+    /// The media badge's rect, for the ranking test: 230 + 68 — the cover
+    /// and the equalizer together in the trailing ear.
+    private static let mediaRect = CGRect(x: 195, y: 222, width: 298, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
@@ -114,8 +114,8 @@ struct TimerBadgeTests {
     /// This drives the real publish path: the countdown is already set when
     /// `nowPlayingDidChange` re-syncs, so the slot is decided with both
     /// claimants present. 274, not media's 298 — if the hit test resolved
-    /// the tie the other way it would accept clicks on a leading ear the
-    /// countdown never draws.
+    /// the tie the other way it would accept clicks on 24pt the countdown
+    /// never draws.
     @Test func aRunningTimerOutranksPlayingMediaInAllThreeRects() {
         let delegate = makeDelegate(countdown: Self.running())
         delegate.nowPlayingDidChange(Self.playing)
@@ -128,30 +128,26 @@ struct TimerBadgeTests {
 
     // MARK: - The click actually lands
 
-    /// End to end through the real hit test, on the 10pt sliver that is the
-    /// whole point of this suite.
+    /// End to end through the real hit test, on both sides of where the
+    /// countdown's slot ends.
     ///
-    /// x 459...469 is the part of the countdown's slot that reaches *past*
-    /// where the media badge would end. A click there is captured while a
-    /// timer runs and passes through to the menu bar when none does. If
-    /// `AppDelegate` ever computes its badge width without the countdown,
-    /// this is the strip the user watches their clicks fall through.
-    @Test func clicksOnTheCountdownsOwnSliverAreCaptured() throws {
-        // Mid-sliver: past where a 34pt media badge would end (x 459),
-        // inside the timer's 44pt slot (ends x 469), level with the notch
-        // band (y 222...260).
-        let onSliver = NSPoint(x: 464, y: 240)
+    /// The timer's 44pt slot ends at x 469; the media ear, since it holds the
+    /// cover and the bars, runs on to x 493. With both claimants present the
+    /// timer owns the slot, so a click at x 480 must fall through to the menu
+    /// bar — if `AppDelegate` ever resolved the slot without the countdown,
+    /// it would accept clicks on 24pt the user sees as empty menu bar.
+    @Test func theCountdownOwnsTheSlotOverMusicInTheHitTest() throws {
+        let insideCountdown = NSPoint(x: 450, y: 240)
+        let pastCountdown = NSPoint(x: 480, y: 240)
 
         let idle = makeDelegate()
-        #expect(try #require(idle.hostView).hitTest(onSliver) == nil)
-
-        // Nor does *playing media* reach it — the sliver belongs to the
-        // timer alone, so this cannot pass by way of the media badge.
-        idle.nowPlayingDidChange(Self.playing)
-        #expect(try #require(idle.hostView).hitTest(onSliver) == nil)
+        #expect(try #require(idle.hostView).hitTest(insideCountdown) == nil)
 
         let timed = makeDelegate(countdown: Self.running())
-        #expect(try #require(timed.hostView).hitTest(onSliver) != nil)
+        timed.nowPlayingDidChange(Self.playing)
+        let host = try #require(timed.hostView)
+        #expect(host.hitTest(insideCountdown) != nil)
+        #expect(host.hitTest(pastCountdown) == nil)
     }
 
     /// The countdown grows one side only, so the mirror-image point on the

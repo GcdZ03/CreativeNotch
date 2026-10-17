@@ -15,10 +15,13 @@ enum SolidArtwork {
     static let red  = png(.systemRed)
     static let blue = png(.systemBlue)
 
-    static func png(_ color: NSColor) -> Data {
+    /// A 16:9 frame, like a video thumbnail.
+    static let wideRed = png(.systemRed, width: 64, height: 36)
+
+    static func png(_ color: NSColor, width: Int = 40, height: Int = 40) -> Data {
         let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
-            pixelsWide: 40, pixelsHigh: 40,
+            pixelsWide: width, pixelsHigh: height,
             bitsPerSample: 8, samplesPerPixel: 4,
             hasAlpha: true, isPlanar: false,
             colorSpaceName: .deviceRGB,
@@ -27,7 +30,7 @@ enum SolidArtwork {
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
         color.setFill()
-        NSRect(x: 0, y: 0, width: 40, height: 40).fill()
+        NSRect(x: 0, y: 0, width: width, height: height).fill()
         NSGraphicsContext.restoreGraphicsState()
         return rep.representation(using: .png, properties: [:])!
     }
@@ -60,21 +63,20 @@ struct BadgeRenderingTests {
     private static let panel  = CGRect(x: 1895, y: 896, width: 620, height: 260)
 
     /// The badged closed rect in the top-left space SwiftUI lays out in:
-    /// panel-local (161, 222, 298, 38) mirrored in y against a 260pt panel
-    /// puts it flush with the panel's top edge. 34 + 230 + 34: the cover's
-    /// leading ear and the equalizer's trailing one (spec 2026-10-15).
+    /// panel-local (195, 222, 298, 38) mirrored in y against a 260pt panel
+    /// puts it flush with the panel's top edge. 230 + 68: the cover and the
+    /// equalizer together in the trailing ear (2026-10-17).
     ///
     /// Literals, not `NotchRootView.drawnRect(for:)`: a test that asks the
     /// production code where it drew and then checks it drew there proves
     /// only that it agrees with itself.
-    private static let drawn = CGRect(x: 161, y: 0, width: 298, height: 38)
+    private static let drawn = CGRect(x: 195, y: 0, width: 298, height: 38)
 
-    /// The strip the shape grew for the cover — the 34pt leading the
-    /// notch's own 230pt.
-    private static let coverStrip = CGRect(x: 161, y: 0, width: 34, height: 38)
+    /// The 68pt ear the shape grew past the notch's trailing edge (x 425).
+    private static let ear = CGRect(x: 425, y: 0, width: 68, height: 38)
 
-    /// The strip it grew for the equalizer — the 34pt trailing the notch.
-    private static let barsStrip = CGRect(x: 425, y: 0, width: 34, height: 38)
+    /// Where the bars start for a square cover: 6pt, the 22pt tile, 5pt.
+    private static let barsStartSquare: CGFloat = 425 + 6 + 22 + 5
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
     private static let paused  = TrackSnapshot(title: "Song", artist: "Band", isPlaying: false)
@@ -164,7 +166,7 @@ struct BadgeRenderingTests {
         let once  = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
         let twice = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
 
-        #expect(once == twice)
+        #expect(Render.same(once, twice))
     }
 
     // MARK: - Something is drawn, and it is the artwork
@@ -178,7 +180,7 @@ struct BadgeRenderingTests {
         let withCover = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
         let noCover   = try #require(Self.pixels(nowPlaying: Self.playing, artwork: nil))
 
-        #expect(withCover != noCover)
+        #expect(Render.differs(withCover, noCover))
     }
 
     /// And it is *this* track's cover, not a fixed piece of now-playing
@@ -187,49 +189,53 @@ struct BadgeRenderingTests {
         let red  = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
         let blue = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.blue))
 
-        #expect(red != blue)
+        #expect(Render.differs(red, blue))
     }
 
     // MARK: - It is drawn where the shape grew for it
 
     /// The one that matters most, and the one no comparison of two images
     /// can make: a closed notch's own rect *is* the camera housing, so a
-    /// cover drawn anywhere but the 34pt strip leading it is invisible on
-    /// real hardware while every pixel-difference test still passes.
+    /// cover drawn anywhere but the ear past it is invisible on real
+    /// hardware while every pixel-difference test still passes.
     ///
     /// Centre the cover and it lands in the housing, and this fails.
     /// Delete the overlay and there is no cover to find at all.
-    @Test func theCoverIsDrawnInTheLeadingStripTheShapeGrewForIt() throws {
+    @Test func theCoverIsDrawnJustPastTheNotchInTheRightEar() throws {
         let image = try #require(Self.closedNotch(nowPlaying: Self.playing, artwork: SolidArtwork.red))
-        // Everything left of the trailing strip: the leading ear and the
-        // housing, so a cover that drifted into the housing is still found.
-        let leftOfBars = CGRect(x: 0, y: 0, width: Self.barsStrip.minX, height: Self.drawn.height)
+        // Everything left of where the bars start — the housing and the
+        // left of the menu bar included — so a cover that drifted is found.
+        let leftOfBars = CGRect(x: 0, y: 0, width: Self.barsStartSquare - 1, height: Self.drawn.height)
         let cover = try #require(Self.paintedBox(image, .systemRed, in: leftOfBars))
 
-        #expect(Self.coverStrip.contains(cover))
-        // The exact tile, not merely "somewhere inside": this is the
-        // drawn consequence of `nowPlayingBadgeWidth == 34` holding
-        // `NowPlayingBadgeView`'s 22pt cover with 6pt gutters, which is
-        // the constant's stated rationale and was otherwise unenforced.
-        #expect(cover == CGRect(x: 167, y: 8, width: 22, height: 22))
-        #expect(cover.minX - Self.coverStrip.minX == 6)
-        #expect(Self.coverStrip.maxX - cover.maxX == 6)
-        // And the strip really is outside the notch it leads.
-        #expect(Self.coverStrip.minX == Self.drawn.minX)
-        #expect(Self.coverStrip.maxX == Self.drawn.minX + NotchGeometry.nowPlayingBadgeWidth)
+        // The exact tile: 6pt past the notch's edge, 22pt square, centred
+        // in the band.
+        #expect(cover == CGRect(x: 431, y: 8, width: 22, height: 22))
+        #expect(Self.ear.contains(cover))
     }
 
-    /// The equalizer lands in the trailing strip, tinted from the cover:
-    /// right of the housing, never inside it.
-    @Test func theEqualizerIsDrawnInTheTrailingStrip() throws {
+    /// The equalizer follows the cover in the same ear, tinted from it, and
+    /// the whole badge stays inside the ear.
+    @Test func theEqualizerFollowsTheCoverInTheEar() throws {
         let image = try #require(Self.closedNotch(nowPlaying: Self.playing, artwork: SolidArtwork.red))
-        let rightOfCover = CGRect(
-            x: Self.coverStrip.maxX, y: 0,
-            width: CGFloat(image.pixelsWide) - Self.coverStrip.maxX, height: Self.drawn.height
+        let afterCover = CGRect(
+            x: Self.barsStartSquare - 1, y: 0,
+            width: CGFloat(image.pixelsWide) - Self.barsStartSquare + 1, height: Self.drawn.height
         )
-        let bars = try #require(Self.paintedBox(image, .systemRed, in: rightOfCover))
+        let bars = try #require(Self.paintedBox(image, .systemRed, in: afterCover))
 
-        #expect(Self.barsStrip.contains(bars))
+        #expect(Self.ear.contains(bars))
+        #expect(bars.minX >= Self.barsStartSquare - 1)
+    }
+
+    /// A 16:9 video thumbnail gets the wider tile, capped at 1.5×, so more
+    /// of the picture shows than a square crop would allow.
+    @Test func wideArtworkGetsAWiderTile() throws {
+        let image = try #require(Self.closedNotch(nowPlaying: Self.playing, artwork: SolidArtwork.wideRed))
+        let cover = try #require(Self.paintedBox(
+            image, .systemRed, in: CGRect(x: 0, y: 0, width: 425 + 6 + 33 + 2, height: Self.drawn.height)
+        ))
+        #expect(cover == CGRect(x: 431, y: 8, width: 33, height: 22))
     }
 
     /// The mirror image: paused media is not playing media, so nothing may
@@ -274,7 +280,7 @@ struct BadgeRenderingTests {
         ))
         let media = try #require(Self.pixels(nowPlaying: Self.playing, artwork: SolidArtwork.red))
 
-        #expect(timed != media)
+        #expect(Render.differs(timed, media))
     }
 
     // MARK: - One clock read decides the whole frame

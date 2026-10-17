@@ -73,10 +73,11 @@ struct BadgeSlotTests {
         #expect(BadgeSlot.timer.width == NotchGeometry.timerBadgeWidth)
     }
 
-    /// The timer badge has to hold a wider string than a 22pt cover.
-    @Test func theTimerSlotIsWiderThanTheMediaSlot() {
-        #expect(BadgeSlot.timer.width > BadgeSlot.nowPlaying.width)
-        #expect(NotchGeometry.timerBadgeWidth > NotchGeometry.nowPlayingBadgeWidth)
+    /// The media slot holds a cover *and* the bars, so it is now the wider
+    /// of the two (2026-10-17); the timer's holds a short string.
+    @Test func theMediaSlotIsWiderThanTheTimerSlot() {
+        #expect(BadgeSlot.nowPlaying.width > BadgeSlot.timer.width)
+        #expect(NotchGeometry.nowPlayingBadgeWidth > NotchGeometry.timerBadgeWidth)
     }
 
     // MARK: the refactor must not move today's geometry

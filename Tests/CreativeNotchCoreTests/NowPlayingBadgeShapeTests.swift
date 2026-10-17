@@ -101,20 +101,20 @@ struct NowPlayingBadgeShapeTests {
     /// Every other assertion here is written as `base.width +
     /// NotchGeometry.nowPlayingBadgeWidth`, so all of them hold for
     /// whatever the constant happens to be — the production code handing
-    /// the test the value it is checked against. This one does not. 34pt
-    /// is menu bar taken for as long as music plays, and it is exactly the
-    /// room `NowPlayingBadgeView`'s 22pt cover needs with 6pt gutters:
-    /// `BadgeRenderingTests` pins that split against the drawn pixels, so
-    /// moving this number without moving the tile fails there too.
-    @Test func theBadgeIsThirtyFourPointsWide() {
-        #expect(NotchGeometry.nowPlayingBadgeWidth == 34)
+    /// the test the value it is checked against. This one does not. 68pt
+    /// is menu bar taken for as long as music plays — the same 68pt the
+    /// two 34pt ears took before the cover moved right (2026-10-17) — and
+    /// it holds the widest cover tile, the bars and their gutters:
+    /// `BadgeRenderingTests` pins the tile against the drawn pixels.
+    @Test func theBadgeIsSixtyEightPointsWide() {
+        #expect(NotchGeometry.nowPlayingBadgeWidth == 68)
     }
 
     /// The intrusion is menu bar, taken for as long as music plays, so it
-    /// has to stay far smaller than a peek's ear — which is transient.
-    @Test func theBadgeIsMuchNarrowerThanAPeekEar() {
+    /// has to stay smaller than a peek's ear — which is transient.
+    @Test func theBadgeIsNarrowerThanAPeekEar() {
         #expect(NotchGeometry.nowPlayingBadgeWidth > 0)
-        #expect(NotchGeometry.nowPlayingBadgeWidth < NotchGeometry.peekEarWidth / 2)
+        #expect(NotchGeometry.nowPlayingBadgeWidth < NotchGeometry.peekEarWidth)
     }
 
     // MARK: - A notchless Mac

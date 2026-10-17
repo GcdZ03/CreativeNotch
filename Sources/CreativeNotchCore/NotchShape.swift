@@ -27,14 +27,14 @@ public enum BadgeSlot: Equatable, Sendable {
 
     /// How far the closed notch grows on its *leading* side for this slot.
     ///
-    /// Only media claims one: the cover sits left of the notch and the
-    /// equalizer right of it (spec 2026-10-15). A property of the slot
-    /// rather than a second rule, so "which badge" and "how wide on each
-    /// side" stay one decision.
+    /// No slot claims one any more. Media did from 2026-10-15 to 2026-10-17,
+    /// with its cover left of the notch, until that was seen covering app
+    /// menus; it now shares the trailing ear with its bars. Kept as a
+    /// property of the slot, threaded through `visibleRect`, so a badge that
+    /// ever needs the left again is one decision rather than a second rule.
     public var leadingWidth: CGFloat {
         switch self {
-        case .nowPlaying: return NotchGeometry.nowPlayingBadgeWidth
-        case .none, .timer, .recording, .capture: return 0
+        case .none, .nowPlaying, .timer, .recording, .capture: return 0
         }
     }
 }
