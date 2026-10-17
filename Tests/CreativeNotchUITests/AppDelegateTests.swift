@@ -128,10 +128,11 @@ struct AppDelegateStateFunnelTests {
         delegate.state.transition(to: .closed)
         delegate.hoverView?.onDwell()
 
-        // The battery peek drops down below the notch (2026-10-17): as wide
-        // as the other peeks, `statusPeekBodyHeight` (44) taller.
+        // The battery peek drops down below the notch (2026-10-17): 70pt
+        // ears either side of the 230pt notch, `statusPeekBodyHeight` (30)
+        // taller than its 38pt band.
         #expect(delegate.state.state.presentation == .statusPeek)
-        #expect(delegate.hoverView?.trackingRect == CGRect(x: 85, y: 178, width: 450, height: 82))
+        #expect(delegate.hoverView?.trackingRect == CGRect(x: 125, y: 192, width: 370, height: 68))
     }
 
     @Test func aMouseExitEndsAHoverPeek() {

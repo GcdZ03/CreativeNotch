@@ -143,7 +143,8 @@ growth. One haptic at the threshold; the panel it opens does not tap again.
 The battery peek put its icon in the left ear and its bar and percentage in
 the right, with the camera housing between and no words, so it read as two
 unrelated pieces. It now hangs below the notch like the music peek, as its
-own presentation `.statusPeek` (44pt body): one row of icon, the words for
+own presentation `.statusPeek`: one compact row (30pt body, 70pt ears, so
+narrower than the other peeks; trimmed after seeing the first, larger cut) of icon, the words for
 what happened (`PowerLabel.peekTitle`: "Plugged In", "On Battery", "Low
 Battery", "Low Power Mode On/Off"), the bar and the percentage. "Plugged In"
 rather than "Charging", because a Mac holding at 80% is plugged in without

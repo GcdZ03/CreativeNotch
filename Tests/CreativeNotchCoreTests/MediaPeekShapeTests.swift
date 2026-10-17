@@ -112,16 +112,17 @@ struct MediaPeekShapeTests {
     /// the screen's top edge, `statusPeekBodyHeight` taller than the notch.
     @Test func theBatteryPeekGrowsDownFromTheNotch() {
         let r = NotchShape.visibleRect(presentation: .statusPeek, anchor: notch, panelFrame: panel)
-        let ear = NotchGeometry.peekEarWidth
+        let ear = NotchGeometry.statusPeekEarWidth
         #expect(r.minX == notchLocal.minX - ear)
         #expect(r.width == notchLocal.width + ear * 2)
         #expect(r.maxY == notchLocal.maxY)
         #expect(r.height == notchLocal.height + NotchGeometry.statusPeekBodyHeight)
     }
 
-    /// A single row, so shorter than the music player.
-    @Test func theBatteryPeekIsShorterThanTheMusicPeek() {
+    /// A single compact row, so shorter and narrower than the music player.
+    @Test func theBatteryPeekIsSmallerThanTheMusicPeek() {
         #expect(NotchGeometry.statusPeekBodyHeight < NotchGeometry.mediaPeekBodyHeight)
+        #expect(NotchGeometry.statusPeekEarWidth < NotchGeometry.peekEarWidth)
     }
 
     /// What the spring choice treats as a swap rather than a collapse.

@@ -229,10 +229,9 @@ public enum NotchShape {
             // notch's height, so its ears stay clear of the housing, and
             // the content hangs below it. Centred on the anchor and flush
             // with its top edge, on a notch and on a pill alike.
-            let ear = NotchGeometry.peekEarWidth
-            let body = presentation == .mediaPeek
-                ? NotchGeometry.mediaPeekBodyHeight
-                : NotchGeometry.statusPeekBodyHeight
+            let isMedia = presentation == .mediaPeek
+            let ear = isMedia ? NotchGeometry.peekEarWidth : NotchGeometry.statusPeekEarWidth
+            let body = isMedia ? NotchGeometry.mediaPeekBodyHeight : NotchGeometry.statusPeekBodyHeight
             let height = local.height + body
             return CGRect(
                 x: local.minX - ear,

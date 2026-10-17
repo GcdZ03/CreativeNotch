@@ -24,24 +24,24 @@ struct PowerPeekView: View {
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: bandHeight)
-            HStack(spacing: 10) {
+            HStack(spacing: 8) {
                 icon
                 Text(PowerLabel.peekTitle(for: event))
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
                     .foregroundStyle(event.isUrgent ? tint : .white.opacity(0.95))
                     .lineLimit(1)
-                Spacer(minLength: 12)
+                Spacer(minLength: 8)
                 if let percentage {
-                    bar.frame(width: 96)
+                    bar.frame(width: 56)
                     Text(percentage)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.white.opacity(0.9))
                         .monospacedDigit()
                         .rollingDigits(percentage)
-                        .frame(minWidth: 34, alignment: .trailing)
+                        .frame(minWidth: 30, alignment: .trailing)
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, 14)
             .frame(maxHeight: .infinity)
         }
         .accessibilityElement(children: .combine)
@@ -49,9 +49,9 @@ struct PowerPeekView: View {
 
     private var icon: some View {
         Image(systemName: symbol)
-            .font(.system(size: 15, weight: .medium))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(tint)
-            .frame(width: 22)
+            .frame(width: 18)
     }
 
     private var bar: some View {
