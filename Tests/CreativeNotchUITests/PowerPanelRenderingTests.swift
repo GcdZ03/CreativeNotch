@@ -66,7 +66,14 @@ struct PowerPanelRenderingTests {
         let charged = try #require(
             Self.panelPixels(source: .wall, isCharging: false, isCharged: true))
 
-        #expect(Set([onBattery, charging, notCharging, charged]).count == 4)
+        // Pairwise, beyond the renderer's noise (`Render`), rather than as a
+        // `Set` of exact bytes.
+        let all = [onBattery, charging, notCharging, charged]
+        for i in all.indices {
+            for j in all.indices where j > i {
+                #expect(Render.differs(all[i], all[j]), "renders \(i) and \(j) are the same")
+            }
+        }
     }
 
     @Test func lowPowerModeIsDrawn() throws {

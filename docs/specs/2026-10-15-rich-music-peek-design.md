@@ -197,3 +197,21 @@ Boring Notch ships.
 - Still needs checking by eye: the swipe itself, full-screen apps (the
   notch stayed hidden over them before), Mission Control, and a second
   display.
+
+## Follow-ups after v0.11.0 (2026-10-17)
+
+- **Full-screen apps.** The fixed Space put the notch above full-screen apps,
+  where it had always hidden. `FullScreenWatcher` now hides it whenever the
+  current Space on its display is full-screen (type 4), checked on each Space
+  change. See ARCHITECTURE, Fullscreen.
+- **The cover moves back to the right.** On screen, the leading ear covered
+  the end of app menus ("Help" cut to "Hel"). Cover and bars now share one
+  68pt trailing ear — the same menu bar the two 34pt ears took.
+  *Reverses* "Cover in a leading ear" above.
+- **Wide artwork.** Video thumbnails were cropped to a square. A cover tile
+  is now `coverWidth(height:aspect:)`: square for square art, up to 1.5×
+  wide for wide art, in the closed notch and the music peek.
+- **Render tests compare with a tolerance.** Exact-byte comparison of two
+  renders failed about one run in ten: `ImageRenderer` sometimes
+  anti-aliases a curve one step (1/255) differently under a parallel run.
+  `Render.same` / `Render.differs` allow 2/255 per channel.

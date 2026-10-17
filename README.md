@@ -88,8 +88,8 @@ it opens to receive; drop it and the file is copied into the shelf; drag it
 back out anywhere later.
 
 Nothing is ever drawn behind the camera housing. The closed notch's badges
-sit in the **ears either side of it**; the timer and drag-target peeks are one
-line in those ears; and the music and battery peeks **drop below the notch**,
+sit in the **ear to its right**, leaving the left clear for app menus; the
+timer and drag-target peeks are one line in the ears either side; and the music and battery peeks **drop below the notch**,
 so their contents read together instead of being split by it. Notchless Macs
 get a single centred pill instead; there is no housing to work around.
 
@@ -105,7 +105,8 @@ session.
 
 Media metadata is the fifth: the now-playing title, artist, artwork, and
 playback position. While something plays, the closed notch carries the cover
-beside its left edge and four equalizer bars beside its right. Hovering it
+and four equalizer bars just to its right — a video's thumbnail gets a wider
+tile than an album cover. Hovering it
 drops down a small player — cover, title over artist, play/pause and a
 progress bar — and clicking opens the panel, with the cover sliding between
 all three. The closed notch is deliberately **static**: its bars stand
@@ -253,7 +254,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
-| Something starts playing | The cover appears left of the notch and still equalizer bars right of it; both go away when you pause |
+| Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |
@@ -275,7 +276,7 @@ hover** does that after a delay you choose (0.2–1.0 s). With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
 
-The panel is hidden entirely over fullscreen apps, so it never covers a film
+The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.

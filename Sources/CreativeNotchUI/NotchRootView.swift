@@ -234,8 +234,16 @@ public final class AppState {
         didSet {
             guard nowPlayingArtwork != oldValue else { return }
             nowPlayingBarTint = nowPlayingArtwork.flatMap(ArtworkTint.barColor(for:))
+            nowPlayingArtworkAspect = nowPlayingArtwork
+                .flatMap { NSImage(data: $0) }
+                .map { $0.size.height > 0 ? $0.size.width / $0.size.height : 1 }
         }
     }
+
+    /// The artwork's width over its height, read once per artwork change, so
+    /// a video thumbnail gets a wider tile than an album cover
+    /// (`NotchGeometry.coverWidth`).
+    public private(set) var nowPlayingArtworkAspect: CGFloat?
 
     /// The equalizer's colour, sampled from the artwork once per artwork
     /// change (spec 2026-10-15).
@@ -568,6 +576,7 @@ public struct NotchRootView: View {
             notchGap: notchGap(for: app.anchor),
             bandHeight: app.anchor.rect.height,
             barTint: app.nowPlayingBarTint,
+            artworkAspect: app.nowPlayingArtworkAspect,
             coverNamespace: coverNamespace,
             onCommand: { app.onMediaCommand?($0) }
         )
@@ -760,23 +769,24 @@ public struct NotchRootView: View {
                             EmptyView()
                         }
                     case .nowPlaying:
-                        // The cover in the leading ear and the bars in the
-                        // trailing one, the housing empty between them —
-                        // exactly the two strips `visibleRect` grew.
-                        HStack(spacing: 0) {
+                        // Cover then bars, together in the trailing ear that
+                        // `visibleRect` grew, starting just past the housing;
+                        // a square cover leaves its slack at the far end.
+                        HStack(spacing: 5) {
                             NowPlayingBadgeView(
                                 artwork: app.nowPlayingArtwork,
+                                aspect: app.nowPlayingArtworkAspect,
                                 coverNamespace: sharedCover
                             )
-                            Spacer(minLength: 0)
                             EqualizerBarsView(
                                 isPlaying: true,
                                 animates: false,
                                 color: app.nowPlayingBarTint ?? .white
                             )
-                            .frame(width: NotchGeometry.nowPlayingBadgeWidth)
                         }
-                        .frame(maxHeight: .infinity)
+                        .padding(.leading, 6)
+                        .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
                     case .none:
                         EmptyView()
                     }

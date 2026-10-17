@@ -22,8 +22,9 @@ struct MediaPeekShapeTests {
 
     // MARK: - The leading ear belongs to the slot
 
-    @Test func onlyMediaClaimsALeadingEar() {
-        #expect(BadgeSlot.nowPlaying.leadingWidth == NotchGeometry.nowPlayingBadgeWidth)
+    /// No slot claims the left any more: it is app menus (2026-10-17).
+    @Test func noSlotClaimsALeadingEar() {
+        #expect(BadgeSlot.nowPlaying.leadingWidth == 0)
         #expect(BadgeSlot.none.leadingWidth == 0)
         #expect(BadgeSlot.timer.leadingWidth == 0)
         #expect(BadgeSlot.recording.leadingWidth == 0)
@@ -35,18 +36,53 @@ struct MediaPeekShapeTests {
             presentation: .closed, anchor: notch, panelFrame: panel,
             badgeWidth: NotchGeometry.nowPlayingBadgeWidth
         )
-        #expect(implicit == CGRect(x: 221, y: 228, width: 179 + 34, height: 32))
+        #expect(implicit == CGRect(x: 221, y: 228, width: 179 + 68, height: 32))
     }
 
-    /// Pinned to literals: the leading ear moves the origin left by exactly
-    /// its width, and the trailing ear still grows the right side.
-    @Test func musicGrowsTheClosedNotchOnBothSides() {
+    /// Pinned to literals: music grows the right side only, by the one ear
+    /// that holds both the cover and the bars.
+    @Test func musicGrowsTheClosedNotchOnTheRightOnly() {
         let r = NotchShape.visibleRect(
             presentation: .closed, anchor: notch, panelFrame: panel,
             badgeWidth: BadgeSlot.nowPlaying.width,
             leadingBadgeWidth: BadgeSlot.nowPlaying.leadingWidth
         )
-        #expect(r == CGRect(x: 221 - 34, y: 228, width: 34 + 179 + 34, height: 32))
+        #expect(r == CGRect(x: 221, y: 228, width: 179 + 68, height: 32))
+    }
+
+    /// The mechanism stays: a leading width still grows the left, for any
+    /// badge that ever needs it.
+    @Test func aLeadingWidthStillGrowsTheLeft() {
+        let r = NotchShape.visibleRect(
+            presentation: .closed, anchor: notch, panelFrame: panel,
+            badgeWidth: 10, leadingBadgeWidth: 20
+        )
+        #expect(r == CGRect(x: 221 - 20, y: 228, width: 20 + 179 + 10, height: 32))
+    }
+
+    // MARK: - Wide artwork
+
+    @Test func squareArtGetsASquareTile() {
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: 1) == 22)
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: 0.7) == 22)
+    }
+
+    /// A 16:9 video thumbnail is wider, up to the cap.
+    @Test func wideArtGetsAWiderTileUpToTheCap() {
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: 1.2) == 22 * 1.2)
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: 16.0 / 9) == 22 * NotchGeometry.maxCoverAspect)
+    }
+
+    @Test func aMissingOrBrokenAspectIsSquare() {
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: nil) == 22)
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: .nan) == 22)
+        #expect(NotchGeometry.coverWidth(height: 22, aspect: 0) == 22)
+    }
+
+    /// The widest tile, its gutters and the bars fit the ear exactly.
+    @Test func theWidestTileAndTheBarsFitTheEar() {
+        let widest = NotchGeometry.coverWidth(height: 22, aspect: 2)
+        #expect(6 + widest + 5 + 18 + 6 == NotchGeometry.nowPlayingBadgeWidth)
     }
 
     /// A pill has no housing to avoid, so neither ear grows it.

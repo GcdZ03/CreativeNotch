@@ -27,7 +27,7 @@ struct TimerDonePeekRenderingTests {
     @Test func theTimerPeekDoesNotDrawTheAppName() throws {
         let timer = try #require(Self.peekPixels(.timerDone(Self.done)))
         let fallback = try #require(Self.peekPixels(.dragTarget))
-        #expect(timer != fallback)
+        #expect(Render.differs(timer, fallback))
     }
 
     @Test func theTimerPeekDrawsItsOwnDetail() throws {
@@ -35,7 +35,7 @@ struct TimerDonePeekRenderingTests {
         let late = try #require(Self.peekPixels(
             .timerDone(TimerCompletion(duration: 1500, lateness: 7200))
         ))
-        #expect(onTime != late)
+        #expect(Render.differs(onTime, late))
     }
 
     /// Rendered directly, not through the root view: switching the anchor

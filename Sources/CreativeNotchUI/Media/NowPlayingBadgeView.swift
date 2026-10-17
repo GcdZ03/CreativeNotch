@@ -2,9 +2,10 @@ import AppKit
 import SwiftUI
 import CreativeNotchCore
 
-/// The ambient now-playing cover: a small tab on the *leading* side of the
-/// closed notch, in the spirit of a Live Activity, with `EqualizerBarsView`
-/// in the trailing ear opposite it (spec 2026-10-15).
+/// The ambient now-playing cover: a small tile in the closed notch's trailing
+/// ear, just past the housing, with `EqualizerBarsView` beside it — in the
+/// spirit of a Live Activity (2026-10-17). Wide artwork, a video thumbnail,
+/// gets a wider tile (`NotchGeometry.coverWidth`).
 ///
 /// It answers one question at a glance — is something playing — and it is
 /// **static**. No pulse and no `TimelineView`, and the bars beside it stand
@@ -20,16 +21,19 @@ import CreativeNotchCore
 /// drawn for it.
 struct NowPlayingBadgeView: View {
     var artwork: Data?
+    /// The artwork's width over its height, from `AppState`.
+    var aspect: CGFloat? = nil
     var coverNamespace: Namespace.ID? = nil
 
-    /// Leaves 6pt either side inside the 34pt badge.
     private let tile: CGFloat = 22
 
     var body: some View {
         content
-            .frame(width: tile, height: tile)
+            .frame(width: NotchGeometry.coverWidth(height: tile, aspect: artwork == nil ? nil : aspect), height: tile)
+            // After the frame, so a wide image filling a wide tile is cut
+            // to the tile rather than to its own overflowing bounds.
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .nowPlayingCover(in: coverNamespace)
-            .frame(width: NotchGeometry.nowPlayingBadgeWidth)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Now playing")
     }

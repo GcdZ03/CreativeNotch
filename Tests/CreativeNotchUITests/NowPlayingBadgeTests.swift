@@ -3,8 +3,8 @@ import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
 
-/// The ambient now-playing badge extends the closed notch into both ears
-/// — the cover left, the equalizer right (spec 2026-10-15) — which is menu
+/// The ambient now-playing badge extends the closed notch into the right
+/// ear — the cover, then the equalizer (2026-10-17) — which is menu
 /// bar — so three separately-consumed rectangles have
 /// to agree that it is there: what is drawn, what accepts clicks, and what
 /// tracks hover. Two independent derivations of one rectangle is this
@@ -18,13 +18,13 @@ import CreativeNotchCore
 struct NowPlayingBadgeTests {
 
     private static let closedRect = CGRect(x: 195, y: 222, width: 230, height: 38)
-    /// 34 + 230 + 34, written out. Spelling it `230 +
+    /// 230 + 68, written out. Spelling it `230 +
     /// NotchGeometry.nowPlayingBadgeWidth` made every assertion below hold
     /// for whatever the constant happened to be — the production code
     /// handing the test the number it is checked against. The width is
     /// menu-bar real estate taken for as long as music plays, so it is
     /// pinned here and in `NowPlayingBadgeShapeTests`.
-    private static let badgedRect = CGRect(x: 161, y: 222, width: 298, height: 38)
+    private static let badgedRect = CGRect(x: 195, y: 222, width: 298, height: 38)
 
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
     private static let paused  = TrackSnapshot(title: "Song", artist: "Band", isPlaying: false)
@@ -37,7 +37,7 @@ struct NowPlayingBadgeTests {
 
     // MARK: - The shape
 
-    @Test func playingMusicWidensTheClosedShapeOnBothSides() {
+    @Test func playingMusicWidensTheClosedShapeOnTheTrailingSideOnly() {
         let delegate = makeDelegate()
         #expect(delegate.acceptedRect == Self.closedRect)
 
@@ -46,9 +46,10 @@ struct NowPlayingBadgeTests {
         #expect(delegate.currentBadgeWidth == NotchGeometry.nowPlayingBadgeWidth)
         #expect(delegate.acceptedRect == Self.badgedRect)
         // Stated separately from the equality above so a rect that grew
-        // one side only cannot pass as merely "wider".
-        #expect(delegate.acceptedRect.minX == Self.closedRect.minX - 34)
-        #expect(delegate.acceptedRect.maxX == Self.closedRect.maxX + 34)
+        // the wrong way cannot pass as merely "wider": the left stays
+        // clear for app menus.
+        #expect(delegate.acceptedRect.minX == Self.closedRect.minX)
+        #expect(delegate.acceptedRect.maxX == Self.closedRect.maxX + 68)
     }
 
     /// Paused music is not playing music, and the badge answers "is
@@ -143,21 +144,26 @@ struct NowPlayingBadgeTests {
         #expect(host.hitTest(onBadge) == nil)
     }
 
-    /// The cover sits in the leading ear, so a click on it is captured while
-    /// music plays and passes through to the app menus when it does not.
-    @Test func clicksOnTheLeadingCoverAreCapturedAndOnlyWhileItIsThere() throws {
+    /// The left of the notch is app menus, and stays theirs while music
+    /// plays. From 2026-10-15 the cover sat there and was seen covering
+    /// "Help"; it moved to the right ear on 2026-10-17.
+    @Test func clicksLeftOfTheNotchStillPassThroughWhileMusicPlays() throws {
         let delegate = makeDelegate()
         let host = try #require(delegate.hostView)
-
-        // Inside the leading ear (x 161...195), level with the notch band.
-        let onCover = NSPoint(x: 178, y: 240)
-        #expect(host.hitTest(onCover) == nil)
-
         delegate.nowPlayingDidChange(Self.playing)
-        #expect(host.hitTest(onCover) != nil)
 
-        delegate.nowPlayingDidChange(Self.paused)
-        #expect(host.hitTest(onCover) == nil)
+        // Where the leading ear used to be (x 161...195).
+        #expect(host.hitTest(NSPoint(x: 178, y: 240)) == nil)
+    }
+
+    /// And the far end of the wider right ear is captured.
+    @Test func theFarEndOfTheRightEarIsCaptured() throws {
+        let delegate = makeDelegate()
+        let host = try #require(delegate.hostView)
+        let farEnd = NSPoint(x: 485, y: 240)   // inside 425...493
+        #expect(host.hitTest(farEnd) == nil)
+        delegate.nowPlayingDidChange(Self.playing)
+        #expect(host.hitTest(farEnd) != nil)
     }
 
     /// Past the leading ear is still the menu bar.

@@ -288,9 +288,10 @@ HUD was its first consumer; power and the timer outlived it.
 
 ## Fullscreen
 
-The panel is hidden entirely over fullscreen apps. There is no detection
-logic for this — it falls out of omitting `.fullScreenAuxiliary` from
-`collectionBehavior`:
+The panel is hidden entirely over full-screen apps, by two mechanisms.
+
+Without the fixed Space below, it falls out of omitting
+`.fullScreenAuxiliary` from `collectionBehavior` — no detection logic at all:
 
 ```swift
 collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
@@ -298,6 +299,17 @@ collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 
 That omission is load-bearing and easy to "fix" by accident, so
 `NotchPanelTests` asserts the exact collection behaviour set.
+
+**With the fixed Space (`NotchSpace`) that stopped working**, and v0.11.0
+shipped with the notch showing over full-screen apps: a Space of its own
+above every other sits above theirs too. So `FullScreenWatcher` asks the
+window server, on each `NSWorkspace.activeSpaceDidChangeNotification` and at
+launch — never on a clock — whether the current Space on the notch's display
+is a full-screen one (`CGSCopyManagedDisplaySpaces`; desktops report type 0,
+full-screen type 4, measured 2026-10-17). If it is, the panel closes and
+orders out; leaving puts it back. Only that display counts, and anything
+unreadable leaves the notch showing. It runs only when the fixed Space
+exists, since without it the omission above already does the job.
 
 ## Motion and input
 
@@ -328,7 +340,8 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   (`NotchSpace`) through SkyLight's private CGS* functions, resolved with
   `dlsym` so a macOS without them falls back. Created only at launch, never in
   tests, destroyed on quit — and measured to be cleaned up by the window
-  server after `kill -9`.
+  server after `kill -9`. It sits above full-screen apps too, so the
+  `FullScreenWatcher` hides the notch there (see Fullscreen).
 
 ## Concurrency
 
@@ -505,9 +518,12 @@ buttons, and stays at its fixed width with a placeholder tile when nothing is
 playing (see "The open panel's layout"). The transport toggle's icon follows
 the snapshot's queried `isPlaying`.
 
-While something is playing, the closed notch grows a 34pt ear on **each**
-side: the cover in the leading one, still equalizer bars in the trailing one,
-and the camera housing empty between them. Hovering opens the music peek, a
+While something is playing, the closed notch grows a 68pt ear on its
+**trailing** side holding the cover and then still equalizer bars. From
+2026-10-15 the cover had a leading ear of its own, for symmetry, until it was
+seen covering the end of app menus; the left stays clear now. Wide artwork —
+a video thumbnail — gets a tile up to 1.5× as wide as it is tall
+(`NotchGeometry.coverWidth`). Hovering opens the music peek, a
 presentation of its own (`.mediaPeek`) that grows *down* from the notch
 rather than sideways: its top band keeps the notch's height with moving bars
 in the trailing ear, and the player hangs below the housing — cover, title

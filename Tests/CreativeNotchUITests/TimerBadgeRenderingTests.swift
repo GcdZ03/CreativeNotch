@@ -31,7 +31,7 @@ struct TimerBadgeRenderingTests {
     @Test func renderingTheSameBadgeTwiceIsIdentical() throws {
         let a = try #require(Self.pixels(TimerBadgeView(text: "25m", isPaused: false)))
         let b = try #require(Self.pixels(TimerBadgeView(text: "25m", isPaused: false)))
-        #expect(a == b)
+        #expect(Render.same(a, b))
     }
 
     // MARK: - Something is drawn, and it is the text
@@ -44,7 +44,7 @@ struct TimerBadgeRenderingTests {
     @Test func theBadgeDrawsItsText() throws {
         let a = try #require(Self.pixels(TimerBadgeView(text: "25m", isPaused: false)))
         let b = try #require(Self.pixels(TimerBadgeView(text: "24m", isPaused: false)))
-        #expect(a != b)
+        #expect(Render.differs(a, b))
     }
 
     /// Pausing has to be visible, or a paused timer is indistinguishable
@@ -52,7 +52,7 @@ struct TimerBadgeRenderingTests {
     @Test func aPausedBadgeLooksDifferentFromARunningOne() throws {
         let running = try #require(Self.pixels(TimerBadgeView(text: "25m", isPaused: false)))
         let paused  = try #require(Self.pixels(TimerBadgeView(text: "25m", isPaused: true)))
-        #expect(running != paused)
+        #expect(Render.differs(running, paused))
     }
 
     /// The widest string must fit the fixed width without truncating.

@@ -39,20 +39,34 @@ public enum NotchGeometry {
     /// full peek width made it look larger than what it says.
     public static let statusPeekEarWidth: CGFloat = 70
 
-    /// How far the ambient now-playing badge extends past *each* edge of a
-    /// physical notch: the cover in the leading ear, the equalizer in the
-    /// trailing one (spec 2026-10-15).
+    /// How far the ambient now-playing badge extends past the *trailing*
+    /// edge of a physical notch: the cover, then the equalizer, together in
+    /// the right ear (2026-10-17).
     ///
-    /// Deliberately a fraction of `peekEarWidth`. The closed notch's own
-    /// rect *is* the camera housing, so a badge drawn inside it would be
-    /// invisible — it has to grow into the ears, which are menu bar. Media
-    /// was trailing-only until 2026-10-15; it now gives up 34pt beside the
-    /// app menus too, for the symmetric look. Unlike a peek, which appears
-    /// for a moment and goes, this sits there for as long as music plays,
-    /// so every point of it is menu-bar real estate taken permanently.
-    /// 34pt holds a 22pt cover with 6pt either side and stops well short
-    /// of where status items cluster at the far right.
-    public static let nowPlayingBadgeWidth: CGFloat = 34
+    /// The closed notch's own rect *is* the camera housing, so a badge drawn
+    /// inside it would be invisible — it has to grow into the ears, which are
+    /// menu bar. From 2026-10-15 the cover took a 34pt *leading* ear, for the
+    /// symmetric look, and on screen it covered the end of app menus ("Help"
+    /// cut to "Hel"). So both now share the trailing ear, where the space
+    /// beside the notch is nearly always empty, and the left stays clear.
+    ///
+    /// 68pt is the same menu bar the two 34pt ears took, moved to one side:
+    /// 6pt, a cover up to `maxCoverAspect` × 22pt wide (33pt), 5pt, the 18pt
+    /// bars, 6pt. A square cover leaves the slack at the far end.
+    public static let nowPlayingBadgeWidth: CGFloat = 68
+
+    /// How much wider than tall a cover tile may be. Video thumbnails are
+    /// 16:9; cropped to a square they lose most of the picture, and at full
+    /// width they would take too much of the menu bar.
+    public static let maxCoverAspect: CGFloat = 1.5
+
+    /// A cover tile's width for a given height and artwork aspect ratio:
+    /// square for square or tall art, wider for wide art, up to
+    /// `maxCoverAspect`. A missing or broken aspect is square.
+    public static func coverWidth(height: CGFloat, aspect: CGFloat?) -> CGFloat {
+        guard let aspect, aspect.isFinite, aspect > 0 else { return height }
+        return height * min(max(aspect, 1), maxCoverAspect)
+    }
 
     /// How far the countdown extends past the trailing edge of a notch.
     ///
