@@ -62,7 +62,7 @@ distributed, not sold, and not on the App Store.
 | | |
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
-| ✅ Hover to peek, click to open | Built |
+| ✅ Hover to peek, click to open — or, in Settings, open on hover with a delay | Built |
 | ✅ Follows the focused screen | Built |
 | ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |

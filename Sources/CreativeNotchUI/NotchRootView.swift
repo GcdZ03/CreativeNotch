@@ -58,6 +58,15 @@ public final class AppState {
     /// region does not follow it.
     public internal(set) var pullProgress: CGFloat = 0
 
+    /// What resting on the notch does: peek (the default), or open the
+    /// panel after a delay (2026-10-17). Applied by `onSetHoverBehaviour`.
+    public internal(set) var hoverBehaviour = HoverBehaviour()
+
+    /// Saves and applies a new hover behaviour in one call, so Settings
+    /// cannot do one without the other. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetHoverBehaviour: ((HoverBehaviour) -> Void)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -385,6 +394,12 @@ public struct NotchRootView: View {
     /// notch, and the peek's bars stand still.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Whatever the surroundings allow for the bars — off in a render that
+    /// must be repeatable. Reduce Motion can only take motion away from it,
+    /// never grant it back: setting `!reduceMotion` outright overrode a
+    /// test's `false` and made two renders of a playing peek differ.
+    @Environment(\.animatesEqualizer) private var equalizerAllowed
+
     /// The shared cover's namespace, or none under Reduce Motion.
     private var sharedCover: Namespace.ID? {
         NotchMotion.slidesCover(reduceMotion: reduceMotion) ? coverSpace : nil
@@ -635,7 +650,7 @@ public struct NotchRootView: View {
         // pull — springs with the state's animation above; on its own the
         // pull tracks the fingers closely and snaps back the same way.
         .animation(.interactiveSpring(response: 0.2, dampingFraction: 0.82), value: app.pullProgress)
-        .environment(\.animatesEqualizer, !reduceMotion)
+        .environment(\.animatesEqualizer, equalizerAllowed && !reduceMotion)
     }
 
     /// The shape, stretched by a swipe in progress (spec 2026-10-17).

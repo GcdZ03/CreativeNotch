@@ -10,6 +10,13 @@ public final class HoverTracker: NSView {
 
     public static let dwell: Duration = .milliseconds(300)
 
+    /// How long to wait, asked afresh each time the pointer arrives, so a
+    /// changed "open on hover" delay applies on the next hover without a
+    /// re-sync (2026-10-17). Defaults to the peek's fixed dwell.
+    public var dwellDuration: () -> Duration = { HoverTracker.dwell }
+
+    func currentDwell() -> Duration { dwellDuration() }
+
     /// Fires the moment the cursor enters, before the dwell elapses.
     /// `onDwell` says "the user meant to open this"; `onEnter` says "the
     /// cursor is back", which is what cancels a pending dismissal.
@@ -52,7 +59,8 @@ public final class HoverTracker: NSView {
         onEnter()
         dwellTask?.cancel()
         dwellTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: Self.dwell)
+            guard let wait = self?.currentDwell() else { return }
+            try? await Task.sleep(for: wait)
             guard !Task.isCancelled else { return }
             self?.onDwell()
         }
