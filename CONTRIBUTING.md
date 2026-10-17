@@ -16,7 +16,9 @@ visualisers running FFT on a live tap. Users report up to 5%/hour.
 global event monitor, or cursor polling will be declined**, however useful
 the feature is. If you think you need one, you probably need a notification
 you have not found yet. The one genuine exception — clipboard history, since
-`NSPasteboard` has no change notification — will be gated centrally.
+`NSPasteboard` has no change notification — is gated centrally on
+`SystemActivity`. A looping animation counts too: the one allowed, the music
+peek's equalizer, runs only while that peek is open, and a test bans the rest.
 
 ## Before you open a PR
 
@@ -59,16 +61,18 @@ not protecting anything.
 
 ## Scope
 
-The roadmap in the README is the plan, in order. Modules land one at a time,
-each with its own spec and plan written before any code.
+Every module on the roadmap has shipped. New work lands the same way the
+modules did: one change at a time, with its design written down before any
+code — see `docs/specs/`.
 
 Before starting anything substantial, **open an issue first.** This project
 is opinionated and narrow by design; it is better to find out early that
 something is out of scope than after you have written it.
 
-Known issues carried out of the foundation are in
-[`docs/plans/2026-08-22-foundation-followups.md`](docs/plans/2026-08-22-foundation-followups.md).
-**F1** and **F2** are the first things any module work should address.
+## Merging
+
+`main` is protected: a change goes in through a pull request, and CI must
+pass. CI fails on **any** compiler warning, tests included.
 
 ## Commits
 

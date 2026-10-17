@@ -14,7 +14,14 @@ looking at it?"
 
 **Currently allowed:** `NSTrackingArea` (costs nothing when the cursor is
 elsewhere), `NotificationCenter` and `NSWorkspace` observers, an
-`NSMenuDelegate` refresh on menu open.
+`NSMenuDelegate` refresh on menu open, and scroll events AppKit already
+delivers to the panel's own view (the trackpad swipes).
+
+**Animation follows the same rule.** One-shot animations on a state change
+are fine. A loop is not, with one named exception — the music peek's
+equalizer, which runs only while that peek is open — and
+`noStockControlStyleOrRepeatingAnimationSurvivesInTheUI` bans `TimelineView`
+and `.repeatForever` everywhere else.
 
 **Not allowed:** an unconditional `Timer`, a permanently-installed global
 event monitor, cursor-position polling, an audio tap. If you believe you
@@ -292,6 +299,37 @@ collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
 That omission is load-bearing and easy to "fix" by accident, so
 `NotchPanelTests` asserts the exact collection behaviour set.
 
+## Motion and input
+
+Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
+
+- **Springs follow direction.** `NotchMotion` gives growing changes a
+  slightly bouncy spring and shrinking ones a quick, critically damped one;
+  `AppState.lastChangeGrew` records which, and one peek replacing another
+  counts as growing. The growth lag follows the opening spring's response.
+- **Reduce Motion** turns both springs into one short ease, content fades
+  rather than blurs in, the shared cover cross-fades rather than slides, the
+  hover growth goes, and the bars stand still. The root view only ever takes
+  motion away from what it inherits — setting it outright once overrode a
+  test's "still" and made two renders differ.
+- **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
+  pull (`pulled`) change the *drawn* rect and never the accepted one, which
+  keeps the accepted region no larger than what is drawn.
+- **Trackpad swipes.** `NotchSwipe` (Core) holds every rule in finger space;
+  `HitTestingHostingView.scrollWheel` offers events to the delegate and passes
+  on what it does not take, so lists in the panel still scroll.
+- **Open on hover** is a setting (`HoverBehaviour`, off by default).
+  `HoverTracker` asks for its dwell on each hover, so a changed delay needs no
+  re-sync. The shortcut, swipes and hover all open through
+  `AppDelegate.openPanel()`, which skips switched-off tabs.
+- **Haptics.** One `.levelChange` as the panel opens, or at a swipe's
+  threshold instead — never both, never for a peek.
+- **One notch across Spaces.** The panel lives in its own top-level Space
+  (`NotchSpace`) through SkyLight's private CGS* functions, resolved with
+  `dlsym` so a macOS without them falls back. Created only at launch, never in
+  tests, destroyed on quit — and measured to be cleaned up by the window
+  server after `kill -9`.
+
 ## Concurrency
 
 Swift 6 strict concurrency is on and the build is warning-free. Keep it
@@ -303,10 +341,11 @@ register with `queue: .main`**. `assumeIsolated` is a runtime assertion that
 crashes if the assumption is false — if you add an observer, pass `.main`
 or do not use it.
 
-`Permissions` is `@MainActor` by choice, not by compiler requirement:
-`@preconcurrency import ApplicationServices` is what silences the
-`kAXTrustedCheckOptionPrompt` Sendability error. Any future off-main caller
-will need to hop. This is documented in the source too.
+C callbacks that hand back a context pointer — the power source's run loop
+callback — must not hand back an unretained `self`. `PowerObserver` did, an
+observer released without `stop()` left a dangling pointer registered, and the
+test process crashed twice on a battery change. It now passes a retained box
+holding the observer weakly. Do the same for any new C callback.
 
 ## Permissions
 
@@ -336,8 +375,7 @@ sandboxing impractical, and there is no App Store target.
 
 ## Testing
 
-974 tests, all headless. `swift test` takes
-about two seconds.
+Over a thousand tests, all headless. `swift test` takes about three seconds.
 
 The expectation is that a test **fails when its code is broken**, verified
 rather than assumed. Three vacuous tests shipped during the foundation
@@ -1214,6 +1252,8 @@ state, which the probe could not produce.
   cost joins it rather than managing its own lifecycle — through
   `ModuleSwitchboard`, which is now the single fan-out point.
 - **An audio visualiser** — named in the category as a top CPU cost. It
-  contradicts the one rule.
+  contradicts the one rule. The music peek's bars are not one: they read no
+  audio, stand still in the closed notch, and move only while the peek is
+  open.
 - **iCloud sync** — would require the paid Developer Program.
 - **A synthetic black notch** on notchless Macs — the pill is the answer.

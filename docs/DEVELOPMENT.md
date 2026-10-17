@@ -7,7 +7,7 @@ Most work never needs the app running.
 ### 1. Logic — `swift test` (~1 second)
 
 ```bash
-swift test                              # all 974
+swift test                              # all of them, 1000+
 swift test --filter NotchGeometryTests  # one suite
 ```
 
@@ -138,8 +138,8 @@ Sources/
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
 Tests/
-  CreativeNotchCoreTests/     463 tests
-  CreativeNotchUITests/       607 tests
+  CreativeNotchCoreTests/     the pure logic, headless and fast
+  CreativeNotchUITests/       the views, the delegate and the wiring
 Scripts/
   bundle.sh            build + sign -> dist/CreativeNotch.app
   dev.sh               the loop above
@@ -273,16 +273,22 @@ recovery failed and it needed a manual click.
 ## Releasing
 
 Releases are cut by tag; CI builds, verifies, packages, and publishes.
+`main` is protected, so the version bump goes in as a pull request first and
+the tag follows the merge.
 
 ```bash
-# 1. bump the version -- there is only one place now
+# 1. bump the version on a branch -- there is only one place
 #    Sources/CreativeNotchCore/Version.swift   CoreInfo.version
 #    (Info.plist carries a __VERSION__ placeholder that bundle.sh fills in)
+git switch -c release-X.Y.Z
+git commit -am "Release vX.Y.Z"
+git push -u origin release-X.Y.Z
+gh pr create --title "Release vX.Y.Z"
 
-# 2. commit, tag, push
-git commit -am "Release v0.2.0"
-git tag v0.2.0
-git push origin main --tags
+# 2. once CI passes and it is merged, tag main
+git switch main && git pull
+git tag vX.Y.Z
+git push origin vX.Y.Z
 ```
 
 The workflow runs the tests, builds, asserts the signature is ad-hoc with no
