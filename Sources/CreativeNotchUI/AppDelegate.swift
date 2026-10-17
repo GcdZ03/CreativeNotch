@@ -357,14 +357,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transition(to: .closed)
             return
         }
+        openPanel()
+    }
+
+    /// Opens the panel on the last tab, or the first visible one if that tab
+    /// has been switched off. Returns `false`, and changes nothing, when no
+    /// tab is visible: there is no empty panel to open.
+    ///
+    /// The one way the delegate opens the panel — the shortcut, a swipe and
+    /// open-on-hover all come through here.
+    @discardableResult
+    func openPanel() -> Bool {
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
-        guard visible.contains(state.lastOpenTab) || !visible.isEmpty else { return }
+        guard !visible.isEmpty else { return false }
         state.transition(to: .open(visible.contains(state.lastOpenTab)
                                   ? state.lastOpenTab
                                   : visible[0]))
+        return true
     }
 
     /// The settings surface, built on first use.
@@ -410,6 +422,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.cancelDismissGrace()
         }
         hover.onDwell = { [weak self] in self?.peek() }
+        hover.dwellDuration = { [weak self] in
+            self?.state.hoverBehaviour.dwell ?? HoverBehaviour.peekDwell
+        }
         hover.onExit  = { [weak self] in
             self?.state.isHovering = false
             self?.collapse()
@@ -474,6 +489,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onClearShelf = { [weak self] in try? self?.shelf?.clear() }
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
+
+        // Open on hover (2026-10-17). Loaded here, saved and applied together
+        // by the verb, like the shortcut's store.
+        let hoverStore = HoverBehaviourStore(defaults: preferencesDefaults)
+        state.hoverBehaviour = hoverStore.load()
+        state.onSetHoverBehaviour = { [weak self] behaviour in
+            hoverStore.save(behaviour)
+            self?.state.hoverBehaviour = behaviour
+        }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
@@ -929,7 +953,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .none:
             break
         case .open:
-            state.transition(to: .open(state.lastOpenTab))
+            openPanel()
         case .close:
             state.transition(to: .closed)
         case .nextTrack, .previousTrack:
@@ -943,7 +967,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hover
 
     /// The dwell opened the notch. What it shows is the arbiter's call.
+    /// With "open on hover" on, the dwell opens the panel instead — from
+    /// the closed notch or a peek, never over a drag or an open panel, and
+    /// falling back to the peek when there is no tab to open.
     private func peek() {
+        if state.hoverBehaviour.opensOnHover {
+            switch state.state {
+            case .closed, .peek:
+                if openPanel() { return }
+            case .open, .receiving:
+                return
+            }
+        }
         presentPeek()
     }
 

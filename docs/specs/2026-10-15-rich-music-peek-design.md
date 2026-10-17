@@ -150,3 +150,25 @@ Battery", "Low Power Mode On/Off"), the bar and the percentage. "Plugged In"
 rather than "Charging", because a Mac holding at 80% is plugged in without
 charging. Low battery stays the one yellow thing. One peek replacing another
 still uses the opening spring, even when the new one is smaller.
+
+## Open on hover (2026-10-17)
+
+A Settings switch, **off by default**, under a new "Hover" section. Off,
+resting on the notch peeks and a click or a swipe opens the panel, as
+before. On, resting for a chosen delay (0.2–1.0s in tenths, default 0.5s)
+opens the panel instead of peeking, as Boring Notch and MewNotch offer. The
+delay is longer than the peek's 300ms dwell because an accidental panel
+costs more than an accidental peek.
+
+- `HoverBehaviour` and `HoverBehaviourStore` (Core) hold and persist it
+  (`hover.opensPanel`, `hover.openDelay`), caching nothing, like the
+  shortcut's store. `AppState.onSetHoverBehaviour` saves and applies in one
+  call; Settings writes only through it.
+- `HoverTracker` asks for its dwell each time the pointer arrives, so a new
+  delay applies on the next hover with nothing to re-sync.
+- A hover-opened panel closes the way any open panel does: leave, and the
+  400ms grace runs. A drag in flight is never interrupted, and with no tab
+  visible the dwell falls back to the peek.
+- The shortcut, a swipe and open-on-hover now share one `openPanel()`, which
+  picks the first visible tab if the last one was switched off. The swipe
+  used to open on the last tab unchecked.

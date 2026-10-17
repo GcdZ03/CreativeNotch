@@ -94,6 +94,14 @@ final class PreferencesController {
 
     func isEnabled(_ module: ModuleID) -> Bool { state.preferences[module] }
 
+    /// Open on hover (2026-10-17). Written through `AppState`'s verb, which
+    /// saves and applies together, and read back from what applied.
+    var hoverBehaviour: HoverBehaviour { state.hoverBehaviour }
+
+    func setHoverBehaviour(_ behaviour: HoverBehaviour) {
+        state.onSetHoverBehaviour?(behaviour)
+    }
+
     /// The hotkey controller, for the recorder row. Reached through the
     /// switchboard's delegate rather than stored twice.
     var hotKeyController: HotKeyController? { switchboard.hotKeyController }
@@ -259,6 +267,14 @@ struct PreferencesView: View {
                 Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
             }
 
+            Section {
+                HoverRow(controller: controller)
+            } header: {
+                Text("Hover")
+            } footer: {
+                Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting opens the panel itself.")
+            }
+
             ForEach(PreferencesSection.allCases, id: \.self) { section in
                 Section {
                     ForEach(Self.rows.filter { $0.section == section }) { row in
@@ -399,5 +415,65 @@ struct LaunchAtLoginRow: View {
         // `PreferencesController.show()`, because this fires only once per
         // process. See that method.
         .onAppear { controller.refresh() }
+    }
+}
+
+/// "Open on hover" and its delay (2026-10-17).
+///
+/// Holds a local copy so the slider moves smoothly, and writes every change
+/// through the controller, which saves and applies it.
+struct HoverRow: View {
+    let controller: PreferencesController
+    @State private var behaviour: HoverBehaviour
+
+    init(controller: PreferencesController) {
+        self.controller = controller
+        _behaviour = State(initialValue: controller.hoverBehaviour)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Toggle(isOn: Binding(
+                get: { behaviour.opensOnHover },
+                set: { behaviour.opensOnHover = $0; controller.setHoverBehaviour(behaviour) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Open on hover")
+                            .font(.body.weight(.medium))
+                        Text("Open the panel by resting the pointer on the notch.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } icon: {
+                    Image(systemName: "cursorarrow.rays")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.indigo)
+                        )
+                }
+            }
+
+            if behaviour.opensOnHover {
+                HStack(spacing: 10) {
+                    Text("Delay")
+                    Slider(
+                        value: Binding(
+                            get: { behaviour.openDelay },
+                            set: { behaviour.openDelay = $0; controller.setHoverBehaviour(behaviour) }
+                        ),
+                        in: HoverBehaviour.delayRange,
+                        step: 0.1
+                    )
+                    Text(String(format: "%.1f s", behaviour.openDelay))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+                .padding(.leading, 36)
+            }
+        }
     }
 }
