@@ -945,9 +945,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// trackpad with a finger resting on it — which is exactly the click
     /// that opened the panel — and macOS drops it if the user has turned
     /// haptic feedback off.
+    ///
+    /// Inert outside the packaged app, so a test that opens the panel without
+    /// stubbing this taps nobody's trackpad (2026-10-17).
     var performHaptic: () -> Void = {
+        guard AppDelegate.hapticsReachHardware else { return }
         NSHapticFeedbackManager.defaultPerformer.perform(.levelChange, performanceTime: .drawCompleted)
     }
+
+    static var hapticsReachHardware: Bool { HostProcess.isPackagedApp() }
 
     private var wasOpen = false
 
