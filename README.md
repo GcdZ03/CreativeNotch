@@ -275,8 +275,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
 would rather hovering opened the panel itself, Settings → Hover → **Open on
-hover** does that: it still peeks first, and keeping the pointer there for a
-delay you choose (0.2–1.0 s) opens the panel. With **Reduce Motion**
+hover** does that after a delay you choose (0.2–1.0 s) — straight to the
+panel, which has the progress bar and the music controls. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
 

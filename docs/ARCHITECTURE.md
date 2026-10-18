@@ -338,12 +338,11 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   the old region and starts the close — and a tracking area added around a
   pointer already inside sends no `mouseEntered`. When the region catches up,
   `keepOpenIfPointerInside` cancels that close if the pointer is inside.
-- **Open on hover** is a setting (`HoverBehaviour`, off by default). It
-  peeks first and opens the panel only for a pointer that keeps resting
-  (`openWait`): after a peek the whole chosen delay, so the peek can be read
-  or swiped on; with nothing to peek, at the delay from arriving. Leaving or
-  starting a swipe cancels the pending open. `HoverTracker` asks for its dwell
-  on each hover, so a changed delay needs no re-sync. The shortcut, swipes and hover all open through
+- **Open on hover** is a setting (`HoverBehaviour`, off by default): resting
+  for the chosen delay opens the panel directly, one expansion. A peek-first
+  variant was tried and reverted the same day — it read as the notch
+  expanding twice by itself. `HoverTracker` asks for its dwell on each hover,
+  so a changed delay needs no re-sync. The shortcut, swipes and hover all open through
   `AppDelegate.openPanel()`, which skips switched-off tabs.
 - **Haptics.** One `.levelChange` as the panel opens, or at a swipe's
   threshold instead — never both, never for a peek.

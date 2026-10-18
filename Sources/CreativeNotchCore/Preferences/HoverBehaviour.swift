@@ -7,12 +7,14 @@ import Foundation
 /// on the path to the menu bar, and an accidental *peek* costs a glance
 /// where an accidental *panel* covers the top of whatever you were doing.
 ///
-/// On, resting opens the panel, as Boring Notch and MewNotch offer — but
-/// **peek first** (2026-10-18). The peek appears at the usual 300ms, and the
-/// panel follows only if the pointer keeps resting for `openDelay` more. Going
-/// straight to the panel skipped the music peek, the only place with the
-/// progress bar and the sideways swipe to skip. With nothing to peek, the
-/// panel opens at `openDelay` from arriving.
+/// On, resting for `openDelay` opens the panel instead of peeking, as
+/// Boring Notch and MewNotch offer — straight to the panel, one expansion.
+/// The delay is longer than the peek's 300ms dwell for the same reason.
+///
+/// A peek-first variant was tried on 2026-10-18 (peek at 300ms, panel after
+/// the delay) and reverted the same day: on screen it read as the notch
+/// expanding twice by itself. The panel's music column has the progress bar
+/// now, so going straight there loses nothing the peek showed.
 public struct HoverBehaviour: Equatable, Sendable {
     public static let delayRange: ClosedRange<TimeInterval> = 0.2...1.0
     public static let defaultDelay: TimeInterval = 0.5
@@ -31,29 +33,9 @@ public struct HoverBehaviour: Equatable, Sendable {
         self.openDelay = Self.normalised(openDelay)
     }
 
-    /// How long the pointer rests before the notch acts at all: the peek's
-    /// 300ms, or the chosen delay when that is shorter, so a 0.2s setting is
-    /// not held back to 0.3s.
+    /// How long the pointer has to rest before the notch acts.
     public var dwell: Duration {
-        guard opensOnHover else { return Self.peekDwell }
-        return min(Self.peekDwell, Self.duration(openDelay))
-    }
-
-    /// How much longer, after the dwell, before the panel opens — `nil` when
-    /// hover never opens it.
-    ///
-    /// After a peek, the whole `openDelay`, so the peek is on screen long
-    /// enough to read or to swipe on. With nothing to peek, only what is left
-    /// of `openDelay` once the dwell is counted.
-    public func openWait(afterPeek: Bool) -> Duration? {
-        guard opensOnHover else { return nil }
-        if afterPeek { return Self.duration(openDelay) }
-        let left = Self.duration(openDelay) - dwell
-        return left > .zero ? left : .zero
-    }
-
-    private static func duration(_ seconds: TimeInterval) -> Duration {
-        .milliseconds(Int((seconds * 1000).rounded()))
+        opensOnHover ? .milliseconds(Int((openDelay * 1000).rounded())) : Self.peekDwell
     }
 
     static func normalised(_ delay: TimeInterval) -> TimeInterval {

@@ -222,13 +222,13 @@ Boring Notch ships.
   `PlaybackProgressView` as the peek. Before, the open panel never showed
   where playback was, and with open on hover on, the peek — the bar's only
   home — was skipped entirely.
-- **Peek first, then open.** Open on hover went straight to the panel, which
-  skipped the music peek and so its progress bar and the sideways swipe to
-  skip. It now peeks at the usual 300ms and opens the panel only if the
-  pointer keeps resting: for the whole chosen delay after a peek (peek at
-  0.3s, panel at 0.8s by default), or at the delay from arriving when there is
-  nothing to peek. Leaving cancels the open, and so does starting a swipe, so
-  a sideways skip finishes on the peek.
+- **Peek first, then open — tried and reverted.** Open on hover was made to
+  peek at 300ms and open the panel after the delay, to keep the peek's
+  progress bar and sideways skip. On screen it read as the notch expanding
+  twice by itself, without the user asking for the second. Reverted the same
+  day: open on hover goes straight to the panel again, one expansion. With
+  the progress bar now in the panel, only the peek's sideways skip is lost
+  (the panel's skip buttons remain).
 
 ## The open panel stopped closing under the user (2026-10-18)
 
