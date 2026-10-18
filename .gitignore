@@ -43,3 +43,6 @@ dist/
 
 # Editors
 .vscode/
+
+# /brag-slim output (video, frames, scripts); only the poster is committed
+brag-output*/
