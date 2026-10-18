@@ -244,3 +244,27 @@ reach the music controls closed it at once. Two causes, both fixed:
   drawn panel before the growth delay left the old region and started the
   400ms close, which nothing cancelled. When the region catches up, a
   pointer inside it now cancels the pending close.
+
+## Seeking from the progress bar (2026-10-18)
+
+Clicking or dragging on the progress bar — in the music peek and in the
+panel — jumps to that point in the track. The bar and both times follow the
+finger while dragging; letting go sends `MRMediaRemoteSetElapsedTime` through
+`MediaRemoteBridge.seek`, the same private framework and gate as the
+transport buttons. The bar shows the new position at once and yields to the
+player's next published reading. No seek function on this macOS, or no
+working transport controls, leaves the bar display-only.
+
+On screen, the first cut of seeking sometimes showed the bar **full** right
+after a drag, with minutes left on the clock. Two causes: the drag cleared
+its "still dragging" flag only after restarting the bar, so the restart
+skipped itself; and the bar restarted by setting its start and animating to
+the end in the same instant, which SwiftUI merged. The fill is now rebuilt
+at its start on every restart (a new identity per restart) and slides on
+from there.
+
+Hovering the bar then filled it white in 0.12s. The hover thickening was the
+frame's height, animated; the fill's frame was mid-way through its slide to
+full width, and re-animating its size re-animated the width as well. The bar
+is now drawn at a fixed thickness and stretched under the pointer, with the
+animation scoped to the stretch alone.

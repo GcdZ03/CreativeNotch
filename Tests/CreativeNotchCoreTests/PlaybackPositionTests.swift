@@ -98,3 +98,43 @@ struct PlaybackPositionTests {
         #expect(snap.position == nil)
     }
 }
+
+/// Seeking from the progress bar (2026-10-18).
+struct SeekTests {
+
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    /// Where on the bar maps to how far into the track.
+    @Test func aPointOnTheBarIsATime() {
+        #expect(PlaybackPosition.seekTime(atX: 50, width: 200, duration: 240) == 60)
+        #expect(PlaybackPosition.seekTime(atX: 0, width: 200, duration: 240) == 0)
+        #expect(PlaybackPosition.seekTime(atX: 200, width: 200, duration: 240) == 240)
+    }
+
+    /// A drag that runs off either end pins to that end.
+    @Test func dragsPastTheEndsArePinned() {
+        #expect(PlaybackPosition.seekTime(atX: -30, width: 200, duration: 240) == 0)
+        #expect(PlaybackPosition.seekTime(atX: 900, width: 200, duration: 240) == 240)
+    }
+
+    @Test func aZeroWidthBarSeeksNowhere() {
+        #expect(PlaybackPosition.seekTime(atX: 10, width: 0, duration: 240) == nil)
+    }
+
+    /// The bar jumps the moment the seek is sent: a new reading at the
+    /// target, anchored now, before the player republishes its own.
+    @Test func seekingGivesAReadingAtTheTarget() throws {
+        let p = try #require(PlaybackPosition(elapsed: 30, duration: 200, anchoredAt: t0))
+        let now = t0.addingTimeInterval(5)
+        let moved = p.seeked(to: 120, at: now)
+        #expect(moved.elapsed(at: now, isPlaying: true) == 120)
+        #expect(moved.elapsed(at: now.addingTimeInterval(2), isPlaying: true) == 122)
+        #expect(moved.duration == 200)
+    }
+
+    @Test func seekingIsKeptInsideTheTrack() throws {
+        let p = try #require(PlaybackPosition(elapsed: 30, duration: 200, anchoredAt: t0))
+        #expect(p.seeked(to: -5, at: t0).elapsed == 0)
+        #expect(p.seeked(to: 500, at: t0).elapsed == 200)
+    }
+}

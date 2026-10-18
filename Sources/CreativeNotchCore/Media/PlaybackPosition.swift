@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// Where playback is in the current track.
@@ -42,5 +43,29 @@ public struct PlaybackPosition: Equatable, Sendable {
 
     public func fraction(at now: Date, isPlaying: Bool) -> Double {
         elapsed(at: now, isPlaying: isPlaying) / duration
+    }
+
+    // MARK: - Seeking (2026-10-18)
+
+    /// The time a point on a progress bar stands for: `x` along a bar
+    /// `width` wide, pinned to the track's ends. `nil` for a bar with no
+    /// width, which has no points.
+    public static func seekTime(atX x: CGFloat, width: CGFloat, duration: TimeInterval) -> TimeInterval? {
+        guard width > 0, duration.isFinite, duration > 0 else { return nil }
+        return min(max(Double(x / width), 0), 1) * duration
+    }
+
+    /// A reading at `seconds`, anchored `now`: what the bar shows the moment
+    /// a seek is sent, before the player republishes its own.
+    public func seeked(to seconds: TimeInterval, at now: Date) -> PlaybackPosition {
+        PlaybackPosition(
+            checkedElapsed: min(max(seconds, 0), duration), duration: duration, anchoredAt: now
+        )
+    }
+
+    private init(checkedElapsed: TimeInterval, duration: TimeInterval, anchoredAt: Date) {
+        self.elapsed = checkedElapsed
+        self.duration = duration
+        self.anchoredAt = anchoredAt
     }
 }

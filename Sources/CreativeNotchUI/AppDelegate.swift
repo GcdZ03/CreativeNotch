@@ -602,6 +602,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // a command is sent only because a button was clicked.
         state.showsMediaControls = mediaRemoteAvailable()
         state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
+        // Behind the same gate as the buttons, and only where this macOS has
+        // the seek function: otherwise the bar stays display-only.
+        state.onSeek = state.showsMediaControls && MediaRemoteBridge.canSeek
+            ? { seconds in MediaRemoteBridge.seek(to: seconds) }
+            : nil
 
         container.onDragEntered = { [weak self] in
             // A drop target that appears and then refuses the file is worse

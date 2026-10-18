@@ -260,6 +260,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
+| Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |
 | Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
