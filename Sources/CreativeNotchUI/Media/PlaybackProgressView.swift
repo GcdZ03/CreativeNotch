@@ -78,7 +78,18 @@ struct PlaybackProgressView: View {
                         .id(epoch)
                     }
                 }
-                .frame(height: barHeight)
+                // Drawn at a fixed thickness and *stretched* thicker under
+                // the pointer, with that animation scoped to the stretch.
+                //
+                // The thickness used to be the frame's height, animated on
+                // hover. The fill's frame is mid-way through a minutes-long
+                // slide to full width, and re-animating its size for the
+                // thickness re-animated the width too: the bar ran to full
+                // in 0.12s on hover, or at the end of a drag (2026-10-18).
+                .frame(height: Self.drawnHeight)
+                .animation(.easeOut(duration: 0.12)) { bar in
+                    bar.scaleEffect(y: barHeight / Self.drawnHeight)
+                }
                 .frame(maxHeight: .infinity)
                 .contentShape(Rectangle())
                 .gesture(seekGesture(width: g.size.width), including: onSeek == nil ? .none : .all)
@@ -86,7 +97,6 @@ struct PlaybackProgressView: View {
             }
             // Taller than the bar, so it can be grabbed without aiming for 4pt.
             .frame(height: onSeek == nil ? 4 : 14)
-            .animation(.easeOut(duration: 0.12), value: hovering)
 
             HStack {
                 elapsedText
@@ -111,6 +121,9 @@ struct PlaybackProgressView: View {
     }
 
     private var barHeight: CGFloat { hovering || scrubbing != nil ? 6 : 4 }
+
+    /// The thickness the bar is drawn at; `barHeight` is reached by scaling.
+    private static let drawnHeight: CGFloat = 6
 
     private func seekGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)

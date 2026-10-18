@@ -262,3 +262,9 @@ skipped itself; and the bar restarted by setting its start and animating to
 the end in the same instant, which SwiftUI merged. The fill is now rebuilt
 at its start on every restart (a new identity per restart) and slides on
 from there.
+
+Hovering the bar then filled it white in 0.12s. The hover thickening was the
+frame's height, animated; the fill's frame was mid-way through its slide to
+full width, and re-animating its size re-animated the width as well. The bar
+is now drawn at a fixed thickness and stretched under the pointer, with the
+animation scoped to the stretch alone.
