@@ -17,18 +17,36 @@ import CreativeNotchCore
 ///
 /// Paused, both are plain values: the bar stands still and the times are
 /// ordinary text.
+///
+/// **Seeking (2026-10-18).** Handed an `onSeek`, the bar takes a click or a
+/// drag: the bar and the times follow the finger, and letting go sends the
+/// seek. The bar jumps there at once (`PlaybackPosition.seeked`) rather than
+/// waiting for the player to republish, and gives way to the player's own
+/// reading as soon as one arrives. The touch target is taller than the 4pt
+/// bar, which thickens under the pointer to say it can be grabbed.
 struct PlaybackProgressView: View {
     let position: PlaybackPosition
     let isPlaying: Bool
+    var onSeek: ((TimeInterval) -> Void)? = nil
 
     @Environment(\.animatesPlaybackProgress) private var motionAllowed
     @State private var shown: Double
+    /// The bar's own reading after a seek, until the player's arrives.
+    @State private var seekedTo: PlaybackPosition?
+    /// Where a drag in progress points, as a time.
+    @State private var scrubbing: TimeInterval?
+    @State private var hovering = false
 
-    init(position: PlaybackPosition, isPlaying: Bool) {
+    init(position: PlaybackPosition, isPlaying: Bool, onSeek: ((TimeInterval) -> Void)? = nil) {
         self.position = position
         self.isPlaying = isPlaying
+        self.onSeek = onSeek
         _shown = State(initialValue: position.fraction(at: Date(), isPlaying: isPlaying))
     }
+
+    /// What the bar and the times show: a fresh seek's reading, or the
+    /// player's.
+    private var current: PlaybackPosition { seekedTo ?? position }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -39,8 +57,15 @@ struct PlaybackProgressView: View {
                         .fill(.white.opacity(0.85))
                         .frame(width: g.size.width * shown)
                 }
+                .frame(height: barHeight)
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(seekGesture(width: g.size.width), including: onSeek == nil ? .none : .all)
+                .onHover { hovering = $0 && onSeek != nil }
             }
-            .frame(height: 4)
+            // Taller than the bar, so it can be grabbed without aiming for 4pt.
+            .frame(height: onSeek == nil ? 4 : 14)
+            .animation(.easeOut(duration: 0.12), value: hovering)
 
             HStack {
                 elapsedText
@@ -51,25 +76,52 @@ struct PlaybackProgressView: View {
             .foregroundStyle(.white.opacity(0.5))
         }
         .onAppear(perform: run)
-        .onChange(of: position) { run() }
+        .onChange(of: position) {
+            // The player has spoken; its reading wins over the bar's guess.
+            seekedTo = nil
+            run()
+        }
         .onChange(of: isPlaying) { run() }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Playback position")
         .accessibilityValue(
-            "\(Self.clock(position.elapsed(at: Date(), isPlaying: isPlaying))) of \(Self.clock(position.duration))"
+            "\(Self.clock(current.elapsed(at: Date(), isPlaying: isPlaying))) of \(Self.clock(current.duration))"
         )
+    }
+
+    private var barHeight: CGFloat { hovering || scrubbing != nil ? 6 : 4 }
+
+    private func seekGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                guard let t = PlaybackPosition.seekTime(atX: value.location.x, width: width,
+                                                        duration: position.duration) else { return }
+                scrubbing = t
+                var snap = Transaction()
+                snap.disablesAnimations = true
+                withTransaction(snap) { shown = t / position.duration }
+            }
+            .onEnded { value in
+                defer { scrubbing = nil }
+                guard let t = PlaybackPosition.seekTime(atX: value.location.x, width: width,
+                                                        duration: position.duration) else { return }
+                seekedTo = position.seeked(to: t, at: Date())
+                onSeek?(t)
+                run()
+            }
     }
 
     /// Snaps the bar to now, then — while playing — runs it to the end of
     /// the track in one linear animation.
     private func run() {
+        guard scrubbing == nil else { return }
         let now = Date()
         var snap = Transaction()
         snap.disablesAnimations = true
-        withTransaction(snap) { shown = position.fraction(at: now, isPlaying: isPlaying) }
+        withTransaction(snap) { shown = current.fraction(at: now, isPlaying: isPlaying) }
 
         guard isPlaying, motionAllowed else { return }
-        let remaining = position.remaining(at: now, isPlaying: true)
+        let remaining = current.remaining(at: now, isPlaying: true)
         guard remaining > 0 else { return }
         withAnimation(.linear(duration: remaining)) { shown = 1 }
     }
@@ -78,28 +130,33 @@ struct PlaybackProgressView: View {
     /// count through it: it started `elapsed` ago and lasts `duration`.
     private var span: ClosedRange<Date> {
         let now = Date()
-        let start = now.addingTimeInterval(-position.elapsed(at: now, isPlaying: true))
-        return start...start.addingTimeInterval(position.duration)
+        let start = now.addingTimeInterval(-current.elapsed(at: now, isPlaying: true))
+        return start...start.addingTimeInterval(current.duration)
     }
 
+    /// While dragging, the times show where the finger is, not the clock.
     @ViewBuilder
     private var elapsedText: some View {
-        if isPlaying && motionAllowed {
+        if let scrubbing {
+            Text(Self.clock(scrubbing))
+        } else if isPlaying && motionAllowed {
             Text(timerInterval: span, countsDown: false, showsHours: false)
         } else {
-            Text(Self.clock(position.elapsed(at: Date(), isPlaying: isPlaying)))
+            Text(Self.clock(current.elapsed(at: Date(), isPlaying: isPlaying)))
         }
     }
 
     @ViewBuilder
     private var remainingText: some View {
-        if isPlaying && motionAllowed {
+        if let scrubbing {
+            Text("-" + Self.clock(current.duration - scrubbing))
+        } else if isPlaying && motionAllowed {
             HStack(spacing: 0) {
                 Text("-")
                 Text(timerInterval: span, countsDown: true, showsHours: false)
             }
         } else {
-            Text("-" + Self.clock(position.remaining(at: Date(), isPlaying: isPlaying)))
+            Text("-" + Self.clock(current.remaining(at: Date(), isPlaying: isPlaying)))
         }
     }
 

@@ -18,6 +18,8 @@ struct MediaColumn: View {
     /// Ties the cover to the badge's and the peek's, so it slides in
     /// from wherever the notch was (spec 2026-10-15).
     var coverNamespace: Namespace.ID? = nil
+    /// Seeks from the progress bar; `nil` leaves it display-only.
+    var onSeek: ((TimeInterval) -> Void)? = nil
     let onCommand: (MediaCommand) -> Void
 
     @State private var tint: Color?
@@ -45,7 +47,7 @@ struct MediaColumn: View {
             // panel never showed where playback was, and with open on hover
             // the peek — its only home — could be skipped entirely.
             if let snapshot, let position = snapshot.position {
-                PlaybackProgressView(position: position, isPlaying: snapshot.isPlaying)
+                PlaybackProgressView(position: position, isPlaying: snapshot.isPlaying, onSeek: onSeek)
             }
 
             if showsControls {

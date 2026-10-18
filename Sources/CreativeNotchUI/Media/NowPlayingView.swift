@@ -45,6 +45,8 @@ struct NowPlayingPeekView: View {
     var artworkAspect: CGFloat? = nil
     var coverNamespace: Namespace.ID? = nil
     var onCommand: (MediaCommand) -> Void = { _ in }
+    /// Seeks from the progress bar; `nil` leaves it display-only.
+    var onSeek: ((TimeInterval) -> Void)? = nil
 
     private let coverSize: CGFloat = 48
 
@@ -52,10 +54,12 @@ struct NowPlayingPeekView: View {
         VStack(spacing: 0) {
             band
                 .frame(height: bandHeight)
-            VStack(spacing: 10) {
+            // 6pt rather than 10 since the bar became seekable: its touch
+            // target is 14pt tall, and 12 + 48 + 6 + 30 fits the 100pt body.
+            VStack(spacing: 6) {
                 player
                 if let position = track.position {
-                    PlaybackProgressView(position: position, isPlaying: track.isPlaying)
+                    PlaybackProgressView(position: position, isPlaying: track.isPlaying, onSeek: onSeek)
                 }
             }
             .padding(.horizontal, 16)

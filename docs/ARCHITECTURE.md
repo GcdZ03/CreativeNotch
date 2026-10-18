@@ -568,6 +568,15 @@ its anchor, taking `now` as a parameter like `Countdown` does. It rides on
 `TrackSnapshot`, so a seek republishes through the existing coalescer.
 Measured against Spotify on 2026-10-15.
 
+**Seeking (2026-10-18).** The bar takes a click or a drag wherever
+`AppState.onSeek` is wired — only where the transport controls work, and only
+where this macOS has `MRMediaRemoteSetElapsedTime`, resolved with `dlsym` like
+the command function. `PlaybackPosition.seekTime` maps a point on the bar to a
+time; the bar jumps there at once through `seeked(to:at:)`, then gives way to
+the player's own reading when it republishes. The touch target is 14pt over a
+4pt bar that thickens under the pointer. The project rule holds: nothing
+scripts a real player, so the seek itself was checked by hand.
+
 ## Battery and power state
 
 The first module that needs **no exception to the one rule at all**.

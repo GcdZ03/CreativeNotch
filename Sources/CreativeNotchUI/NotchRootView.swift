@@ -132,6 +132,12 @@ public final class AppState {
     @ObservationIgnored
     public var onMediaCommand: ((MediaCommand) -> Void)?
 
+    /// Moves playback to a time in the track, from the progress bar
+    /// (2026-10-18). Wired only where the transport controls work, like
+    /// `onMediaCommand`; `nil` leaves the bar display-only.
+    @ObservationIgnored
+    public var onSeek: ((TimeInterval) -> Void)?
+
     /// How the timer tab reaches `TimerController`.
     ///
     /// Closures rather than a controller reference, for the same reason
@@ -578,7 +584,8 @@ public struct NotchRootView: View {
             barTint: app.nowPlayingBarTint,
             artworkAspect: app.nowPlayingArtworkAspect,
             coverNamespace: coverNamespace,
-            onCommand: { app.onMediaCommand?($0) }
+            onCommand: { app.onMediaCommand?($0) },
+            onSeek: app.onSeek.map { seek in { seek($0) } }
         )
     }
 
@@ -821,7 +828,8 @@ public struct NotchRootView: View {
                                     snapshot: app.nowPlaying,
                                     artwork: app.nowPlayingArtwork,
                                     showsControls: app.showsMediaControls,
-                                    coverNamespace: sharedCover
+                                    coverNamespace: sharedCover,
+                                    onSeek: app.onSeek
                                 ) { app.onMediaCommand?($0) }
                             }
                             // `at: now` keeps the pane on the single instant

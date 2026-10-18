@@ -244,3 +244,13 @@ reach the music controls closed it at once. Two causes, both fixed:
   drawn panel before the growth delay left the old region and started the
   400ms close, which nothing cancelled. When the region catches up, a
   pointer inside it now cancels the pending close.
+
+## Seeking from the progress bar (2026-10-18)
+
+Clicking or dragging on the progress bar — in the music peek and in the
+panel — jumps to that point in the track. The bar and both times follow the
+finger while dragging; letting go sends `MRMediaRemoteSetElapsedTime` through
+`MediaRemoteBridge.seek`, the same private framework and gate as the
+transport buttons. The bar shows the new position at once and yields to the
+player's next published reading. No seek function on this macOS, or no
+working transport controls, leaves the bar display-only.

@@ -37,6 +37,26 @@ public enum MediaRemoteBridge {
 
     public static var isAvailable: Bool { sendCommand != nil }
 
+    private typealias SetElapsedTime = @convention(c) (Double) -> Void
+
+    private static let setElapsedTime: SetElapsedTime? = {
+        guard let handle, let symbol = dlsym(handle, "MRMediaRemoteSetElapsedTime") else {
+            return nil
+        }
+        return unsafeBitCast(symbol, to: SetElapsedTime.self)
+    }()
+
+    /// Whether this macOS has the seek function. Resolving it calls nothing.
+    public static var canSeek: Bool { setElapsedTime != nil }
+
+    /// Moves playback in whatever holds the media session to `seconds`
+    /// (2026-10-18). Like `send`, it reports nothing: the player's next
+    /// published position is the only confirmation there is.
+    public static func seek(to seconds: Double) {
+        guard let setElapsedTime, seconds.isFinite, seconds >= 0 else { return }
+        setElapsedTime(seconds)
+    }
+
     /// Sends `command` to whichever application holds the media session.
     ///
     /// Returns nothing, deliberately. `MRMediaRemoteSendCommand` returns a
