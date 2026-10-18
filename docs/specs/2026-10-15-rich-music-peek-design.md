@@ -215,3 +215,17 @@ Boring Notch ships.
   renders failed about one run in ten: `ImageRenderer` sometimes
   anti-aliases a curve one step (1/255) differently under a parallel run.
   `Render.same` / `Render.differs` allow 2/255 per channel.
+
+## The panel shows progress; open on hover peeks first (2026-10-18)
+
+- **Progress in the panel.** The music column now shows the same
+  `PlaybackProgressView` as the peek. Before, the open panel never showed
+  where playback was, and with open on hover on, the peek — the bar's only
+  home — was skipped entirely.
+- **Peek first, then open.** Open on hover went straight to the panel, which
+  skipped the music peek and so its progress bar and the sideways swipe to
+  skip. It now peeks at the usual 300ms and opens the panel only if the
+  pointer keeps resting: for the whole chosen delay after a peek (peek at
+  0.3s, panel at 0.8s by default), or at the delay from arriving when there is
+  nothing to peek. Leaving cancels the open, and so does starting a swipe, so
+  a sideways skip finishes on the peek.

@@ -256,7 +256,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
-| Open the panel while something is playing | Cover, title, artist and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
+| Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
@@ -275,7 +275,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
 would rather hovering opened the panel itself, Settings → Hover → **Open on
-hover** does that after a delay you choose (0.2–1.0 s). With **Reduce Motion**
+hover** does that: it still peeks first, and keeping the pointer there for a
+delay you choose (0.2–1.0 s) opens the panel. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
 

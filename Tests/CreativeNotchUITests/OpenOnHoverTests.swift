@@ -19,8 +19,19 @@ struct OpenOnHoverTests {
     @Test func theTrackerWaitsForTheConfiguredDwell() {
         let d = NotchedDelegate.make()
         #expect(d.hoverView?.currentDwell() == .milliseconds(300))
+        d.state.onSetHoverBehaviour?(HoverBehaviour(opensOnHover: true, openDelay: 0.2))
+        #expect(d.hoverView?.currentDwell() == .milliseconds(200))
+    }
+
+    /// A delegate whose hover-open wait returns at once, so tests await the
+    /// open rather than sleeping through it. Arrives on the notch first: the
+    /// panel opens only for a pointer still resting there.
+    private func hovering() -> AppDelegate {
+        let d = NotchedDelegate.make()
+        d.sleepForHoverOpen = { _ in }
         d.state.onSetHoverBehaviour?(Self.on)
-        #expect(d.hoverView?.currentDwell() == .milliseconds(600))
+        d.hoverView?.onEnter()
+        return d
     }
 
     // MARK: - What a dwell does
@@ -34,38 +45,67 @@ struct OpenOnHoverTests {
 
     /// With it on, the dwell opens the panel — on the last tab, through
     /// the same path the shortcut uses.
-    @Test func withTheSettingOnADwellOpensThePanel() {
-        let d = NotchedDelegate.make()
-        d.state.onSetHoverBehaviour?(Self.on)
+    @Test func withTheSettingOnARestOpensThePanel() async {
+        let d = hovering()
         d.hoverView?.onDwell()
+        await d.hoverOpenTask?.value
         #expect(d.state.state == .open(d.state.lastOpenTab))
     }
 
-    /// Even with something to peek: opening is what was asked for.
-    @Test func itOpensRatherThanPeeksWhenMusicPlays() {
-        let d = NotchedDelegate.make()
-        d.state.onSetHoverBehaviour?(Self.on)
+    /// Peek first, then open (2026-10-18): with music playing the dwell
+    /// shows the music peek, and the panel follows only for a pointer that
+    /// keeps resting.
+    @Test func withMusicItPeeksFirstThenOpens() async {
+        let d = hovering()
         d.nowPlayingDidChange(Self.track)
         d.hoverView?.onDwell()
+        #expect(d.state.state == .peek(.nowPlaying(Self.track)))
+        await d.hoverOpenTask?.value
         if case .open = d.state.state {} else { Issue.record("expected the panel, got \(d.state.state)") }
     }
 
+    /// Leaving while the peek shows cancels the open: a glance stays a
+    /// glance.
+    @Test func leavingDuringThePeekCancelsTheOpen() async {
+        let d = hovering()
+        d.sleepForHoverOpen = { _ in try? await Task.sleep(for: .seconds(5)) }
+        d.nowPlayingDidChange(Self.track)
+        d.hoverView?.onDwell()
+        let pending = d.hoverOpenTask
+        d.hoverView?.onExit()
+        await pending?.value
+        #expect(d.state.state == .closed)
+    }
+
+    /// Starting a swipe on the peek cancels the open, so a sideways skip
+    /// can finish on the peek rather than the panel taking over mid-swipe.
+    @Test func aSwipeOnThePeekCancelsTheOpen() async {
+        let d = hovering()
+        d.sleepForHoverOpen = { _ in try? await Task.sleep(for: .seconds(5)) }
+        d.nowPlayingDidChange(Self.track)
+        d.hoverView?.onDwell()
+        let pending = d.hoverOpenTask
+        d.handleScroll(ScrollSample(phase: .began, isMomentum: false, isPrecise: true, finger: .zero))
+        await pending?.value
+        #expect(d.state.state == .peek(.nowPlaying(Self.track)))
+    }
+
     /// A drag in flight owns the notch.
-    @Test func aDragInFlightIsNotInterrupted() {
-        let d = NotchedDelegate.make()
-        d.state.onSetHoverBehaviour?(Self.on)
+    @Test func aDragInFlightIsNotInterrupted() async {
+        let d = hovering()
         d.state.transition(to: .receiving)
         d.hoverView?.onDwell()
+        await d.hoverOpenTask?.value
         #expect(d.state.state == .receiving)
     }
 
     /// With every tab switched off there is no panel to open, so the dwell
     /// falls back to peeking — or to nothing.
-    @Test func withNoTabsItDoesNotOpenAnEmptyPanel() {
-        let d = NotchedDelegate.make()
-        d.state.onSetHoverBehaviour?(Self.on)
+    @Test func withNoTabsItDoesNotOpenAnEmptyPanel() async {
+        let d = hovering()
         for module in ModuleID.allCases { d.switchboard.setEnabled(false, for: module, persist: false) }
         d.hoverView?.onDwell()
+        await d.hoverOpenTask?.value
         if case .open = d.state.state { Issue.record("opened a panel with no tabs") }
     }
 
@@ -74,10 +114,11 @@ struct OpenOnHoverTests {
     /// A panel hover opened, hover closes: leaving starts the same grace the
     /// open panel always had.
     @Test func leavingAHoverOpenedPanelClosesItAfterTheGrace() async {
-        let d = NotchedDelegate.make()
+        let d = hovering()
         d.dismissGrace = .milliseconds(10)
-        d.state.onSetHoverBehaviour?(Self.on)
         d.hoverView?.onDwell()
+        await d.hoverOpenTask?.value
+        #expect(d.state.state == .open(d.state.lastOpenTab))
         d.hoverView?.onExit()
         await d.graceTask?.value
         #expect(d.state.state == .closed)

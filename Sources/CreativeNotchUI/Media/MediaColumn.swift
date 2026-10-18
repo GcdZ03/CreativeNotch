@@ -23,7 +23,7 @@ struct MediaColumn: View {
     @State private var tint: Color?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 10) {
             cover
 
             VStack(alignment: .leading, spacing: 2) {
@@ -39,6 +39,13 @@ struct MediaColumn: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
+            }
+
+            // The same bar the music peek shows (2026-10-18). Before this the
+            // panel never showed where playback was, and with open on hover
+            // the peek — its only home — could be skipped entirely.
+            if let snapshot, let position = snapshot.position {
+                PlaybackProgressView(position: position, isPlaying: snapshot.isPlaying)
             }
 
             if showsControls {

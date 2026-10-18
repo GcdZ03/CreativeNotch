@@ -206,7 +206,37 @@ struct PeekRenderingTests {
         #expect(Render.same(once, twice))
     }
 
-    @Test func theTimesReadAsMinutesAndSeconds() {
+    // MARK: - The panel's music column has the bar too (2026-10-18)
+
+    private static func columnPixels(_ snapshot: TrackSnapshot?) -> Data? {
+        let renderer = ImageRenderer(
+            content: MediaColumn(snapshot: snapshot, artwork: nil, showsControls: true) { _ in }
+                .frame(width: 220, height: 228)
+                .environment(\.animatesPlaybackProgress, false)
+        )
+        renderer.scale = 1
+        guard let image = renderer.nsImage, let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff) else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
+    }
+
+    /// Opening the panel used to show no playback position at all; the bar
+    /// lived only in the peek, which open on hover skips.
+    @Test func thePanelsMusicColumnDrawsTheProgress() throws {
+        let without = try #require(Self.columnPixels(TrackSnapshot(
+            title: "Blinding Lights", artist: "The Weeknd", isPlaying: false
+        )))
+        let with = try #require(Self.columnPixels(Self.paused(at: 100)))
+        #expect(Render.differs(without, with))
+    }
+
+    @Test func thePanelsBarFollowsThePosition() throws {
+        let early = try #require(Self.columnPixels(Self.paused(at: 20)))
+        let late = try #require(Self.columnPixels(Self.paused(at: 180)))
+        #expect(Render.differs(early, late))
+    }
+
+        @Test func theTimesReadAsMinutesAndSeconds() {
         #expect(PlaybackProgressView.clock(0) == "0:00")
         #expect(PlaybackProgressView.clock(5.97) == "0:05")
         #expect(PlaybackProgressView.clock(226.666) == "3:46")

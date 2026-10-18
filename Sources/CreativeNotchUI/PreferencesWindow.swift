@@ -272,7 +272,7 @@ struct PreferencesView: View {
             } header: {
                 Text("Hover")
             } footer: {
-                Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting opens the panel itself.")
+                Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, it still peeks first, and keeping the pointer there for the delay opens the panel.")
             }
 
             ForEach(PreferencesSection.allCases, id: \.self) { section in

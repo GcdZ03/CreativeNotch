@@ -436,6 +436,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour.dwell ?? HoverBehaviour.peekDwell
         }
         hover.onExit  = { [weak self] in
+            self?.cancelHoverOpen()
             self?.state.isHovering = false
             self?.collapse()
         }
@@ -994,6 +995,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         switch sample.phase {
         case .began:
+            cancelHoverOpen()
             swipe.began()
             swiping = true
             return presentation != .expanded
@@ -1042,19 +1044,46 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Hover
 
     /// The dwell opened the notch. What it shows is the arbiter's call.
-    /// With "open on hover" on, the dwell opens the panel instead — from
-    /// the closed notch or a peek, never over a drag or an open panel, and
-    /// falling back to the peek when there is no tab to open.
+    ///
+    /// With "open on hover" on, it peeks first and then — for a pointer
+    /// still resting — opens the panel (`HoverBehaviour.openWait`). Never
+    /// over a drag or an open panel; with no tab to open, the peek simply
+    /// stays.
     private func peek() {
-        if state.hoverBehaviour.opensOnHover {
-            switch state.state {
-            case .closed, .peek:
-                if openPanel() { return }
-            case .open, .receiving:
-                return
+        presentPeek()
+        switch state.state {
+        case .open, .receiving: return
+        case .closed, .peek: break
+        }
+        guard let wait = state.hoverBehaviour.openWait(afterPeek: state.state.presentation.isPeek)
+        else { return }
+        scheduleHoverOpen(after: wait)
+    }
+
+    /// How the hover-open wait sleeps. Injected so a test can await the
+    /// open instead of sleeping through it.
+    var sleepForHoverOpen: (Duration) async -> Void = { try? await Task.sleep(for: $0) }
+
+    private(set) var hoverOpenTask: Task<Void, Never>?
+
+    private func scheduleHoverOpen(after wait: Duration) {
+        hoverOpenTask?.cancel()
+        hoverOpenTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.sleepForHoverOpen(wait)
+            guard !Task.isCancelled, self.state.isHovering else { return }
+            switch self.state.state {
+            case .closed, .peek: self.openPanel()
+            case .open, .receiving: break
             }
         }
-        presentPeek()
+    }
+
+    /// Leaving, or starting a swipe, abandons a pending hover open: a glance
+    /// stays a glance, and a sideways skip finishes on the peek.
+    private func cancelHoverOpen() {
+        hoverOpenTask?.cancel()
+        hoverOpenTask = nil
     }
 
     /// Current power state into the panel.
