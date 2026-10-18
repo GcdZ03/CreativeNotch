@@ -23,6 +23,8 @@
 </p>
 <p align="center"><sub>Rendered offscreen by the test suite's renderer on a stand-in wallpaper, not a screenshot — the layout is exact, the desktop is not.</sub></p>
 
+https://github.com/user-attachments/assets/78d56af2-b42a-490e-be5a-8679d81945a9
+
 ---
 
 ## Why this exists
