@@ -30,7 +30,17 @@ struct PlaybackProgressView: View {
     var onSeek: ((TimeInterval) -> Void)? = nil
 
     @Environment(\.animatesPlaybackProgress) private var motionAllowed
-    @State private var shown: Double
+    /// Where the fill starts and how long it takes to reach the end, set
+    /// each time the bar restarts. `run` bumps `epoch`, which gives the fill
+    /// a new identity: it is rebuilt at `start` and slides on from there.
+    ///
+    /// Not one long-lived animated value, as it was: setting the start and
+    /// animating to the end in the same instant let SwiftUI merge the two,
+    /// and after a seek the fill slid — or jumped — from the wrong place,
+    /// once straight to full with 3 minutes left (2026-10-18).
+    @State private var start: Double
+    @State private var remaining: TimeInterval = 0
+    @State private var epoch = 0
     /// The bar's own reading after a seek, until the player's arrives.
     @State private var seekedTo: PlaybackPosition?
     /// Where a drag in progress points, as a time.
@@ -41,7 +51,7 @@ struct PlaybackProgressView: View {
         self.position = position
         self.isPlaying = isPlaying
         self.onSeek = onSeek
-        _shown = State(initialValue: position.fraction(at: Date(), isPlaying: isPlaying))
+        _start = State(initialValue: position.fraction(at: Date(), isPlaying: isPlaying))
     }
 
     /// What the bar and the times show: a fresh seek's reading, or the
@@ -53,9 +63,20 @@ struct PlaybackProgressView: View {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.15))
-                    Capsule()
-                        .fill(.white.opacity(0.85))
-                        .frame(width: g.size.width * shown)
+                    if let scrubbing {
+                        // Under the finger: exactly where it points, no motion.
+                        Capsule()
+                            .fill(.white.opacity(0.85))
+                            .frame(width: g.size.width * scrubbing / position.duration)
+                    } else {
+                        Fill(
+                            start: start,
+                            remaining: remaining,
+                            moves: isPlaying && motionAllowed,
+                            width: g.size.width
+                        )
+                        .id(epoch)
+                    }
                 }
                 .frame(height: barHeight)
                 .frame(maxHeight: .infinity)
@@ -94,15 +115,14 @@ struct PlaybackProgressView: View {
     private func seekGesture(width: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard let t = PlaybackPosition.seekTime(atX: value.location.x, width: width,
-                                                        duration: position.duration) else { return }
-                scrubbing = t
-                var snap = Transaction()
-                snap.disablesAnimations = true
-                withTransaction(snap) { shown = t / position.duration }
+                scrubbing = PlaybackPosition.seekTime(atX: value.location.x, width: width,
+                                                      duration: position.duration)
             }
             .onEnded { value in
-                defer { scrubbing = nil }
+                // Cleared *before* restarting the bar. It used to be cleared
+                // after, so the restart saw a drag still in progress and
+                // skipped itself.
+                scrubbing = nil
                 guard let t = PlaybackPosition.seekTime(atX: value.location.x, width: width,
                                                         duration: position.duration) else { return }
                 seekedTo = position.seeked(to: t, at: Date())
@@ -111,19 +131,42 @@ struct PlaybackProgressView: View {
             }
     }
 
-    /// Snaps the bar to now, then — while playing — runs it to the end of
-    /// the track in one linear animation.
+    /// Restarts the fill at where playback is now: a fresh fill, at the
+    /// right place, sliding to the end over the time left.
     private func run() {
-        guard scrubbing == nil else { return }
         let now = Date()
-        var snap = Transaction()
-        snap.disablesAnimations = true
-        withTransaction(snap) { shown = current.fraction(at: now, isPlaying: isPlaying) }
+        start = current.fraction(at: now, isPlaying: isPlaying)
+        remaining = current.remaining(at: now, isPlaying: true)
+        epoch += 1
+    }
 
-        guard isPlaying, motionAllowed else { return }
-        let remaining = current.remaining(at: now, isPlaying: true)
-        guard remaining > 0 else { return }
-        withAnimation(.linear(duration: remaining)) { shown = 1 }
+    /// The moving part of the bar. Built at `start`; on appearing it slides
+    /// to the end over `remaining`, in one linear animation — no clock, no
+    /// loop. A restart replaces it rather than re-animating it.
+    private struct Fill: View {
+        let start: Double
+        let remaining: TimeInterval
+        let moves: Bool
+        let width: CGFloat
+        @State private var fraction: Double
+
+        init(start: Double, remaining: TimeInterval, moves: Bool, width: CGFloat) {
+            self.start = start
+            self.remaining = remaining
+            self.moves = moves
+            self.width = width
+            _fraction = State(initialValue: start)
+        }
+
+        var body: some View {
+            Capsule()
+                .fill(.white.opacity(0.85))
+                .frame(width: width * fraction)
+                .onAppear {
+                    guard moves, remaining > 0 else { return }
+                    withAnimation(.linear(duration: remaining)) { fraction = 1 }
+                }
+        }
     }
 
     /// The track's span on the wall clock, so `Text(timerInterval:)` can

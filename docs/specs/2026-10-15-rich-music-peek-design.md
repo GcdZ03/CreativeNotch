@@ -254,3 +254,11 @@ finger while dragging; letting go sends `MRMediaRemoteSetElapsedTime` through
 transport buttons. The bar shows the new position at once and yields to the
 player's next published reading. No seek function on this macOS, or no
 working transport controls, leaves the bar display-only.
+
+On screen, the first cut of seeking sometimes showed the bar **full** right
+after a drag, with minutes left on the clock. Two causes: the drag cleared
+its "still dragging" flag only after restarting the bar, so the restart
+skipped itself; and the bar restarted by setting its start and animating to
+the end in the same instant, which SwiftUI merged. The fill is now rebuilt
+at its start on every restart (a new identity per restart) and slides on
+from there.
