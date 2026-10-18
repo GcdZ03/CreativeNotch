@@ -245,7 +245,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause on the notch for ~300 ms | Peeks, if there is something to show |
 | Move away | Collapses |
 | Two-finger swipe down on the notch | The notch follows your fingers and opens past a threshold, with one haptic tap |
-| Two-finger swipe up on the open panel | Closes it |
+| Two-finger swipe up on the panel's top strip (the tab icons) | Closes it; scrolling anywhere else in the panel is just scrolling |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |

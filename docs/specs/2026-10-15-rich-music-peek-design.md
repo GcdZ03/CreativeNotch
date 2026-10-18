@@ -229,3 +229,18 @@ Boring Notch ships.
   0.3s, panel at 0.8s by default), or at the delay from arriving when there is
   nothing to peek. Leaving cancels the open, and so does starting a swipe, so
   a sideways skip finishes on the peek.
+
+## The open panel stopped closing under the user (2026-10-18)
+
+Reported: with open on hover, opening the panel and then scrolling down to
+reach the music controls closed it at once. Two causes, both fixed:
+
+- **Swipe up to close was ordinary scrolling.** With natural scrolling,
+  scrolling *down* is the fingers moving *up* — the close gesture exactly —
+  and the music column is no scroll view to claim it. A push up now closes
+  the panel only when it starts on the top strip, level with the notch;
+  elsewhere the whole swipe is passed on as a scroll.
+- **The pointer area lagged the panel.** A pointer moving into the newly
+  drawn panel before the growth delay left the old region and started the
+  400ms close, which nothing cancelled. When the region catches up, a
+  pointer inside it now cancels the pending close.

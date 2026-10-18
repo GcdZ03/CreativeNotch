@@ -873,6 +873,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func acceptRect(_ rect: CGRect) {
         acceptedRect = rect
         hoverView?.updateTrackingRect(rect)
+        keepOpenIfPointerInside(rect)
+    }
+
+    /// Where the pointer is on screen. Injected so a test can place it.
+    var pointerLocation: () -> CGPoint = { NSEvent.mouseLocation }
+
+    /// The accepted region grows `growthDelay` after the panel is drawn. A
+    /// pointer that moves into the newly drawn part before then has left the
+    /// *old* region, which started the close; and a tracking area added
+    /// around a pointer already inside it sends no `mouseEntered` to cancel
+    /// it. So the panel closed under a user reaching for its controls
+    /// (2026-10-18). When the region catches up, a pointer found inside it
+    /// cancels that pending close.
+    private func keepOpenIfPointerInside(_ rect: CGRect) {
+        guard graceTask != nil, case .open = state.state else { return }
+        let screen = pointerLocation()
+        let local = CGPoint(x: screen.x - currentFrame.minX, y: screen.y - currentFrame.minY)
+        guard rect.contains(local) else { return }
+        cancelDismissGrace()
+        state.isHovering = true
     }
 
     private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
@@ -996,6 +1016,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         switch sample.phase {
         case .began:
             cancelHoverOpen()
+            // On the open panel, a push up closes it only from the top strip
+            // — the tab icons, level with the notch (2026-10-18). Anywhere
+            // else it is an ordinary scroll: with natural scrolling,
+            // scrolling *down* is the fingers moving *up*, the close gesture
+            // exactly, and the panel used to vanish under a user scrolling
+            // toward its controls. The whole swipe is passed on.
+            if presentation == .expanded,
+               !Self.isInTopStrip(sample.location, panelHeight: currentFrame.height,
+                                  stripHeight: currentAnchor.rect.height) {
+                swiping = false
+                return false
+            }
             swipe.began()
             swiping = true
             return presentation != .expanded
@@ -1023,6 +1055,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .other:
             return false
         }
+    }
+
+    /// Whether a point in the panel's window coordinates (bottom-left
+    /// origin) is in its top strip, level with the notch. Unknown is no.
+    static func isInTopStrip(_ point: CGPoint?, panelHeight: CGFloat, stripHeight: CGFloat) -> Bool {
+        guard let point else { return false }
+        return point.y >= panelHeight - stripHeight
     }
 
     private func apply(_ outcome: NotchSwipe.Outcome) {
