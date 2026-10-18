@@ -23,11 +23,13 @@ struct HoverBehaviourTests {
     }
 
     /// Peeking keeps the 300ms dwell it always had; opening waits for the
-    /// chosen delay, which is longer because an accidental panel costs more
-    /// than an accidental peek.
+    /// chosen delay and goes straight to the panel — one expansion, no peek
+    /// first (2026-10-18: peek-then-open felt like the notch expanding twice
+    /// on its own).
     @Test func theDwellFollowsTheSetting() {
         #expect(HoverBehaviour(opensOnHover: false, openDelay: 0.8).dwell == .milliseconds(300))
         #expect(HoverBehaviour(opensOnHover: true, openDelay: 0.8).dwell == .milliseconds(800))
+        #expect(HoverBehaviour(opensOnHover: true, openDelay: 0.2).dwell == .milliseconds(200))
     }
 
     @Test func theDelayIsKeptInRange() {

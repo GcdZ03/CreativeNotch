@@ -56,6 +56,8 @@ enum NotchedDelegate {
             .appendingPathComponent("CreativeNotchNotched-\(UUID().uuidString)")
         delegate.playChime = {}
         delegate.performHaptic = {}
+        // Far from any test panel, so the real pointer never decides a test.
+        delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }
         delegate.state.countdown = countdown
         delegate.install(metrics: metrics)
         // The indicator would otherwise read the developer's real

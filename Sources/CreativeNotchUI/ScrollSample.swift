@@ -15,6 +15,10 @@ struct ScrollSample: Equatable {
     var isPrecise: Bool
     /// In finger space: see `NotchSwipe.fingerDelta`.
     var finger: CGVector
+    /// Where the pointer was, in the panel's own (window) coordinates,
+    /// bottom-left origin. Decides whether a push up on the open panel may
+    /// close it (`AppDelegate.isInTopStrip`); `nil` never does.
+    var location: CGPoint? = nil
 }
 
 extension ScrollSample {
@@ -35,7 +39,8 @@ extension ScrollSample {
                 deltaX: event.scrollingDeltaX,
                 deltaY: event.scrollingDeltaY,
                 invertedFromDevice: event.isDirectionInvertedFromDevice
-            )
+            ),
+            location: event.locationInWindow
         )
     }
 }

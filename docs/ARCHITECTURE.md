@@ -329,10 +329,20 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   keeps the accepted region no larger than what is drawn.
 - **Trackpad swipes.** `NotchSwipe` (Core) holds every rule in finger space;
   `HitTestingHostingView.scrollWheel` offers events to the delegate and passes
-  on what it does not take, so lists in the panel still scroll.
-- **Open on hover** is a setting (`HoverBehaviour`, off by default).
-  `HoverTracker` asks for its dwell on each hover, so a changed delay needs no
-  re-sync. The shortcut, swipes and hover all open through
+  on what it does not take, so lists in the panel still scroll. On the open
+  panel a push up closes it only when it starts on the top strip, level with
+  the notch: anywhere else, with natural scrolling, scrolling *down* is the
+  fingers moving *up*, and the panel used to close under a user scrolling.
+- **The panel stays open under the pointer.** The accepted region grows
+  `growthDelay` after the drawing, so a pointer moving into the new part leaves
+  the old region and starts the close — and a tracking area added around a
+  pointer already inside sends no `mouseEntered`. When the region catches up,
+  `keepOpenIfPointerInside` cancels that close if the pointer is inside.
+- **Open on hover** is a setting (`HoverBehaviour`, off by default): resting
+  for the chosen delay opens the panel directly, one expansion. A peek-first
+  variant was tried and reverted the same day — it read as the notch
+  expanding twice by itself. `HoverTracker` asks for its dwell on each hover,
+  so a changed delay needs no re-sync. The shortcut, swipes and hover all open through
   `AppDelegate.openPanel()`, which skips switched-off tabs.
 - **Haptics.** One `.levelChange` as the panel opens, or at a swipe's
   threshold instead — never both, never for a peek.

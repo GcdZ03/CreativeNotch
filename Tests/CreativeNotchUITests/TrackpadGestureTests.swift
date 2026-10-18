@@ -12,20 +12,28 @@ struct TrackpadGestureTests {
 
     private static let track = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
+    /// The panel's top strip, level with the notch: y 222...260 in the
+    /// 260pt test panel.
+    private static let inTopStrip = CGPoint(x: 310, y: 245)
+    /// Lower down, over the panel's content.
+    private static let inContent = CGPoint(x: 120, y: 100)
+
     private func sample(_ phase: ScrollSample.Phase, dx: CGFloat = 0, dy: CGFloat = 0,
-                        precise: Bool = true, momentum: Bool = false) -> ScrollSample {
+                        precise: Bool = true, momentum: Bool = false,
+                        at location: CGPoint? = TrackpadGestureTests.inTopStrip) -> ScrollSample {
         ScrollSample(phase: phase, isMomentum: momentum, isPrecise: precise,
-                     finger: CGVector(dx: dx, dy: dy))
+                     finger: CGVector(dx: dx, dy: dy), location: location)
     }
 
     /// One swipe, delivered as a begin, steps of `step`, and an end.
     @discardableResult
-    private func swipe(_ d: AppDelegate, dx: CGFloat = 0, dy: CGFloat = 0, steps: Int = 4) -> Bool {
-        var consumed = d.handleScroll(sample(.began))
+    private func swipe(_ d: AppDelegate, dx: CGFloat = 0, dy: CGFloat = 0, steps: Int = 4,
+                       at location: CGPoint? = TrackpadGestureTests.inTopStrip) -> Bool {
+        var consumed = d.handleScroll(sample(.began, at: location))
         for _ in 0..<steps {
-            consumed = d.handleScroll(sample(.changed, dx: dx / CGFloat(steps), dy: dy / CGFloat(steps))) || consumed
+            consumed = d.handleScroll(sample(.changed, dx: dx / CGFloat(steps), dy: dy / CGFloat(steps), at: location)) || consumed
         }
-        d.handleScroll(sample(.ended))
+        d.handleScroll(sample(.ended, at: location))
         return consumed
     }
 
@@ -58,11 +66,34 @@ struct TrackpadGestureTests {
         #expect(d.state.state == .closed)
     }
 
-    @Test func pushingUpClosesTheOpenPanel() {
+    /// From the top strip — the tab icons, level with the notch — a push
+    /// up closes the panel.
+    @Test func pushingUpOnTheTopStripClosesTheOpenPanel() {
         let d = NotchedDelegate.make()
         d.state.transition(to: .open(.timer))
-        swipe(d, dy: -far)
+        swipe(d, dy: -far, at: Self.inTopStrip)
         #expect(d.state.state == .closed)
+    }
+
+    /// Over the content it is an ordinary scroll (2026-10-18). With natural
+    /// scrolling, scrolling *down* is the fingers moving *up* — exactly the
+    /// close gesture — so the panel used to vanish under a user scrolling
+    /// toward the music controls.
+    @Test func scrollingOverTheContentNeverClosesThePanel() {
+        let d = NotchedDelegate.make()
+        d.state.transition(to: .open(.timer))
+        let consumed = swipe(d, dy: -far * 3, at: Self.inContent)
+        #expect(d.state.state == .open(.timer))
+        #expect(!consumed)
+        #expect(d.state.pullProgress == 0)
+    }
+
+    /// An unknown position is treated as content: never close by guess.
+    @Test func aSwipeWithNoPositionDoesNotClose() {
+        let d = NotchedDelegate.make()
+        d.state.transition(to: .open(.timer))
+        swipe(d, dy: -far, at: nil)
+        #expect(d.state.state == .open(.timer))
     }
 
     // MARK: - What it ignores

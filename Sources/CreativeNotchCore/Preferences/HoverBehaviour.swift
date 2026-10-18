@@ -8,8 +8,13 @@ import Foundation
 /// where an accidental *panel* covers the top of whatever you were doing.
 ///
 /// On, resting for `openDelay` opens the panel instead of peeking, as
-/// Boring Notch and MewNotch offer. The delay is longer than the peek's
-/// 300ms dwell for the same reason.
+/// Boring Notch and MewNotch offer — straight to the panel, one expansion.
+/// The delay is longer than the peek's 300ms dwell for the same reason.
+///
+/// A peek-first variant was tried on 2026-10-18 (peek at 300ms, panel after
+/// the delay) and reverted the same day: on screen it read as the notch
+/// expanding twice by itself. The panel's music column has the progress bar
+/// now, so going straight there loses nothing the peek showed.
 public struct HoverBehaviour: Equatable, Sendable {
     public static let delayRange: ClosedRange<TimeInterval> = 0.2...1.0
     public static let defaultDelay: TimeInterval = 0.5

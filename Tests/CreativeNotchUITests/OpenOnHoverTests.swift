@@ -41,8 +41,11 @@ struct OpenOnHoverTests {
         #expect(d.state.state == .open(d.state.lastOpenTab))
     }
 
-    /// Even with something to peek: opening is what was asked for.
-    @Test func itOpensRatherThanPeeksWhenMusicPlays() {
+    /// Straight to the panel even with music playing: one expansion, never
+    /// a peek that then expands again by itself (2026-10-18). The panel's
+    /// music column has the progress bar, so nothing the peek showed is
+    /// lost.
+    @Test func withMusicItOpensStraightToThePanel() {
         let d = NotchedDelegate.make()
         d.state.onSetHoverBehaviour?(Self.on)
         d.nowPlayingDidChange(Self.track)
@@ -50,7 +53,6 @@ struct OpenOnHoverTests {
         if case .open = d.state.state {} else { Issue.record("expected the panel, got \(d.state.state)") }
     }
 
-    /// A drag in flight owns the notch.
     @Test func aDragInFlightIsNotInterrupted() {
         let d = NotchedDelegate.make()
         d.state.onSetHoverBehaviour?(Self.on)
@@ -78,6 +80,7 @@ struct OpenOnHoverTests {
         d.dismissGrace = .milliseconds(10)
         d.state.onSetHoverBehaviour?(Self.on)
         d.hoverView?.onDwell()
+        #expect(d.state.state == .open(d.state.lastOpenTab))
         d.hoverView?.onExit()
         await d.graceTask?.value
         #expect(d.state.state == .closed)

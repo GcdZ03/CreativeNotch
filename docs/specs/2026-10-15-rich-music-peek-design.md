@@ -215,3 +215,32 @@ Boring Notch ships.
   renders failed about one run in ten: `ImageRenderer` sometimes
   anti-aliases a curve one step (1/255) differently under a parallel run.
   `Render.same` / `Render.differs` allow 2/255 per channel.
+
+## The panel shows progress; open on hover peeks first (2026-10-18)
+
+- **Progress in the panel.** The music column now shows the same
+  `PlaybackProgressView` as the peek. Before, the open panel never showed
+  where playback was, and with open on hover on, the peek — the bar's only
+  home — was skipped entirely.
+- **Peek first, then open — tried and reverted.** Open on hover was made to
+  peek at 300ms and open the panel after the delay, to keep the peek's
+  progress bar and sideways skip. On screen it read as the notch expanding
+  twice by itself, without the user asking for the second. Reverted the same
+  day: open on hover goes straight to the panel again, one expansion. With
+  the progress bar now in the panel, only the peek's sideways skip is lost
+  (the panel's skip buttons remain).
+
+## The open panel stopped closing under the user (2026-10-18)
+
+Reported: with open on hover, opening the panel and then scrolling down to
+reach the music controls closed it at once. Two causes, both fixed:
+
+- **Swipe up to close was ordinary scrolling.** With natural scrolling,
+  scrolling *down* is the fingers moving *up* — the close gesture exactly —
+  and the music column is no scroll view to claim it. A push up now closes
+  the panel only when it starts on the top strip, level with the notch;
+  elsewhere the whole swipe is passed on as a scroll.
+- **The pointer area lagged the panel.** A pointer moving into the newly
+  drawn panel before the growth delay left the old region and started the
+  400ms close, which nothing cancelled. When the region catches up, a
+  pointer inside it now cancels the pending close.
