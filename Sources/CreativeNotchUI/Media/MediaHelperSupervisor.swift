@@ -102,8 +102,16 @@ public final class MediaHelperSupervisor {
         process.onExit = { [weak self] status in self?.helperExited(status: status) }
     }
 
+    /// Starts the helper, unless it has degraded.
+    ///
+    /// A degraded helper is not spawned at all, not merely spawned without a
+    /// fresh budget. `start()` runs on every screen unlock; spawning here
+    /// would give a helper that already failed past the cap one more life
+    /// per unlock, and its lines would repopulate the header degrading had
+    /// just cleared. `resetRetryBudget()` is the way back.
     public func start() {
         stoppedDeliberately = false
+        guard !isDegraded else { return }
         startedAt = now()
         startHelper()
     }
@@ -174,7 +182,13 @@ public final class MediaHelperSupervisor {
     /// When there is no such delay (`attempt == 0`, nothing has failed
     /// yet) there is nothing to protect against, so this resets
     /// unconditionally — the same no-op it always was in that case.
+    ///
+    /// A degraded supervisor ignores this: past `maxAttempts` there is no
+    /// delay either, and reading that as "nothing has failed yet" zeroed the
+    /// count while `isDegraded` stayed set. Only `resetRetryBudget()` hands
+    /// a degraded helper its budget back.
     public func noteHealthy() {
+        guard !isDegraded else { return }
         guard let startedAt, let requiredUptime = HelperBackoff.delay(forAttempt: attempt) else {
             attempt = 0
             return
@@ -187,7 +201,14 @@ public final class MediaHelperSupervisor {
     /// asked for or not.
     public func helperExited(status: Int32) {
         guard !stoppedDeliberately else { return }
-        guard !isDegraded else { return }
+        // Never retried once degraded — but the exit is still published.
+        // Returning silently here left whatever a degraded-era helper had
+        // put in the header on screen for the rest of the session, and
+        // publishing "nothing playing" twice costs nothing.
+        guard !isDegraded else {
+            onDegraded?()
+            return
+        }
 
         attempt += 1
         guard let delay = HelperBackoff.delay(forAttempt: attempt) else {

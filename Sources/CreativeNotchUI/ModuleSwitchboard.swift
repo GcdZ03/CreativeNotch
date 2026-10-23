@@ -198,6 +198,15 @@ final class ModuleSwitchboard {
             delegate.state.onMediaCommand = enabled
                 ? { command in MediaRemoteBridge.send(command) }
                 : nil
+            // Seeking is a transport control too: behind the same gate as the
+            // buttons, and only where this macOS has the seek function —
+            // otherwise the bar stays display-only. Left out of this leg, a
+            // switch reading off still let a drag move the player. Reading
+            // `showsMediaControls` first keeps `canSeek` (which touches the
+            // same handle) behind the preference as well.
+            delegate.state.onSeek = delegate.state.showsMediaControls && MediaRemoteBridge.canSeek
+                ? { seconds in MediaRemoteBridge.seek(to: seconds) }
+                : nil
 
         case .power:
             if enabled {

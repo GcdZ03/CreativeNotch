@@ -185,11 +185,20 @@ struct ModuleToggleTests {
     /// false anyway on a host with no MediaRemote. **The count is what proves
     /// the lazy `&&` is the right way round** -- reading availability performs
     /// a `dlopen` that has no matching `dlclose`.
+    ///
+    /// The count is taken from before `install`, not after it. An earlier
+    /// version took its baseline after `install`, which itself probed
+    /// unconditionally — so the framework was loaded at launch whatever the
+    /// preference said, and this test could not see it.
     @Test func disablingTransportControlsDoesNotLoadMediaRemote() {
         let delegate = AppDelegate()
         var probes = 0
         delegate.mediaRemoteAvailable = { probes += 1; return true }
-        delegate.preferencesDefaults = TestDefaults.isolated("transport")
+        let defaults = TestDefaults.isolated("transport")
+        // Stored before `install`, which is what builds the delegate's own
+        // store over these defaults — the user declined in an earlier run.
+        PreferencesStore(defaults: defaults).setEnabled(false, for: .mediaControls)
+        delegate.preferencesDefaults = defaults
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchTransport-\(UUID().uuidString)")
@@ -198,15 +207,29 @@ struct ModuleToggleTests {
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}
         delegate.media?.supervisor.stopHelper = {}
-        delegate.preferencesStore.setEnabled(false, for: .mediaControls)
-        let afterInstall = probes
 
         delegate.startSubsystems()
 
-        #expect(probes == afterInstall, "the preference must be the left operand of the &&")
+        #expect(probes == 0, "neither install nor the launch path may probe a declined framework")
         #expect(delegate.state.showsMediaControls == false)
         #expect(delegate.state.onMediaCommand == nil)
+        #expect(delegate.state.onSeek == nil)
         delegate.activity.stop()
+    }
+
+    /// Seeking is a transport control too. Switching the module off cleared
+    /// the buttons' verb but left `onSeek` wired, so dragging the progress
+    /// bar still moved the player behind a switch that reads off.
+    @Test func disablingTransportControlsAlsoStopsSeeking() throws {
+        let delegate = makeDelegate()
+        delegate.mediaRemoteAvailable = { true }
+        delegate.switchboard.setEnabled(true, for: .mediaControls)
+        try #require(MediaRemoteBridge.canSeek, "no seek function on this macOS, so the test proves nothing")
+        #expect(delegate.state.onSeek != nil, "seeking was never wired, so clearing it proves nothing")
+
+        delegate.switchboard.setEnabled(false, for: .mediaControls)
+
+        #expect(delegate.state.onSeek == nil)
     }
 
     // MARK: - Shelf
