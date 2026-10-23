@@ -44,7 +44,9 @@ public final class ShelfStore {
     /// The directory is the source of truth: there is no sidecar index to
     /// fall out of step with it, and a file removed from underneath us
     /// simply stops appearing. `addedAt` comes from the file's creation
-    /// date, which is what the 7-day purge measures against.
+    /// date, which is what the 7-day purge measures against -- and which
+    /// `add` stamps with the drop time, because a copy otherwise keeps the
+    /// *source's* creation date.
     private static func load(from directory: URL, fileManager: FileManager) -> [ShelfItem] {
         let urls = (try? fileManager.contentsOfDirectory(
             at: directory,
@@ -77,6 +79,17 @@ public final class ShelfStore {
         case .image(let data, _):
             try data.write(to: destination, options: .atomic)
         }
+
+        // `copyItem` keeps the source's creation date, and `load` reads
+        // `addedAt` back from it. Unstamped, a file made a month ago and
+        // dropped this morning reloads as a month old and the launch purge
+        // trashes it. The creation date is the record of the drop time --
+        // no sidecar index -- so it is set here, for every payload kind.
+        //
+        // `try?` because the copy has already landed: failing the drop now
+        // would leave an unlisted file that reappears at the next launch,
+        // which is worse than an age that is merely wrong.
+        try? fileManager.setAttributes([.creationDate: now], ofItemAtPath: destination.path)
 
         let item = ShelfItem(
             id: UUID(),

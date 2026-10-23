@@ -298,6 +298,32 @@ struct ShelfStoreTests {
         #expect(reopened.items.isEmpty)
     }
 
+    /// **The drop time survives a relaunch, not the file's own birthday.**
+    ///
+    /// `copyItem` preserves the source's creation date, and reload reads
+    /// `addedAt` back from the creation date. Without stamping the copy, a
+    /// file made a month ago and dropped this morning reloads as a month
+    /// old -- and the launch purge sends it to the Trash.
+    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() throws {
+        let (store, dir) = try makeStore()
+        let source = try makeSourceFile(named: "old.txt")
+        try FileManager.default.setAttributes(
+            [.creationDate: t0.addingTimeInterval(-30 * 24 * 3600)],
+            ofItemAtPath: source.path)
+
+        try store.add(.file(source), now: t0)
+
+        let reopened = try ShelfStore(directory: dir)
+        let reloaded = try #require(reopened.items.first)
+        #expect(abs(reloaded.addedAt.timeIntervalSince(t0)) < 1,
+                "reload took the source's creation date, not the drop time")
+
+        // What the launch purge does, a day after the drop.
+        #expect(try reopened.purge(now: t0.addingTimeInterval(24 * 3600)).isEmpty,
+                "a file dropped yesterday was purged at launch")
+        #expect(FileManager.default.fileExists(atPath: reloaded.url.path))
+    }
+
     @Test func theCapAndAgeAreWhatTheSpecSays() {
         #expect(ShelfStore.capacity == 20)
         #expect(ShelfStore.maxAge == 7 * 24 * 3600)
