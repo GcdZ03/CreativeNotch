@@ -36,12 +36,18 @@ running, or wake more often than the display actually changes.
 
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
-on `SystemActivity`. **The gate has four consumers, joining it in three
-different ways** — the clipboard poller and the media helper are suspended
-outside `.active`; the power module is never suspended, because a
-notification-driven source costs nothing idle; and the timer's *redraws* are
-gated while its *deadline* never is. Joining the gate does not have to mean
-being switched off.
+on `SystemActivity`, which is anything but `.active` when the machine is
+asleep, the screen is locked, the display is asleep (the energy saver
+timeout, a lid closed on an external display), or this session has been
+switched away from by fast user switching. A dark display reads as
+`.asleep` and a switched-away session as `.locked`. **The gate has five
+consumers, joining it in three different ways** — the clipboard poller and
+the media helper are suspended outside `.active`; the power module is never
+suspended, because a notification-driven source costs nothing idle; and the
+timer and the camera split: the timer's *redraws* are gated while its
+*deadline* never is, and the camera's *preview* stops outside `.active`
+while a *recording* in progress carries on. Joining the gate does not have
+to mean being switched off.
 
 ## Targets
 
@@ -469,8 +475,8 @@ way to know something was copied is to read `changeCount` and compare.
 The poller is therefore designed around minimising what that costs:
 
 - **0.75s while you are working, 3s after two quiet minutes**, floored at 2s
-  under Low Power Mode, and fully suspended while the screen is locked or the
-  machine is asleep. Resuming resyncs the change count *without* capturing
+  under Low Power Mode, and fully suspended while the screen is locked, the
+  machine or its display is asleep, or the session is switched away. Resuming resyncs the change count *without* capturing
   whatever was copied in the meantime — otherwise unlocking your Mac would
   swallow a password you copied on another device.
 - **Opt-out types are honoured before any content is read.**
