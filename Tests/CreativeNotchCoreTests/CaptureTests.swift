@@ -85,6 +85,43 @@ private let somebodyElse: pid_t = 9001
         deviceIsRunningSomewhere: true, processes: onlyUs, ownPID: me) == false)
 }
 
+// MARK: - Our own camera is not somebody else's
+
+private let builtIn = "0x8020000005ac8514"
+private let webcam = "usb-webcam-1"
+
+/// **The camera half of "it must not point at itself".** CreativeNotch's own
+/// preview opens the built-in camera, and CoreMediaIO's running flag cannot
+/// say who opened it -- so the device we hold is attributed to us.
+@Test func ourOwnCameraDoesNotCount() {
+    let cameras = [CaptureAttribution.Camera(uid: builtIn, isRunningSomewhere: true)]
+    #expect(CaptureAttribution.othersAreUsingCamera(cameras: cameras, ownDeviceUID: builtIn) == false)
+}
+
+/// Holding one camera must not hide another: a call on a USB webcam while our
+/// preview is open is exactly what the indicator is for.
+@Test func anotherCameraCountsWhileWeHoldOurs() {
+    let cameras = [
+        CaptureAttribution.Camera(uid: builtIn, isRunningSomewhere: true),
+        CaptureAttribution.Camera(uid: webcam, isRunningSomewhere: true),
+    ]
+    #expect(CaptureAttribution.othersAreUsingCamera(cameras: cameras, ownDeviceUID: builtIn))
+}
+
+/// When we hold nothing, the built-in camera running is somebody else.
+@Test func theBuiltInCameraCountsWhenWeHoldNothing() {
+    let cameras = [CaptureAttribution.Camera(uid: builtIn, isRunningSomewhere: true)]
+    #expect(CaptureAttribution.othersAreUsingCamera(cameras: cameras, ownDeviceUID: nil))
+}
+
+@Test func idleCamerasDoNotCount() {
+    let cameras = [
+        CaptureAttribution.Camera(uid: builtIn, isRunningSomewhere: false),
+        CaptureAttribution.Camera(uid: webcam, isRunningSomewhere: false),
+    ]
+    #expect(CaptureAttribution.othersAreUsingCamera(cameras: cameras, ownDeviceUID: nil) == false)
+}
+
 // MARK: - Three events on start, one on stop
 
 /// **Measured.** CoreMediaIO fires three events when a camera starts -- 0, 1, 1

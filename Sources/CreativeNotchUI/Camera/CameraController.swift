@@ -126,6 +126,18 @@ final class CameraController {
         code: AVError.deviceNotConnected.rawValue
     )
 
+    /// Which camera this app's own session holds -- its `uniqueID`, or `nil`
+    /// once released -- so the capture indicator can tell our preview from
+    /// somebody else's call. `IsRunningSomewhere` cannot.
+    ///
+    /// **The ordering is the point.** The hold is announced *before*
+    /// `startRunning()` and released only *after* `stopRunning()` returns,
+    /// both by enqueueing onto the main queue. CoreMediaIO's own listener
+    /// callbacks arrive on that same queue, so every re-read our start or stop
+    /// triggers sees the hold already in place -- and the badge does not
+    /// flash for our own preview on the way in or out.
+    var onHeldCameraChange: ((String?) -> Void)?
+
     init(shelf: @escaping @MainActor () -> ShelfStore?) {
         self.currentShelf = shelf
         let session = self.session
@@ -171,13 +183,30 @@ final class CameraController {
             session.queue.async { [weak self] in
                 guard shouldRun else {
                     session.stop()
+                    // Only once nothing of ours is running: a re-read between
+                    // now and then would attribute our own camera to nobody.
+                    guard !session.isRunning else { return }
+                    DispatchQueue.main.async { [weak self] in
+                        MainActor.assumeIsolated { self?.onHeldCameraChange?(nil) }
+                    }
                     return
                 }
                 guard session.configure() else {
                     Task { @MainActor [weak self] in self?.configurationFailed() }
                     return
                 }
+                let uid = session.deviceUID
+                DispatchQueue.main.async { [weak self] in
+                    MainActor.assumeIsolated { self?.onHeldCameraChange?(uid) }
+                }
                 session.start()
+                // A start that failed -- the camera taken exclusively,
+                // say -- holds nothing, and claiming it would hide
+                // whoever does.
+                guard !session.isRunning else { return }
+                DispatchQueue.main.async { [weak self] in
+                    MainActor.assumeIsolated { self?.onHeldCameraChange?(nil) }
+                }
             }
         }
     }

@@ -28,10 +28,19 @@ final class CaptureObserver {
     private var audioListeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     private var cmioListeners: [(CMIOObjectID, CMIOObjectPropertyAddress, CMIOObjectPropertyListenerBlock)] = []
 
+    /// The two listeners on the device *lists*, kept apart from the per-device
+    /// ones above because a list change tears those down and rebuilds them,
+    /// and must not tear down itself.
+    private var audioListListener: (AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)?
+    private var cmioListListener: (CMIOObjectPropertyAddress, CMIOObjectPropertyListenerBlock)?
+
     /// How many listeners are installed. Exposed for the same reason
     /// `PowerObserver.registrationCount` is: a stop that is asserted rather
     /// than observed is not a stop.
-    var registrationCount: Int { audioListeners.count + cmioListeners.count }
+    var registrationCount: Int {
+        audioListeners.count + cmioListeners.count
+            + (audioListListener == nil ? 0 : 1) + (cmioListListener == nil ? 0 : 1)
+    }
 
     /// **A backstop, and it is not paranoia.** There is an unanswered radar
     /// claiming `CMIOObjectRemovePropertyListenerBlock` returns `noErr` and
@@ -41,12 +50,32 @@ final class CaptureObserver {
     /// this before doing anything.
     private var isStopped = true
 
+    /// The `uniqueID` of the camera this app's own preview holds, or `nil`.
+    ///
+    /// `IsRunningSomewhere` cannot say *who* is capturing, so without this the
+    /// indicator lights for our own preview. A change re-reads: releasing the
+    /// camera while somebody else is still on it must light the badge now,
+    /// not at their next edge -- and that edge may never come.
+    var ownCameraUID: String? {
+        didSet {
+            guard ownCameraUID != oldValue else { return }
+            publish()
+        }
+    }
+
     /// Overridable so tests never touch CoreAudio or CoreMediaIO.
-    var readCurrentUse: () -> CaptureUse = { CaptureObserver.readSystem() }
+    var readCurrentUse: () -> CaptureUse = { .none }
+
+    init() {
+        readCurrentUse = { [weak self] in
+            CaptureObserver.readSystem(ownCameraUID: self?.ownCameraUID)
+        }
+    }
 
     func start() {
         guard isStopped else { return }
         isStopped = false
+        installDeviceListListeners()
         installAudioListeners()
         installCameraListeners()
         publish()
@@ -56,6 +85,52 @@ final class CaptureObserver {
         guard !isStopped else { return }
         isStopped = true
 
+        removeDeviceListeners()
+
+        if let (address, block) = audioListListener {
+            var address = address
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+            audioListListener = nil
+        }
+        if let (address, block) = cmioListListener {
+            var address = address
+            CMIOObjectRemovePropertyListenerBlock(
+                CMIOObjectID(kCMIOObjectSystemObject), &address, .main, block)
+            cmioListListener = nil
+        }
+    }
+
+    /// Test seam: drives the same path a listener callback does, so the
+    /// stopped-flag backstop can be exercised without a system that refuses to
+    /// remove a listener.
+    func publishForTesting() { publish() }
+
+    /// Test seam: drives the path a device-list callback does, without
+    /// plugging anything in.
+    func devicesChangedForTesting() { devicesChanged() }
+
+    private func publish() {
+        guard !isStopped else { return }
+        onChange?(readCurrentUse())
+    }
+
+    /// A device arrived or left. Rebuild the per-device listeners against the
+    /// list as it is now, then re-read: a device unplugged mid-capture never
+    /// fires its own "stopped" edge, so without the re-read the badge would
+    /// stay lit for hardware that is no longer there.
+    ///
+    /// Removing a listener from a device that has already gone fails, and
+    /// that is fine -- the device took the listener with it.
+    private func devicesChanged() {
+        guard !isStopped else { return }
+        removeDeviceListeners()
+        installAudioListeners()
+        installCameraListeners()
+        publish()
+    }
+
+    private func removeDeviceListeners() {
         for (id, address, block) in audioListeners {
             var address = address
             AudioObjectRemovePropertyListenerBlock(id, &address, .main, block)
@@ -69,17 +144,43 @@ final class CaptureObserver {
         cmioListeners.removeAll()
     }
 
-    /// Test seam: drives the same path a listener callback does, so the
-    /// stopped-flag backstop can be exercised without a system that refuses to
-    /// remove a listener.
-    func publishForTesting() { publish() }
-
-    private func publish() {
-        guard !isStopped else { return }
-        onChange?(readCurrentUse())
-    }
-
     // MARK: - Registration
+
+    /// Listens to the device lists themselves, on the system objects.
+    ///
+    /// The per-device listeners below can only be attached to devices that
+    /// exist at the time, and AirPods connecting, a USB webcam being plugged
+    /// in or Continuity Camera waking all happen later. Still one notification
+    /// per change and nothing between -- no polling for new hardware.
+    private func installDeviceListListeners() {
+        var audioAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let audioBlock: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.devicesChanged() }
+        }
+        if AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &audioAddress, .main, audioBlock) == noErr {
+            audioListListener = (audioAddress, audioBlock)
+        }
+
+        var cmioAddress = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIOHardwarePropertyDevices),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
+        let cmioBlock: CMIOObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.devicesChanged() }
+        }
+        // `.main`, never `nil`, for the reason given in
+        // `installCameraListeners`.
+        if CMIOObjectAddPropertyListenerBlock(
+            CMIOObjectID(kCMIOObjectSystemObject), &cmioAddress, .main, cmioBlock) == noErr {
+            cmioListListener = (cmioAddress, cmioBlock)
+        }
+    }
 
     private func installAudioListeners() {
         var address = AudioObjectPropertyAddress(
@@ -119,17 +220,34 @@ final class CaptureObserver {
 
     // MARK: - Reading the system
 
-    static func readSystem() -> CaptureUse {
-        CaptureUse(
+    /// `ownCameraUID` is the camera this app's own preview holds; it is
+    /// attributed to us by `CaptureAttribution`, so our preview does not light
+    /// the indicator that exists to report somebody else.
+    static func readSystem(ownCameraUID: String?) -> CaptureUse {
+        let cameras = cameraDevices().map {
+            CaptureAttribution.Camera(
+                uid: deviceUID(camera: $0) ?? "",
+                isRunningSomewhere: isRunningSomewhere(camera: $0)
+            )
+        }
+        return CaptureUse(
             microphone: audioInputDevices().contains { isRunningSomewhere(audio: $0) },
-            camera: cameraDevices().contains { isRunningSomewhere(camera: $0) }
+            camera: CaptureAttribution.othersAreUsingCamera(
+                cameras: cameras, ownDeviceUID: ownCameraUID)
         )
     }
 
+    /// Read on **input** scope, though the listener is global.
+    ///
+    /// Global scope answers "is this device running", and a combined
+    /// input/output device -- a USB headset, AirPods -- runs to *play*, so a
+    /// song lit "Microphone in use". The research note measured the
+    /// input-scope value as accurate on both edges; it is only the input-scope
+    /// *notification* that never fires. So: subscribe global, read input.
     private static func isRunningSomewhere(audio device: AudioObjectID) -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-            mScope: kAudioObjectPropertyScopeGlobal,
+            mScope: kAudioObjectPropertyScopeInput,
             mElement: kAudioObjectPropertyElementMain
         )
         var value: UInt32 = 0
@@ -151,6 +269,27 @@ final class CaptureObserver {
                                         size, &size, &value) == noErr
         else { return false }
         return value != 0
+    }
+
+    /// The camera's `kCMIODevicePropertyDeviceUID`, which is the string
+    /// AVFoundation vends as `AVCaptureDevice.uniqueID` -- the join between
+    /// the device our preview opened and the device this observer sees.
+    private static func deviceUID(camera device: CMIOObjectID) -> String? {
+        var address = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceUID),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
+        // Returned +1, per the CoreAudio/CoreMediaIO convention for CFType
+        // properties, so it is taken retained.
+        var uid: Unmanaged<CFString>?
+        let size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var used: UInt32 = 0
+        let status = withUnsafeMutablePointer(to: &uid) {
+            CMIOObjectGetPropertyData(device, &address, 0, nil, size, &used, $0)
+        }
+        guard status == noErr else { return nil }
+        return uid?.takeRetainedValue() as String?
     }
 
     private static func audioInputDevices() -> [AudioObjectID] {

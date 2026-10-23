@@ -1126,6 +1126,13 @@ notices. Measured in `docs/research/2026-09-13-capture-listener-scope.md`, and
 pinned by a source scan, because the tests inject the system read precisely so
 they touch no real device.
 
+**Subscribe global, read input.** The input-scope *value* was measured
+accurate; only its notification is missing. Global's value is true for a
+combined input/output device that is merely playing, so the microphone is read
+on input scope. The device lists themselves are listened to as well, so a
+device connected after start is attached and one unplugged mid-capture is
+re-read away rather than leaving the badge on.
+
 ### Read the value; do not react to the notification
 
 CoreAudio fires **one** event per edge. CoreMediaIO fires **three** on start
@@ -1150,6 +1157,14 @@ to report camera use is the wrong shape.**
 So attribution is a per-process read, and the policy half of it is pure. Since
 the camera module's clips are silent, the microphone half has nothing of ours
 to exclude at all.
+
+The camera half has no public per-process read, so it is attributed per
+*device*: `CameraController` announces the `uniqueID` of the camera its session
+holds (before `startRunning()`, released after `stopRunning()` returns, both
+via the main queue CoreMediaIO's callbacks share), and
+`CaptureAttribution.othersAreUsingCamera` discounts that one device. Another
+application on the *same* camera while our preview holds it goes unreported —
+the least informative case, since the user is looking at that preview.
 
 ### It is not suspended by the activity gate
 

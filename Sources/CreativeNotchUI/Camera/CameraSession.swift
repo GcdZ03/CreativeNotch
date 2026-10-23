@@ -109,4 +109,11 @@ final class CameraSession: @unchecked Sendable {
     }
 
     var isRunning: Bool { session.isRunning }
+
+    /// The `uniqueID` of the camera this graph opened, or `nil` before
+    /// `configure()`. Must be read on `queue`, like everything else here.
+    var deviceUID: String? {
+        dispatchPrecondition(condition: .onQueue(queue))
+        return input?.device.uniqueID
+    }
 }
