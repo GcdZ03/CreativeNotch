@@ -1,5 +1,6 @@
 import AppKit
 import Carbon.HIToolbox
+import Observation
 import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
@@ -222,6 +223,156 @@ struct HotKeyControllerTests {
 
         #expect(controller.isRegistered == false)
         #expect(HotKeyCenter.shared.registrationCount == 0)
+    }
+
+    // MARK: - Validation
+
+    /// A controller whose "does macOS own this?" answer is pinned, so the
+    /// tests do not depend on this machine's System Settings.
+    private func makeController(systemReserved: Bool) -> HotKeyController {
+        let controller = makeController()
+        controller.isSystemReserved = { _ in systemReserved }
+        return controller
+    }
+
+    private let bareSpace = HotKeyCombo(keyCode: UInt32(kVK_Space), carbonModifiers: 0)
+
+    /// **A bare key registers cleanly and then fires on every press of it,
+    /// everywhere.** Recording one must be refused, with the reason in the
+    /// row, rather than registered.
+    @Test func recordingABareKeyIsRefusedAndRegistersNothing() {
+        let controller = makeController(systemReserved: false)
+
+        controller.record(bareSpace)
+
+        #expect(controller.rejection == .noModifiers)
+        #expect(controller.combo == nil)
+        #expect(controller.isRegistered == false)
+        #expect(HotKeyCenter.shared.registrationCount == 0)
+    }
+
+    /// ⌘C would stop copying in every app.
+    @Test func recordingAStandardShortcutIsRefused() {
+        let controller = makeController(systemReserved: false)
+
+        controller.record(HotKeyCombo(keyCode: UInt32(kVK_ANSI_C), carbonModifiers: HotKeyModifier.command))
+
+        #expect(controller.rejection == .standardShortcut)
+        #expect(HotKeyCenter.shared.registrationCount == 0)
+    }
+
+    /// A system shortcut registers with noErr and never delivers.
+    @Test func recordingAShortcutMacOSOwnsIsRefused() {
+        let controller = makeController(systemReserved: true)
+
+        controller.record(combo)
+
+        #expect(controller.rejection == .usedByMacOS)
+        #expect(controller.isRegistered == false)
+    }
+
+    /// A refusal must not cost the user the shortcut they already had.
+    @Test func aRefusalKeepsTheExistingShortcut() {
+        let controller = makeController(systemReserved: false)
+        controller.record(combo)
+
+        controller.record(bareSpace)
+
+        #expect(controller.combo == combo)
+        #expect(controller.isRegistered)
+        #expect(HotKeyCenter.shared.registrationCount == 1)
+        controller.stop()
+    }
+
+    /// And the refusal is cleared by the next acceptable choice, or by
+    /// Clear, so it does not linger beside a shortcut that is fine.
+    @Test func anAcceptedChoiceOrClearRemovesTheRefusal() {
+        let controller = makeController(systemReserved: false)
+        controller.record(bareSpace)
+        #expect(controller.rejection != nil)
+
+        controller.record(combo)
+
+        #expect(controller.rejection == nil)
+        #expect(controller.status == .awaitingConfirmation)
+
+        controller.record(bareSpace)
+        controller.setCombo(nil)
+        #expect(controller.rejection == nil)
+    }
+
+    /// Every refusal has its own copy.
+    @Test func eachRejectionGetsItsOwnMessage() {
+        let rejections: [HotKeyValidation.Rejection] = [
+            .noModifiers, .shiftOnly, .alreadyUsedInThisApp, .usedByMacOS, .standardShortcut,
+        ]
+        let messages = rejections.map(HotKeyController.message(for:))
+        #expect(Set(messages).count == messages.count, "two rejections share one message")
+    }
+
+    // MARK: - Observation
+
+    /// `onChange` is `@Sendable`; a reference box is the usual way to record
+    /// that it ran.
+    private final class Flag: @unchecked Sendable { var value = false }
+
+    /// **The settings row holds the controller as a plain `let`**, and only
+    /// `AppState` is observed above it. Without observation here, recording a
+    /// shortcut or pressing Clear left the row showing the old label and the
+    /// old "Press it now to confirm".
+    @Test func choosingACombinationNotifiesTheRow() {
+        let controller = makeController()
+        let flag = Flag()
+        withObservationTracking {
+            _ = controller.combo
+        } onChange: { flag.value = true }
+
+        controller.setCombo(combo)
+
+        #expect(flag.value, "the row was not told the combination changed")
+        controller.stop()
+    }
+
+    @Test func clearingNotifiesTheRow() {
+        let controller = makeController()
+        controller.setCombo(combo)
+        let flag = Flag()
+        withObservationTracking {
+            _ = controller.combo
+            _ = controller.status
+        } onChange: { flag.value = true }
+
+        controller.setCombo(nil)
+
+        #expect(flag.value, "Clear left the row showing the old label")
+    }
+
+    /// Confirmation arrives from a keypress anywhere, with the window
+    /// untouched -- the row must still swap to "Confirmed".
+    @Test func confirmingNotifiesTheRow() {
+        let controller = makeController()
+        controller.setCombo(combo)
+        let flag = Flag()
+        withObservationTracking {
+            _ = controller.status
+        } onChange: { flag.value = true }
+
+        controller.didFire()
+
+        #expect(flag.value)
+        controller.stop()
+    }
+
+    @Test func aRefusalNotifiesTheRow() {
+        let controller = makeController(systemReserved: false)
+        let flag = Flag()
+        withObservationTracking {
+            _ = controller.rejection
+        } onChange: { flag.value = true }
+
+        controller.record(bareSpace)
+
+        #expect(flag.value)
     }
 
     // MARK: - Copy

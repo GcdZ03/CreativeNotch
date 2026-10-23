@@ -96,10 +96,20 @@ final class HotKeyRecorder: ObservableObject {
 }
 
 /// The settings row: what the shortcut is, and whether it has been proved.
+///
+/// The label is derived here, in this body, rather than handed in by the
+/// window: `controller` is `@Observable`, so reading `combo` here is what
+/// subscribes this row to it. A label computed by the parent and passed down
+/// as a value is only as fresh as the parent's last redraw.
 struct HotKeyRow: View {
     let controller: HotKeyController
     @ObservedObject var recorder: HotKeyRecorder
-    let label: String?
+
+    private var label: String? {
+        controller.combo.map {
+            HotKeyGlyphs.label($0, key: KeyCodeDisplay.character(for: $0.keyCode))
+        }
+    }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -121,6 +131,19 @@ struct HotKeyRow: View {
 
     @ViewBuilder
     private var statusView: some View {
+        // A refusal outranks the status: it is the answer to what the user
+        // just did. The shortcut it leaves in place is still in the button.
+        if let rejection = controller.rejection {
+            Text(HotKeyController.message(for: rejection))
+                .font(.caption)
+                .foregroundStyle(.red)
+        } else {
+            registrationStatusView
+        }
+    }
+
+    @ViewBuilder
+    private var registrationStatusView: some View {
         switch controller.status {
         case .unset:
             EmptyView()
