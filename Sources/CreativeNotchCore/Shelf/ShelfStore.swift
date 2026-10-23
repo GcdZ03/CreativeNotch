@@ -11,6 +11,16 @@ import Observation
 /// menu bar item. File I/O on the main actor is acceptable at this scale —
 /// twenty items, and disk is touched only on add or remove.
 ///
+/// The known cost is `add(.file)`: a same-volume copy is an APFS clone and
+/// instant, but a multi-gigabyte drop from another volume holds the main
+/// thread for the length of the copy. It stays synchronous on purpose.
+/// `performDragOperation` must answer accepted-or-refused before it
+/// returns, and spec section 9 says a drop that cannot be stored is
+/// refused — an off-main copy could only accept optimistically and fail
+/// later, and concurrent copies would race `uniqueURL` for the same name.
+/// Moving it off-main means a pending-item state in the store, not a
+/// `Task` around the copy.
+///
 /// `@Observable` so a view reading `items` is told when they change.
 /// Without it the shelf only appeared to work: every drop is followed by
 /// `state.transition(to: .open(.shelf))`, and `AppState` *is* observable,
@@ -44,7 +54,9 @@ public final class ShelfStore {
     /// The directory is the source of truth: there is no sidecar index to
     /// fall out of step with it, and a file removed from underneath us
     /// simply stops appearing. `addedAt` comes from the file's creation
-    /// date, which is what the 7-day purge measures against.
+    /// date, which is what the 7-day purge measures against -- and which
+    /// `add` stamps with the drop time, because a copy otherwise keeps the
+    /// *source's* creation date.
     private static func load(from directory: URL, fileManager: FileManager) -> [ShelfItem] {
         let urls = (try? fileManager.contentsOfDirectory(
             at: directory,
@@ -77,6 +89,17 @@ public final class ShelfStore {
         case .image(let data, _):
             try data.write(to: destination, options: .atomic)
         }
+
+        // `copyItem` keeps the source's creation date, and `load` reads
+        // `addedAt` back from it. Unstamped, a file made a month ago and
+        // dropped this morning reloads as a month old and the launch purge
+        // trashes it. The creation date is the record of the drop time --
+        // no sidecar index -- so it is set here, for every payload kind.
+        //
+        // `try?` because the copy has already landed: failing the drop now
+        // would leave an unlisted file that reappears at the next launch,
+        // which is worse than an age that is merely wrong.
+        try? fileManager.setAttributes([.creationDate: now], ofItemAtPath: destination.path)
 
         let item = ShelfItem(
             id: UUID(),
@@ -115,16 +138,48 @@ public final class ShelfStore {
         return item
     }
 
+    /// The item leaves the list only once its file is gone: one that stayed
+    /// on disk would be reloaded from the directory at the next launch.
     public func remove(_ id: UUID) throws {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let item = items.remove(at: index)
+        guard let item = items.first(where: { $0.id == id }) else { return }
         try trash(item)
+        items.removeAll { $0.id == id }
     }
 
+    /// Removes every item whose file could be trashed.
+    ///
+    /// An item whose move to the Trash fails stays listed, for the same
+    /// reason as `remove`: emptying the list up front showed a clear shelf
+    /// that quietly refilled from the directory at the next launch. Every
+    /// item is attempted; the first failure is rethrown afterwards.
     public func clear() throws {
-        let all = items
-        items.removeAll()
-        for item in all { try trash(item) }
+        var firstError: (any Error)?
+        for item in items {
+            do {
+                try trash(item)
+                items.removeAll { $0.id == item.id }
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+        }
+        if let firstError { throw firstError }
+    }
+
+    /// Drops items whose file no longer exists, returning what went.
+    ///
+    /// A file can be moved or deleted from underneath the shelf -- in
+    /// Finder, or a referenced capture tidied out of `~/Pictures` -- and
+    /// nothing watches the disk for that, by design. Called when the shelf
+    /// is shown instead: one `fileExists` per item, at most twenty, at the
+    /// moment a stale tile would be seen. Nothing is trashed; there is
+    /// nothing left to trash.
+    @discardableResult
+    public func pruneMissing() -> [ShelfItem] {
+        let missing = items.filter { !fileManager.fileExists(atPath: $0.url.path) }
+        guard !missing.isEmpty else { return [] }
+        let missingIDs = Set(missing.map(\.id))
+        items.removeAll { missingIDs.contains($0.id) }
+        return missing
     }
 
     /// Removes anything older than `maxAge`, returning what went.

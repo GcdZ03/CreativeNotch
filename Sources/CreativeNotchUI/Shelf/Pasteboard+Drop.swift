@@ -8,8 +8,16 @@ public extension NSPasteboard {
     /// File URLs are checked first and win outright: dragging a file also
     /// puts its path on the pasteboard as a string, and taking both would
     /// stash the same file twice.
+    ///
+    /// Only *file* URLs, though. A link dragged from a browser is an `NSURL`
+    /// as well; read as a file it became `.file(https://...)`, `copyItem`
+    /// threw, and the whole drop was refused. Filtered out here, a web
+    /// image or link falls through to the image and text kinds below.
     func dropPayloads() -> [DropPayload] {
-        if let urls = readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
+        if let urls = readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL],
            !urls.isEmpty {
             return urls.map { .file($0) }
         }

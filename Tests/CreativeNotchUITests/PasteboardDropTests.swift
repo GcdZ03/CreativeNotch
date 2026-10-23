@@ -43,6 +43,20 @@ struct PasteboardDropTests {
         #expect(pb.dropPayloads() == [.file(url)])
     }
 
+    /// A link dragged from a browser is an `NSURL` too. Read as a file it
+    /// became `.file(https://...)`, `copyItem` threw, and the whole drop was
+    /// refused -- rather than falling through to the kinds that can hold it.
+    @Test func aWebURLIsNotTreatedAsAFile() throws {
+        let pb = makePasteboard()
+        let link = try #require(URL(string: "https://example.com/picture.png"))
+        pb.writeObjects([link as NSURL])
+
+        let payloads = pb.dropPayloads()
+
+        #expect(payloads.contains { if case .file = $0 { true } else { false } } == false,
+                "a web link was offered to the shelf as a file it can never copy")
+    }
+
     @Test func anEmptyPasteboardYieldsNothing() {
         #expect(makePasteboard().dropPayloads().isEmpty)
     }
