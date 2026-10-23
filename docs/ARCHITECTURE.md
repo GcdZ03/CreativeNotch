@@ -430,7 +430,8 @@ from underneath us simply stops appearing. `addedAt` comes from the file's
 creation date, which is what the purge measures against — and `add` stamps
 that date with the drop time, because `copyItem` keeps the *source's* creation
 date and a month-old file dropped today would otherwise be purged at the next
-launch.
+launch. A file that vanishes while the app runs is pruned from the list when
+the shelf is shown (one `fileExists` per item), not by watching the disk.
 
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.

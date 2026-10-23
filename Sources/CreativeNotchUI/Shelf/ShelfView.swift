@@ -21,6 +21,15 @@ struct ShelfView: View {
     private let itemSize = CGSize(width: 64, height: 64)
 
     var body: some View {
+        content
+            // A file moved or deleted behind the shelf's back is noticed
+            // here, when its tile would be seen, rather than by watching
+            // the disk: one `fileExists` per item each time the shelf opens.
+            .onAppear { store.pruneMissing() }
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if store.items.isEmpty {
             DropTargetView()
         } else {

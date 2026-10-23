@@ -128,16 +128,48 @@ public final class ShelfStore {
         return item
     }
 
+    /// The item leaves the list only once its file is gone: one that stayed
+    /// on disk would be reloaded from the directory at the next launch.
     public func remove(_ id: UUID) throws {
-        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
-        let item = items.remove(at: index)
+        guard let item = items.first(where: { $0.id == id }) else { return }
         try trash(item)
+        items.removeAll { $0.id == id }
     }
 
+    /// Removes every item whose file could be trashed.
+    ///
+    /// An item whose move to the Trash fails stays listed, for the same
+    /// reason as `remove`: emptying the list up front showed a clear shelf
+    /// that quietly refilled from the directory at the next launch. Every
+    /// item is attempted; the first failure is rethrown afterwards.
     public func clear() throws {
-        let all = items
-        items.removeAll()
-        for item in all { try trash(item) }
+        var firstError: (any Error)?
+        for item in items {
+            do {
+                try trash(item)
+                items.removeAll { $0.id == item.id }
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+        }
+        if let firstError { throw firstError }
+    }
+
+    /// Drops items whose file no longer exists, returning what went.
+    ///
+    /// A file can be moved or deleted from underneath the shelf -- in
+    /// Finder, or a referenced capture tidied out of `~/Pictures` -- and
+    /// nothing watches the disk for that, by design. Called when the shelf
+    /// is shown instead: one `fileExists` per item, at most twenty, at the
+    /// moment a stale tile would be seen. Nothing is trashed; there is
+    /// nothing left to trash.
+    @discardableResult
+    public func pruneMissing() -> [ShelfItem] {
+        let missing = items.filter { !fileManager.fileExists(atPath: $0.url.path) }
+        guard !missing.isEmpty else { return [] }
+        let missingIDs = Set(missing.map(\.id))
+        items.removeAll { missingIDs.contains($0.id) }
+        return missing
     }
 
     /// Removes anything older than `maxAge`, returning what went.
