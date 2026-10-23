@@ -11,6 +11,16 @@ import Observation
 /// menu bar item. File I/O on the main actor is acceptable at this scale —
 /// twenty items, and disk is touched only on add or remove.
 ///
+/// The known cost is `add(.file)`: a same-volume copy is an APFS clone and
+/// instant, but a multi-gigabyte drop from another volume holds the main
+/// thread for the length of the copy. It stays synchronous on purpose.
+/// `performDragOperation` must answer accepted-or-refused before it
+/// returns, and spec section 9 says a drop that cannot be stored is
+/// refused — an off-main copy could only accept optimistically and fail
+/// later, and concurrent copies would race `uniqueURL` for the same name.
+/// Moving it off-main means a pending-item state in the store, not a
+/// `Task` around the copy.
+///
 /// `@Observable` so a view reading `items` is told when they change.
 /// Without it the shelf only appeared to work: every drop is followed by
 /// `state.transition(to: .open(.shelf))`, and `AppState` *is* observable,
