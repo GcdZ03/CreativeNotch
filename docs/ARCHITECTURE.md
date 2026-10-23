@@ -399,6 +399,13 @@ Anything reintroducing a permission should reintroduce the onboarding
 explanation with it — a prompt with no stated reason is worse than the
 feature is worth.
 
+What came back instead is smaller: a one-time welcome card inside the open
+panel (`WelcomeCardView`), which asks for nothing and only says what the
+notch does. Its show and dismiss rules are `WelcomeCard` in Core, its flag
+is `welcome.seen` in the preferences domain — deliberately not the legacy
+`hasCompletedOnboarding` — and it costs nothing once dismissed: no observer,
+no timer, just a `Bool` the panel's body reads.
+
 The app is not sandboxed. A private framework and a `perl` subprocess make
 sandboxing impractical, and there is no App Store target.
 
