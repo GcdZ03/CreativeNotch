@@ -364,6 +364,55 @@ struct ShelfStoreTests {
         #expect(FileManager.default.fileExists(atPath: item.url.path))
     }
 
+    /// The purge is the same rule again, and the likeliest to hit it: it
+    /// runs unattended at every launch. An expired item whose file could not
+    /// be trashed stays listed -- dropped, it would be reloaded from the
+    /// directory at the next launch anyway, having silently failed.
+    @Test func aPurgeThatCannotTrashKeepsTheItems() throws {
+        let (store, dir) = try makeStore()
+        try store.add(.text("old"), now: t0)
+        try store.add(.text("older"), now: t0)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        }
+
+        #expect(throws: (any Error).self) {
+            try store.purge(now: self.t0.addingTimeInterval(ShelfStore.maxAge + 1))
+        }
+        #expect(store.items.count == 2,
+                "expired items were dropped though their files are still on disk")
+    }
+
+    /// Eviction too. The twenty-first item arrives as a reference, because a
+    /// read-only directory refuses the copy an owned drop would make.
+    @Test func anEvictionThatCannotTrashKeepsTheOldest() throws {
+        let (store, dir) = try makeStore()
+        var oldest: ShelfItem?
+        for i in 0..<ShelfStore.capacity {
+            let item = try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i)))
+            if i == 0 { oldest = item }
+        }
+        let external = try makeExternalFile(named: "Photo.jpg")
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        }
+
+        #expect(throws: (any Error).self) {
+            try store.addReference(to: external, now: self.t0.addingTimeInterval(100))
+        }
+        #expect(store.items.contains { $0.id == oldest?.id },
+                "the oldest item was dropped though its file is still on disk")
+        #expect(FileManager.default.fileExists(atPath: oldest!.url.path))
+    }
+
     /// A file moved or deleted from underneath the shelf -- in Finder, or a
     /// referenced capture the user tidied away -- leaves a tile pointing at
     /// nothing until something notices.

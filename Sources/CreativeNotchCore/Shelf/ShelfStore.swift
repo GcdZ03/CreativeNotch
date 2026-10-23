@@ -187,15 +187,30 @@ public final class ShelfStore {
     /// Called on launch and after each add — never on a timer. A shelf can
     /// only grow when something is added to it, so nothing needs to watch
     /// it.
+    ///
+    /// The same rule as `clear`: an item leaves the list only once its file
+    /// is in the Trash. The purge runs unattended at launch, so a failure
+    /// here used to be invisible twice over -- the tile vanished, and the
+    /// file came back at the next launch to be purged, and fail, again.
+    /// Every expired item is attempted; the first failure is rethrown.
     @discardableResult
     public func purge(now: Date) throws -> [ShelfItem] {
         let expired = items.filter { now.timeIntervalSince($0.addedAt) > Self.maxAge }
         guard !expired.isEmpty else { return [] }
 
-        let expiredIDs = Set(expired.map(\.id))
-        items.removeAll { expiredIDs.contains($0.id) }
-        for item in expired { try trash(item) }
-        return expired
+        var removed: [ShelfItem] = []
+        var firstError: (any Error)?
+        for item in expired {
+            do {
+                try trash(item)
+                items.removeAll { $0.id == item.id }
+                removed.append(item)
+            } catch {
+                if firstError == nil { firstError = error }
+            }
+        }
+        if let firstError { throw firstError }
+        return removed
     }
 
     // MARK: - Internals
@@ -216,10 +231,17 @@ public final class ShelfStore {
         }
     }
 
+    /// Trashes the oldest items until the shelf is back at capacity.
+    ///
+    /// The oldest leaves the list only after its file is gone, like every
+    /// other removal. If it cannot be trashed the shelf stays over capacity
+    /// and the error is thrown: a list that dropped it would show twenty
+    /// while the directory holds twenty-one, and the next launch would
+    /// reload them all. The next add tries again.
     private func evictBeyondCapacity() throws {
-        while items.count > Self.capacity {
-            let oldest = items.removeLast()
+        while items.count > Self.capacity, let oldest = items.last {
             try trash(oldest)
+            items.removeLast()
         }
     }
 
