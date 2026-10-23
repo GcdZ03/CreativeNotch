@@ -43,6 +43,44 @@ struct PanelKeyboardWiringTests {
         #expect(d.state.openReason == .hover)
     }
 
+    /// A two-finger pull down the notch, delivered the way
+    /// `TrackpadGestureTests` delivers one, far enough to commit.
+    private func swipeOpen(_ d: AppDelegate) {
+        let strip = CGPoint(x: 310, y: 245)
+        func sample(_ phase: ScrollSample.Phase, dy: CGFloat = 0) -> ScrollSample {
+            ScrollSample(phase: phase, isMomentum: false, isPrecise: true,
+                         finger: CGVector(dx: 0, dy: dy), location: strip)
+        }
+        let far = NotchSwipe.commitDistance + 10
+        d.handleScroll(sample(.began))
+        for _ in 0..<4 { d.handleScroll(sample(.changed, dy: far / 4)) }
+        d.handleScroll(sample(.ended))
+    }
+
+    /// A swipe is a pointer gesture that can begin as a scroll: it opens the
+    /// panel as `.swipe` and leaves the keyboard with the frontmost app.
+    @Test func aSwipeOpenRecordsSwipeAndNeverTakesKeyboardFocus() {
+        let (d, taken) = makeDelegate()
+        swipeOpen(d)
+        #expect(d.state.state == .open(d.state.lastOpenTab))
+        #expect(d.state.openReason == .swipe)
+        #expect(taken() == 0)
+    }
+
+    /// A drop is someone mid-drag, not about to type: it opens the shelf as
+    /// `.drop` and leaves the keyboard alone.
+    @Test func aDropOpenRecordsDropAndNeverTakesKeyboardFocus() throws {
+        let (d, taken) = makeDelegate()
+        let container = try #require(d.panel?.contentView as? PassthroughContainer)
+
+        container.onDragEntered()
+        #expect(container.onDrop([.text("stashed")]))
+
+        #expect(d.state.state == .open(.shelf))
+        #expect(d.state.openReason == .drop)
+        #expect(taken() == 0)
+    }
+
     /// The reason belongs to the open, not to the tab: switching tabs keeps
     /// it, and leaving `.open` clears it so a later ambient open cannot
     /// inherit a stale tap.
