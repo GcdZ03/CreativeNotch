@@ -26,19 +26,22 @@ public final class MenuBarController: NSObject {
     private let shelfCount: () -> Int
     private let onClearClipboard: () -> Void
     private let clipboardCount: () -> Int
+    private let onShowWelcome: () -> Void
 
     public init(
         onShowPreferences: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
         shelfCount: @escaping () -> Int,
         onClearClipboard: @escaping () -> Void,
-        clipboardCount: @escaping () -> Int
+        clipboardCount: @escaping () -> Int,
+        onShowWelcome: @escaping () -> Void = {}
     ) {
         self.onShowPreferences = onShowPreferences
         self.onClearShelf = onClearShelf
         self.shelfCount = shelfCount
         self.onClearClipboard = onClearClipboard
         self.clipboardCount = clipboardCount
+        self.onShowWelcome = onShowWelcome
     }
 
     public func install() {
@@ -87,6 +90,19 @@ public final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
+        // The way back to the first-run card (2026-10-24), for someone who
+        // dismissed it too quickly. Here rather than in Settings because it
+        // is about the panel: it opens the panel on the card, and the panel
+        // opening under an activating Settings window would be hidden by it.
+        let welcome = NSMenuItem(
+            title: "Show Welcome Again",
+            action: #selector(showWelcome),
+            keyEquivalent: ""
+        )
+        welcome.target = self
+        menu.addItem(welcome)
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(
             title: "Quit CreativeNotch",
             action: #selector(NSApplication.terminate(_:)),
@@ -116,6 +132,10 @@ public final class MenuBarController: NSObject {
 
     @objc func clearClipboard() {
         onClearClipboard()
+    }
+
+    @objc func showWelcome() {
+        onShowWelcome()
     }
 
     @objc private func openPreferences() {

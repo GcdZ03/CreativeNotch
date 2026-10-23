@@ -123,6 +123,36 @@ public final class AppState {
     @ObservationIgnored
     public var onOpenSettings: (() -> Void)?
 
+    /// Whether the first-run welcome card has been dismissed (2026-10-24).
+    ///
+    /// Defaults to `true`, the opposite of a fresh install, so a bare
+    /// `AppState` — every rendering test's — draws the panel it always drew.
+    /// `AppDelegate.install(metrics:)` loads the real value from the store.
+    /// Observed: `body` reads it, and a dismissal must take the card away.
+    public internal(set) var welcomeSeen: Bool = true
+
+    /// Persists the flag. A closure, like the pane verbs, so the view never
+    /// holds a store. `false` is "Show Welcome Again".
+    @ObservationIgnored
+    public var onPersistWelcomeSeen: ((Bool) -> Void)?
+
+    /// The card's "Set Shortcut…": dismisses it, closes the panel and opens
+    /// Settings on the shortcut row. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onWelcomeSetShortcut: (() -> Void)?
+
+    /// Whether the card is on screen right now. `WelcomeCard.isShown`, read
+    /// in one place so the view and the tests ask the same question.
+    public var showsWelcome: Bool { WelcomeCard.isShown(seen: welcomeSeen, in: state) }
+
+    /// The one writer of `welcomeSeen` after install: applies and persists
+    /// in the same call, for the reason `onSetHoverBehaviour` does both.
+    public func setWelcomeSeen(_ seen: Bool) {
+        guard seen != welcomeSeen else { return }
+        welcomeSeen = seen
+        onPersistWelcomeSeen?(seen)
+    }
+
     /// The notch tap's way into the panel: the delegate's `openPanel()`,
     /// which picks a visible tab or declines when there is none.
     @ObservationIgnored
@@ -351,6 +381,10 @@ public final class AppState {
     /// callback for an unchanged state cannot leave them stale.
     public func transition(to next: NotchState) {
         guard next != state else { return }
+        // Closing a panel that showed the welcome card counts as reading it
+        // (`WelcomeCard.isDismissed`). Decided from the state being left, so
+        // it is computed before `state` moves.
+        let dismissesWelcome = WelcomeCard.isDismissed(seen: welcomeSeen, from: state, to: next)
         if case .open(let tab) = next { lastOpenTab = tab }
         // One peek replacing another is a swap, not a collapse, even when the
         // new one is smaller — a battery peek giving way to a drag target.
@@ -358,6 +392,7 @@ public final class AppState {
             || (next.presentation.isPeek && state.presentation.isPeek)
         state = next
         notify(.state(next))
+        if dismissesWelcome { setWelcomeSeen(true) }
     }
 
     /// Corrects which tab a later reopen would target, without moving the
@@ -827,21 +862,44 @@ public struct NotchRootView: View {
                             onSelect: { app.transition(to: .open($0)) },
                             onSettings: { app.onOpenSettings?() }
                         )
-                        HStack(spacing: 0) {
-                            if layout.mediaColumnWidth > 0 {
-                                MediaColumn(
-                                    snapshot: app.nowPlaying,
-                                    artwork: app.nowPlayingArtwork,
-                                    showsControls: app.showsMediaControls,
-                                    coverNamespace: sharedCover,
-                                    onSeek: app.onSeek
-                                ) { app.onMediaCommand?($0) }
+                        // The first-run card stacks over the body, under the
+                        // live header (`WelcomeCardView`). A `ZStack` rather
+                        // than an overlay: an overlay is offered the body's
+                        // size, and a body that hugs its content — an empty
+                        // shelf — would squeeze the card into a column.
+                        ZStack {
+                            HStack(spacing: 0) {
+                                if layout.mediaColumnWidth > 0 {
+                                    MediaColumn(
+                                        snapshot: app.nowPlaying,
+                                        artwork: app.nowPlayingArtwork,
+                                        showsControls: app.showsMediaControls,
+                                        coverNamespace: sharedCover,
+                                        onSeek: app.onSeek
+                                    ) { app.onMediaCommand?($0) }
+                                }
+                                // `at: now` keeps the pane on the single instant
+                                // `body` already bound.
+                                openContent(for: tab, at: now)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
-                            // `at: now` keeps the pane on the single instant
-                            // `body` already bound.
-                            openContent(for: tab, at: now)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            // Read from `showsWelcome`, the one question the
+                            // tests ask too.
+                            if app.showsWelcome {
+                                WelcomeCardView(
+                                    onSetShortcut: { app.onWelcomeSetShortcut?() },
+                                    onDismiss: { app.setWelcomeSeen(true) }
+                                )
+                                .transition(NotchMotion.content(reduceMotion: reduceMotion))
+                            }
                         }
+                        // A one-shot on the button press, the snappy spring
+                        // the panel shrinks with — or a short ease under
+                        // Reduce Motion.
+                        .animation(
+                            NotchMotion.animation(growing: false, reduceMotion: reduceMotion),
+                            value: app.welcomeSeen
+                        )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
 
