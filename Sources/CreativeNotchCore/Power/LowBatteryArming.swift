@@ -12,12 +12,21 @@ import Foundation
 ///
 /// So each threshold is *armed* or not. It fires once when crossed, and
 /// re-arms only when the level rises back above it — charging to 21% arms
-/// the 20% threshold; sitting at 20% does not.
+/// the 20% threshold; sitting at 20% does not. Off the charger the rise
+/// has to clear `rearmMargin` as well, because 20 -> 21 -> 20 on battery is
+/// the jitter itself, not a recovery.
 public struct LowBatteryArming: Equatable, Sendable {
 
     /// Descending, and the order matters: `crossing` walks these to find
     /// the most urgent one crossed.
     public static let thresholds: [Int] = [20, 10]
+
+    /// How far above a threshold a *discharging* machine must climb before
+    /// that threshold re-arms. IOKit's whole percent wobbles by one on an
+    /// untouched machine, so one point is noise; two is kept as headroom
+    /// for a recalibration step. Strictly greater than, so 20% re-arms at
+    /// 23%, not 22%.
+    public static let rearmMargin = 2
 
     /// Which thresholds have not spoken yet. Everything starts armed: a
     /// machine that launches the app already at 8% has a problem worth
@@ -32,11 +41,15 @@ public struct LowBatteryArming: Equatable, Sendable {
     ///   source, not `isCharging`. A machine at 100% on wall power is not
     ///   discharging even though it is not charging either.
     public mutating func crossing(level: Int, isPluggedIn: Bool) -> Int? {
-        // Re-arm on the way up regardless of source. The level rising is
+        // Re-arm on the way up from either source. The level rising is
         // what resolves a warning; requiring the charger to still be
         // attached at the moment of the check would leave a threshold
-        // disarmed after a top-up that ended a minute ago.
-        for threshold in Self.thresholds where level > threshold {
+        // disarmed after a top-up that ended a minute ago. On the charger
+        // any rise above the threshold counts, because the climb is real;
+        // on battery it must clear the margin, because a one-point rise
+        // there is the jitter this type exists to absorb.
+        let margin = isPluggedIn ? 0 : Self.rearmMargin
+        for threshold in Self.thresholds where level > threshold + margin {
             armed.insert(threshold)
         }
 

@@ -117,7 +117,11 @@ public final class PowerObserver {
             guard let context else { return }
             PowerObserver.deliver(context)
         }, box.toOpaque())?.takeRetainedValue() {
-            CFRunLoopAddSource(CFRunLoopGetMain(), source, .defaultMode)
+            // `.commonModes`, not `.defaultMode`: while a window is being
+            // dragged or a menu is held open the main run loop runs in the
+            // event-tracking mode, and a default-mode source would sit
+            // undelivered until the user let go.
+            CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
             self.source = source
         }
 
@@ -139,7 +143,7 @@ public final class PowerObserver {
             // added to. Removing from the wrong one silently does
             // nothing — the same trap `SystemActivityObserver` documents
             // for distributed notification centres.
-            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .defaultMode)
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), source, .commonModes)
             self.source = nil
         }
         // After the source is gone, so nothing can deliver to the box once

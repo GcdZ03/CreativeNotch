@@ -160,6 +160,41 @@ struct PowerControllerTests {
         #expect(recorder.events == [.lowBattery(threshold: 20, level: 20)])
     }
 
+    /// The baseline rule is about *transitions* -- launching on wall power
+    /// is not the charger being plugged in. A level already below a
+    /// threshold is not a transition but a state, and launching at 8% on
+    /// battery is exactly the problem `LowBatteryArming` starts armed to
+    /// mention.
+    @Test func launchingBelowAThresholdOnBatteryWarns() {
+        let (controller, recorder) = controller()
+
+        controller.apply(snapshot(level: 8, source: .battery))
+
+        #expect(recorder.events == [.lowBattery(threshold: 10, level: 8)])
+    }
+
+    /// The same launch on wall power has nothing to say.
+    @Test func launchingBelowAThresholdOnWallPowerIsSilent() {
+        let (controller, recorder) = controller()
+
+        controller.apply(snapshot(level: 8, source: .wall))
+
+        #expect(recorder.events.isEmpty)
+    }
+
+    /// The first-snapshot warning still respects the activity gate. A
+    /// machine launched behind a lock screen spends the threshold silently.
+    @Test func launchingBelowAThresholdWhileLockedIsSilentAndSpent() {
+        let (controller, recorder) = controller()
+        controller.setActivity(.locked)
+        controller.apply(snapshot(level: 8))
+
+        controller.setActivity(.active)
+        controller.apply(snapshot(level: 7))
+
+        #expect(recorder.events.isEmpty)
+    }
+
     /// macOS turns Low Power Mode on automatically at 20%, so both fire
     /// from one snapshot. The battery is the more urgent of the two, and
     /// the peek slot holds one thing.
