@@ -47,3 +47,8 @@ jobs:
 
       - name: Test
         run: swift test -v
+
+      # install.sh is what users pipe into bash; its backup-and-restore path
+      # is the difference between a failed update and no app at all.
+      - name: Installer tests
+        run: Scripts/tests/install-test.sh
