@@ -34,9 +34,10 @@ struct SystemActivityFanOutTests {
         let delegate = makeDelegate()
         delegate.activity.start()
 
-        // Four registrations: sleep, wake, lock, unlock. Any more means a
-        // second observer is registering alongside this one.
-        #expect(delegate.activity.tokenCount == 4)
+        // Eight registrations: sleep, wake, lock, unlock, display sleep and
+        // wake, session resign and become active. Any more means a second
+        // observer is registering alongside this one.
+        #expect(delegate.activity.tokenCount == 8)
         delegate.activity.stop()
     }
 

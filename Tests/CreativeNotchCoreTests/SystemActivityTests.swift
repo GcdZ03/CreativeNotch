@@ -73,4 +73,48 @@ struct SystemActivityTests {
         #expect(reducer.apply(.screenUnlocked) == .active)
         #expect(reducer.apply(.didWake) == .active)
     }
+
+    // MARK: - Display sleep and fast user switching
+
+    /// The display sleeping with the system awake — the energy saver
+    /// timeout, or a lid closed on an external display — means nobody can
+    /// see the notch. It suspends like sleep.
+    @Test func displaySleepSuspendsLikeSleep() {
+        var reducer = SystemActivityReducer()
+        #expect(reducer.apply(.screensDidSleep) == .asleep)
+        #expect(reducer.apply(.screensDidWake) == .active)
+    }
+
+    /// Fast user switching moves this session behind another user's. The
+    /// person it belongs to is not at the machine — the same position as
+    /// a lock screen.
+    @Test func switchingAwayFromTheSessionSuspendsLikeLock() {
+        var reducer = SystemActivityReducer()
+        #expect(reducer.apply(.sessionDidResignActive) == .locked)
+        #expect(reducer.apply(.sessionDidBecomeActive) == .active)
+    }
+
+    /// Each condition is its own flag: the display waking does not undo a
+    /// lock, and the session returning does not undo a display sleep.
+    @Test func theNewConditionsAreIndependentOfTheOldOnes() {
+        var reducer = SystemActivityReducer()
+        reducer.apply(.screenLocked)
+        reducer.apply(.screensDidSleep)
+        #expect(reducer.apply(.screensDidWake) == .locked)
+        #expect(reducer.apply(.screenUnlocked) == .active)
+
+        reducer.apply(.sessionDidResignActive)
+        reducer.apply(.screensDidSleep)
+        #expect(reducer.apply(.sessionDidBecomeActive) == .asleep)
+        #expect(reducer.apply(.screensDidWake) == .active)
+    }
+
+    /// A system wake does not clear a display sleep, nor the reverse.
+    @Test func systemWakeAndDisplayWakeAreSeparate() {
+        var reducer = SystemActivityReducer()
+        reducer.apply(.willSleep)
+        reducer.apply(.screensDidSleep)
+        #expect(reducer.apply(.didWake) == .asleep)
+        #expect(reducer.apply(.screensDidWake) == .active)
+    }
 }

@@ -38,6 +38,21 @@ struct SystemActivityObserverTests {
         #expect(observer.activity == .active)
     }
 
+    /// Display sleep and fast user switching reach the consumer too, so the
+    /// clipboard poller and media helper pause while nobody can see them.
+    @Test func displaySleepAndSessionSwitchingAreReported() {
+        let observer = SystemActivityObserver()
+        var seen: [SystemActivity] = []
+        observer.onChange = { seen.append($0) }
+
+        observer.handle(.screensDidSleep)
+        observer.handle(.screensDidWake)
+        observer.handle(.sessionDidResignActive)
+        observer.handle(.sessionDidBecomeActive)
+
+        #expect(seen == [.asleep, .active, .locked, .active])
+    }
+
     /// Only *changes* are reported. `screenIsLocked` can be delivered more
     /// than once, and the consumer tears down and rebuilds a timer on each
     /// call — so a repeat would restart the poll clock for no reason.
@@ -60,7 +75,7 @@ struct SystemActivityObserverTests {
         #expect(observer.tokenCount == 0)
 
         observer.start()
-        #expect(observer.tokenCount == 4)
+        #expect(observer.tokenCount == 8)
 
         observer.stop()
         #expect(observer.tokenCount == 0)
@@ -71,7 +86,7 @@ struct SystemActivityObserverTests {
         observer.start()
         observer.start()
 
-        #expect(observer.tokenCount == 4)
+        #expect(observer.tokenCount == 8)
         observer.stop()
         #expect(observer.tokenCount == 0)
     }
