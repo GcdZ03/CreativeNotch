@@ -595,18 +595,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // it, and `start()` runs after `install(metrics:)`. The flag has one
         // writer and it is the first snapshot, in `powerDidChange`.
 
-        // No object to own: `MediaRemoteBridge` is stateless beyond its
-        // cached handle, and there is nothing to start or stop. Unlike the
-        // clipboard controller it needs no lifecycle hook in
-        // `applicationDidFinishLaunching` or `applicationWillTerminate` —
-        // a command is sent only because a button was clicked.
-        state.showsMediaControls = mediaRemoteAvailable()
-        state.onMediaCommand = { command in MediaRemoteBridge.send(command) }
-        // Behind the same gate as the buttons, and only where this macOS has
-        // the seek function: otherwise the bar stays display-only.
-        state.onSeek = state.showsMediaControls && MediaRemoteBridge.canSeek
-            ? { seconds in MediaRemoteBridge.seek(to: seconds) }
-            : nil
+        // The transport controls are deliberately NOT wired here. Reading
+        // availability is what `dlopen`s MediaRemote, there is no
+        // `dlclose`, and `install` runs before any preference is loaded —
+        // so probing here loaded the private framework at every launch,
+        // whatever the user had chosen. The `.mediaControls` leg of
+        // `ModuleSwitchboard.setEnabled` is the one place that wires the
+        // buttons and the seek, preference first, and `apply()` runs it at
+        // launch. `MediaRemoteBridge` is stateless beyond its cached
+        // handle, so there is nothing to start or stop either way.
 
         container.onDragEntered = { [weak self] in
             // A drop target that appears and then refuses the file is worse
