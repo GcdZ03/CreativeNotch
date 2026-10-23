@@ -79,6 +79,30 @@ struct CaptureObserverTests {
         }
     }
 
+    /// **The microphone is read on input scope.** Global scope's running flag
+    /// is true for a combined input/output device -- a USB headset, AirPods --
+    /// that is merely *playing*, which lit "Microphone in use" for a song. The
+    /// research note measured the input-scope *value* as accurate; only its
+    /// *notification* never fires, so the listener stays global and the read
+    /// does not.
+    @Test func theMicrophoneIsReadOnInputScope() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI/Capture/CaptureObserver.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        let read = try #require(text.range(of: "private static func isRunningSomewhere(audio"))
+        let next = try #require(text.range(of: "private static func isRunningSomewhere(camera"))
+        let block = String(text[read.lowerBound..<next.lowerBound])
+
+        #expect(block.contains("kAudioObjectPropertyScopeInput"),
+                "the microphone read is not on input scope")
+        #expect(block.contains("kAudioObjectPropertyScopeGlobal") == false,
+                "the microphone read is on global scope, which counts playback")
+    }
+
     @Test func startingPublishesTheCurrentStateImmediately() {
         let observer = CaptureObserver()
         observer.readCurrentUse = { CaptureUse(microphone: true) }

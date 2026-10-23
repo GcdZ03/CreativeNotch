@@ -126,10 +126,17 @@ final class CaptureObserver {
         )
     }
 
+    /// Read on **input** scope, though the listener is global.
+    ///
+    /// Global scope answers "is this device running", and a combined
+    /// input/output device -- a USB headset, AirPods -- runs to *play*, so a
+    /// song lit "Microphone in use". The research note measured the
+    /// input-scope value as accurate on both edges; it is only the input-scope
+    /// *notification* that never fires. So: subscribe global, read input.
     private static func isRunningSomewhere(audio device: AudioObjectID) -> Bool {
         var address = AudioObjectPropertyAddress(
             mSelector: kAudioDevicePropertyDeviceIsRunningSomewhere,
-            mScope: kAudioObjectPropertyScopeGlobal,
+            mScope: kAudioObjectPropertyScopeInput,
             mElement: kAudioObjectPropertyElementMain
         )
         var value: UInt32 = 0
