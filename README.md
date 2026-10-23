@@ -254,6 +254,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
+| Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |

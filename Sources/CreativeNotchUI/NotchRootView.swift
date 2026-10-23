@@ -126,6 +126,12 @@ public final class AppState {
     @ObservationIgnored
     public var onAirDropShelfItems: (([URL]) -> Void)?
 
+    /// Shows a shelf file selected in Finder, from a tile's context menu or
+    /// accessibility actions. A verb, like AirDrop, so the view never
+    /// reaches for `NSWorkspace`.
+    @ObservationIgnored
+    public var onRevealShelfItem: ((URL) -> Void)?
+
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
 
@@ -968,7 +974,8 @@ public struct NotchRootView: View {
                     ShelfView(
                         store: shelf,
                         onRemove: { app.onRemoveShelfItem?($0) },
-                        onAirDrop: { app.onAirDropShelfItems?([$0]) }
+                        onAirDrop: { app.onAirDropShelfItems?([$0]) },
+                        onReveal: { app.onRevealShelfItem?($0) }
                     )
                 }
             }

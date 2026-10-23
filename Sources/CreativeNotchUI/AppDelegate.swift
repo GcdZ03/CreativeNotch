@@ -620,6 +620,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onUndoClearShelf = { [weak self] in self?.undoClearShelf() }
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
+        state.onRevealShelfItem = { url in NSWorkspace.shared.activateFileViewerSelecting([url]) }
 
         // Open on hover (2026-10-17). Loaded here, saved and applied together
         // by the verb, like the shortcut's store.
