@@ -7,11 +7,12 @@ import CreativeNotchCore
 /// Two ways to reach the same number, sharing one value: the stepper for a
 /// couple of clicks, the field for an exact figure.
 ///
-/// The field is the only control in the project that needs the keyboard, and
-/// it is the reason `NotchPanel.canBecomeKey` is `true` and
-/// `AppDelegate.syncKeyWindow` makes the panel key on this tab alone. An
-/// earlier version shipped a field while the panel could never become key:
-/// it rendered, and swallowed every keystroke.
+/// The field is the only control in the project that types, and it is why
+/// `NotchPanel.canBecomeKey` is `true` and `AppDelegate.syncKeyWindow` makes
+/// the panel key on this tab however it was opened — even by hover, which
+/// otherwise never takes the keyboard (`PanelFocus`). An earlier version
+/// shipped a field while the panel could never become key: it rendered, and
+/// swallowed every keystroke.
 ///
 /// The stepper stays, and is not a fallback. It is the faster path for the
 /// common case, and it is the only one that works if focus is ever refused.
