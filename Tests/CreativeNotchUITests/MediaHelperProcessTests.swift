@@ -149,6 +149,40 @@ struct MediaHelperProcessTests {
         #expect(helper.discardedLineCount == 1)
     }
 
+    // MARK: - The bridge's artwork budget
+
+    /// The reader's cap drops a whole line, and the line is the whole
+    /// payload — title, artist and play state go with the artwork. A raw
+    /// image over ~786 KB base64-encodes past 1 MB, so the bridge must keep
+    /// artwork under a budget that leaves the line comfortably inside the
+    /// cap, and the cap stays only as the safety bound.
+    ///
+    /// Read from source because the bridge is loaded into perl and linked
+    /// by nothing, test targets included; the same reason
+    /// `theLaunchPathStartsSubsystemsOnlyThroughTheOneMethod` scans source.
+    @Test func theBridgesArtworkBudgetFitsInsideTheReadersLineCap() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // .../Tests/CreativeNotchUITests
+            .deletingLastPathComponent()   // .../Tests
+            .deletingLastPathComponent()   // repo root
+            .appendingPathComponent("Sources/CreativeNotchMediaBridge/bridge.m")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        let declaration = try #require(
+            text.firstMatch(of: /static const NSUInteger kCNMaxArtworkBytes = (\d+);/),
+            "bridge.m no longer declares an artwork budget"
+        )
+        let budget = try #require(Int(declaration.1))
+        let encoded = (budget + 2) / 3 * 4
+        // Everything else on the line: title, artist, album, identifiers.
+        let metadataHeadroom = 64 * 1024
+
+        #expect(budget > 0)
+        #expect(encoded + metadataHeadroom <= MediaHelperProcess.maxLineLength)
+        // Declared and actually applied before the artwork is encoded.
+        #expect(text.contains("CNArtworkWithinBudget(artwork)"))
+    }
+
     // MARK: - Bounded shutdown (fix round 1: reviewer flagged unbounded
     // waitUntilExit as an indefinite main-thread hang)
 

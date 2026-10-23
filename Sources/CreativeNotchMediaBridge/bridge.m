@@ -23,6 +23,7 @@
 // the library is loaded.
 
 #import <Foundation/Foundation.h>
+#import <ImageIO/ImageIO.h>
 #include <dispatch/dispatch.h>
 #include <dlfcn.h>
 #include <errno.h>
@@ -79,6 +80,70 @@ static void CNLog(const char *format, ...) {
     fputc('\n', stderr);
     va_end(args);
     fflush(stderr);
+}
+
+/// The most raw artwork one line may carry, in bytes (512 KB).
+///
+/// The consumer (`MediaHelperProcess.maxLineLength`, 1 MB) drops an
+/// over-long line WHOLE, and the line is the whole payload: artwork past
+/// ~786 KB raw base64-encodes past that cap and takes the title, artist and
+/// play state down with it. 512 KB encodes to ~683 KB, which leaves ample
+/// room for the metadata beside it, and the consumer's cap stays what it was
+/// meant to be — a safety bound nothing legitimate reaches. The observed
+/// real payload was 288 KB, so this is rarely touched at all.
+///
+/// Written as a plain literal on purpose: `MediaHelperProcessTests` reads
+/// it from this file to prove it fits under the consumer's cap, since no
+/// test target can link this library.
+static const NSUInteger kCNMaxArtworkBytes = 524288;
+
+/// The longest edge a downscaled artwork is given, in pixels. Comfortably
+/// above anything the notch draws, even on a 2x display.
+static const int kCNArtworkThumbnailPixels = 600;
+
+/// `artwork` unchanged when it is within `kCNMaxArtworkBytes`; otherwise a
+/// downscaled JPEG of it, or nil when even that does not fit (or the data
+/// is not an image ImageIO can read).
+///
+/// Downscaled rather than dropped outright: an over-budget image is almost
+/// always a huge, lossless cover, and a 600-pixel JPEG of it looks identical
+/// in the notch. Dropping is only the fallback, and dropping the ARTWORK —
+/// never the line — is the point of the whole exercise.
+static NSData *CNArtworkWithinBudget(NSData *artwork) {
+    if (artwork.length <= kCNMaxArtworkBytes) { return artwork; }
+
+    NSData *smaller = nil;
+    CGImageSourceRef source = CGImageSourceCreateWithData((__bridge CFDataRef)artwork, NULL);
+    if (source != NULL) {
+        NSDictionary *options = @{
+            (__bridge NSString *)kCGImageSourceCreateThumbnailFromImageAlways: @YES,
+            (__bridge NSString *)kCGImageSourceCreateThumbnailWithTransform: @YES,
+            (__bridge NSString *)kCGImageSourceThumbnailMaxPixelSize: @(kCNArtworkThumbnailPixels),
+        };
+        CGImageRef thumbnail =
+            CGImageSourceCreateThumbnailAtIndex(source, 0, (__bridge CFDictionaryRef)options);
+        if (thumbnail != NULL) {
+            NSMutableData *encoded = [NSMutableData data];
+            CGImageDestinationRef destination = CGImageDestinationCreateWithData(
+                (__bridge CFMutableDataRef)encoded, CFSTR("public.jpeg"), 1, NULL);
+            if (destination != NULL) {
+                NSDictionary *properties = @{
+                    (__bridge NSString *)kCGImageDestinationLossyCompressionQuality: @0.8,
+                };
+                CGImageDestinationAddImage(destination, thumbnail,
+                                           (__bridge CFDictionaryRef)properties);
+                if (CGImageDestinationFinalize(destination)) { smaller = encoded; }
+                CFRelease(destination);
+            }
+            CGImageRelease(thumbnail);
+        }
+        CFRelease(source);
+    }
+
+    if (smaller.length > 0 && smaller.length <= kCNMaxArtworkBytes) { return smaller; }
+    // Counts only, per CNLog's rule — the image is user data too.
+    CNLog("artwork over budget (%lu bytes), omitted", (unsigned long)artwork.length);
+    return nil;
 }
 
 /// Serialises one now-playing dictionary onto stdout as a single JSON line.
@@ -143,9 +208,16 @@ static void CNEmit(NSDictionary *info, BOOL playing) {
         // saw 138061 → 0 → 0 → 138061 …), and the consumer caches by track
         // identity precisely because of that. An empty string would look
         // like real artwork data and defeat the cache.
+        //
+        // Kept within `kCNMaxArtworkBytes` first — see CNArtworkWithinBudget.
+        // Artwork that cannot be brought under it is omitted the same way,
+        // so the rest of the line still arrives.
         id artwork = info[@"kMRMediaRemoteNowPlayingInfoArtworkData"];
         if ([artwork isKindOfClass:[NSData class]] && [artwork length] > 0) {
-            payload[@"artwork"] = [artwork base64EncodedStringWithOptions:0];
+            NSData *sized = CNArtworkWithinBudget(artwork);
+            if (sized != nil) {
+                payload[@"artwork"] = [sized base64EncodedStringWithOptions:0];
+            }
         }
 
         NSError *error = nil;

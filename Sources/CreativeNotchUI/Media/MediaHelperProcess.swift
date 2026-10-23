@@ -21,11 +21,17 @@ public final class MediaHelperProcess {
 
     /// Ceiling on a single line, complete or still pending.
     ///
-    /// Artwork is base64 with no size ceiling enforced by the bridge; a
-    /// real payload was measured at 288 KB. Without a cap, a hostile or
-    /// malfunctioning payload becomes an unbounded buffer in THIS process,
-    /// not just a slow one in the helper. 1 MB is generous headroom over
-    /// the observed 288 KB while still being a hard stop.
+    /// Artwork is base64; a real payload was measured at 288 KB. Without a
+    /// cap, a hostile or malfunctioning payload becomes an unbounded buffer
+    /// in THIS process, not just a slow one in the helper. 1 MB is generous
+    /// headroom over the observed 288 KB while still being a hard stop.
+    ///
+    /// A line over the cap is dropped whole — metadata and all — so the
+    /// bridge keeps artwork inside its own smaller budget
+    /// (`kCNMaxArtworkBytes` in bridge.m, downscaling or omitting anything
+    /// larger) and nothing legitimate reaches this. It is the safety bound,
+    /// not the sizing policy; `theBridgesArtworkBudgetFitsInsideTheReadersLineCap`
+    /// keeps the two in step.
     static let maxLineLength = 1_048_576
 
     /// Bound on how long `stop()` will wait for the child to exit before
