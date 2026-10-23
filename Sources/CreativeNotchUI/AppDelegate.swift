@@ -536,7 +536,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let clipboardStore = ClipboardStore()
         let clipboard = ClipboardController(store: clipboardStore)
         state.clipboard = clipboardStore
-        state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
+        state.onCopyClipboard = { [weak clipboard] entry in clipboard?.copy(entry) }
         self.clipboard = clipboard
 
         // The pane's title-row verbs reach the verbs that already exist —
@@ -555,6 +555,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour = behaviour
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
+        state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel() }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
@@ -588,7 +589,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `[weak self]` matters: `media` holds this closure, and the work
         // it does reaches back through `self` for the artwork — a strong
         // capture would be a controller keeping its owner alive, the same
-        // reason `onPasteClipboard` above captures its controller weakly.
+        // reason `onCopyClipboard` above captures its controller weakly.
         // The body is a method rather than a closure so a test can drive
         // the real publish path without a running helper.
         media.onChange = { [weak self] snapshot in
@@ -616,7 +617,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // The tab's four verbs, routed through `AppState` in the style of
-        // `onPasteClipboard` and `onMediaCommand`. `[weak timer]` rather
+        // `onCopyClipboard` and `onMediaCommand`. `[weak timer]` rather
         // than `[weak self]`: `AppState` outlives nothing here, but the
         // closures are held by the state which the delegate owns, and the
         // delegate owns the controller — capturing it strongly would close

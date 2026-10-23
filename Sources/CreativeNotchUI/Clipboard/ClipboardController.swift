@@ -45,14 +45,17 @@ public final class ClipboardController {
     }
 
     /// Puts an entry back on the pasteboard. That is the whole action —
-    /// see `NSPasteboard.write(_:)` for why there is no keystroke.
+    /// see `NSPasteboard.write(_:)` for why there is no keystroke. Named
+    /// `copy` rather than `paste` for the same reason the row says "Copy":
+    /// without Accessibility permission the app cannot paste, and the
+    /// verb should not promise what the action does not do.
     ///
     /// No attempt is made to hide the resulting change from the poller.
     /// The write bumps `changeCount`, the poller reads it back, and
     /// `ClipboardStore.record` promotes the entry that is already there.
     /// One copy, at the front, which is the right answer — reached without
     /// a suppression rule that would have to stay correct forever.
-    public func paste(_ entry: ClipboardEntry) {
+    public func copy(_ entry: ClipboardEntry) {
         pasteboard.write(entry.content)
     }
 }

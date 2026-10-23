@@ -82,29 +82,29 @@ struct ClipboardControllerTests {
         #expect(h.controller.store.entries.isEmpty)
     }
 
-    // MARK: - Paste-back
+    // MARK: - Copy-back
 
-    @Test func pastingWritesTheEntryToThePasteboard() throws {
+    @Test func copyingWritesTheEntryToThePasteboard() throws {
         let h = makeHarness()
-        let entry = try #require(h.controller.store.record(.text("paste me"), now: Date()))
+        let entry = try #require(h.controller.store.record(.text("copy me"), now: Date()))
 
-        h.controller.paste(entry)
+        h.controller.copy(entry)
 
-        #expect(h.pasteboard.string(forType: .string) == "paste me")
+        #expect(h.pasteboard.string(forType: .string) == "copy me")
     }
 
-    /// The paste-back loop, resolved by promotion rather than by a special
+    /// The copy-back loop, resolved by promotion rather than by a special
     /// case. Writing bumps `changeCount`, the poller sees its own write,
     /// and the entry it finds is the one already in the ring — so the ring
     /// keeps one copy, not two.
-    @Test func pastingBackDoesNotDuplicateTheEntry() throws {
+    @Test func copyingBackDoesNotDuplicateTheEntry() throws {
         let h = makeHarness()
         h.controller.start()
         h.controller.store.record(.text("A"), now: Date(timeIntervalSince1970: 0))
         h.controller.store.record(.text("B"), now: Date(timeIntervalSince1970: 1))
 
         let a = try #require(h.controller.store.entries.last)
-        h.controller.paste(a)
+        h.controller.copy(a)
         h.controller.poller.tick(now: 2)
 
         #expect(h.controller.store.entries.count == 2)
@@ -112,12 +112,12 @@ struct ClipboardControllerTests {
         #expect(h.controller.store.entries.first?.id == a.id)
     }
 
-    @Test func pastingAnImageWritesImageData() throws {
+    @Test func copyingAnImageWritesImageData() throws {
         let h = makeHarness()
         let data = Data([0x89, 0x50, 0x4E, 0x47])
         let entry = try #require(h.controller.store.record(.image(data, ext: "png"), now: Date()))
 
-        h.controller.paste(entry)
+        h.controller.copy(entry)
 
         #expect(h.pasteboard.data(forType: .png) == data)
     }
