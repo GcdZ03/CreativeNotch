@@ -71,19 +71,23 @@ final class CameraController {
     /// cannot be exercised in a test bundle.
     var capturePhoto: (PhotoDelegate) -> Void
 
+    /// Which camera this app's own session holds -- its `uniqueID`, or `nil`
+    /// once released -- so the capture indicator can tell our preview from
+    /// somebody else's call. `IsRunningSomewhere` cannot.
+    ///
+    /// **The ordering is the point.** The hold is announced *before*
+    /// `startRunning()` and released only *after* `stopRunning()` returns,
+    /// both by enqueueing onto the main queue. CoreMediaIO's own listener
+    /// callbacks arrive on that same queue, so every re-read our start or stop
+    /// triggers sees the hold already in place -- and the badge does not
+    /// flash for our own preview on the way in or out.
+    var onHeldCameraChange: ((String?) -> Void)?
+
     init(shelf: ShelfStore?) {
         self.shelf = shelf
         let session = self.session
-        self.applyRunState = { shouldRun in
-            // No usage description, no camera: that is `swift test`, and
-            // macOS terminates a process that starts the camera without one
-            // (2026-10-17). The packaged app's Info.plist has it.
-            guard CameraController.mayUseCamera(Bundle.main.infoDictionary) else { return }
-            session.queue.async {
-                guard session.configure() else { return }
-                shouldRun ? session.start() : session.stop()
-            }
-        }
+        // Replaced below, once `self` can be captured.
+        self.applyRunState = { _ in }
         self.beginRecording = { url, delegate in
             session.queue.async { session.movieOutput.startRecording(to: url, recordingDelegate: delegate) }
         }
@@ -93,6 +97,37 @@ final class CameraController {
         self.capturePhoto = { delegate in
             session.queue.async {
                 session.photoOutput.capturePhoto(with: AVCapturePhotoSettings(), delegate: delegate)
+            }
+        }
+        self.applyRunState = { [weak self] shouldRun in
+            // No usage description, no camera: that is `swift test`, and
+            // macOS terminates a process that starts the camera without one
+            // (2026-10-17). The packaged app's Info.plist has it.
+            guard CameraController.mayUseCamera(Bundle.main.infoDictionary) else { return }
+            session.queue.async { [weak self] in
+                guard session.configure() else { return }
+                if shouldRun {
+                    let uid = session.deviceUID
+                    DispatchQueue.main.async { [weak self] in
+                        MainActor.assumeIsolated { self?.onHeldCameraChange?(uid) }
+                    }
+                    session.start()
+                    // A start that failed -- the camera taken exclusively,
+                    // say -- holds nothing, and claiming it would hide
+                    // whoever does.
+                    guard !session.isRunning else { return }
+                    DispatchQueue.main.async { [weak self] in
+                        MainActor.assumeIsolated { self?.onHeldCameraChange?(nil) }
+                    }
+                } else {
+                    session.stop()
+                    // Only once nothing of ours is running: a re-read between
+                    // now and then would attribute our own camera to nobody.
+                    guard !session.isRunning else { return }
+                    DispatchQueue.main.async { [weak self] in
+                        MainActor.assumeIsolated { self?.onHeldCameraChange?(nil) }
+                    }
+                }
             }
         }
     }

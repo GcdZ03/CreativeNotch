@@ -467,6 +467,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             self?.syncTrackingRect()
         }
+        // Our own preview must not light the indicator that reports somebody
+        // else's capture.
+        camera.onHeldCameraChange = { [weak capture] uid in capture?.setOwnCamera(uid) }
         self.camera = camera
         state.cameraState = camera.state
         state.onCameraShutter = { [weak camera] in camera?.takePhoto() }

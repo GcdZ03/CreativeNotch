@@ -50,8 +50,27 @@ final class CaptureObserver {
     /// this before doing anything.
     private var isStopped = true
 
+    /// The `uniqueID` of the camera this app's own preview holds, or `nil`.
+    ///
+    /// `IsRunningSomewhere` cannot say *who* is capturing, so without this the
+    /// indicator lights for our own preview. A change re-reads: releasing the
+    /// camera while somebody else is still on it must light the badge now,
+    /// not at their next edge -- and that edge may never come.
+    var ownCameraUID: String? {
+        didSet {
+            guard ownCameraUID != oldValue else { return }
+            publish()
+        }
+    }
+
     /// Overridable so tests never touch CoreAudio or CoreMediaIO.
-    var readCurrentUse: () -> CaptureUse = { CaptureObserver.readSystem() }
+    var readCurrentUse: () -> CaptureUse = { .none }
+
+    init() {
+        readCurrentUse = { [weak self] in
+            CaptureObserver.readSystem(ownCameraUID: self?.ownCameraUID)
+        }
+    }
 
     func start() {
         guard isStopped else { return }
@@ -201,10 +220,20 @@ final class CaptureObserver {
 
     // MARK: - Reading the system
 
-    static func readSystem() -> CaptureUse {
-        CaptureUse(
+    /// `ownCameraUID` is the camera this app's own preview holds; it is
+    /// attributed to us by `CaptureAttribution`, so our preview does not light
+    /// the indicator that exists to report somebody else.
+    static func readSystem(ownCameraUID: String?) -> CaptureUse {
+        let cameras = cameraDevices().map {
+            CaptureAttribution.Camera(
+                uid: deviceUID(camera: $0) ?? "",
+                isRunningSomewhere: isRunningSomewhere(camera: $0)
+            )
+        }
+        return CaptureUse(
             microphone: audioInputDevices().contains { isRunningSomewhere(audio: $0) },
-            camera: cameraDevices().contains { isRunningSomewhere(camera: $0) }
+            camera: CaptureAttribution.othersAreUsingCamera(
+                cameras: cameras, ownDeviceUID: ownCameraUID)
         )
     }
 
@@ -240,6 +269,27 @@ final class CaptureObserver {
                                         size, &size, &value) == noErr
         else { return false }
         return value != 0
+    }
+
+    /// The camera's `kCMIODevicePropertyDeviceUID`, which is the string
+    /// AVFoundation vends as `AVCaptureDevice.uniqueID` -- the join between
+    /// the device our preview opened and the device this observer sees.
+    private static func deviceUID(camera device: CMIOObjectID) -> String? {
+        var address = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIODevicePropertyDeviceUID),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
+        // Returned +1, per the CoreAudio/CoreMediaIO convention for CFType
+        // properties, so it is taken retained.
+        var uid: Unmanaged<CFString>?
+        let size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+        var used: UInt32 = 0
+        let status = withUnsafeMutablePointer(to: &uid) {
+            CMIOObjectGetPropertyData(device, &address, 0, nil, size, &used, $0)
+        }
+        guard status == noErr else { return nil }
+        return uid?.takeRetainedValue() as String?
     }
 
     private static func audioInputDevices() -> [AudioObjectID] {

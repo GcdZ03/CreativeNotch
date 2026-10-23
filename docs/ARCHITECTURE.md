@@ -1154,6 +1154,14 @@ So attribution is a per-process read, and the policy half of it is pure. Since
 the camera module's clips are silent, the microphone half has nothing of ours
 to exclude at all.
 
+The camera half has no public per-process read, so it is attributed per
+*device*: `CameraController` announces the `uniqueID` of the camera its session
+holds (before `startRunning()`, released after `stopRunning()` returns, both
+via the main queue CoreMediaIO's callbacks share), and
+`CaptureAttribution.othersAreUsingCamera` discounts that one device. Another
+application on the *same* camera while our preview holds it goes unreported —
+the least informative case, since the user is looking at that preview.
+
 ### It is not suspended by the activity gate
 
 The same shape as the power module. The observer costs nothing idle, and

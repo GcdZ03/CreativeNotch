@@ -112,4 +112,19 @@ struct CaptureBadgeTests {
 
         #expect(delegate.currentBadgeWidth == NotchGeometry.nowPlayingBadgeWidth)
     }
+
+    // MARK: - It must not point at itself
+
+    /// **`CaptureAttribution` existed and nothing called it**, so the app's own
+    /// camera preview lit "Camera in use". The camera announcing its hold must
+    /// reach the observer, or the attribution is a rule nothing uses.
+    @Test func theCamerasOwnHoldReachesTheIndicator() {
+        let delegate = makeDelegate()
+
+        delegate.camera?.onHeldCameraChange?("built-in")
+        #expect(delegate.capture?.observer.ownCameraUID == "built-in")
+
+        delegate.camera?.onHeldCameraChange?(nil)
+        #expect(delegate.capture?.observer.ownCameraUID == nil)
+    }
 }

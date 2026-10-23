@@ -162,6 +162,24 @@ struct CaptureObserverTests {
         #expect(observer.registrationCount == 0, "a late device-list callback re-attached listeners")
     }
 
+    /// Our own camera taking or releasing the device must prompt a re-read:
+    /// otherwise releasing it while somebody else is still on the camera would
+    /// leave the badge dark until their next edge.
+    @Test func changingWhichCameraIsOursRereads() {
+        let observer = CaptureObserver()
+        observer.readCurrentUse = { .none }
+        var publishes = 0
+        observer.onChange = { _ in publishes += 1 }
+
+        observer.start()
+        observer.ownCameraUID = "built-in"
+        observer.ownCameraUID = "built-in"
+        observer.ownCameraUID = nil
+
+        #expect(publishes == 3, "an unchanged hold re-read, or a changed one did not")
+        observer.stop()
+    }
+
     @Test func startingPublishesTheCurrentStateImmediately() {
         let observer = CaptureObserver()
         observer.readCurrentUse = { CaptureUse(microphone: true) }
