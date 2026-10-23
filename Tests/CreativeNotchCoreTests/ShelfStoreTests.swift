@@ -344,6 +344,26 @@ struct ShelfStoreTests {
                 "items were dropped from the list though their files are still on disk")
     }
 
+    /// The single-item form of the same rule: a tile whose file cannot be
+    /// trashed stays listed, or it would vanish and come back at the next
+    /// launch when the directory is reloaded.
+    @Test func aRemoveThatCannotTrashKeepsTheItem() throws {
+        let (store, dir) = try makeStore()
+        let item = try store.add(.text("one"), now: t0)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        }
+
+        #expect(throws: (any Error).self) { try store.remove(item.id) }
+        #expect(store.items.count == 1,
+                "the item was dropped from the list though its file is still on disk")
+        #expect(FileManager.default.fileExists(atPath: item.url.path))
+    }
+
     /// A file moved or deleted from underneath the shelf -- in Finder, or a
     /// referenced capture the user tidied away -- leaves a tile pointing at
     /// nothing until something notices.
