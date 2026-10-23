@@ -160,9 +160,15 @@ private struct ClipboardRow: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+        // The shelf tile's words and symbols for the same idea: taking one
+        // item off a panel list is "Remove", with the xmark, on both.
         .contextMenu {
-            Button("Copy", action: copy)
-            Button("Delete", role: .destructive, action: onRemove)
+            Button(action: copy) {
+                Label("Copy", systemImage: "doc.on.doc")
+            }
+            Button(role: .destructive, action: onRemove) {
+                Label("Remove", systemImage: "xmark")
+            }
         }
         .onDisappear { confirmation?.cancel() }
         .accessibilityLabel(ClipboardRowModel.accessibilityLabel(entry: entry, time: time))
