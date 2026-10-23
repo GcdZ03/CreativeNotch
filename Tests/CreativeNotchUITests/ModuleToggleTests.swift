@@ -393,6 +393,31 @@ struct ModuleToggleTests {
         #expect(delegate.state.state == .closed)
     }
 
+    /// The notch tap is the other way in, and it opened `.open(lastOpenTab)`
+    /// directly — so with every tab switched off it opened an empty panel.
+    /// It goes through `openPanel()` like the shortcut does.
+    @Test func theNotchTapOpensNothingWhenEveryTabIsGone() {
+        let delegate = makeDelegate()
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
+            delegate.switchboard.setEnabled(false, for: module)
+        }
+
+        NotchRootView.handleTap(app: delegate.state)
+
+        #expect(delegate.state.state == .closed)
+    }
+
+    /// And the tap still opens, and still closes, when there is a tab.
+    @Test func theNotchTapTogglesThePanel() {
+        let delegate = makeDelegate()
+
+        NotchRootView.handleTap(app: delegate.state)
+        #expect(delegate.state.state == .open(.shelf))
+
+        NotchRootView.handleTap(app: delegate.state)
+        #expect(delegate.state.state == .closed)
+    }
+
     // MARK: - The tab that has just disappeared (R7)
 
     @Test func disablingTheOpenTabMovesToAVisibleOne() {

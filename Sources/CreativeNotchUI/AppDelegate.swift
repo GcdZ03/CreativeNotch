@@ -374,8 +374,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// has been switched off. Returns `false`, and changes nothing, when no
     /// tab is visible: there is no empty panel to open.
     ///
-    /// The one way the delegate opens the panel — the shortcut, a swipe and
-    /// open-on-hover all come through here.
+    /// The one way the delegate opens the panel — the shortcut, a swipe,
+    /// open-on-hover and the notch tap all come through here.
     ///
     /// Also `false` while the panel is hidden for a full-screen app: there
     /// is no window on screen to open.
@@ -513,6 +513,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour = behaviour
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
+        state.onOpenPanel = { [weak self] in self?.openPanel() }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
             self.state.transition(to: .closed)
