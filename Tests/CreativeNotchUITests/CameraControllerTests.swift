@@ -533,18 +533,44 @@ struct CameraControllerTests {
         var clip: (URL, MovieDelegate)?
         controller.beginRecording = { url, delegate in clip = (url, delegate) }
         var teardowns = 0
+        let closed = ClosedFlag()
         controller.shutDownSession = {
             teardowns += 1
-            if let (url, delegate) = clip { delegate.finish(url, error: nil) }
+            // Closed later and off the main actor, the way AVFoundation
+            // reports it, so only an actual wait sees it before returning.
+            if let (url, delegate) = clip { closed.closeLater(url, delegate) }
         }
         controller.setTabVisible(true)
         controller.startRecording()
 
         controller.shutDown()
 
+        #expect(closed.isClosed)
         #expect(teardowns == 1)
         #expect(controller.shouldRun == false)
         #expect(controller.shouldBadge == false)
+    }
+
+    /// **A clip stopped just before quit is waited for too.** Stop clears
+    /// the current take at once, but its file is closed later; quit must not
+    /// take "not recording" to mean "nothing left to finish".
+    @Test func shuttingDownRightAfterStopStillWaitsForTheClip() {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var clip: (URL, MovieDelegate)?
+        controller.beginRecording = { url, delegate in clip = (url, delegate) }
+        let closed = ClosedFlag()
+        controller.endRecording = {
+            if let (url, delegate) = clip { closed.closeLater(url, delegate) }
+        }
+        controller.setTabVisible(true)
+        controller.startRecording()
+        controller.stopRecording()
+
+        controller.shutDown()
+
+        #expect(closed.isClosed)
     }
 
     // MARK: - State is published
@@ -559,5 +585,21 @@ struct CameraControllerTests {
         controller.setTabVisible(false)
 
         #expect(states == [.previewing, .idle])
+    }
+}
+
+/// Closes a clip on another queue after a delay, and records that it did,
+/// so a test can tell whether `shutDown()` waited for it.
+private final class ClosedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var closed = false
+
+    var isClosed: Bool { lock.withLock { closed } }
+
+    func closeLater(_ url: URL, _ delegate: MovieDelegate) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+            self.lock.withLock { self.closed = true }
+            delegate.finish(url, error: nil)
+        }
     }
 }

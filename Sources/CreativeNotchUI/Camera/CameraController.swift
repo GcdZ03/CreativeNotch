@@ -406,8 +406,9 @@ final class CameraController {
         reevaluate()
     }
 
-    /// Stops everything before the process exits, and waits for a clip in
-    /// progress to be closed.
+    /// Stops everything before the process exits, and waits for every clip
+    /// still being closed -- the one recording now, and any stopped just
+    /// before quit whose file has not been closed yet.
     ///
     /// **A `.mov` is not playable until its index is written**, which happens
     /// after `stopRecording()` returns. Quitting mid-take without waiting
@@ -415,13 +416,19 @@ final class CameraController {
     /// The clip is not listed on the shelf -- the main actor is blocked here,
     /// and the app is going away -- but it is in the captures folder, intact.
     func shutDown() {
-        let clip = recordingURL.flatMap { inFlightClips[$0] }
+        // **Every in-flight clip, not just `recordingURL`.** Stop clears
+        // `recordingURL` at once, but the file closes later; a quit straight
+        // after Stop would otherwise skip the wait and lose that clip's index.
+        // A clip already closed has its semaphore signalled, so it costs
+        // nothing. One shared deadline, so several clips cannot stack timeouts.
+        let clips = Array(inFlightClips.values)
         isEnabled = false
         isRecording = false
         recordingURL = nil
         shutDownSession()
-        if let clip {
-            _ = clip.finished.wait(timeout: .now() + Self.finalizeTimeout)
+        let deadline = DispatchTime.now() + Self.finalizeTimeout
+        for clip in clips {
+            _ = clip.finished.wait(timeout: deadline)
         }
         reevaluate()
     }
