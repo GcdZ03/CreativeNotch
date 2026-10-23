@@ -249,18 +249,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        if let screen = NSScreen.main {
-            install(metrics: screen.metrics)
-            // Presentation is deliberately *not* part of `install` -- that
-            // keeps the wiring path testable without putting a window on
-            // screen.
-            panel?.orderFrontRegardless()
-            // After ordering front, so the panel has a window number. Only
-            // here, never in `install`: tests build the delegate through
-            // `install`, and must not create Spaces in the session running
-            // them.
-            hostPanelInFixedSpace()
-            watchForFullScreen()
+        // With no screen at all, the screen-parameter observer builds the
+        // panel when one appears (`screenParametersDidChange`).
+        if let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens) {
+            showPanel(on: screen.metrics)
         }
 
         let menuBar = MenuBarController(
@@ -280,6 +272,40 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observeScreenChanges()
 
         startSubsystems()
+    }
+
+    /// The screen to build the panel on at launch.
+    ///
+    /// `NSScreen.main` is the screen holding the key window, and an accessory
+    /// app launching may have none — so the panel was never built, for the
+    /// whole session, while every subsystem started anyway. Any screen will
+    /// do: the panel follows the main one from the first screen change.
+    /// Generic so a test can answer it without a real display.
+    nonisolated static func launchScreen<S>(main: S?, all: [S]) -> S? {
+        main ?? all.first
+    }
+
+    /// Builds and presents the panel. `nil` means the real thing,
+    /// `buildAndPresentPanel(metrics:)`; a test hands in a spy, because the
+    /// real one puts a window on screen and hosts it in a Space.
+    var presentPanel: ((ScreenMetrics) -> Void)?
+
+    private func showPanel(on metrics: ScreenMetrics) {
+        if let presentPanel { presentPanel(metrics) } else { buildAndPresentPanel(metrics: metrics) }
+    }
+
+    private func buildAndPresentPanel(metrics: ScreenMetrics) {
+        install(metrics: metrics)
+        // Presentation is deliberately *not* part of `install` -- that
+        // keeps the wiring path testable without putting a window on
+        // screen.
+        panel?.orderFrontRegardless()
+        // After ordering front, so the panel has a window number. Only
+        // here, never in `install`: tests build the delegate through
+        // `install`, and must not create Spaces in the session running
+        // them.
+        hostPanelInFixedSpace()
+        watchForFullScreen()
     }
 
     /// The four actions the timer tab can take.
@@ -1454,7 +1480,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, let screen = NSScreen.main else { return }
+            guard let self,
+                  let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens)
+            else { return }
             MainActor.assumeIsolated { self.screenParametersDidChange(metrics: screen.metrics) }
         }, NotificationCenter.default))
 
@@ -1483,7 +1511,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// arrangement changed, and what its display shows may have with it.
     /// `reposition` already did when it moved, and `evaluate` reports only
     /// a change, so the second look is free.
+    ///
+    /// With no panel yet — there was no screen at launch — this is the
+    /// launch's second chance: build it now, then start the subsystems again
+    /// through the one method that does, because the controllers the
+    /// switchboard starts are built by `install` and were still `nil` the
+    /// first time. Re-starting is safe: `activity.start()` re-registers
+    /// rather than stacking, and `apply()` only reconciles.
     func screenParametersDidChange(metrics: ScreenMetrics) {
+        guard panel != nil else {
+            showPanel(on: metrics)
+            if panel != nil { startSubsystems() }
+            return
+        }
         if !reposition(metrics: metrics) { fullScreenWatcher?.evaluate() }
     }
 
