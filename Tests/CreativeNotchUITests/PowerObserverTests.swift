@@ -200,6 +200,23 @@ struct PowerObserverTests {
         #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), source, .defaultMode) == false)
     }
 
+    /// Installed in the common modes, not just the default one. While the
+    /// user drags a window or holds a menu open the main run loop runs in
+    /// the event-tracking mode, and a source in `.defaultMode` alone sits
+    /// undelivered until they let go.
+    @Test func theRunLoopSourceIsLiveWhileTrackingEvents() {
+        let observer = PowerObserver()
+        observer.start()
+        let source = observer.runLoopSource
+        let tracking = CFRunLoopMode(RunLoop.Mode.eventTracking.rawValue as CFString)
+
+        #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), source, tracking))
+
+        observer.stop()
+
+        #expect(CFRunLoopContainsSource(CFRunLoopGetMain(), source, tracking) == false)
+    }
+
     /// The notification observer, proved by delivery rather than by a
     /// field being nil. A `stop()` that clears the token without calling
     /// `removeObserver` keeps receiving notifications forever, and the
