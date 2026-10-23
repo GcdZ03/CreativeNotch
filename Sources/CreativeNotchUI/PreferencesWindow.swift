@@ -82,6 +82,20 @@ final class PreferencesController {
     /// `refresh()` is eligibility-guarded, so this still touches nothing
     /// from an uninstalled copy.
     func show() {
+        show(highlighting: nil)
+    }
+
+    /// Which section to scroll to and highlight, read by the view. Held here
+    /// rather than in the view for the reason the recorders are: the window
+    /// and its hosting view are built once and reused, so a request has to
+    /// reach a view that already exists.
+    let highlight = PreferencesHighlight()
+
+    /// Presents the window scrolled to `section`, its rows briefly tinted —
+    /// the welcome card's "Set Shortcut…". `nil` asks for nothing, leaving
+    /// the form where it was.
+    func show(highlighting section: PreferencesSection?) {
+        if let section { highlight.ask(for: section) }
         launchAtLogin.refresh()
         presenter(self)
     }
@@ -152,6 +166,31 @@ final class PreferencesController {
     }
 }
 
+/// A request to land on one section of the form (2026-10-24).
+///
+/// `request` changes on every ask, so asking for the same section twice —
+/// the card dismissed, the window closed, "Set Shortcut…" never pressed
+/// again, but Settings reopened on it some other way — still scrolls. The
+/// view clears `section` once the tint has faded; nothing here runs on its
+/// own.
+@MainActor
+@Observable
+final class PreferencesHighlight {
+    private(set) var section: PreferencesSection?
+    private(set) var request = 0
+
+    func ask(for section: PreferencesSection) {
+        self.section = section
+        request &+= 1
+    }
+
+    /// Clears the tint, unless a newer request arrived while it was showing.
+    func fade(request finished: Int) {
+        guard finished == request else { return }
+        section = nil
+    }
+}
+
 /// Which group of the form a module's row sits in (spec §6).
 ///
 /// The longer, honest notes that used to sit under every toggle become the
@@ -202,6 +241,14 @@ struct PreferencesRow: Identifiable {
 
 struct PreferencesView: View {
     let controller: PreferencesController
+
+    /// The highlight's fade becomes a cut under Reduce Motion, like every
+    /// spring in the panel.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// How long a requested section stays tinted: long enough to find after
+    /// the window lands, short enough not to read as a state of the row.
+    static let highlightDuration: Duration = .seconds(2)
 
     static let rows: [PreferencesRow] = [
         PreferencesRow(
@@ -257,6 +304,27 @@ struct PreferencesView: View {
     ]
 
     var body: some View {
+        ScrollViewReader { proxy in
+            form
+                // A one-shot per request, not a loop: scroll, wait out the
+                // tint, clear it. Keyed on the request so a second ask for
+                // the same section restarts it, and cancelled with the view.
+                .task(id: controller.highlight.request) {
+                    let request = controller.highlight.request
+                    guard let section = controller.highlight.section else { return }
+                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
+                        proxy.scrollTo(section, anchor: .center)
+                    }
+                    try? await Task.sleep(for: Self.highlightDuration)
+                    guard !Task.isCancelled else { return }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.6)) {
+                        controller.highlight.fade(request: request)
+                    }
+                }
+        }
+    }
+
+    private var form: some View {
         Form {
             // First, and outside the `ForEach`: this is about the app rather
             // than about a module, and `PreferencesSection`'s cases are module
@@ -290,6 +358,7 @@ struct PreferencesView: View {
                         Text(footer)
                     }
                 }
+                .id(section)
             }
         }
         .formStyle(.grouped)
@@ -336,6 +405,15 @@ struct PreferencesView: View {
                     .font(.caption)
                     .foregroundStyle(.orange)
                     .padding(.leading, 36)
+            }
+        }
+        // The row a "Set Shortcut…" was pressed for, tinted with the
+        // accent until it fades, so the eye lands on it in a long form.
+        .background {
+            if controller.highlight.section == row.section {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.15))
+                    .padding(-6)
             }
         }
     }
