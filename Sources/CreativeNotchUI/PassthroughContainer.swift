@@ -33,22 +33,61 @@ final class PassthroughContainer: NSView {
     var onDragExited: () -> Void = {}
     var onDrop: ([DropPayload]) -> Bool = { _ in false }
 
+    /// Whether a drop would be taken at all — the shelf preference, read
+    /// fresh on every drag. Answering `.copy` for a drop that will be
+    /// refused shows a copy badge on the cursor for nothing.
+    var acceptsDrops: () -> Bool = { true }
+
+    /// Whether the drag currently over the view is one it took. The exit and
+    /// the drop belong to the drag that entered: a drag declined on entry
+    /// must not close the shelf on its way out.
+    private(set) var isTrackingDrag = false
+
     override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        // `draggingSource` is non-nil exactly when the drag started in this
+        // process — which here means an item dragged *out* of the shelf.
+        dragEntered(fromThisApp: sender.draggingSource != nil)
+    }
+
+    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+        dragExited()
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard isTrackingDrag else { return false }
+        isTrackingDrag = false
+        return onDrop(sender.draggingPasteboard.dropPayloads())
+    }
+
+    /// The decision behind `draggingEntered`, taking the one fact it needs
+    /// from `NSDraggingInfo` — which cannot be constructed outside AppKit's
+    /// drag machinery — so a test can drive it.
+    ///
+    /// A drag from this app is declined. Dragging an item out of the open
+    /// shelf crosses the panel on its way, and taking it turned the shelf
+    /// into a drop target that stored the item a second time ("name 2")
+    /// when let go over the panel.
+    @discardableResult
+    func dragEntered(fromThisApp: Bool) -> NSDragOperation {
+        isTrackingDrag = !fromThisApp && acceptsDrops()
+        guard isTrackingDrag else { return [] }
         onDragEntered()
         return .copy
     }
 
-    override func draggingExited(_ sender: (any NSDraggingInfo)?) {
+    /// Not gated on `acceptsDrops`: a drag taken while the shelf was on
+    /// must still put the notch back if it was switched off mid-drag.
+    func dragExited() {
+        guard isTrackingDrag else { return }
+        isTrackingDrag = false
         onDragExited()
     }
 
-    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
-        onDrop(sender.draggingPasteboard.dropPayloads())
-    }
-
-
-    /// `point` arrives in this view's own coordinate space, which is what
-    /// `subview.hitTest(_:)` expects for a direct child — so it is passed
+    /// `point` arrives in the *superview's* coordinate space, as for every
+    /// `NSView.hitTest(_:)`, and a direct child's `hitTest(_:)` expects the
+    /// same thing — its superview's space, which is this view's own. The
+    /// two coincide because this is the content view of a borderless panel,
+    /// filling the frame view from its origin, so the point is passed
     /// through unconverted.
     ///
     /// Front-to-back, matching AppKit's own order. No test fails without

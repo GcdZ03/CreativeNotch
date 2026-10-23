@@ -182,4 +182,59 @@ struct ShelfDropTests {
 
         #expect(delegate.state.state == .peek(.power(.unplugged(level: 66))))
     }
+
+    // MARK: - Where the drag came from
+
+    /// Dragging an item *out* of the open shelf crosses the panel first. It
+    /// used to turn the shelf into a drop target, and letting go anywhere
+    /// over the panel stored the item again as "name 2". A drag that started
+    /// in this app is never a drop: the only things it can drag are already
+    /// on the shelf.
+    @Test func aDragFromOurOwnShelfIsNotADrop() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        delegate.state.transition(to: .open(.shelf))
+
+        let operation = container.dragEntered(fromThisApp: true)
+
+        #expect(operation == [])
+        #expect(delegate.state.state == .open(.shelf))
+        #expect(delegate.arbiter.content(now: delegate.now()) == nil)
+    }
+
+    /// Nor does it leaving close the shelf it came from: the exit belongs to
+    /// a drag this view never took.
+    @Test func aDragFromOurOwnShelfLeavingLeavesTheShelfOpen() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        delegate.state.transition(to: .open(.shelf))
+
+        container.dragEntered(fromThisApp: true)
+        container.dragExited()
+
+        #expect(delegate.state.state == .open(.shelf))
+    }
+
+    /// A drag from another app is still a drop, and says so with `.copy`.
+    @Test func aDragFromAnotherAppIsACopy() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+
+        #expect(container.dragEntered(fromThisApp: false) == .copy)
+        #expect(delegate.state.state == .receiving)
+
+        container.dragExited()
+        #expect(delegate.state.state == .closed)
+    }
+
+    /// With the shelf off the cursor must not show a copy badge for a drop
+    /// that will be refused.
+    @Test func aDisabledShelfRefusesTheDragOperation() throws {
+        let delegate = try makeDelegate()
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        delegate.state.preferences.shelf = false
+
+        #expect(container.dragEntered(fromThisApp: false) == [])
+        #expect(delegate.state.state == .closed)
+    }
 }

@@ -612,6 +612,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             ? { seconds in MediaRemoteBridge.seek(to: seconds) }
             : nil
 
+        // The same preference, asked by the container before it answers
+        // AppKit, so a disabled shelf shows no copy badge on the cursor.
+        container.acceptsDrops = { [weak self] in self?.state.preferences.shelf == true }
         container.onDragEntered = { [weak self] in
             // A drop target that appears and then refuses the file is worse
             // than no drop target: it advertises a feature the user switched
