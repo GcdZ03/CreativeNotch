@@ -137,7 +137,7 @@ struct ModuleSwitchboardTests {
 
         delegate.activity.start()
 
-        #expect(delegate.activity.tokenCount == 4)
+        #expect(delegate.activity.tokenCount == 8)
         #expect(delegate.stateObserverCount == observers)
         delegate.activity.stop()
     }

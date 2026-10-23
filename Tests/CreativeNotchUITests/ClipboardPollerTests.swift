@@ -206,6 +206,31 @@ struct ClipboardPollerTests {
         #expect(h.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
     }
 
+    /// Starting while suspended must not schedule. The switchboard fans
+    /// the activity out to the poller even while the module is off, so
+    /// switching clipboard history on behind the lock screen reaches
+    /// `start` with the poller already `.locked` — and a timer scheduled
+    /// then would fire every 0.75s until unlock, because `tick` returns
+    /// before it reaches the reschedule that could slow it down.
+    @Test func startingWhileSuspendedSchedulesNothing() {
+        let h = makeHarness()
+        h.poller.setActivity(.locked, now: 0)
+        h.poller.start(now: 1)
+
+        #expect(h.poller.scheduledInterval == nil)
+        #expect(h.timers.isEmpty)
+    }
+
+    /// And the deferred start is honoured on resume.
+    @Test func aStartWhileSuspendedBeginsPollingOnResume() {
+        let h = makeHarness()
+        h.poller.setActivity(.asleep, now: 0)
+        h.poller.start(now: 1)
+        h.poller.setActivity(.active, now: 2)
+
+        #expect(h.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
+    }
+
     @Test func anUnchangedActivityDoesNotRebuildTheTimer() {
         let h = makeHarness()
         h.poller.start(now: 0)

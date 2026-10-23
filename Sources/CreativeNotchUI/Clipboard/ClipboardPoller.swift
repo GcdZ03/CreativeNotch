@@ -63,11 +63,20 @@ public final class ClipboardPoller {
     /// second `start` replaces the timer rather than being swallowed by
     /// `reschedule`'s unchanged-interval guard and leaving the old one
     /// running against a fresh baseline.
+    ///
+    /// Starting while suspended schedules nothing: the gate applies to
+    /// `start` as much as to `tick`. The switchboard fans activity out to
+    /// the poller even while the module is off, so switching clipboard
+    /// history on behind the lock screen arrives here already `.locked` —
+    /// and a timer scheduled then would fire every 0.75s until unlock,
+    /// since `tick` returns before the reschedule that could slow it. The
+    /// start is not lost; `setActivity(.active)` schedules it on resume.
     public func start(now: TimeInterval) {
         cancelCurrentTimer()
         isRunning = true
         lastChangeCount = pasteboard.changeCount
         lastChangeAt = now
+        guard activity == .active else { return }
         reschedule(now: now)
     }
 

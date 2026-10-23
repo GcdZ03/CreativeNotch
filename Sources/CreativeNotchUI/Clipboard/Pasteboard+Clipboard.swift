@@ -53,8 +53,14 @@ public extension NSPasteboard {
         let available = types ?? []
         guard !available.contains(where: { Self.skippedTypes.contains($0) }) else { return nil }
 
-        if let urls = readObjects(forClasses: [NSURL.self], options: nil) as? [URL],
-           !urls.isEmpty {
+        // File URLs only. Without `.urlReadingFileURLsOnly` this also
+        // returns web URLs, and a link copied from a browser — which puts
+        // a URL object on alongside the string — would be refused as if it
+        // were a file and never reach the ring.
+        if let urls = readObjects(
+            forClasses: [NSURL.self],
+            options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL], !urls.isEmpty {
             return nil
         }
 
@@ -73,6 +79,15 @@ public extension NSPasteboard {
 
         if let text = string(forType: .string) {
             let content = ClipboardContent.text(text)
+            return ClipboardLimits.accepts(content) ? content : nil
+        }
+
+        // A web link offered only as a URL object, with no string beside
+        // it. The ring holds text, so it is kept as its absolute string —
+        // which `ClipboardKind` then shows as a link. File URLs were
+        // already turned away above.
+        if let url = (readObjects(forClasses: [NSURL.self], options: nil) as? [URL])?.first {
+            let content = ClipboardContent.text(url.absoluteString)
             return ClipboardLimits.accepts(content) ? content : nil
         }
 
