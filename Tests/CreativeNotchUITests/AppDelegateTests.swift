@@ -467,4 +467,31 @@ struct AppStateTransitionTests {
     @Test func aFreshStateIsClosedAndUnobserved() {
         #expect(AppState().state == .closed)
     }
+
+    /// A peek that closes under a still pointer shrinks the tracking area
+    /// out from under it. Replacing an area sends no `mouseExited`, so
+    /// `isHovering` stayed true with the pointer outside the closed notch —
+    /// the hover growth drawn, and the next peek's fallback rules misled.
+    @Test func aShapeShrinkingFromUnderTheStillPointerEndsTheHover() throws {
+        let delegate = NotchedDelegate.make()
+        let tracker = try #require(delegate.hoverView)
+        delegate.state.transition(to: .peek(.power(.unplugged(level: 66))))
+        let peek = delegate.acceptedRect
+        // Inside the peek, below the closed notch (panel-local y 222...260).
+        let local = CGPoint(x: peek.midX, y: peek.minY + 1)
+        #expect(local.y < 222)
+        delegate.pointerLocation = {
+            CGPoint(x: local.x + delegate.currentFrame.minX, y: local.y + delegate.currentFrame.minY)
+        }
+        tracker.updateTrackingRect(peek)
+        tracker.mouseEntered(with: NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil
+        )!)
+        #expect(delegate.state.isHovering)
+
+        delegate.state.transition(to: .closed)
+
+        #expect(delegate.state.isHovering == false)
+    }
 }

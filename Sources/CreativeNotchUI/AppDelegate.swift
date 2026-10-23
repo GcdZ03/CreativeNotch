@@ -443,6 +443,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.isHovering = false
             self?.collapse()
         }
+        // The tracker re-reads the pointer when its rect is replaced, and
+        // reads it from here — panel-local, as `keepOpenIfPointerInside`
+        // computes it — so there is one pointer source and a test that
+        // places it places it for both.
+        hover.pointerLocation = { [weak self] in
+            guard let self else { return nil }
+            let screen = self.pointerLocation()
+            return CGPoint(x: screen.x - self.currentFrame.minX, y: screen.y - self.currentFrame.minY)
+        }
 
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
 
