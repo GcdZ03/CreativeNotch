@@ -525,11 +525,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The menu's "Show Welcome Again": clears the flag and opens the panel,
     /// so the card is there to read rather than waiting for the next open.
-    /// Through `openPanel()`, so it declines like every other opener when no
-    /// tab is visible — the flag stays cleared for when one is.
+    /// Through `openPanel(openedBy:)`, so it declines like every other opener
+    /// when no tab is visible — the flag stays cleared for when one is. A
+    /// menu click is asked for, so it opens as `.tap` does and takes the
+    /// keyboard: Esc dismisses the card like any explicit open.
     func showWelcomeAgain() {
         state.setWelcomeSeen(false)
-        openPanel()
+        openPanel(openedBy: .tap)
     }
 
     /// Closes the panel, then opens Settings. Settings is an activating

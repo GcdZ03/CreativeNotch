@@ -30,14 +30,14 @@ struct WelcomeWiringTests {
     @Test func aFreshInstallShowsItTheFirstTimeThePanelOpens() {
         let d = makeDelegate()
         #expect(!d.state.showsWelcome, "shown while closed")
-        #expect(d.openPanel())
+        #expect(d.openPanel(openedBy: .tap))
         #expect(d.state.showsWelcome)
     }
 
     @Test func gotItPersistsAndHidesIt() {
         let defaults = TestDefaults.isolated("welcome")
         let d = makeDelegate(defaults: defaults)
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
 
         d.state.setWelcomeSeen(true)
 
@@ -49,19 +49,19 @@ struct WelcomeWiringTests {
     @Test func closingThePanelPersistsIt() {
         let defaults = TestDefaults.isolated("welcome")
         let d = makeDelegate(defaults: defaults)
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
 
         d.state.transition(to: .closed)
 
         #expect(PreferencesStore(defaults: defaults).hasSeenWelcome)
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
         #expect(!d.state.showsWelcome, "it came back on the second open")
     }
 
     @Test func switchingTabsKeepsIt() {
         let defaults = TestDefaults.isolated("welcome")
         let d = makeDelegate(defaults: defaults)
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
 
         d.state.transition(to: .open(.clipboard))
 
@@ -74,7 +74,7 @@ struct WelcomeWiringTests {
         let defaults = TestDefaults.isolated("welcome")
         PreferencesStore(defaults: defaults).setHasSeenWelcome(true)
         let d = makeDelegate(defaults: defaults)
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
         #expect(!d.state.showsWelcome)
     }
 
@@ -85,7 +85,7 @@ struct WelcomeWiringTests {
         let d = makeDelegate(defaults: defaults)
         var asked: [PreferencesSection?] = []
         d.presentPreferences = { asked.append($0) }
-        d.openPanel()
+        d.openPanel(openedBy: .tap)
 
         d.state.onWelcomeSetShortcut?()
 
