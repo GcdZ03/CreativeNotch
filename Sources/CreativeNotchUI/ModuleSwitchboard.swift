@@ -148,6 +148,12 @@ final class ModuleSwitchboard {
                 delegate.clipboard?.start()
             } else {
                 delegate.clipboard?.stop()
+                // Off means the app holds nothing, not merely that it has
+                // stopped adding. Left alone, up to fifty entries stay
+                // resident for the session and reappear the moment the
+                // switch goes back on. Here rather than in `stop()`, which
+                // quitting also calls and where it would be redundant.
+                delegate.clipboard?.store.clear()
             }
 
         case .mediaMetadata:

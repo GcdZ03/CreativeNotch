@@ -80,6 +80,25 @@ struct ModuleToggleTests {
         delegate.activity.stop()
     }
 
+    /// Switching history off forgets it. Stopping the poller alone left up
+    /// to fifty entries resident — copied passwords that slipped the skip
+    /// types included — and they reappeared when the switch went back on.
+    /// "Off" should mean the app holds nothing, not that it stopped adding.
+    @Test func disablingClipboardForgetsTheHistory() throws {
+        let delegate = makeDelegate()
+        let clipboard = try #require(delegate.clipboard)
+        delegate.startSubsystems()
+        clipboard.store.record(.text("remembered"), now: Date())
+        #expect(clipboard.store.entries.count == 1)
+
+        delegate.switchboard.setEnabled(false, for: .clipboard)
+        #expect(clipboard.store.entries.isEmpty)
+
+        delegate.switchboard.setEnabled(true, for: .clipboard)
+        #expect(clipboard.store.entries.isEmpty)
+        delegate.activity.stop()
+    }
+
     // MARK: - Power
 
     @Test func disablingPowerStopsObserving() throws {
