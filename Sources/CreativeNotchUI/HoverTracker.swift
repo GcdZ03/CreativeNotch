@@ -66,14 +66,27 @@ public final class HoverTracker: NSView {
     /// No synthetic *enter* the other way: a region growing under the
     /// pointer is `AppDelegate.keepOpenIfPointerInside`'s case, and a dwell
     /// started by a rect change rather than by the user would peek unasked.
+    /// **Nor a silent one.** Growth never sets `isPointerInside`: a pointer
+    /// that only came to be inside because a peek grew around it was never
+    /// reported as entering, so its later shrink must not be reported as an
+    /// exit either -- `collapse()` would close a peek hover never opened.
+    /// Only a real enter, or `acknowledgePointerInside()`, makes it inside.
     public func updateTrackingRect(_ rect: CGRect) {
         trackingRect = rect
         updateTrackingAreas()
         guard let pointer = currentPointer() else { return }
         let inside = rect.contains(pointer)
         let left = isPointerInside && !inside
-        isPointerInside = inside
+        isPointerInside = isPointerInside && inside
         if left { exited() }
+    }
+
+    /// The app has found the pointer inside and is treating it as hovering
+    /// (`AppDelegate.keepOpenIfPointerInside`), so a later shrink out from
+    /// under it is an exit like any other. No `onEnter` and no dwell: the
+    /// caller has already done what an enter would.
+    func acknowledgePointerInside() {
+        isPointerInside = true
     }
 
     public override func updateTrackingAreas() {

@@ -944,6 +944,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard rect.contains(local) else { return }
         cancelDismissGrace()
         state.isHovering = true
+        hoverView?.acknowledgePointerInside()
     }
 
     private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
@@ -1371,10 +1372,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `presentPreferences`.
     var relinquishKey: (() -> Void)?
 
+    /// **Focus is given back only once the panel leaves `.open`.** Giving it
+    /// up means ordering the window out and back in, which is fine for a
+    /// panel on its way to closing but not for one staying on screen: a tab
+    /// switch from the timer would pull the visible panel off and re-host it
+    /// in the fixed Space under the pointer. Staying key on the shelf or
+    /// clipboard tab costs nothing -- the user is in the panel -- and the
+    /// close that follows gives focus back.
     func syncKeyWindow(for newState: NotchState) {
         guard let panel else { return }
         if Self.shouldTakeKey(for: newState) {
             panel.makeKey()
+        } else if case .open = newState {
+            return
         } else if panelIsKey(panel) {
             if let relinquishKey { relinquishKey() } else { orderPanelOutOfFocus(panel) }
         }

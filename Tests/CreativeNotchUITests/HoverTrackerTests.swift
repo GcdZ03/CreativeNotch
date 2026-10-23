@@ -123,6 +123,38 @@ struct HoverTrackerTests {
         #expect(!exited.value)
     }
 
+    /// A rect that grew around a still pointer sent no enter, so its later
+    /// shrink must send no exit: `collapse()` would close a peek that hover
+    /// never opened (an ambient peek swapped for a smaller one, say).
+    @Test func growingAroundAStillPointerThenShrinkingReportsNothing() {
+        let tracker = HoverTracker(frame: CGRect(x: 0, y: 0, width: 620, height: 260))
+        let exited = Flag()
+        tracker.onExit = { exited.set() }
+        tracker.pointerLocation = { CGPoint(x: 300, y: 200) }
+        tracker.updateTrackingRect(CGRect(x: 250, y: 230, width: 120, height: 30))
+
+        tracker.updateTrackingRect(CGRect(x: 0, y: 0, width: 620, height: 260))
+        tracker.updateTrackingRect(CGRect(x: 250, y: 230, width: 120, height: 30))
+
+        #expect(!exited.value)
+        #expect(!tracker.isPointerInside)
+    }
+
+    /// Once the app has acknowledged the pointer inside a grown rect, a
+    /// shrink out from under it is the exit it is.
+    @Test func anAcknowledgedPointerShrunkOutFromUnderReportsTheExit() {
+        let tracker = HoverTracker(frame: CGRect(x: 0, y: 0, width: 620, height: 260))
+        let exited = Flag()
+        tracker.onExit = { exited.set() }
+        tracker.pointerLocation = { CGPoint(x: 300, y: 200) }
+        tracker.updateTrackingRect(CGRect(x: 0, y: 0, width: 620, height: 260))
+        tracker.acknowledgePointerInside()
+
+        tracker.updateTrackingRect(CGRect(x: 250, y: 230, width: 120, height: 30))
+
+        #expect(exited.value)
+    }
+
     // MARK: - Hit testing
 
     /// Sits above the hosting view so its tracking area covers the panel;
