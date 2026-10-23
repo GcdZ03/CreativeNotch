@@ -164,11 +164,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// one must not be enough to do that. See `LaunchAtLoginController`.
     private(set) lazy var launchAtLogin = LaunchAtLoginController()
 
-    /// Test seam for the header's gear: what `onOpenSettings` presents after
-    /// closing the panel. `nil` means the real window via `showPreferences()`.
-    /// Exists so a wiring test can prove the panel closes without putting a
-    /// Settings window on screen.
-    var presentPreferences: (() -> Void)?
+    /// Test seam for the header's gear and the welcome card's "Set
+    /// Shortcut…": what they present after closing the panel, with the
+    /// section to highlight. `nil` means the real window via
+    /// `showPreferences(highlighting:)`. Exists so a wiring test can prove the
+    /// panel closes without putting a Settings window on screen.
+    var presentPreferences: ((PreferencesSection?) -> Void)?
 
     // MARK: - Shelf
 
@@ -334,7 +335,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
             clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
-            canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false }
+            canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false },
+            onShowWelcome: { [weak self] in self?.showWelcomeAgain() }
         )
         menuBar.install()
         self.menuBar = menuBar
@@ -505,6 +507,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// not build a window, and because the fourteen suites that call `install`
     /// have no use for one.
     public func showPreferences() {
+        showPreferences(highlighting: nil)
+    }
+
+    /// The same, scrolled to `section` with its rows briefly highlighted —
+    /// how the welcome card's "Set Shortcut…" lands on the recorder.
+    func showPreferences(highlighting section: PreferencesSection?) {
         if preferences == nil {
             preferences = PreferencesController(
                 switchboard: switchboard,
@@ -512,7 +520,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 launchAtLogin: launchAtLogin
             )
         }
-        preferences?.show()
+        preferences?.show(highlighting: section)
+    }
+
+    /// The menu's "Show Welcome Again": clears the flag and opens the panel,
+    /// so the card is there to read rather than waiting for the next open.
+    /// Through `openPanel()`, so it declines like every other opener when no
+    /// tab is visible — the flag stays cleared for when one is.
+    func showWelcomeAgain() {
+        state.setWelcomeSeen(false)
+        openPanel()
+    }
+
+    /// Closes the panel, then opens Settings. Settings is an activating
+    /// window, and the panel should not sit open under it.
+    private func openSettingsFromPanel(highlighting section: PreferencesSection?) {
+        state.transition(to: .closed)
+        if let presentPreferences { presentPreferences(section) } else { showPreferences(highlighting: section) }
     }
 
     // MARK: - Installation
@@ -641,9 +665,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
         state.onOpenSettings = { [weak self] in
-            guard let self else { return }
-            self.state.transition(to: .closed)
-            if let presentPreferences { presentPreferences() } else { self.showPreferences() }
+            self?.openSettingsFromPanel(highlighting: nil)
+        }
+
+        // The welcome card (2026-10-24). Loaded, not cached, like the hover
+        // behaviour above: a relaunch reads the flag back from the domain.
+        state.welcomeSeen = preferencesStore.hasSeenWelcome
+        state.onPersistWelcomeSeen = { [weak self] seen in
+            self?.preferencesStore.setHasSeenWelcome(seen)
+        }
+        state.onWelcomeSetShortcut = { [weak self] in
+            self?.state.setWelcomeSeen(true)
+            self?.openSettingsFromPanel(highlighting: .shortcut)
         }
 
         // Spec section 4.7: the sleep/lock gate is enforced once, here, and

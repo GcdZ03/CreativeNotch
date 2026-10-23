@@ -240,6 +240,11 @@ directory in place; delete it too if you want the stashed files gone.
 ## Usage
 
 Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
+The first time you open the panel, a short welcome card covers it: the four
+gestures below that matter most, a **Set Shortcut…** button that opens Settings
+on the global shortcut (none is set until you pick one), and **Got it**. It
+shows once — closing the panel counts as reading it — and **Show Welcome Again**
+in the menu bar brings it back.
 
 | Action | Result |
 |---|---|
@@ -278,7 +283,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause it | The countdown dims, and stops redrawing entirely |
 | Let it finish | The notch peeks and chimes once, and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Quit |
+| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you

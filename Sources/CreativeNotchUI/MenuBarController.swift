@@ -29,6 +29,7 @@ public final class MenuBarController: NSObject {
     private let clipboardCount: () -> Int
     private let onUndoClearShelf: () -> Void
     private let canUndoClearShelf: () -> Bool
+    private let onShowWelcome: () -> Void
 
     /// The undo pair defaults to "never offered", so a caller with no shelf
     /// behind it need not spell it out.
@@ -39,7 +40,8 @@ public final class MenuBarController: NSObject {
         onClearClipboard: @escaping () -> Void,
         clipboardCount: @escaping () -> Int,
         onUndoClearShelf: @escaping () -> Void = {},
-        canUndoClearShelf: @escaping () -> Bool = { false }
+        canUndoClearShelf: @escaping () -> Bool = { false },
+        onShowWelcome: @escaping () -> Void = {}
     ) {
         self.onShowPreferences = onShowPreferences
         self.onClearShelf = onClearShelf
@@ -48,6 +50,7 @@ public final class MenuBarController: NSObject {
         self.clipboardCount = clipboardCount
         self.onUndoClearShelf = onUndoClearShelf
         self.canUndoClearShelf = canUndoClearShelf
+        self.onShowWelcome = onShowWelcome
     }
 
     public func install() {
@@ -108,6 +111,19 @@ public final class MenuBarController: NSObject {
 
         menu.addItem(.separator())
 
+        // The way back to the first-run card (2026-10-24), for someone who
+        // dismissed it too quickly. Here rather than in Settings because it
+        // is about the panel: it opens the panel on the card, and the panel
+        // opening under an activating Settings window would be hidden by it.
+        let welcome = NSMenuItem(
+            title: "Show Welcome Again",
+            action: #selector(showWelcome),
+            keyEquivalent: ""
+        )
+        welcome.target = self
+        menu.addItem(welcome)
+        menu.addItem(.separator())
+
         let quit = NSMenuItem(
             title: "Quit CreativeNotch",
             action: #selector(NSApplication.terminate(_:)),
@@ -146,6 +162,10 @@ public final class MenuBarController: NSObject {
 
     @objc func clearClipboard() {
         onClearClipboard()
+    }
+
+    @objc func showWelcome() {
+        onShowWelcome()
     }
 
     @objc private func openPreferences() {

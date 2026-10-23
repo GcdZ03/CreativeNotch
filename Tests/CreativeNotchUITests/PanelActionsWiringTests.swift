@@ -25,7 +25,7 @@ struct PanelActionsWiringTests {
             .appendingPathComponent("CreativeNotchPanelActions-\(UUID().uuidString)")
         delegate.install(metrics: Self.notched)
         // Never the real Settings window from a test.
-        delegate.presentPreferences = {}
+        delegate.presentPreferences = { _ in }
         return delegate
     }
 
@@ -142,7 +142,7 @@ struct PanelActionsWiringTests {
     @Test func openSettingsClosesThePanelFirst() {
         let d = makeDelegate()
         var presented = 0
-        d.presentPreferences = { presented += 1 }
+        d.presentPreferences = { _ in presented += 1 }
         d.state.transition(to: .open(.shelf))
 
         d.state.onOpenSettings?()
