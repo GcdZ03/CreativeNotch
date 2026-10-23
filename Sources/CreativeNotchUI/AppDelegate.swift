@@ -457,7 +457,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Constructed here, started by the switchboard. Building a panel must
         // not open a camera -- and `install(metrics:)` runs in fourteen test
         // suites, none of which has an Info.plist usage description.
-        let camera = CameraController(shelf: shelf)
+        // The shelf is read through `self`, not passed: it is not built until
+        // further down, and handing over the `nil` it is here meant every
+        // capture was saved and never listed. Reading late also follows a
+        // shelf rebuilt later, the same as the title-row verbs below.
+        let camera = CameraController(shelf: { [weak self] in self?.shelf })
         camera.onStateChange = { [weak self] next in
             self?.state.cameraState = next
             if case .recording = next {

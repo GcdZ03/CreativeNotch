@@ -80,6 +80,9 @@ final class ModuleSwitchboard {
         delegate.power?.stop()
         delegate.timer?.cancel()
         delegate.capture?.stop()
+        // Synchronous, and it waits for a clip in progress to be closed: a
+        // `.mov` whose index was never written is a file nothing can play.
+        delegate.camera?.shutDown()
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -112,6 +115,10 @@ final class ModuleSwitchboard {
     /// notification-driven source costs nothing idle and suspending it would
     /// mean missing the charger moving while the lid is shut.
     ///
+    /// The camera splits like the timer: `CameraRunReason` stops the preview
+    /// outside `.active` and exempts a recording in progress, so a take
+    /// survives the lock screen and a preview left open does not.
+    ///
     /// **Not every module belongs on this axis.** The rule that earned the
     /// exception, when the system HUD still held a `CGEventTap`: a uniform
     /// formula would have torn the tap down and rebuilt it on every lock,
@@ -126,6 +133,10 @@ final class ModuleSwitchboard {
         delegate.media?.setActivity(next)
         delegate.timer?.setActive(next == .active)
         delegate.power?.setActivity(next)
+        // Fanned out regardless of the module's preference, like the timer:
+        // the controller holds its own enabled flag, and `CameraRunReason`
+        // composes the two -- locking stops the preview, never a recording.
+        delegate.camera?.setActivity(next)
     }
 
     /// Starts or stops one module, and is the only thing that does.
