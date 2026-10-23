@@ -75,6 +75,67 @@ struct MediaHelperSupervisorTests {
         #expect(supervisor.isDegraded, "start() must not forgive a degraded helper")
     }
 
+    // MARK: - Degraded means degraded everywhere
+
+    /// Not forgiving the budget is half of it; not spawning is the other.
+    /// `start()` used to spawn a degraded helper on every unlock anyway, and
+    /// that helper's lines repopulated the header that degrading had just
+    /// cleared.
+    @Test func aDegradedSupervisorDoesNotSpawnOnStart() {
+        let (s, box) = makeSupervisor()
+        for _ in 0...HelperBackoff.maxAttempts { s.helperExited(status: 1) }
+        #expect(s.isDegraded)
+        let starts = box.starts
+
+        s.stop()
+        s.start()
+
+        #expect(box.starts == starts)
+    }
+
+    /// The explicit re-enable path still works: forgiving the budget and
+    /// then starting does spawn.
+    @Test func aResetBudgetLetsStartSpawnAgain() {
+        let (s, box) = makeSupervisor()
+        for _ in 0...HelperBackoff.maxAttempts { s.helperExited(status: 1) }
+        let starts = box.starts
+
+        s.resetRetryBudget()
+        s.start()
+
+        #expect(box.starts == starts + 1)
+    }
+
+    /// Whatever got a helper running while degraded, its death must still
+    /// publish the degrade. `guard !isDegraded` used to return silently
+    /// here, so the header that helper had populated stayed on screen for
+    /// the rest of the session.
+    @Test func anExitWhileDegradedStillPublishesTheDegrade() {
+        let (s, box) = makeSupervisor()
+        for _ in 0...HelperBackoff.maxAttempts { s.helperExited(status: 1) }
+        box.degraded = false
+        let scheduled = box.scheduled.count
+
+        s.helperExited(status: 1)
+
+        #expect(box.degraded)
+        #expect(box.scheduled.count == scheduled, "a degraded helper is never retried")
+    }
+
+    /// `noteHealthy()` found no delay past `maxAttempts` and took that as
+    /// "nothing has failed yet", zeroing the count while `isDegraded` stayed
+    /// set. Only `resetRetryBudget()` hands the budget back.
+    @Test func aLineWhileDegradedDoesNotResetTheAttemptCount() {
+        let (s, _) = makeSupervisor()
+        for _ in 0...HelperBackoff.maxAttempts { s.helperExited(status: 1) }
+        let attempt = s.attempt
+
+        s.noteHealthy()
+
+        #expect(s.attempt == attempt)
+        #expect(s.isDegraded)
+    }
+
     /// `helperIsRunning` must read the process, not a flag the supervisor
     /// keeps for itself. With `stopHelper` injected as a no-op that never
     /// touches a process, a supervisor-maintained Bool would read `false`
