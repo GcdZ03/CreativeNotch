@@ -78,6 +78,16 @@ public final class ClipboardStore {
         entries.removeAll()
     }
 
+    /// Forgets one entry — the row's Delete.
+    ///
+    /// An unknown id is a no-op rather than an error: the id comes from a
+    /// context menu built at the last redraw, and the poller can have
+    /// evicted that entry since. Unlike `ShelfStore.remove`, nothing here
+    /// can fail, because there is no file behind an entry to move.
+    public func remove(_ id: UUID) {
+        entries.removeAll { $0.id == id }
+    }
+
     /// Eviction happens only after an insert, never on a timer: a ring can
     /// only grow when something is added to it.
     ///
