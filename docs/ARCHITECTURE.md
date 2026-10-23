@@ -476,7 +476,10 @@ only grow when something is added to it.
 **An item leaves the list only once its file is in the Trash.** Remove, clear,
 purge and eviction all follow it: a file whose trash failed is still in the
 directory, and dropping its tile would only hide it until the next launch
-reloaded it.
+reloaded it. The upkeep after an add never fails the add — the new item is
+already copied and listed — and eviction skips a file it cannot trash for the
+next oldest, so one stuck file neither refuses every later drop nor lets the
+shelf grow past twenty plus the stuck ones.
 
 **Clear can be undone for six seconds.** `clear()` returns a
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —

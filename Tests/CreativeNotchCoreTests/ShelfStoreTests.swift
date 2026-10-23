@@ -388,7 +388,10 @@ struct ShelfStoreTests {
     }
 
     /// Eviction too. The twenty-first item arrives as a reference, because a
-    /// read-only directory refuses the copy an owned drop would make.
+    /// read-only directory refuses the copy an owned drop would make. Every
+    /// owned file is stuck, so the shelf goes over capacity rather than
+    /// forgetting any of them -- and the add itself still succeeds, because
+    /// the reference is listed.
     @Test func anEvictionThatCannotTrashKeepsTheOldest() throws {
         let (store, dir) = try makeStore()
         var oldest: ShelfItem?
@@ -405,12 +408,95 @@ struct ShelfStoreTests {
                 [.posixPermissions: 0o700], ofItemAtPath: dir.path)
         }
 
-        #expect(throws: (any Error).self) {
-            try store.addReference(to: external, now: self.t0.addingTimeInterval(100))
-        }
+        let reference = try store.addReference(to: external, now: self.t0.addingTimeInterval(100))
+        #expect(store.items.first?.id == reference.id)
+        #expect(store.items.count == ShelfStore.capacity + 1)
         #expect(store.items.contains { $0.id == oldest?.id },
                 "the oldest item was dropped though its file is still on disk")
         #expect(FileManager.default.fileExists(atPath: oldest!.url.path))
+    }
+
+    // MARK: - One file that cannot be trashed
+
+    /// Locks a shelf file the way the Finder's "Locked" box does, so moving
+    /// it to the Trash fails while every other file still goes.
+    private func lock(_ url: URL) throws {
+        try FileManager.default.setAttributes([.immutable: true], ofItemAtPath: url.path)
+    }
+
+    private func unlock(_ url: URL) {
+        try? FileManager.default.setAttributes([.immutable: false], ofItemAtPath: url.path)
+    }
+
+    /// **One stuck file must not break every later drop.** The oldest item
+    /// at capacity cannot be trashed: each add after it still succeeds --
+    /// the new file is copied and listed, so throwing would have the drop
+    /// handler refuse a drop that is on the shelf -- and eviction moves past
+    /// it to the next oldest, so the shelf stays at capacity, the stuck file
+    /// holding one slot, instead of growing with every drop.
+    @Test func aStuckOldestItemDoesNotFailLaterAddsOrStallEviction() throws {
+        let (store, _) = try makeStore()
+        var added: [ShelfItem] = []
+        for i in 0..<ShelfStore.capacity {
+            added.append(try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i))))
+        }
+        let stuck = added[0]
+        try lock(stuck.url)
+        defer { unlock(stuck.url) }
+
+        for i in 0..<3 {
+            let item = try store.add(.text("late \(i)"), now: t0.addingTimeInterval(Double(100 + i)))
+            #expect(store.items.first?.id == item.id)
+        }
+
+        #expect(store.items.count == ShelfStore.capacity,
+                "eviction stalled on the stuck file and the shelf kept growing")
+        #expect(store.items.contains { $0.id == stuck.id },
+                "the stuck item was dropped though its file is still on disk")
+        #expect(FileManager.default.fileExists(atPath: stuck.url.path))
+        // By id: the late drops reuse the evicted files' freed names.
+        for gone in added[1...3] {
+            #expect(!store.items.contains { $0.id == gone.id }, "\(gone.displayName) was not evicted")
+        }
+        let onDisk = try FileManager.default.contentsOfDirectory(atPath: stuck.url.deletingLastPathComponent().path)
+        #expect(onDisk.count == ShelfStore.capacity, "the evicted files were not trashed")
+    }
+
+    /// The same for a capture added as a reference: the camera logs a lost
+    /// capture when `addReference` throws.
+    @Test func aStuckOldestItemDoesNotFailALaterReference() throws {
+        let (store, _) = try makeStore()
+        var added: [ShelfItem] = []
+        for i in 0..<ShelfStore.capacity {
+            added.append(try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i))))
+        }
+        try lock(added[0].url)
+        defer { unlock(added[0].url) }
+
+        let external = try makeExternalFile(named: "Photo.jpg")
+        let reference = try store.addReference(to: external, now: t0.addingTimeInterval(100))
+
+        #expect(store.items.first?.id == reference.id)
+        #expect(!store.items.contains { $0.id == added[1].id })
+        #expect(store.items.contains { $0.id == added[0].id })
+    }
+
+    /// An expired item that cannot be trashed: the purge after each add hits
+    /// it every time, and that must not fail the add.
+    @Test func aStuckExpiredItemDoesNotFailLaterAdds() throws {
+        let (store, _) = try makeStore()
+        let old = try store.add(.text("old"), now: t0)
+        try lock(old.url)
+        defer { unlock(old.url) }
+
+        let later = t0.addingTimeInterval(ShelfStore.maxAge + 60)
+        try store.add(.text("new"), now: later)
+        try store.add(.text("newer"), now: later.addingTimeInterval(1))
+
+        #expect(store.items.count == 3)
+        #expect(store.items.contains { $0.id == old.id })
+        // The launch purge still reports it, where a failure can be logged.
+        #expect(throws: (any Error).self) { try store.purge(now: later) }
     }
 
     // MARK: - Undoing a clear

@@ -108,8 +108,7 @@ public final class ShelfStore {
             addedAt: now
         )
         items.insert(item, at: 0)
-        try evictBeyondCapacity()
-        try purge(now: now)
+        housekeep(sparing: item.id, now: now)
         return item
     }
 
@@ -133,8 +132,7 @@ public final class ShelfStore {
             isOwned: false
         )
         items.insert(item, at: 0)
-        try evictBeyondCapacity()
-        try purge(now: now)
+        housekeep(sparing: item.id, now: now)
         return item
     }
 
@@ -244,9 +242,9 @@ public final class ShelfStore {
         }
         items.append(contentsOf: restored)
         items.sort { $0.addedAt > $1.addedAt }
-        // `try?`: the restored files are back either way, and an eviction
-        // that cannot trash keeps its item listed, so nothing is lost.
-        try? evictBeyondCapacity()
+        // An eviction that cannot trash keeps its item listed, so nothing
+        // is lost either way.
+        evictBeyondCapacity(sparing: nil)
         return ShelfRestoration(restored: restored, skipped: skipped)
     }
 
@@ -316,17 +314,41 @@ public final class ShelfStore {
         }
     }
 
+    /// The upkeep after an add: eviction, then the age purge.
+    ///
+    /// Never throws. By the time it runs the new item is copied and listed,
+    /// so the add has succeeded; reporting a failure here would have the
+    /// caller refuse a drop -- or log a capture as lost -- that is in fact
+    /// on the shelf. And a file that cannot be trashed fails the same way
+    /// every time, so a throwing upkeep would fail every add from then on.
+    /// Whatever could not go stays listed and is tried again next time,
+    /// as with every other removal.
+    private func housekeep(sparing id: UUID, now: Date) {
+        evictBeyondCapacity(sparing: id)
+        _ = try? purge(now: now)
+    }
+
     /// Trashes the oldest items until the shelf is back at capacity.
     ///
-    /// The oldest leaves the list only after its file is gone, like every
-    /// other removal. If it cannot be trashed the shelf stays over capacity
-    /// and the error is thrown: a list that dropped it would show twenty
-    /// while the directory holds twenty-one, and the next launch would
-    /// reload them all. The next add tries again.
-    private func evictBeyondCapacity() throws {
-        while items.count > Self.capacity, let oldest = items.last {
-            try trash(oldest)
-            items.removeLast()
+    /// An item leaves the list only after its file is gone, like every other
+    /// removal: a list that dropped it would show twenty while the directory
+    /// holds twenty-one, and the next launch would reload them all. One that
+    /// cannot be trashed is skipped for the next oldest, so a single stuck
+    /// file does not stall eviction and let the shelf grow without limit; the
+    /// shelf stays over capacity only by the number of stuck files.
+    ///
+    /// `sparing` is the item just added. Evicting the thing the user just
+    /// dropped, because older ones would not go, would refuse the drop in
+    /// all but name.
+    private func evictBeyondCapacity(sparing spared: UUID?) {
+        for candidate in items.reversed() where items.count > Self.capacity {
+            guard candidate.id != spared else { continue }
+            do {
+                try trash(candidate)
+                items.removeAll { $0.id == candidate.id }
+            } catch {
+                continue
+            }
         }
     }
 
