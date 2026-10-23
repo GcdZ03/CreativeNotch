@@ -19,6 +19,7 @@ public final class MenuBarController: NSObject {
     private var item: NSStatusItem?
     private(set) var settingsItem: NSMenuItem?
     private var clearShelfItem: NSMenuItem?
+    private var undoClearShelfItem: NSMenuItem?
     private var clearClipboardItem: NSMenuItem?
 
     private let onShowPreferences: () -> Void
@@ -26,19 +27,27 @@ public final class MenuBarController: NSObject {
     private let shelfCount: () -> Int
     private let onClearClipboard: () -> Void
     private let clipboardCount: () -> Int
+    private let onUndoClearShelf: () -> Void
+    private let canUndoClearShelf: () -> Bool
 
+    /// The undo pair defaults to "never offered", so a caller with no shelf
+    /// behind it need not spell it out.
     public init(
         onShowPreferences: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
         shelfCount: @escaping () -> Int,
         onClearClipboard: @escaping () -> Void,
-        clipboardCount: @escaping () -> Int
+        clipboardCount: @escaping () -> Int,
+        onUndoClearShelf: @escaping () -> Void = {},
+        canUndoClearShelf: @escaping () -> Bool = { false }
     ) {
         self.onShowPreferences = onShowPreferences
         self.onClearShelf = onClearShelf
         self.shelfCount = shelfCount
         self.onClearClipboard = onClearClipboard
         self.clipboardCount = clipboardCount
+        self.onUndoClearShelf = onUndoClearShelf
+        self.canUndoClearShelf = canUndoClearShelf
     }
 
     public func install() {
@@ -75,6 +84,18 @@ public final class MenuBarController: NSObject {
         menu.addItem(clear)
         self.clearShelfItem = clear
 
+        // Hidden rather than disabled: it exists for a few seconds after a
+        // clear, and a greyed-out "Undo" the rest of the time is noise.
+        let undoClear = NSMenuItem(
+            title: "Undo Clear Shelf",
+            action: #selector(undoClearShelf),
+            keyEquivalent: ""
+        )
+        undoClear.target = self
+        undoClear.isHidden = !showsUndoClearShelf
+        menu.addItem(undoClear)
+        self.undoClearShelfItem = undoClear
+
         let clearClipboard = NSMenuItem(
             title: clearClipboardTitle(),
             action: #selector(clearClipboard),
@@ -108,6 +129,15 @@ public final class MenuBarController: NSObject {
         onClearShelf()
     }
 
+    /// Read when the menu opens, never polled -- so an offer that lapses
+    /// while the menu is open stays visible until it closes, and choosing
+    /// it then does nothing.
+    var showsUndoClearShelf: Bool { canUndoClearShelf() }
+
+    @objc func undoClearShelf() {
+        onUndoClearShelf()
+    }
+
     /// Read when the menu opens, never polled.
     func clearClipboardTitle() -> String {
         let count = clipboardCount()
@@ -129,6 +159,7 @@ extension MenuBarController: NSMenuDelegate {
     public func menuWillOpen(_ menu: NSMenu) {
         clearShelfItem?.title = clearShelfTitle()
         clearShelfItem?.isEnabled = shelfCount() > 0
+        undoClearShelfItem?.isHidden = !showsUndoClearShelf
         clearClipboardItem?.title = clearClipboardTitle()
         clearClipboardItem?.isEnabled = clipboardCount() > 0
     }

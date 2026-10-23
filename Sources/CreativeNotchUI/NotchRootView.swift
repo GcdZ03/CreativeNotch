@@ -110,10 +110,27 @@ public final class AppState {
     @ObservationIgnored
     public var onRemoveShelfItem: ((UUID) -> Void)?
 
+    /// Whether the last Clear can still be undone, which puts "Undo" in the
+    /// shelf's title row. Observable, unlike the verbs: the offer lapses on
+    /// its own after a few seconds, and the button has to go with it.
+    /// Set by `AppDelegate`, which holds what the clear took.
+    public internal(set) var canUndoShelfClear = false
+
+    /// Puts back what the last Clear moved to the Trash. Wired, like
+    /// `onClearShelf`, to the delegate that holds the record.
+    @ObservationIgnored
+    public var onUndoClearShelf: (() -> Void)?
+
     /// Sends shelf files over AirDrop. A verb, like the others, so the view
     /// never holds a sharing service (spec 2026-10-17).
     @ObservationIgnored
     public var onAirDropShelfItems: (([URL]) -> Void)?
+
+    /// Shows a shelf file selected in Finder, from a tile's context menu or
+    /// accessibility actions. A verb, like AirDrop, so the view never
+    /// reaches for `NSWorkspace`.
+    @ObservationIgnored
+    public var onRevealShelfItem: ((URL) -> Void)?
 
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
@@ -957,7 +974,8 @@ public struct NotchRootView: View {
                     ShelfView(
                         store: shelf,
                         onRemove: { app.onRemoveShelfItem?($0) },
-                        onAirDrop: { app.onAirDropShelfItems?([$0]) }
+                        onAirDrop: { app.onAirDropShelfItems?([$0]) },
+                        onReveal: { app.onRevealShelfItem?($0) }
                     )
                 }
             }
@@ -1001,20 +1019,29 @@ public struct NotchRootView: View {
     }
 
     /// The shelf's title-row verbs: "AirDrop All" then "Clear", or none
-    /// when it is empty.
+    /// when it is empty -- with "Undo" before Clear for the few seconds a
+    /// clear can still be taken back.
     ///
     /// AirDrop All hands every file to AirDrop in one go — one picker, not
     /// one per file — through the same `onAirDropShelfItems` verb the
     /// tiles use. Clear stays last, at the edge, where the destructive verb
-    /// already was.
+    /// already was. Undo lands where Clear was a moment ago on the shelf it
+    /// just emptied, so the hand that cleared can take it back without
+    /// moving.
     static func shelfActions(
         for shelf: ShelfStore, app: AppState
     ) -> [(label: String, perform: () -> Void)] {
-        guard !shelf.items.isEmpty else { return [] }
-        return [
-            ("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }),
-            ("Clear", { app.onClearShelf?() }),
-        ]
+        var actions: [(label: String, perform: () -> Void)] = []
+        if !shelf.items.isEmpty {
+            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }))
+        }
+        if app.canUndoShelfClear {
+            actions.append(("Undo", { app.onUndoClearShelf?() }))
+        }
+        if !shelf.items.isEmpty {
+            actions.append(("Clear", { app.onClearShelf?() }))
+        }
+        return actions
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.

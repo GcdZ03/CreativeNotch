@@ -13,10 +13,50 @@ import CreativeNotchCore
 /// `ShelfStore.remove(_:)` verb, which trashes an owned file, reached
 /// through `AppState` like every other verb in the panel — and an AirDrop
 /// one that calls `onAirDrop` with the file's URL.
+///
+/// Those two buttons exist only under the pointer, so each tile also
+/// carries the same verbs, plus Show in Finder, as accessibility actions
+/// and a context menu: VoiceOver and keyboard users have no hover, and a
+/// right-click is the Mac's way to ask a thing what it can do.
 struct ShelfView: View {
     let store: ShelfStore
     var onRemove: (UUID) -> Void = { _ in }
     var onAirDrop: (URL) -> Void = { _ in }
+    var onReveal: (URL) -> Void = { _ in }
+
+    /// One verb a tile offers outside hover.
+    struct TileAction {
+        let label: String
+        let symbolName: String
+        let isDestructive: Bool
+        let perform: () -> Void
+    }
+
+    /// The tile's verbs, in menu order: Show in Finder, AirDrop, then
+    /// Remove last, where the destructive verb sits in the title row too.
+    ///
+    /// Static, and the single list both the accessibility actions and the
+    /// context menu are built from, so the two cannot drift apart and a
+    /// test can check what neither exposes once rendered.
+    static func tileActions(
+        onRemove: @escaping () -> Void,
+        onAirDrop: @escaping () -> Void,
+        onReveal: @escaping () -> Void
+    ) -> [TileAction] {
+        [
+            TileAction(label: "Show in Finder", symbolName: "folder",
+                       isDestructive: false, perform: onReveal),
+            TileAction(label: "AirDrop", symbolName: "dot.radiowaves.left.and.right",
+                       isDestructive: false, perform: onAirDrop),
+            TileAction(label: "Remove", symbolName: "xmark",
+                       isDestructive: true, perform: onRemove),
+        ]
+    }
+
+    /// What VoiceOver reads for a tile: the file's name, as shown under it.
+    static func tileAccessibilityLabel(for item: ShelfItem) -> String {
+        item.displayName
+    }
 
     private let itemSize = CGSize(width: 64, height: 64)
 
@@ -44,7 +84,8 @@ struct ShelfView: View {
                                 item: item,
                                 size: itemSize,
                                 onRemove: { onRemove(item.id) },
-                                onAirDrop: { onAirDrop(item.url) }
+                                onAirDrop: { onAirDrop(item.url) },
+                                onReveal: { onReveal(item.url) }
                             )
                             .draggable(item.url)
                         }
@@ -63,9 +104,14 @@ private struct ShelfItemView: View {
     let size: CGSize
     let onRemove: () -> Void
     let onAirDrop: () -> Void
+    let onReveal: () -> Void
 
     @State private var image: NSImage?
     @State private var hovering = false
+
+    private var actions: [ShelfView.TileAction] {
+        ShelfView.tileActions(onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
+    }
 
     var body: some View {
         VStack(spacing: 6) {
@@ -124,6 +170,22 @@ private struct ShelfItemView: View {
         }
         // A tracking area inside the panel, alive only while the tile is.
         .onHover { hovering = $0 }
+        // One element, not a picture, a caption and two buttons that come
+        // and go with the pointer: the hover buttons' verbs are its actions.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(ShelfView.tileAccessibilityLabel(for: item))
+        .accessibilityActions {
+            ForEach(actions, id: \.label) { action in
+                Button(action.label, action: action.perform)
+            }
+        }
+        .contextMenu {
+            ForEach(actions, id: \.label) { action in
+                Button(role: action.isDestructive ? .destructive : nil, action: action.perform) {
+                    Label(action.label, systemImage: action.symbolName)
+                }
+            }
+        }
         .task {
             image = await ShelfThumbnails.shared.thumbnail(for: item, size: size)
         }

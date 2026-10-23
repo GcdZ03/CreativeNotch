@@ -179,6 +179,78 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private(set) var shelf: ShelfStore?
 
+    /// How long "Undo" stays on offer after the shelf is cleared.
+    ///
+    /// Long enough to notice a mistake and reach the button, short enough
+    /// that the offer does not outlive the user's memory of what it undoes.
+    static let defaultShelfUndoWindow: Duration = .seconds(6)
+
+    /// Overridable so a test can watch the offer lapse without waiting six
+    /// seconds, the same reason `growthDelay` is.
+    var shelfUndoWindow: Duration = AppDelegate.defaultShelfUndoWindow
+
+    /// What the last clear took, while it can still be undone.
+    private var pendingShelfClearance: ShelfClearance?
+
+    /// The one-shot that withdraws the offer. Not a repeating timer: it is
+    /// scheduled only by a clear, sleeps once, and is gone. `nil` whenever
+    /// no undo is on offer, so nothing is scheduled while the shelf is idle.
+    private(set) var shelfUndoTask: Task<Void, Never>?
+
+    /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
+    ///
+    /// The one path both the pane's Clear and the menu bar's Clear Shelf
+    /// take, so either can be undone from the pane. Clear moves real files
+    /// to the Trash; before the undo, getting one back meant finding it in
+    /// Finder. A clear that fails partway still offers back what it did
+    /// take. A new clear replaces the previous offer rather than merging
+    /// with it: Undo undoes the clear just made.
+    func clearShelf() {
+        guard let shelf else { return }
+        let clearance: ShelfClearance
+        do {
+            clearance = try shelf.clear()
+        } catch let partial as ShelfStore.PartialClear {
+            NSLog("CreativeNotch: shelf could not trash every item: \(partial.underlying)")
+            clearance = partial.clearance
+        } catch {
+            return
+        }
+        guard !clearance.isEmpty else { return }
+        offerShelfUndo(clearance)
+    }
+
+    /// Puts back what the last clear took, if the offer has not lapsed.
+    /// Items that cannot come back -- emptied from the Trash in the
+    /// meantime -- are skipped by the store; the rest still return.
+    func undoClearShelf() {
+        guard let clearance = pendingShelfClearance else { return }
+        withdrawShelfUndo()
+        guard let restoration = shelf?.restore(clearance) else { return }
+        if !restoration.skipped.isEmpty {
+            NSLog("CreativeNotch: could not restore \(restoration.skipped.count) shelf item(s)")
+        }
+    }
+
+    private func offerShelfUndo(_ clearance: ShelfClearance) {
+        shelfUndoTask?.cancel()
+        pendingShelfClearance = clearance
+        state.canUndoShelfClear = true
+        shelfUndoTask = Task { @MainActor [weak self] in
+            guard let window = self?.shelfUndoWindow else { return }
+            try? await Task.sleep(for: window)
+            guard !Task.isCancelled else { return }
+            self?.withdrawShelfUndo()
+        }
+    }
+
+    private func withdrawShelfUndo() {
+        shelfUndoTask?.cancel()
+        shelfUndoTask = nil
+        pendingShelfClearance = nil
+        state.canUndoShelfClear = false
+    }
+
     // MARK: - Dismissal
 
     /// How long an open panel survives the cursor leaving it.
@@ -257,10 +329,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
-            onClearShelf: { [weak self] in try? self?.shelf?.clear() },
+            onClearShelf: { [weak self] in self?.clearShelf() },
             shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
-            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 }
+            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
+            onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
+            canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false }
         )
         menuBar.install()
         self.menuBar = menuBar
@@ -542,9 +616,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // The pane's title-row verbs reach the verbs that already exist —
         // the same `clear()` the menu bar items call. Read through `self`
         // rather than captured, so a shelf rebuilt later is the one cleared.
-        state.onClearShelf = { [weak self] in try? self?.shelf?.clear() }
+        state.onClearShelf = { [weak self] in self?.clearShelf() }
+        state.onUndoClearShelf = { [weak self] in self?.undoClearShelf() }
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
+        state.onRevealShelfItem = { url in NSWorkspace.shared.activateFileViewerSelecting([url]) }
 
         // Open on hover (2026-10-17). Loaded here, saved and applied together
         // by the verb, like the shortcut's store.
