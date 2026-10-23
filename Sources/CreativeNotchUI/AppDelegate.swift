@@ -393,7 +393,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transition(to: .closed)
             return
         }
-        openPanel()
+        openPanel(openedBy: .hotKey)
     }
 
     /// Opens the panel on the last tab, or the first visible one if that tab
@@ -405,8 +405,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Also `false` while the panel is hidden for a full-screen app: there
     /// is no window on screen to open.
+    ///
+    /// `reason` is required, not defaulted, so every route has to say whether
+    /// it was asked for. The answer decides whether the open takes the
+    /// keyboard (`PanelFocus`), and a default would quietly decide it for a
+    /// route added later.
     @discardableResult
-    func openPanel() -> Bool {
+    func openPanel(openedBy reason: PanelOpenReason) -> Bool {
         guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
@@ -415,7 +420,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard !visible.isEmpty else { return false }
         state.transition(to: .open(visible.contains(state.lastOpenTab)
                                   ? state.lastOpenTab
-                                  : visible[0]))
+                                  : visible[0]),
+                         openedBy: reason)
         return true
     }
 
@@ -448,6 +454,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             .size
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
+        panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
         host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
@@ -555,7 +562,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour = behaviour
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
-        state.onOpenPanel = { [weak self] in self?.openPanel() }
+        state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
             self.state.transition(to: .closed)
@@ -703,7 +710,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.state.transition(to: .closed)
                 return false
             }
-            self.state.transition(to: .open(.shelf))
+            self.state.transition(to: .open(.shelf), openedBy: .drop)
             return true
         }
         container.addSubview(host)
@@ -1138,7 +1145,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .none:
             break
         case .open:
-            openPanel()
+            openPanel(openedBy: .swipe)
         case .close:
             state.transition(to: .closed)
         case .nextTrack, .previousTrack:
@@ -1159,7 +1166,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if state.hoverBehaviour.opensOnHover {
             switch state.state {
             case .closed, .peek:
-                if openPanel() { return }
+                if openPanel(openedBy: .hover) { return }
             case .open, .receiving:
                 return
             }
@@ -1336,12 +1343,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// change routes through `AppState.transition(to:)`, so there is no
     /// path that can open the panel without arming this, or close it and
     /// leave a monitor running.
-    /// Takes keyboard focus only for the one tab that accepts typing.
+    /// Takes keyboard focus for an open somebody asked for, and for the one
+    /// tab that accepts typing.
     ///
     /// The panel *can* become key (see `NotchPanel`), but it should not do
     /// so casually: while it holds focus, whatever you were writing in
-    /// loses its insertion point. Peeks are ambient and frequent, and the
-    /// shelf and clipboard tabs are click-only, so none of them touch it.
+    /// loses its insertion point. Peeks are ambient and frequent, so none of
+    /// them touch it. An open earns it by being explicit — the notch tap or
+    /// the global shortcut, the two routes where the person has turned to
+    /// the panel and Esc and ⌘1…⌘N are what they will reach for next. A
+    /// hover-open never does: a pointer crossing the notch is not someone who
+    /// has stopped typing (`PanelOpenReason`).
     ///
     /// Giving focus back is `relinquishKey`, not `resignKey()`. AppKit sends
     /// `resignKey` as a notification and documents that it must never be
@@ -1352,15 +1364,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// being frontmost (the panel is non-activating), and tracking that
     /// ourselves would be a second derivation of state it already owns.
     ///
-    /// Deliberately keyed on the *tab*, not on `.open`. Making every open
-    /// steal the cursor would be a regression for the three surfaces that
-    /// never needed it.
+    /// Deliberately keyed on the tab and the *reason*, not on `.open`.
+    /// Making every open steal the cursor would be a regression for the
+    /// hover-open that never asked for it.
     /// Pure, so the rule is testable without a window server — `makeKey`
-    /// on an offscreen panel in a headless suite proves nothing.
-    static func shouldTakeKey(for state: NotchState) -> Bool {
-        if case .open(.timer) = state { return true }
-        return false
+    /// on an offscreen panel in a headless suite proves nothing. The rule
+    /// itself is `PanelFocus`, in Core; this is the delegate's name for it.
+    static func shouldTakeKey(for state: NotchState, openedBy reason: PanelOpenReason?) -> Bool {
+        PanelFocus.shouldTakeKey(for: state, openedBy: reason)
     }
+
+    /// Takes keyboard focus. `nil` means the real thing, `makeKey()`; a test
+    /// hands in a counter, like `relinquishKey`, because a headless suite
+    /// cannot make an offscreen panel key and so could not tell a hover-open
+    /// that took focus from one that did not.
+    var takeKey: (() -> Void)?
 
     /// Whether the panel holds keyboard focus. Injected because a headless
     /// suite cannot make an offscreen panel key, so the give-back path would
@@ -1381,8 +1399,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// close that follows gives focus back.
     func syncKeyWindow(for newState: NotchState) {
         guard let panel else { return }
-        if Self.shouldTakeKey(for: newState) {
-            panel.makeKey()
+        if Self.shouldTakeKey(for: newState, openedBy: state.openReason) {
+            if let takeKey { takeKey() } else { panel.makeKey() }
         } else if case .open = newState {
             return
         } else if panelIsKey(panel) {
@@ -1407,6 +1425,33 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard wasVisible, !isHiddenForFullScreen else { return }
         panel.orderFrontRegardless()
         if fixedSpace != nil { hostPanelInFixedSpace() }
+    }
+
+    /// What a key the panel received does, through the funnel.
+    ///
+    /// Keys arrive only while the panel is key, which `syncKeyWindow` grants
+    /// to an explicit open (or the timer tab, or a click in the panel) — so
+    /// nothing here needs a monitor, global or local. Esc is the same
+    /// `.closed` transition every other dismissal makes; ⌘N is the same
+    /// `.open(tab)` the tab bar's buttons make, numbered over the tabs the
+    /// bar actually draws.
+    ///
+    /// Returns whether the key was used. A declined key — ⌘9 with three
+    /// tabs, anything while not open — goes back to AppKit to pass on.
+    @discardableResult
+    func handlePanelKey(_ key: PanelKey) -> Bool {
+        let visible = TabVisibility.visible(
+            enabled: state.preferences,
+            hasBattery: state.hasBattery
+        )
+        guard let action = PanelKeyboard.action(for: key, in: state.state, visible: visible) else {
+            return false
+        }
+        switch action {
+        case .close:            state.transition(to: .closed)
+        case .select(let tab):  state.transition(to: .open(tab))
+        }
+        return true
     }
 
     private func syncDismissAffordances(for newState: NotchState) {

@@ -391,28 +391,31 @@ struct TimerWiringTests {
     // MARK: keyboard focus
 
     /// The panel *can* become key, so that the timer's custom-minutes field
-    /// is typable at all. This is the rule for when that is actually spent.
+    /// is typable at all. This is the rule for when that is spent on an open
+    /// nobody explicitly asked for — a hover-open.
     ///
     /// Focus is not free: while the panel holds it, whatever the person was
-    /// writing in loses its insertion point. The three other surfaces are
-    /// click-only and must not pay that.
-    @Test func onlyTheTimerTabTakesKeyboardFocus() {
-        #expect(AppDelegate.shouldTakeKey(for: .open(.timer)))
+    /// writing in loses its insertion point. The other surfaces are
+    /// click-only and must not pay that unless the open was explicit, which
+    /// `PanelKeyboardWiringTests` covers.
+    @Test func onAnAmbientOpenOnlyTheTimerTabTakesKeyboardFocus() {
+        #expect(AppDelegate.shouldTakeKey(for: .open(.timer), openedBy: .hover))
 
-        #expect(!AppDelegate.shouldTakeKey(for: .open(.shelf)))
-        #expect(!AppDelegate.shouldTakeKey(for: .open(.clipboard)))
-        #expect(!AppDelegate.shouldTakeKey(for: .open(.power)))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.shelf), openedBy: .hover))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.clipboard), openedBy: .hover))
+        #expect(!AppDelegate.shouldTakeKey(for: .open(.power), openedBy: .hover))
     }
 
     /// Peeks are ambient and fire constantly — a power peek on every charger
     /// change stealing the cursor would make the app unusable.
     @Test func noPeekOrClosedStateTakesKeyboardFocus() {
-        #expect(!AppDelegate.shouldTakeKey(for: .closed))
-        #expect(!AppDelegate.shouldTakeKey(for: .receiving))
-        #expect(!AppDelegate.shouldTakeKey(for: .peek(.dragTarget)))
-        #expect(!AppDelegate.shouldTakeKey(for: .peek(.power(.unplugged(level: 50)))))
+        #expect(!AppDelegate.shouldTakeKey(for: .closed, openedBy: nil))
+        #expect(!AppDelegate.shouldTakeKey(for: .receiving, openedBy: nil))
+        #expect(!AppDelegate.shouldTakeKey(for: .peek(.dragTarget), openedBy: nil))
+        #expect(!AppDelegate.shouldTakeKey(for: .peek(.power(.unplugged(level: 50))), openedBy: nil))
         #expect(!AppDelegate.shouldTakeKey(
-            for: .peek(.timerDone(TimerCompletion(duration: 60, lateness: 0)))
+            for: .peek(.timerDone(TimerCompletion(duration: 60, lateness: 0))),
+            openedBy: nil
         ))
     }
 

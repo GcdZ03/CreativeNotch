@@ -35,6 +35,21 @@ public final class AppState {
     /// `anchor` spells out `CreativeNotchCore.Anchor`.
     public private(set) var lastOpenTab: CreativeNotchCore.Tab = .shelf
 
+    /// Why the panel is open, or `nil` when it is not.
+    ///
+    /// Written by `transition(to:openedBy:)` alongside `state`, so the two
+    /// cannot disagree: recorded on the change *into* `.open`, kept across a
+    /// tab switch (still the same open), cleared the moment the panel leaves.
+    /// A later hover-open therefore cannot inherit an earlier tap's right to
+    /// the keyboard. Read by `AppDelegate.syncKeyWindow` through
+    /// `PanelFocus`, from inside the funnel's own notification.
+    ///
+    /// `@ObservationIgnored` because nothing draws it: an open's reason
+    /// changing only ever coincides with `state` changing, which already
+    /// redraws.
+    @ObservationIgnored
+    public private(set) var openReason: PanelOpenReason?
+
     /// Whether the last state change grew the panel, so the view can pick
     /// a bouncy spring for growing and a snappy one for shrinking (spec
     /// 2026-10-15). Set by `transition(to:)` alongside `state`, so the two
@@ -123,8 +138,10 @@ public final class AppState {
     @ObservationIgnored
     public var onOpenSettings: (() -> Void)?
 
-    /// The notch tap's way into the panel: the delegate's `openPanel()`,
-    /// which picks a visible tab or declines when there is none.
+    /// The notch tap's way into the panel: the delegate's
+    /// `openPanel(openedBy: .tap)`, which picks a visible tab or declines when
+    /// there is none. Only the tap calls it, which is what lets the delegate
+    /// record the open as explicit and give it the keyboard.
     @ObservationIgnored
     public var onOpenPanel: (() -> Void)?
 
@@ -349,9 +366,19 @@ public final class AppState {
     /// redundant assignment would force a redraw for no visible difference.
     /// The derived rects are functions of the state, so skipping the
     /// callback for an unchanged state cannot leave them stale.
-    public func transition(to next: NotchState) {
+    ///
+    /// `reason` says who asked, and counts only on the change into `.open`
+    /// from somewhere else: a tab switch keeps the open's original reason.
+    /// It defaults to `.unspecified` — ambient, never key — so a route that
+    /// forgets to say is the safe one, not the one that steals keystrokes.
+    public func transition(to next: NotchState, openedBy reason: PanelOpenReason = .unspecified) {
         guard next != state else { return }
-        if case .open(let tab) = next { lastOpenTab = tab }
+        if case .open(let tab) = next {
+            lastOpenTab = tab
+            if case .open = state {} else { openReason = reason }
+        } else {
+            openReason = nil
+        }
         // One peek replacing another is a swap, not a collapse, even when the
         // new one is smaller — a battery peek giving way to a drag target.
         lastChangeGrew = next.presentation.rank >= state.presentation.rank
@@ -921,7 +948,11 @@ public struct NotchRootView: View {
         case .open:
             app.transition(to: .closed)
         default:
-            if let open = app.onOpenPanel { open() } else { app.transition(to: .open(app.lastOpenTab)) }
+            if let open = app.onOpenPanel {
+                open()
+            } else {
+                app.transition(to: .open(app.lastOpenTab), openedBy: .tap)
+            }
         }
     }
 
