@@ -1204,9 +1204,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Only acts while still `.peek`: if the user has since opened the
     /// panel or started a drag, that is a deliberate state this stale
     /// check must not disturb.
+    ///
+    /// Asks the arbiter what the peek *on screen* becomes, not what a hover
+    /// would show: a paused track is held under the pointer so Play stays
+    /// reachable, and the music peek is never fallen back to with nobody
+    /// hovering. `isHovering` is the pointer, because the tracker is the
+    /// one thing that knows where it is without polling.
     private func reevaluatePeek() {
-        guard case .peek = state.state else { return }
-        if let content = arbiter.content(now: self.now()) {
+        guard case .peek(let showing) = state.state else { return }
+        if let content = arbiter.content(
+            now: self.now(), replacing: showing, pointerInside: state.isHovering
+        ) {
             state.transition(to: .peek(content))
             // Something transient may still be live underneath the one that
             // just lapsed — a power peek recorded while a finished timer held

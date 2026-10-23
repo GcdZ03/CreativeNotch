@@ -101,4 +101,34 @@ struct NowPlayingTests {
         #expect(delegate.state.nowPlayingArtwork == nil)
         #expect(delegate.arbiter.content(now: 0) == nil)
     }
+
+    // MARK: - Pausing from the peek
+
+    /// Pause is a control in the now-playing peek. Pressing it used to
+    /// collapse the peek under the pointer — the arbiter drops a paused
+    /// track — so Play was never reachable from the same place.
+    @Test func pausingFromThePeekKeepsItOpenUnderThePointer() {
+        let delegate = makeDelegate()
+        let playing = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
+        let paused = TrackSnapshot(title: "T", artist: "A", isPlaying: false)
+        delegate.nowPlayingDidChange(playing)
+        delegate.state.isHovering = true
+        delegate.state.transition(to: .peek(.nowPlaying(playing)))
+
+        delegate.nowPlayingDidChange(paused)
+
+        #expect(delegate.state.state == .peek(.nowPlaying(paused)))
+    }
+
+    /// Held for the pointer, not forever: without it the paused peek goes.
+    @Test func aPausedPeekWithoutThePointerCloses() {
+        let delegate = makeDelegate()
+        let playing = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
+        delegate.nowPlayingDidChange(playing)
+        delegate.state.transition(to: .peek(.nowPlaying(playing)))
+
+        delegate.nowPlayingDidChange(TrackSnapshot(title: "T", artist: "A", isPlaying: false))
+
+        #expect(delegate.state.state == .closed)
+    }
 }
