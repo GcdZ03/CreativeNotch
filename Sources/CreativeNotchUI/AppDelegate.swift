@@ -376,8 +376,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// The one way the delegate opens the panel — the shortcut, a swipe and
     /// open-on-hover all come through here.
+    ///
+    /// Also `false` while the panel is hidden for a full-screen app: there
+    /// is no window on screen to open.
     @discardableResult
     func openPanel() -> Bool {
+        guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
@@ -925,7 +929,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// call without putting a window on screen.
     var setPanelShown: (Bool) -> Void = { _ in }
 
-    private(set) var fullScreenWatcher: FullScreenWatcher?
+    /// Settable internally so a test can stand in a watcher fed a fake
+    /// Space list; only the launch builds the real one.
+    var fullScreenWatcher: FullScreenWatcher?
 
     /// Hides the notch over full-screen apps again (2026-10-17).
     ///
@@ -956,10 +962,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         watcher.start()
     }
 
+    /// Whether the panel is off screen for a full-screen app. `openPanel`
+    /// reads it: opening an ordered-out window armed the outside-click
+    /// monitor and made an invisible window key, with nothing to click.
+    private(set) var isHiddenForFullScreen = false
+
     /// Full-screen: close the panel and take the notch off screen. Back to
     /// a desktop: put it back.
+    ///
+    /// Closing ends a drag in flight too. The window is ordered out, so no
+    /// `draggingExited` will ever arrive to clear the arbiter's drag flag,
+    /// and every later peek would be answered with a drop target.
     func applyFullScreen(_ isFullScreen: Bool) {
-        if isFullScreen { state.transition(to: .closed) }
+        isHiddenForFullScreen = isFullScreen
+        if isFullScreen {
+            arbiter.setDragActive(false)
+            state.transition(to: .closed)
+        }
         setPanelShown(!isFullScreen)
     }
 
@@ -1321,8 +1340,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Ordering a window out is what actually takes key status from it, and
     /// ordering it straight back with `orderFrontRegardless` does not hand it
     /// back — that call never makes a window key. Both in the same turn of
-    /// the run loop, so nothing flickers. Re-hosted afterwards, because a
-    /// window ordered out may leave the fixed Space (see `NotchSpace`).
+    /// the run loop, so there is no frame in between to draw. Not ordered
+    /// back while hidden for a full-screen app. Re-hosted afterwards,
+    /// because a window ordered out may leave the fixed Space (see
+    /// `NotchSpace`).
     ///
     /// Re-hosting only where a Space exists, so this can never be the call
     /// that creates one — only the launch does that.
@@ -1330,7 +1351,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let wasVisible = panel.isVisible
         panel.orderOut(nil)
         fixedSpace?.windowOrderedOut()
-        guard wasVisible else { return }
+        guard wasVisible, !isHiddenForFullScreen else { return }
         panel.orderFrontRegardless()
         if fixedSpace != nil { hostPanelInFixedSpace() }
     }
@@ -1412,7 +1433,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             object: nil, queue: .main
         ) { [weak self] _ in
             guard let self, let screen = NSScreen.main else { return }
-            MainActor.assumeIsolated { _ = self.reposition(metrics: screen.metrics) }
+            MainActor.assumeIsolated { self.screenParametersDidChange(metrics: screen.metrics) }
         }, NotificationCenter.default))
 
         observers.append((NSWorkspace.shared.notificationCenter.addObserver(
@@ -1431,6 +1452,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }, NSWorkspace.shared.notificationCenter))
+    }
+
+    /// The display arrangement changed. Internal so a test can drive it
+    /// with metrics instead of a real display.
+    ///
+    /// Re-checks full screen even when the panel did not move: the
+    /// arrangement changed, and what its display shows may have with it.
+    /// `reposition` already did when it moved, and `evaluate` reports only
+    /// a change, so the second look is free.
+    func screenParametersDidChange(metrics: ScreenMetrics) {
+        if !reposition(metrics: metrics) { fullScreenWatcher?.evaluate() }
     }
 
     private func removeScreenObservers() {
@@ -1455,6 +1487,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // re-syncs from the geometry observer.
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
         panel?.setFrame(frame, display: true)
+        // A different display has its own current Space, which the watcher
+        // only looks at when the active Space changes. Moved onto a display
+        // showing a full-screen app, the panel sat on top of it; moved off
+        // one, it stayed hidden on a normal desktop.
+        fullScreenWatcher?.evaluate()
         return true
     }
 }
