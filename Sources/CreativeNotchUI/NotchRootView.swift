@@ -97,9 +97,9 @@ public final class AppState {
     /// A closure rather than a `ClipboardController` reference, so the
     /// view layer never gains a way to start or stop the poller.
     @ObservationIgnored
-    public var onPasteClipboard: ((ClipboardEntry) -> Void)?
+    public var onCopyClipboard: ((ClipboardEntry) -> Void)?
 
-    /// The pane's title-row verbs. Closures, like `onPasteClipboard`, so the
+    /// The pane's title-row verbs. Closures, like `onCopyClipboard`, so the
     /// view gets a verb and never a store or a controller. Wired in
     /// `AppDelegate.install(metrics:)` to the same `clear()` the menu bar
     /// calls — `ShelfStore.clear()` moves real files to the Trash, which is
@@ -135,6 +135,10 @@ public final class AppState {
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
 
+    /// A row's Delete: forgets one entry, by id, like `onRemoveShelfItem`.
+    @ObservationIgnored
+    public var onRemoveClipboardEntry: ((UUID) -> Void)?
+
     /// The header's gear. Closes the panel, then opens Settings — Settings
     /// is an activating window, and the panel should not sit open under it.
     @ObservationIgnored
@@ -148,7 +152,7 @@ public final class AppState {
     /// How the media buttons reach `MediaRemoteBridge`.
     ///
     /// A closure rather than calling the bridge from the view, for the
-    /// same reason `onPasteClipboard` is one: it keeps a real transport
+    /// same reason `onCopyClipboard` is one: it keeps a real transport
     /// command — which changes playback on the machine — out of anything
     /// a test constructs.
     @ObservationIgnored
@@ -988,15 +992,18 @@ public struct NotchRootView: View {
                         ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
-                    ClipboardView(store: clipboard, now: now) { entry in
-                        app.onPasteClipboard?(entry)
-                    }
+                    ClipboardView(
+                        store: clipboard,
+                        now: now,
+                        onCopy: { app.onCopyClipboard?($0) },
+                        onRemove: { app.onRemoveClipboardEntry?($0) }
+                    )
                 }
             }
 
         case .timer:
             // Through `AppState`, never to a controller this view holds —
-            // the same routing `onPasteClipboard` and `onMediaCommand`
+            // the same routing `onCopyClipboard` and `onMediaCommand`
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.

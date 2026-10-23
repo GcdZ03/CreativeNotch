@@ -257,7 +257,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
-| Click a clipboard entry | Puts it back on the clipboard, ready to paste |
+| Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
+| Right-click a clipboard entry | Copy, or Delete to forget just that one; Clear in the title row forgets them all |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |

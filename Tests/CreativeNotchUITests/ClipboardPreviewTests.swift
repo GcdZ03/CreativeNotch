@@ -47,3 +47,44 @@ struct ClipboardPreviewTests {
         #expect(ClipboardPreview.text(for: .image(Data(repeating: 0, count: 10), ext: "tiff")) == "TIFF image")
     }
 }
+
+/// The row's trailing label and spoken label. The view only swaps strings
+/// and runs a one-shot delay; which string wins is decided here.
+struct ClipboardRowModelTests {
+
+    /// The action writes the entry to the pasteboard and nothing more —
+    /// the app has no Accessibility permission, so it cannot paste. The
+    /// verb on the row has to say what actually happens.
+    @Test func theHoverVerbIsCopy() {
+        #expect(ClipboardRowModel.trailingText(time: "10:42", hovering: true, copied: false) == "Copy")
+    }
+
+    @Test func atRestTheRowShowsItsTime() {
+        #expect(ClipboardRowModel.trailingText(time: "10:42", hovering: false, copied: false) == "10:42")
+    }
+
+    /// The confirmation outranks the hover verb: the pointer is still on
+    /// the row it just clicked, and "Copy" there would read as nothing
+    /// having happened.
+    @Test func theConfirmationOutranksHover() {
+        #expect(ClipboardRowModel.trailingText(time: "10:42", hovering: true, copied: true) == "Copied ✓")
+        #expect(ClipboardRowModel.trailingText(time: "10:42", hovering: false, copied: true) == "Copied ✓")
+    }
+
+    /// Long enough to read, short enough that it is gone before the next
+    /// thing the user does.
+    @Test func theConfirmationIsBrief() {
+        #expect(ClipboardRowModel.confirmationDuration == .milliseconds(1200))
+    }
+
+    @Test func voiceOverHearsTheVerbCopy() {
+        let entry = ClipboardEntry(id: UUID(), content: .text("hello"), addedAt: Date())
+        let label = ClipboardRowModel.accessibilityLabel(entry: entry, time: "10:42")
+        #expect(label == "Copy hello, added 10:42")
+        #expect(label.contains("Paste") == false)
+    }
+
+    @Test func theAnnouncementSaysCopied() {
+        #expect(ClipboardRowModel.copiedAnnouncement == "Copied")
+    }
+}
