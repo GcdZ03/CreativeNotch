@@ -467,4 +467,70 @@ struct AppStateTransitionTests {
     @Test func aFreshStateIsClosedAndUnobserved() {
         #expect(AppState().state == .closed)
     }
+
+    /// A peek that closes under a still pointer shrinks the tracking area
+    /// out from under it. Replacing an area sends no `mouseExited`, so
+    /// `isHovering` stayed true with the pointer outside the closed notch —
+    /// the hover growth drawn, and the next peek's fallback rules misled.
+    @Test func aShapeShrinkingFromUnderTheStillPointerEndsTheHover() throws {
+        let delegate = NotchedDelegate.make()
+        let tracker = try #require(delegate.hoverView)
+        delegate.state.transition(to: .peek(.power(.unplugged(level: 66))))
+        let peek = delegate.acceptedRect
+        // Inside the peek, below the closed notch (panel-local y 222...260).
+        let local = CGPoint(x: peek.midX, y: peek.minY + 1)
+        #expect(local.y < 222)
+        delegate.pointerLocation = {
+            CGPoint(x: local.x + delegate.currentFrame.minX, y: local.y + delegate.currentFrame.minY)
+        }
+        tracker.updateTrackingRect(peek)
+        tracker.mouseEntered(with: NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, eventNumber: 0, trackingNumber: 0, userData: nil
+        )!)
+        #expect(delegate.state.isHovering)
+
+        delegate.state.transition(to: .closed)
+
+        #expect(delegate.state.isHovering == false)
+    }
+
+    // MARK: - No screen at launch
+
+    /// `NSScreen.main` is the screen with the key window, and an accessory
+    /// app at launch may have none. The panel was then never built at all,
+    /// for the rest of the session, while every subsystem still started.
+    /// Any screen will do.
+    @Test func launchFallsBackToAnyScreenWhenThereIsNoMainOne() {
+        #expect(AppDelegate.launchScreen(main: 1, all: [2, 3]) == 1)
+        #expect(AppDelegate.launchScreen(main: nil, all: [2, 3]) == 2)
+        #expect(AppDelegate.launchScreen(main: Int?.none, all: []) == nil)
+    }
+
+    /// With no screen at all, the panel is built when one appears rather
+    /// than never.
+    @Test func aScreenAppearingAfterLaunchBuildsThePanel() {
+        let delegate = AppDelegate()
+        var presented: [ScreenMetrics] = []
+        delegate.presentPanel = { presented.append($0) }
+
+        delegate.screenParametersDidChange(metrics: NotchedDelegate.metrics)
+
+        #expect(presented == [NotchedDelegate.metrics])
+    }
+
+    /// Once built, a screen change only moves it.
+    @Test func aScreenChangeWithAPanelOnlyRepositionsIt() {
+        let delegate = NotchedDelegate.make()
+        var presented = 0
+        delegate.presentPanel = { _ in presented += 1 }
+
+        delegate.screenParametersDidChange(metrics: ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 2560, height: 1440),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        ))
+
+        #expect(presented == 0)
+        #expect(delegate.currentAnchor.isNotch == false)
+    }
 }

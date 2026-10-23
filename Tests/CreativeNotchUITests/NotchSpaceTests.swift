@@ -60,12 +60,37 @@ struct NotchSpaceTests {
         #expect(server.calls.filter { $0.hasPrefix("create") }.count == 1)
     }
 
+    /// While the window stays on screen it is still in the Space, so a
+    /// second call is a no-op.
     @Test func hostingTheSameWindowTwiceDoesNothing() throws {
         let server = FakeSpaceServer()
         let space = try #require(NotchSpace(server: server))
         space.host(windowNumber: 7)
         space.host(windowNumber: 7)
         #expect(server.calls.count == 3)
+    }
+
+    /// Ordered out, though, the window may have left the Space — and the
+    /// no-op above made showing it again (back from a full-screen app) put
+    /// it back on screen *outside* the Space, where a desktop swipe carries
+    /// it again. Re-hosting after an order-out re-adds it, once.
+    @Test func hostingAgainAfterAnOrderOutReaddsTheWindow() throws {
+        let server = FakeSpaceServer()
+        let space = try #require(NotchSpace(server: server))
+        space.host(windowNumber: 7)
+        space.windowOrderedOut()
+        space.host(windowNumber: 7)
+        space.host(windowNumber: 7)
+        #expect(server.calls == ["create(\(NotchSpace.level))->42", "show(42)", "add(7,42)", "add(7,42)"])
+    }
+
+    /// Nothing hosted, nothing to forget: the next host is an ordinary first one.
+    @Test func anOrderOutBeforeHostingChangesNothing() throws {
+        let server = FakeSpaceServer()
+        let space = try #require(NotchSpace(server: server))
+        space.windowOrderedOut()
+        space.host(windowNumber: 7)
+        #expect(server.calls == ["create(\(NotchSpace.level))->42", "show(42)", "add(7,42)"])
     }
 
     /// A window with no number yet is not on screen; there is nothing to

@@ -101,3 +101,47 @@ private let track = TrackSnapshot(title: "Song", artist: "Artist", isPlaying: tr
 
     #expect(arbiter.content(now: 100) == .dragTarget)
 }
+
+// MARK: - A peek already on screen
+
+private let paused = TrackSnapshot(title: "Song", artist: "Artist", isPlaying: false)
+
+/// Pressing Pause in the now-playing peek must not collapse it under the
+/// pointer, or Play is unreachable from the peek that offered Pause.
+@Test func aPausedTrackIsHeldWhileThePointerIsOverItsPeek() {
+    var a = PeekArbiter()
+    a.setNowPlaying(paused)
+    #expect(a.content(now: 0, replacing: .nowPlaying(track), pointerInside: true) == .nowPlaying(paused))
+}
+
+/// Held only under the pointer: once it leaves, a paused track is gone.
+@Test func aPausedTrackIsNotHeldWithoutThePointer() {
+    var a = PeekArbiter()
+    a.setNowPlaying(paused)
+    #expect(a.content(now: 0, replacing: .nowPlaying(track), pointerInside: false) == nil)
+}
+
+/// And held only by a now-playing peek. Hovering an expiring power peek
+/// does not resurrect a track that was already paused.
+@Test func aPausedTrackIsNotRevealedUnderAnExpiringPowerPeek() {
+    var a = PeekArbiter()
+    a.setNowPlaying(paused)
+    #expect(a.content(now: 0, replacing: .power(.unplugged(level: 66)), pointerInside: true) == nil)
+}
+
+/// Ambient content is fallen back to only with the pointer there to ask for
+/// it. Otherwise it sat open indefinitely after a power peek.
+@Test func ambientContentIsNotFallenBackToWithoutThePointer() {
+    var a = PeekArbiter()
+    a.setNowPlaying(track)
+    #expect(a.content(now: 0, replacing: .power(.unplugged(level: 66)), pointerInside: false) == nil)
+    #expect(a.content(now: 0, replacing: .power(.unplugged(level: 66)), pointerInside: true) == .nowPlaying(track))
+}
+
+/// Transient content is unaffected: it was never asked for, and it expires.
+@Test func transientContentIgnoresThePointer() {
+    var a = PeekArbiter()
+    a.setNowPlaying(track)
+    a.recordPower(.unplugged(level: 66), now: 100)
+    #expect(a.content(now: 100, replacing: .nowPlaying(track), pointerInside: false) == .power(.unplugged(level: 66)))
+}

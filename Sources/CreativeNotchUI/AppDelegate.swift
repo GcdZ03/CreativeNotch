@@ -249,18 +249,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Lifecycle
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
-        if let screen = NSScreen.main {
-            install(metrics: screen.metrics)
-            // Presentation is deliberately *not* part of `install` -- that
-            // keeps the wiring path testable without putting a window on
-            // screen.
-            panel?.orderFrontRegardless()
-            // After ordering front, so the panel has a window number. Only
-            // here, never in `install`: tests build the delegate through
-            // `install`, and must not create Spaces in the session running
-            // them.
-            hostPanelInFixedSpace()
-            watchForFullScreen()
+        // With no screen at all, the screen-parameter observer builds the
+        // panel when one appears (`screenParametersDidChange`).
+        if let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens) {
+            showPanel(on: screen.metrics)
         }
 
         let menuBar = MenuBarController(
@@ -280,6 +272,40 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observeScreenChanges()
 
         startSubsystems()
+    }
+
+    /// The screen to build the panel on at launch.
+    ///
+    /// `NSScreen.main` is the screen holding the key window, and an accessory
+    /// app launching may have none — so the panel was never built, for the
+    /// whole session, while every subsystem started anyway. Any screen will
+    /// do: the panel follows the main one from the first screen change.
+    /// Generic so a test can answer it without a real display.
+    nonisolated static func launchScreen<S>(main: S?, all: [S]) -> S? {
+        main ?? all.first
+    }
+
+    /// Builds and presents the panel. `nil` means the real thing,
+    /// `buildAndPresentPanel(metrics:)`; a test hands in a spy, because the
+    /// real one puts a window on screen and hosts it in a Space.
+    var presentPanel: ((ScreenMetrics) -> Void)?
+
+    private func showPanel(on metrics: ScreenMetrics) {
+        if let presentPanel { presentPanel(metrics) } else { buildAndPresentPanel(metrics: metrics) }
+    }
+
+    private func buildAndPresentPanel(metrics: ScreenMetrics) {
+        install(metrics: metrics)
+        // Presentation is deliberately *not* part of `install` -- that
+        // keeps the wiring path testable without putting a window on
+        // screen.
+        panel?.orderFrontRegardless()
+        // After ordering front, so the panel has a window number. Only
+        // here, never in `install`: tests build the delegate through
+        // `install`, and must not create Spaces in the session running
+        // them.
+        hostPanelInFixedSpace()
+        watchForFullScreen()
     }
 
     /// The four actions the timer tab can take.
@@ -374,10 +400,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// has been switched off. Returns `false`, and changes nothing, when no
     /// tab is visible: there is no empty panel to open.
     ///
-    /// The one way the delegate opens the panel — the shortcut, a swipe and
-    /// open-on-hover all come through here.
+    /// The one way the delegate opens the panel — the shortcut, a swipe,
+    /// open-on-hover and the notch tap all come through here.
+    ///
+    /// Also `false` while the panel is hidden for a full-screen app: there
+    /// is no window on screen to open.
     @discardableResult
     func openPanel() -> Bool {
+        guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
@@ -438,6 +468,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hover.onExit  = { [weak self] in
             self?.state.isHovering = false
             self?.collapse()
+        }
+        // The tracker re-reads the pointer when its rect is replaced, and
+        // reads it from here — panel-local, as `keepOpenIfPointerInside`
+        // computes it — so there is one pointer source and a test that
+        // places it places it for both.
+        hover.pointerLocation = { [weak self] in
+            guard let self else { return nil }
+            let screen = self.pointerLocation()
+            return CGPoint(x: screen.x - self.currentFrame.minX, y: screen.y - self.currentFrame.minY)
         }
 
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
@@ -516,6 +555,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour = behaviour
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
+        state.onOpenPanel = { [weak self] in self?.openPanel() }
         state.onOpenSettings = { [weak self] in
             guard let self else { return }
             self.state.transition(to: .closed)
@@ -612,6 +652,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // launch. `MediaRemoteBridge` is stateless beyond its cached
         // handle, so there is nothing to start or stop either way.
 
+        // The same preference, asked by the container before it answers
+        // AppKit, so a disabled shelf shows no copy badge on the cursor.
+        container.acceptsDrops = { [weak self] in self?.state.preferences.shelf == true }
         container.onDragEntered = { [weak self] in
             // A drop target that appears and then refuses the file is worse
             // than no drop target: it advertises a feature the user switched
@@ -929,7 +972,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// call without putting a window on screen.
     var setPanelShown: (Bool) -> Void = { _ in }
 
-    private(set) var fullScreenWatcher: FullScreenWatcher?
+    /// Settable internally so a test can stand in a watcher fed a fake
+    /// Space list; only the launch builds the real one.
+    var fullScreenWatcher: FullScreenWatcher?
 
     /// Hides the notch over full-screen apps again (2026-10-17).
     ///
@@ -946,6 +991,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.hostPanelInFixedSpace()
             } else {
                 panel.orderOut(nil)
+                // So showing it again re-adds it to the Space it may have
+                // just left, rather than finding it "already hosted".
+                self.fixedSpace?.windowOrderedOut()
             }
         }
         let watcher = FullScreenWatcher(
@@ -957,10 +1005,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         watcher.start()
     }
 
+    /// Whether the panel is off screen for a full-screen app. `openPanel`
+    /// reads it: opening an ordered-out window armed the outside-click
+    /// monitor and made an invisible window key, with nothing to click.
+    private(set) var isHiddenForFullScreen = false
+
     /// Full-screen: close the panel and take the notch off screen. Back to
     /// a desktop: put it back.
+    ///
+    /// Closing ends a drag in flight too. The window is ordered out, so no
+    /// `draggingExited` will ever arrive to clear the arbiter's drag flag,
+    /// and every later peek would be answered with a drop target.
     func applyFullScreen(_ isFullScreen: Bool) {
-        if isFullScreen { state.transition(to: .closed) }
+        isHiddenForFullScreen = isFullScreen
+        if isFullScreen {
+            arbiter.setDragActive(false)
+            state.transition(to: .closed)
+        }
         setPanelShown(!isFullScreen)
     }
 
@@ -1208,9 +1269,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Only acts while still `.peek`: if the user has since opened the
     /// panel or started a drag, that is a deliberate state this stale
     /// check must not disturb.
+    ///
+    /// Asks the arbiter what the peek *on screen* becomes, not what a hover
+    /// would show: a paused track is held under the pointer so Play stays
+    /// reachable, and the music peek is never fallen back to with nobody
+    /// hovering. `isHovering` is the pointer, because the tracker is the
+    /// one thing that knows where it is without polling.
     private func reevaluatePeek() {
-        guard case .peek = state.state else { return }
-        if let content = arbiter.content(now: self.now()) {
+        guard case .peek(let showing) = state.state else { return }
+        if let content = arbiter.content(
+            now: self.now(), replacing: showing, pointerInside: state.isHovering
+        ) {
             state.transition(to: .peek(content))
             // Something transient may still be live underneath the one that
             // just lapsed — a power peek recorded while a finished timer held
@@ -1273,9 +1342,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// loses its insertion point. Peeks are ambient and frequent, and the
     /// shelf and clipboard tabs are click-only, so none of them touch it.
     ///
-    /// `resignKey` rather than a stored "previous window": AppKit returns
-    /// key to whoever had it, and tracking that ourselves would be a second
-    /// derivation of state the window server already owns.
+    /// Giving focus back is `relinquishKey`, not `resignKey()`. AppKit sends
+    /// `resignKey` as a notification and documents that it must never be
+    /// called directly; called anyway, it moves nothing, so the closed panel
+    /// stayed key and swallowed every keystroke meant for the app underneath.
+    /// Still no stored "previous window": once the panel is not key, the
+    /// window server returns focus to the frontmost app, which never stopped
+    /// being frontmost (the panel is non-activating), and tracking that
+    /// ourselves would be a second derivation of state it already owns.
     ///
     /// Deliberately keyed on the *tab*, not on `.open`. Making every open
     /// steal the cursor would be a regression for the three surfaces that
@@ -1287,13 +1361,42 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// Whether the panel holds keyboard focus. Injected because a headless
+    /// suite cannot make an offscreen panel key, so the give-back path would
+    /// otherwise be unreachable from a test.
+    var panelIsKey: (NSWindow) -> Bool = { $0.isKeyWindow }
+
+    /// Gives keyboard focus up. `nil` means the real thing,
+    /// `orderPanelOutOfFocus()`; a test hands in a counter, like
+    /// `presentPreferences`.
+    var relinquishKey: (() -> Void)?
+
     func syncKeyWindow(for newState: NotchState) {
         guard let panel else { return }
         if Self.shouldTakeKey(for: newState) {
             panel.makeKey()
-        } else if panel.isKeyWindow {
-            panel.resignKey()
+        } else if panelIsKey(panel) {
+            if let relinquishKey { relinquishKey() } else { orderPanelOutOfFocus(panel) }
         }
+    }
+
+    /// Ordering a window out is what actually takes key status from it, and
+    /// ordering it straight back with `orderFrontRegardless` does not hand it
+    /// back — that call never makes a window key. Both in the same turn of
+    /// the run loop, so there is no frame in between to draw. Not ordered
+    /// back while hidden for a full-screen app. Re-hosted afterwards,
+    /// because a window ordered out may leave the fixed Space (see
+    /// `NotchSpace`).
+    ///
+    /// Re-hosting only where a Space exists, so this can never be the call
+    /// that creates one — only the launch does that.
+    private func orderPanelOutOfFocus(_ panel: NotchPanel) {
+        let wasVisible = panel.isVisible
+        panel.orderOut(nil)
+        fixedSpace?.windowOrderedOut()
+        guard wasVisible, !isHiddenForFullScreen else { return }
+        panel.orderFrontRegardless()
+        if fixedSpace != nil { hostPanelInFixedSpace() }
     }
 
     private func syncDismissAffordances(for newState: NotchState) {
@@ -1327,10 +1430,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The grace counts from when the accepted region has caught up with the
+    /// drawn one, not from the exit. The shipped grace (400ms) is shorter
+    /// than the growth lag (420ms), so counted from the exit it fired before
+    /// `keepOpenIfPointerInside` could find the pointer inside the grown
+    /// region — and the panel shut under a user who had just tapped it open
+    /// and moved toward its controls. Waiting on `growthTask` rather than
+    /// lengthening the grace keeps both numbers meaning what they say.
     private func startDismissGrace() {
         graceTask?.cancel()
+        let growth = growthTask
         graceTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+            await growth?.value
+            guard let self, !Task.isCancelled else { return }
             try? await Task.sleep(for: self.dismissGrace)
             guard !Task.isCancelled else { return }
             self.dismissIfOpen()
@@ -1372,8 +1484,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self, let screen = NSScreen.main else { return }
-            MainActor.assumeIsolated { _ = self.reposition(metrics: screen.metrics) }
+            guard let self,
+                  let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens)
+            else { return }
+            MainActor.assumeIsolated { self.screenParametersDidChange(metrics: screen.metrics) }
         }, NotificationCenter.default))
 
         observers.append((NSWorkspace.shared.notificationCenter.addObserver(
@@ -1392,6 +1506,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
         }, NSWorkspace.shared.notificationCenter))
+    }
+
+    /// The display arrangement changed. Internal so a test can drive it
+    /// with metrics instead of a real display.
+    ///
+    /// Re-checks full screen even when the panel did not move: the
+    /// arrangement changed, and what its display shows may have with it.
+    /// `reposition` already did when it moved, and `evaluate` reports only
+    /// a change, so the second look is free.
+    ///
+    /// With no panel yet — there was no screen at launch — this is the
+    /// launch's second chance: build it now, then start the subsystems again
+    /// through the one method that does, because the controllers the
+    /// switchboard starts are built by `install` and were still `nil` the
+    /// first time. Re-starting is safe: `activity.start()` re-registers
+    /// rather than stacking, and `apply()` only reconciles.
+    func screenParametersDidChange(metrics: ScreenMetrics) {
+        guard panel != nil else {
+            showPanel(on: metrics)
+            if panel != nil { startSubsystems() }
+            return
+        }
+        if !reposition(metrics: metrics) { fullScreenWatcher?.evaluate() }
     }
 
     private func removeScreenObservers() {
@@ -1416,6 +1553,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // re-syncs from the geometry observer.
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
         panel?.setFrame(frame, display: true)
+        // A different display has its own current Space, which the watcher
+        // only looks at when the active Space changes. Moved onto a display
+        // showing a full-screen app, the panel sat on top of it; moved off
+        // one, it stayed hidden on a normal desktop.
+        fullScreenWatcher?.evaluate()
         return true
     }
 }

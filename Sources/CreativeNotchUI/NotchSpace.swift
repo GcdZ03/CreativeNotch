@@ -38,15 +38,22 @@ final class NotchSpace {
     private var space: UInt64?
     private var hosted: Int?
 
+    /// Set when the hosted window was ordered out, which may take it out of
+    /// the Space. The window number survives an order-out, so `hosted`
+    /// alone cannot tell "still in the Space" from "was, before it left".
+    private var orderedOut = false
+
     init?(server: SpaceServer?) {
         guard let server else { return nil }
         self.server = server
     }
 
     /// Puts `windowNumber` in the Space, creating the Space the first time.
-    /// A different window replaces the one hosted before.
+    /// A different window replaces the one hosted before. The same window
+    /// again is a no-op -- unless it has been ordered out since, when it is
+    /// added back.
     func host(windowNumber: Int) {
-        guard windowNumber > 0, windowNumber != hosted else { return }
+        guard windowNumber > 0, windowNumber != hosted || orderedOut else { return }
         let id: UInt64
         if let space {
             id = space
@@ -55,9 +62,18 @@ final class NotchSpace {
             server.show(id)
             space = id
         }
-        if let hosted { server.remove(window: hosted, from: id) }
+        if let hosted, hosted != windowNumber { server.remove(window: hosted, from: id) }
         server.add(window: windowNumber, to: id)
         hosted = windowNumber
+        orderedOut = false
+    }
+
+    /// The hosted window was ordered out, so the next `host` must re-add it
+    /// rather than assume it is still here. Calls nothing: adding a window
+    /// that never left is harmless, and whether it left is the window
+    /// server's business, not something to guess at.
+    func windowOrderedOut() {
+        orderedOut = hosted != nil
     }
 
     /// Undoes `host`, once.

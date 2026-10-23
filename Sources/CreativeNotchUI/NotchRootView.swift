@@ -123,6 +123,11 @@ public final class AppState {
     @ObservationIgnored
     public var onOpenSettings: (() -> Void)?
 
+    /// The notch tap's way into the panel: the delegate's `openPanel()`,
+    /// which picks a visible tab or declines when there is none.
+    @ObservationIgnored
+    public var onOpenPanel: (() -> Void)?
+
     /// How the media buttons reach `MediaRemoteBridge`.
     ///
     /// A closure rather than calling the bridge from the view, for the
@@ -898,13 +903,26 @@ public struct NotchRootView: View {
             // Content never spills past the shape, including a cover in
             // flight between two states.
             .clipShape(backgroundShape)
-            .onTapGesture {
-                // Through the funnel, like every other mutation.
-                switch app.state {
-                case .open:  app.transition(to: .closed)
-                default:     app.transition(to: .open(app.lastOpenTab))
-                }
-            }
+            .onTapGesture { Self.handleTap(app: app) }
+    }
+
+    /// What a tap on the notch does. Static so a test can drive it without
+    /// a rendered view, like `nowPlayingPeek`.
+    ///
+    /// Opening goes through `onOpenPanel` — `AppDelegate.openPanel()`, the
+    /// path the shortcut and the swipe take — rather than straight to
+    /// `.open(lastOpenTab)`. That transition knew nothing about which tabs
+    /// are switched on, so with every tab off a tap opened an empty panel.
+    /// The direct transition remains only for a view with no delegate
+    /// behind it, a preview.
+    static func handleTap(app: AppState) {
+        // Through the funnel, like every other mutation.
+        switch app.state {
+        case .open:
+            app.transition(to: .closed)
+        default:
+            if let open = app.onOpenPanel { open() } else { app.transition(to: .open(app.lastOpenTab)) }
+        }
     }
 
     /// The camera tab's content: the preview across the whole body.

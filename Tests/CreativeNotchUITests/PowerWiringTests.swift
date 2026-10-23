@@ -157,7 +157,8 @@ struct PowerWiringTests {
         #expect(delegate.state.state == .closed)
     }
 
-    /// And falls back to what was underneath rather than to nothing.
+    /// And, under the pointer, falls back to what was underneath rather
+    /// than to nothing.
     @Test func aPowerPeekFallsBackToNowPlaying() async {
         let delegate = makeDelegate()
         delegate.powerTTLDelay = .zero
@@ -165,12 +166,31 @@ struct PowerWiringTests {
         delegate.now = { clock }
         let track = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
         delegate.arbiter.setNowPlaying(track)
+        delegate.state.isHovering = true
 
         delegate.showPowerPeek(.unplugged(level: 66))
         clock += PeekArbiter.powerTTL + 1
         await delegate.peekTTLTask?.value
 
         #expect(delegate.state.state == .peek(.nowPlaying(track)))
+    }
+
+    /// Without the pointer it does not. The music peek is ambient: a hover
+    /// asks for it. Revealed by an expiring power peek with nobody there, it
+    /// stayed open indefinitely — equalizer running, rect swallowing clicks —
+    /// while the closed notch's badge already said what was playing.
+    @Test func aPowerPeekWithNobodyHoveringClosesToTheBadge() async {
+        let delegate = makeDelegate()
+        delegate.powerTTLDelay = .zero
+        var clock: TimeInterval = 100
+        delegate.now = { clock }
+        delegate.arbiter.setNowPlaying(TrackSnapshot(title: "T", artist: "A", isPlaying: true))
+
+        delegate.showPowerPeek(.unplugged(level: 66))
+        clock += PeekArbiter.powerTTL + 1
+        await delegate.peekTTLTask?.value
+
+        #expect(delegate.state.state == .closed)
     }
 
     /// A peek layered over a live power peek is revealed when the top one
