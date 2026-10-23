@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import CreativeNotchCore
 
 /// Owns the one hotkey: what it is, whether it is registered, and whether the
@@ -13,7 +14,15 @@ import CreativeNotchCore
 /// panel from anywhere must keep working while the panel is closed, and there
 /// is nothing running between presses to suspend. It joins the
 /// switchboard on the preference alone.
+///
+/// **`@Observable`, because the settings row holds it as a plain `let`.** The
+/// window above the row observes only `AppState`, which none of these verbs
+/// touch, so without this a recorded combination or a Clear left the row
+/// showing the old label and the old "Press it now to confirm" until something
+/// unrelated happened to redraw it. Confirmation is the sharpest case: it
+/// arrives from a keypress anywhere, with the window untouched.
 @MainActor
+@Observable
 final class HotKeyController {
 
     /// What the settings row shows, and the only state it needs.
@@ -31,13 +40,25 @@ final class HotKeyController {
         case failed(String)
     }
 
-    private let store: HotKeyStore
-    private let center: HotKeyCenter
-    private var registrationID: UInt32?
-    private var isEnabled = true
+    @ObservationIgnored private let store: HotKeyStore
+    @ObservationIgnored private let center: HotKeyCenter
+    @ObservationIgnored private var registrationID: UInt32?
+    @ObservationIgnored private var isEnabled = true
 
     /// Called when the hotkey fires. Set by `AppDelegate`.
-    var onTrigger: (() -> Void)?
+    @ObservationIgnored var onTrigger: (() -> Void)?
+
+    /// Whether macOS lists a combination as an enabled symbolic hotkey. A
+    /// seam, so tests do not depend on this machine's System Settings, and a
+    /// closure rather than a value so `CopySymbolicHotKeys` -- which Apple
+    /// says not to call unnecessarily -- runs only for a combination that has
+    /// passed every cheaper check.
+    @ObservationIgnored var isSystemReserved: (HotKeyCombo) -> Bool = { SymbolicHotKeys.isReserved($0) }
+
+    /// Why the last recorded combination was refused, or `nil`. Separate from
+    /// `status` because a refusal leaves the existing shortcut in place: the
+    /// row says both what it still is and why the new one was not taken.
+    private(set) var rejection: HotKeyValidation.Rejection?
 
     /// Published so the settings row can redraw. `private(set)` because the
     /// only writers are this type's own verbs.
@@ -46,10 +67,15 @@ final class HotKeyController {
     init(store: HotKeyStore, center: HotKeyCenter = .shared) {
         self.store = store
         self.center = center
-        self.status = Self.status(for: store.load(), confirmed: store.isConfirmed)
+        let saved = store.load()
+        self.combo = saved
+        self.status = Self.status(for: saved, confirmed: store.isConfirmed)
     }
 
-    var combo: HotKeyCombo? { store.load() }
+    /// A stored copy of what the store holds, not a read through to it:
+    /// `UserDefaults` is invisible to observation, so a computed read would
+    /// leave the row's label stale. Only `setCombo` writes either.
+    private(set) var combo: HotKeyCombo?
 
     /// Whether a registration is live. Exposed for the same reason
     /// `PowerObserver.registrationCount` is: a stop that is asserted rather
@@ -79,6 +105,28 @@ final class HotKeyController {
 
     // MARK: - Choosing a combination
 
+    /// What the recorder calls: validate, then either refuse with a reason or
+    /// take the combination.
+    ///
+    /// **A refusal changes nothing else.** The shortcut already set stays set
+    /// and registered; the row shows why the new one was not taken. Without
+    /// this gate a bare Space, a bare letter or ⌘C became an exclusive
+    /// system-wide hotkey -- each registers cleanly, and the API says nothing.
+    ///
+    /// `taken` is empty because this app has one hotkey: re-recording the
+    /// current combination is a no-op, not a conflict.
+    func record(_ candidate: HotKeyCombo) {
+        // The cheap checks first, so the symbolic-hotkey read is made only
+        // for a combination that would otherwise be accepted.
+        let reason = HotKeyValidation.rejection(for: candidate)
+            ?? HotKeyValidation.rejection(for: candidate, systemReserved: isSystemReserved(candidate))
+        if let reason {
+            rejection = reason
+            return
+        }
+        setCombo(candidate)
+    }
+
     /// Records a new combination, replacing whatever was there.
     ///
     /// **The old registration is dropped first.** Registering the new one
@@ -87,9 +135,11 @@ final class HotKeyController {
     @discardableResult
     func setCombo(_ combo: HotKeyCombo?) -> Status {
         stop()
+        rejection = nil
         // Always clears the confirmation: the proof was about the old
         // combination.
         store.save(combo)
+        self.combo = combo
 
         guard let combo else {
             status = .unset
@@ -129,6 +179,24 @@ final class HotKeyController {
     private static func status(for combo: HotKeyCombo?, confirmed: Bool) -> Status {
         guard combo != nil else { return .unset }
         return confirmed ? .confirmed : .awaitingConfirmation
+    }
+
+    /// The row's copy for a refusal. **None claims another app holds the
+    /// combination** -- that conflict is undetectable, so the pane must never
+    /// say it.
+    static func message(for rejection: HotKeyValidation.Rejection) -> String {
+        switch rejection {
+        case .noModifiers:
+            return "Add a modifier such as \u{2318} or \u{2325}. On its own, that key would be taken away from every app."
+        case .shiftOnly:
+            return "Add \u{2318}, \u{2325} or \u{2303}. Shift alone is too close to ordinary typing."
+        case .standardShortcut:
+            return "Every app uses this shortcut. Choose a different one."
+        case .alreadyUsedInThisApp:
+            return "CreativeNotch already uses this shortcut."
+        case .usedByMacOS:
+            return "macOS already uses this shortcut, so it would never reach CreativeNotch."
+        }
     }
 
     /// Three refusals needing three different things said. Treating them all

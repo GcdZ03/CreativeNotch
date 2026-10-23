@@ -124,6 +124,26 @@ private let cmdOptN = HotKeyCombo(
     #expect(HotKeyValidation.rejection(for: junk) == .noModifiers)
 }
 
+/// The shortcuts every Mac app answers to. A hotkey registered on one of
+/// these is delivered to CreativeNotch instead of the frontmost app, so ⌘C
+/// would stop copying everywhere -- registration succeeds, and nothing in the
+/// API warns about it.
+@Test func aStandardAppShortcutIsRefused() {
+    for keyCode: UInt32 in [8, 9, 12, 7, 6, 13, 0] {  // C V Q X Z W A
+        let combo = HotKeyCombo(keyCode: keyCode, carbonModifiers: HotKeyModifier.command)
+        #expect(HotKeyValidation.rejection(for: combo) == .standardShortcut, "keyCode \(keyCode)")
+    }
+    // Redo is ⇧⌘Z.
+    let redo = HotKeyCombo(keyCode: 6, carbonModifiers: HotKeyModifier.command | HotKeyModifier.shift)
+    #expect(HotKeyValidation.rejection(for: redo) == .standardShortcut)
+}
+
+/// Only the exact standard combination is refused: ⌥⌘C is nobody's copy.
+@Test func aStandardKeyWithAnExtraModifierIsAccepted() {
+    let combo = HotKeyCombo(keyCode: 8, carbonModifiers: HotKeyModifier.command | HotKeyModifier.option)
+    #expect(HotKeyValidation.rejection(for: combo) == nil)
+}
+
 // MARK: - Glyphs
 
 /// macOS writes modifiers in a fixed order regardless of which the user
