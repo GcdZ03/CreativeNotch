@@ -211,8 +211,9 @@ struct MediaHelperProcessTests {
         var lines: [String] = []
         helper.onLine = { lines.append($0) }
 
+        let reader = helper.generation
         helper.stop()
-        helper.deliverFromReader("late\n")
+        helper.deliverFromReader("late\n", generation: reader)
 
         #expect(lines.isEmpty)
     }
@@ -226,9 +227,65 @@ struct MediaHelperProcessTests {
         var lines: [String] = []
         helper.onLine = { lines.append($0) }
 
-        helper.deliverFromReader("fine\n")
+        helper.deliverFromReader("fine\n", generation: helper.generation)
 
         #expect(lines == ["fine"])
+    }
+
+    // MARK: - Handlers bound to their own process
+
+    /// A crash and a `stop()` can cross: the dead process's termination
+    /// handler has already hopped onto the main actor's queue when `stop()`
+    /// and a fresh `start()` run. That stale report used to tear down the
+    /// NEW process — closing its stdin (which the bridge exits on), dropping
+    /// its pipes and reporting a crash the supervisor then "recovers" from.
+    ///
+    /// `start()` cannot run here (no bundle), so the restart is the parts
+    /// of it this can reach: the stop that bumps the generation, and a new
+    /// child's stdin.
+    @Test func aStaleExitFromAReplacedProcessLeavesTheNewOneAlone() throws {
+        let helper = MediaHelperProcess()
+        var reported: [Int32] = []
+        helper.onExit = { reported.append($0) }
+        let old = helper.generation
+
+        helper.stop()
+        helper.attachStandardIO(to: FakeProcessIO(), stdout: Pipe(), stderr: Pipe())
+        let current = try #require(helper.stdinPipe)
+        helper.processExited(status: 9, generation: old)
+
+        #expect(reported.isEmpty)
+        #expect(helper.stdinPipe === current)
+        #expect(MediaHelperStandardInputTests.readEndSeesEOF(current) == false)
+    }
+
+    /// The complement: an exit from the process that IS current still goes
+    /// down the crash path, or the test above passes against a version that
+    /// ignores every exit.
+    @Test func anExitFromTheCurrentProcessIsReported() {
+        let helper = MediaHelperProcess()
+        var reported: [Int32] = []
+        helper.onExit = { reported.append($0) }
+        helper.attachStandardIO(to: FakeProcessIO(), stdout: Pipe(), stderr: Pipe())
+
+        helper.processExited(status: 9, generation: helper.generation)
+
+        #expect(reported == [9])
+        #expect(helper.stdinPipe == nil)
+    }
+
+    /// Output still in flight from a process that has crashed must not be
+    /// appended to the next one's buffer once it starts.
+    @Test func aChunkFromACrashedProcessIsNotPublished() {
+        let helper = MediaHelperProcess()
+        var lines: [String] = []
+        helper.onLine = { lines.append($0) }
+        let reader = helper.generation
+
+        helper.processExited(status: 9, generation: reader)
+        helper.deliverFromReader("late\n", generation: reader)
+
+        #expect(lines.isEmpty)
     }
 }
 
@@ -410,7 +467,7 @@ extension MediaHelperProcess {
         ingest(Data(chunk.utf8))
     }
 
-    func deliverFromReader(_ chunk: String) {
-        deliverFromReader(Data(chunk.utf8))
+    func deliverFromReader(_ chunk: String, generation: Int) {
+        deliverFromReader(Data(chunk.utf8), generation: generation)
     }
 }

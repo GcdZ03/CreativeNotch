@@ -44,19 +44,32 @@ public final class MediaHelperProcess {
     /// artist) that must never reach a log.
     private(set) var discardedLineCount = 0
 
-    /// Guards against a specific race: the stdout `readabilityHandler`
-    /// runs on a background queue and hops to the main actor with
-    /// `Task { @MainActor in ... }` before calling `deliverFromReader`. A
-    /// chunk can be captured by that handler an instant before `stop()`
-    /// runs, and its `Task` can still be sitting on the main actor's queue
-    /// when `stop()` finishes — meaning it executes AFTER the buffer has
-    /// already been reset, and would otherwise publish one stale line per
-    /// stop. Checked only by `deliverFromReader`, never by `ingest`
-    /// itself: a direct call to `ingest` right after `stop()` is a
+    /// Which spawn the process-bound callbacks belong to. Bumped by
+    /// `start()`, `stop()` and the crash path; every handler `start()`
+    /// installs captures the value current at spawn and is ignored once it
+    /// no longer matches.
+    ///
+    /// Guards against two races of the same shape. Both handlers run on
+    /// background queues and hop to the main actor with
+    /// `Task { @MainActor in ... }`, so either can still be queued when
+    /// `stop()` (and perhaps a fresh `start()`) has already run:
+    ///
+    /// - A stdout chunk captured an instant before `stop()` would execute
+    ///   AFTER the buffer has been reset and publish one stale line per
+    ///   stop — or, after a restart, glue the old process's bytes onto the
+    ///   new one's first line.
+    /// - A termination report from a process that crashed just as it was
+    ///   being replaced would run the crash path against the NEW process:
+    ///   close its stdin (which the bridge exits on), drop its pipes and
+    ///   report an exit the supervisor then "recovers" from. A single
+    ///   stopped flag cannot catch this one, because `start()` clears it.
+    ///
+    /// Checked only by `deliverFromReader` and `processExited`, never by
+    /// `ingest` itself: a direct call to `ingest` right after `stop()` is a
     /// deliberate, synchronous reuse of the helper (see
     /// `stoppingDiscardsAPartialLine`), not the asynchronous race this
-    /// exists to close.
-    private var isStopped = false
+    /// exists to close. Internal so tests can capture it as a handler would.
+    private(set) var generation = 0
 
     private var buffer = LineBuffer()
     private var process: Process?
@@ -133,6 +146,10 @@ public final class MediaHelperProcess {
         let stderrPipe = Pipe()
         attachStandardIO(to: process, stdout: stdoutPipe, stderr: stderrPipe)
 
+        // Every handler below is bound to THIS spawn — see `generation`.
+        generation += 1
+        let generation = self.generation
+
         // `readabilityHandler` fires on a background queue, never the
         // main actor. Hop over explicitly rather than touching `self`
         // from here — `ingest` mutates actor-isolated state.
@@ -144,7 +161,7 @@ public final class MediaHelperProcess {
             let data = handle.availableData
             guard !data.isEmpty else { return }
             Task { @MainActor in
-                self?.deliverFromReader(data)
+                self?.deliverFromReader(data, generation: generation)
             }
         }
 
@@ -159,7 +176,7 @@ public final class MediaHelperProcess {
         process.terminationHandler = { [weak self] terminated in
             let status = terminated.terminationStatus
             Task { @MainActor in
-                self?.handleUnexpectedExit(status: status)
+                self?.processExited(status: status, generation: generation)
             }
         }
 
@@ -179,7 +196,6 @@ public final class MediaHelperProcess {
         self.stdoutPipe = stdoutPipe
         self.stderrPipe = stderrPipe
         isRunning = true
-        isStopped = false
     }
 
     /// Stops the helper.
@@ -244,10 +260,10 @@ public final class MediaHelperProcess {
             isRunning = false
         }
 
-        // Block any chunk still mid-hop from the background reader (see
-        // `isStopped`'s doc comment) before resetting the buffer it would
-        // otherwise be appended to.
-        isStopped = true
+        // Block any chunk or exit report still mid-hop from the stopped
+        // process (see `generation`'s doc comment) before resetting the
+        // buffer a chunk would otherwise be appended to.
+        generation += 1
 
         // A restart must not glue the dead helper's half-written line
         // onto the new one's first line — that corrupts exactly one
@@ -346,16 +362,26 @@ public final class MediaHelperProcess {
         stdoutPipe = nil
         stderrPipe = nil
         isRunning = false
-        isStopped = true
+        // Output still in flight from the dead process must not reach the
+        // buffer a later spawn will use.
+        generation += 1
         buffer.reset()
         onExit?(status)
     }
 
+    /// Entry point for the termination handler, after its hop to the main
+    /// actor: the crash path, but only for the spawn that is still current.
+    /// See `generation`.
+    func processExited(status: Int32, generation: Int) {
+        guard generation == self.generation else { return }
+        handleUnexpectedExit(status: status)
+    }
+
     /// Entry point for the stdout reader, after its hop to the main
-    /// actor. See `isStopped` for why this check lives here rather than
+    /// actor. See `generation` for why this check lives here rather than
     /// inside `ingest` itself.
-    func deliverFromReader(_ chunk: Data) {
-        guard !isStopped else { return }
+    func deliverFromReader(_ chunk: Data, generation: Int) {
+        guard generation == self.generation else { return }
         ingest(chunk)
     }
 
