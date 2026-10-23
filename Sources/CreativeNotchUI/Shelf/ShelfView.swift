@@ -116,7 +116,7 @@ private struct ShelfItemView: View {
         // A tracking area inside the panel, alive only while the tile is.
         .onHover { hovering = $0 }
         .task {
-            image = await ShelfThumbnails.shared.thumbnail(for: item.url, size: size)
+            image = await ShelfThumbnails.shared.thumbnail(for: item, size: size)
         }
     }
 }
