@@ -76,6 +76,41 @@ struct LowBatteryArmingTests {
         #expect(arming.crossing(level: 9, isPluggedIn: false) == nil)
     }
 
+    /// One percent of jitter on battery is not a recovery. IOKit's whole
+    /// percent wobbles 20 -> 21 -> 20 on an untouched machine, and re-arming
+    /// on the 21 would announce the same 20% warning a second time.
+    @Test func aOnePercentWobbleOnBatteryDoesNotRearm() {
+        var arming = LowBatteryArming()
+        #expect(arming.crossing(level: 20, isPluggedIn: false) == 20)
+
+        #expect(arming.crossing(level: 21, isPluggedIn: false) == nil)
+        #expect(arming.crossing(level: 20, isPluggedIn: false) == nil)
+    }
+
+    /// The margin is the boundary: two points above is still jitter, three
+    /// is a recovery.
+    @Test func climbingPastTheMarginOnBatteryRearms() {
+        var arming = LowBatteryArming()
+        _ = arming.crossing(level: 20, isPluggedIn: false)
+
+        _ = arming.crossing(level: 22, isPluggedIn: false)
+        #expect(arming.crossing(level: 20, isPluggedIn: false) == nil)
+
+        _ = arming.crossing(level: 23, isPluggedIn: false)
+        #expect(arming.crossing(level: 20, isPluggedIn: false) == 20)
+    }
+
+    /// On the charger the climb is real rather than noise, so the margin is
+    /// not needed: charging to 21% arms the 20% threshold.
+    @Test func chargingJustAboveTheThresholdRearmsIt() {
+        var arming = LowBatteryArming()
+        _ = arming.crossing(level: 20, isPluggedIn: false)
+
+        _ = arming.crossing(level: 21, isPluggedIn: true)
+
+        #expect(arming.crossing(level: 20, isPluggedIn: false) == 20)
+    }
+
     // MARK: - Both at once
 
     /// A machine that slept at 25% and woke at 8% crossed both thresholds
