@@ -942,6 +942,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.hostPanelInFixedSpace()
             } else {
                 panel.orderOut(nil)
+                // So showing it again re-adds it to the Space it may have
+                // just left, rather than finding it "already hosted".
+                self.fixedSpace?.windowOrderedOut()
             }
         }
         let watcher = FullScreenWatcher(
@@ -1326,6 +1329,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func orderPanelOutOfFocus(_ panel: NotchPanel) {
         let wasVisible = panel.isVisible
         panel.orderOut(nil)
+        fixedSpace?.windowOrderedOut()
         guard wasVisible else { return }
         panel.orderFrontRegardless()
         if fixedSpace != nil { hostPanelInFixedSpace() }
