@@ -7,7 +7,7 @@ import CreativeNotchCore
 /// just opened, so that is where they are looking, and a welcome window
 /// would be one more thing to close before the notch can be used. It covers
 /// the body only — the header stays live, so the tabs it describes are right
-/// there to try, and switching between them keeps the card
+/// there to try, and trying one dismisses the card to show that tab
 /// (`WelcomeCard.isDismissed`).
 ///
 /// Arrangement only. Whether it shows, what dismisses it and what it says

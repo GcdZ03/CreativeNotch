@@ -425,7 +425,10 @@ feature is worth.
 
 What came back instead is smaller: a one-time welcome card inside the open
 panel (`WelcomeCardView`), which asks for nothing and only says what the
-notch does. Its show and dismiss rules are `WelcomeCard` in Core, its flag
+notch does. It shows only on an asked-for open (tap, shortcut, or the menu's
+"Show Welcome Again") and never on the camera tab, whose capture session it
+would hide; leaving the panel or switching tab dismisses it, a drag arriving
+does not. Its show and dismiss rules are `WelcomeCard` in Core, its flag
 is `welcome.seen` in the preferences domain — deliberately not the legacy
 `hasCompletedOnboarding` — and it costs nothing once dismissed: no observer,
 no timer, just a `Bool` the panel's body reads.

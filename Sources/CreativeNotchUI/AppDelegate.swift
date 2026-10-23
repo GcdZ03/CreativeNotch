@@ -486,17 +486,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// it was asked for. The answer decides whether the open takes the
     /// keyboard (`PanelFocus`), and a default would quietly decide it for a
     /// route added later.
+    ///
+    /// `avoided` is a tab to open on only when it is the sole visible one —
+    /// "Show Welcome Again" passes `.camera`, where the card never shows.
     @discardableResult
-    func openPanel(openedBy reason: PanelOpenReason) -> Bool {
+    func openPanel(openedBy reason: PanelOpenReason, avoiding avoided: CreativeNotchCore.Tab? = nil) -> Bool {
         guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
         guard !visible.isEmpty else { return false }
-        state.transition(to: .open(visible.contains(state.lastOpenTab)
+        let preferred = visible.filter { $0 != avoided }
+        let pool = preferred.isEmpty ? visible : preferred
+        state.transition(to: .open(pool.contains(state.lastOpenTab)
                                   ? state.lastOpenTab
-                                  : visible[0]),
+                                  : pool[0]),
                          openedBy: reason)
         return true
     }
@@ -529,9 +534,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// when no tab is visible — the flag stays cleared for when one is. A
     /// menu click is asked for, so it opens as `.tap` does and takes the
     /// keyboard: Esc dismisses the card like any explicit open.
+    ///
+    /// Not onto the camera tab, where the card never shows
+    /// (`WelcomeCard.isShown`): opening there would start the camera and show
+    /// no welcome. Only when the camera is the one tab left does it open
+    /// there, card-less, with the flag still cleared.
     func showWelcomeAgain() {
         state.setWelcomeSeen(false)
-        openPanel(openedBy: .tap)
+        openPanel(openedBy: .tap, avoiding: .camera)
     }
 
     /// Closes the panel, then opens Settings. Settings is an activating

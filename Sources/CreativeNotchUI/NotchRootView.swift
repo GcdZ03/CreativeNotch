@@ -44,9 +44,9 @@ public final class AppState {
     /// the keyboard. Read by `AppDelegate.syncKeyWindow` through
     /// `PanelFocus`, from inside the funnel's own notification.
     ///
-    /// `@ObservationIgnored` because nothing draws it: an open's reason
-    /// changing only ever coincides with `state` changing, which already
-    /// redraws.
+    /// Also decides whether the welcome card shows (`showsWelcome`).
+    /// `@ObservationIgnored` all the same: an open's reason changing only
+    /// ever coincides with `state` changing, which already redraws.
     @ObservationIgnored
     public private(set) var openReason: PanelOpenReason?
 
@@ -179,7 +179,9 @@ public final class AppState {
 
     /// Whether the card is on screen right now. `WelcomeCard.isShown`, read
     /// in one place so the view and the tests ask the same question.
-    public var showsWelcome: Bool { WelcomeCard.isShown(seen: welcomeSeen, in: state) }
+    public var showsWelcome: Bool {
+        WelcomeCard.isShown(seen: welcomeSeen, in: state, openedBy: openReason)
+    }
 
     /// The one writer of `welcomeSeen` after install: applies and persists
     /// in the same call, for the reason `onSetHoverBehaviour` does both.
@@ -424,10 +426,11 @@ public final class AppState {
     /// forgets to say is the safe one, not the one that steals keystrokes.
     public func transition(to next: NotchState, openedBy reason: PanelOpenReason = .unspecified) {
         guard next != state else { return }
-        // Closing a panel that showed the welcome card counts as reading it
-        // (`WelcomeCard.isDismissed`). Decided from the state being left, so
-        // it is computed before `state` moves.
-        let dismissesWelcome = WelcomeCard.isDismissed(seen: welcomeSeen, from: state, to: next)
+        // Leaving a panel that showed the welcome card, or switching its tab,
+        // counts as reading it (`WelcomeCard.isDismissed`). Decided from the
+        // state and reason being left, so it is computed before either moves.
+        let dismissesWelcome = WelcomeCard.isDismissed(
+            seen: welcomeSeen, from: state, openedBy: openReason, to: next)
         if case .open(let tab) = next {
             lastOpenTab = tab
             if case .open = state {} else { openReason = reason }

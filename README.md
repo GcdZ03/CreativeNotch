@@ -243,8 +243,10 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 The first time you open the panel, a short welcome card covers it: the four
 gestures below that matter most, a **Set Shortcut…** button that opens Settings
 on the global shortcut (none is set until you pick one), and **Got it**. It
-shows once — closing the panel counts as reading it — and **Show Welcome Again**
-in the menu bar brings it back.
+shows once, on the first open you ask for (a click or the shortcut, not a
+hover, swipe or drop, and never over the camera) — closing the panel or trying
+a tab counts as reading it — and **Show Welcome Again** in the menu bar brings
+it back.
 
 | Action | Result |
 |---|---|

@@ -63,16 +63,35 @@ struct WelcomeCardTests {
 
     // MARK: - Showing
 
-    @Test func itShowsInTheOpenPanelOnAFirstRun() {
-        for tab in Tab.allCases {
-            #expect(WelcomeCard.isShown(seen: false, in: .open(tab)), "hidden on \(tab)")
+    private static let nonCameraTabs = Tab.allCases.filter { $0 != .camera }
+
+    @Test func itShowsInAnAskedForOpenOnAFirstRun() {
+        for tab in Self.nonCameraTabs {
+            #expect(WelcomeCard.isShown(seen: false, in: .open(tab), openedBy: .tap), "hidden on \(tab)")
+            #expect(WelcomeCard.isShown(seen: false, in: .open(tab), openedBy: .hotKey), "hidden on \(tab)")
         }
     }
 
     @Test func itNeverShowsOnceSeen() {
         for tab in Tab.allCases {
-            #expect(!WelcomeCard.isShown(seen: true, in: .open(tab)))
+            #expect(!WelcomeCard.isShown(seen: true, in: .open(tab), openedBy: .tap))
         }
+    }
+
+    /// A hover-open is a pointer crossing the notch, a swipe can begin as a
+    /// scroll, and a drop is someone dragging whose file the card would
+    /// cover. None of them is somebody about to read.
+    @Test func itNeverShowsInAnAmbientOpen() {
+        for reason: PanelOpenReason? in [.hover, .swipe, .drop, .unspecified, nil] {
+            #expect(!WelcomeCard.isShown(seen: false, in: .open(.shelf), openedBy: reason),
+                    "shown on \(String(describing: reason))")
+        }
+    }
+
+    /// The camera tab starts the camera; an opaque card over it would hide
+    /// the live preview and the controls that account for the light.
+    @Test func itNeverShowsOverTheCamera() {
+        #expect(!WelcomeCard.isShown(seen: false, in: .open(.camera), openedBy: .tap))
     }
 
     /// Inside the open panel only: a peek fires unprompted, and a card of
@@ -82,33 +101,47 @@ struct WelcomeCardTests {
             .closed, .receiving, .peek(.dragTarget), .peek(.power(.pluggedIn(level: 50))),
         ]
         for state in elsewhere {
-            #expect(!WelcomeCard.isShown(seen: false, in: state), "shown in \(state)")
+            #expect(!WelcomeCard.isShown(seen: false, in: state, openedBy: .tap), "shown in \(state)")
         }
     }
 
-    // MARK: - Dismissing by closing
+    // MARK: - Dismissing
 
     /// Closing the panel after the card was on screen counts as reading it.
     @Test func closingThePanelItShowedInDismissesIt() {
-        #expect(WelcomeCard.isDismissed(seen: false, from: .open(.shelf), to: .closed))
-        #expect(WelcomeCard.isDismissed(seen: false, from: .open(.timer), to: .receiving))
+        #expect(WelcomeCard.isDismissed(seen: false, from: .open(.shelf), openedBy: .tap, to: .closed))
     }
 
-    /// A tab switch keeps the panel open, so the card stays with it.
-    @Test func switchingTabsDoesNotDismissIt() {
-        #expect(!WelcomeCard.isDismissed(seen: false, from: .open(.shelf), to: .open(.clipboard)))
+    /// The card covers every body, so a tab switch dismisses it to show the
+    /// tab the user tried — the camera tab included.
+    @Test func switchingTabsDismissesIt() {
+        #expect(WelcomeCard.isDismissed(seen: false, from: .open(.shelf), openedBy: .tap, to: .open(.clipboard)))
+        #expect(WelcomeCard.isDismissed(seen: false, from: .open(.shelf), openedBy: .hotKey, to: .open(.camera)))
+    }
+
+    /// A drag arriving is someone dragging, not someone who read anything.
+    @Test func aDragArrivingDoesNotDismissIt() {
+        #expect(!WelcomeCard.isDismissed(seen: false, from: .open(.timer), openedBy: .tap, to: .receiving))
     }
 
     /// It was never on screen, so nothing was read.
     @Test func closingFromElsewhereDoesNotDismissIt() {
-        #expect(!WelcomeCard.isDismissed(seen: false, from: .peek(.dragTarget), to: .closed))
-        #expect(!WelcomeCard.isDismissed(seen: false, from: .closed, to: .peek(.dragTarget)))
-        #expect(!WelcomeCard.isDismissed(seen: false, from: .closed, to: .open(.shelf)))
+        #expect(!WelcomeCard.isDismissed(seen: false, from: .peek(.dragTarget), openedBy: nil, to: .closed))
+        #expect(!WelcomeCard.isDismissed(seen: false, from: .closed, openedBy: nil, to: .peek(.dragTarget)))
+        #expect(!WelcomeCard.isDismissed(seen: false, from: .closed, openedBy: nil, to: .open(.shelf)))
+    }
+
+    /// An ambient open never showed it, so closing one spends nothing.
+    @Test func closingAnAmbientOpenDoesNotDismissIt() {
+        for reason: PanelOpenReason in [.hover, .swipe, .drop, .unspecified] {
+            #expect(!WelcomeCard.isDismissed(seen: false, from: .open(.shelf), openedBy: reason, to: .closed))
+        }
+        #expect(!WelcomeCard.isDismissed(seen: false, from: .open(.camera), openedBy: .tap, to: .closed))
     }
 
     /// Already seen means nothing to write.
     @Test func anAlreadySeenCardIsNotDismissedAgain() {
-        #expect(!WelcomeCard.isDismissed(seen: true, from: .open(.shelf), to: .closed))
+        #expect(!WelcomeCard.isDismissed(seen: true, from: .open(.shelf), openedBy: .tap, to: .closed))
     }
 
     // MARK: - What it says

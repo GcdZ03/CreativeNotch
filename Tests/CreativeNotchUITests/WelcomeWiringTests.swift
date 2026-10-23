@@ -58,14 +58,115 @@ struct WelcomeWiringTests {
         #expect(!d.state.showsWelcome, "it came back on the second open")
     }
 
-    @Test func switchingTabsKeepsIt() {
+    /// The card's last line points at the tabs. Trying one shows that tab,
+    /// and counts as having read the card — kept, it would cover every tab's
+    /// body and make the tabs look broken.
+    @Test func switchingTabsShowsTheTabAndDismissesIt() {
         let defaults = TestDefaults.isolated("welcome")
         let d = makeDelegate(defaults: defaults)
         d.openPanel(openedBy: .tap)
 
         d.state.transition(to: .open(.clipboard))
 
+        #expect(!d.state.showsWelcome)
+        #expect(PreferencesStore(defaults: defaults).hasSeenWelcome)
+    }
+
+    /// ⌘N is a tab switch like a click.
+    @Test func aCommandDigitTabSwitchDismissesItToo() {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        d.toggleFromHotKey()
         #expect(d.state.showsWelcome)
+
+        #expect(d.handlePanelKey(.commandDigit(2)))
+
+        #expect(!d.state.showsWelcome)
+        #expect(PreferencesStore(defaults: defaults).hasSeenWelcome)
+    }
+
+    // MARK: - Ambient opens neither show nor spend it
+
+    /// A pointer crossing the notch with open-on-hover on: no card, and
+    /// leaving does not mark it seen. The next asked-for open shows it.
+    @Test func aHoverOpenNeitherShowsNorSpendsIt() {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        d.state.onSetHoverBehaviour?(HoverBehaviour(opensOnHover: true, openDelay: 0.6))
+        d.hoverView?.onDwell()
+        #expect(d.state.state == .open(.shelf))
+        #expect(!d.state.showsWelcome, "shown on a hover-open")
+
+        d.state.transition(to: .closed)
+
+        #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
+        d.openPanel(openedBy: .tap)
+        #expect(d.state.showsWelcome)
+    }
+
+    @Test func aSwipeOpenDoesNotShowIt() {
+        let d = makeDelegate()
+        d.openPanel(openedBy: .swipe)
+        #expect(!d.state.showsWelcome)
+    }
+
+    /// A first drop opens the shelf on the file just dropped, not on a card
+    /// that covers it — and the card is still unread afterwards.
+    @Test func aDropOpenShowsTheFileNotTheCard() throws {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        let container = try #require(d.panel?.contentView as? PassthroughContainer)
+
+        container.onDragEntered()
+        #expect(container.onDrop([.text("stashed")]))
+
+        #expect(d.state.state == .open(.shelf))
+        #expect(!d.state.showsWelcome)
+        d.state.transition(to: .closed)
+        #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
+    }
+
+    /// A drag arriving over the open panel is someone dragging, not someone
+    /// who read the card: it yields to the drop target unspent.
+    @Test func aDragIntoTheOpenPanelDoesNotSpendIt() {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        d.openPanel(openedBy: .tap)
+        #expect(d.state.showsWelcome)
+
+        d.state.transition(to: .receiving)
+
+        #expect(!d.state.showsWelcome)
+        #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
+    }
+
+    // MARK: - Never over the camera
+
+    /// Showing the camera tab starts the camera; the card must not cover a
+    /// live preview and its controls. Switching to it dismisses the card.
+    @Test func switchingToTheCameraTabTakesTheCardAway() throws {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        d.openPanel(openedBy: .tap)
+        #expect(d.state.showsWelcome)
+
+        d.state.transition(to: .open(.camera))
+
+        #expect(!d.state.showsWelcome)
+        #expect(PreferencesStore(defaults: defaults).hasSeenWelcome)
+    }
+
+    /// An asked-for open straight onto the camera shows no card, and so
+    /// spends none.
+    @Test func anOpenOntoTheCameraTabNeitherShowsNorSpendsIt() {
+        let defaults = TestDefaults.isolated("welcome")
+        let d = makeDelegate(defaults: defaults)
+        d.state.retarget(lastOpenTab: .camera)
+        d.openPanel(openedBy: .tap)
+        #expect(d.state.state == .open(.camera))
+        #expect(!d.state.showsWelcome)
+
+        d.state.transition(to: .closed)
         #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
     }
 
@@ -103,15 +204,56 @@ struct WelcomeWiringTests {
         #expect(asked == [nil])
     }
 
+    /// A menu click is asked for: it opens as `.tap`, so the panel takes the
+    /// keyboard and Esc dismisses the card.
     @Test func showWelcomeAgainClearsTheFlagAndOpensThePanelOnIt() {
         let defaults = TestDefaults.isolated("welcome")
         PreferencesStore(defaults: defaults).setHasSeenWelcome(true)
         let d = makeDelegate(defaults: defaults)
+        var taken = 0
+        d.takeKey = { taken += 1 }
 
         d.showWelcomeAgain()
 
         #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
         #expect(d.state.showsWelcome)
+        #expect(d.state.openReason == .tap)
+        #expect(taken == 1)
+        #expect(d.handlePanelKey(.escape))
+        #expect(d.state.state == .closed)
+    }
+
+    /// Not onto the camera, where the card never shows: that would start the
+    /// camera and show no welcome.
+    @Test func showWelcomeAgainAvoidsTheCameraTab() throws {
+        let defaults = TestDefaults.isolated("welcome")
+        PreferencesStore(defaults: defaults).setHasSeenWelcome(true)
+        let d = makeDelegate(defaults: defaults)
+        let camera = try #require(d.camera)
+        camera.authorizationStatus = { .authorized }
+        d.state.retarget(lastOpenTab: .camera)
+
+        d.showWelcomeAgain()
+
+        #expect(d.state.state == .open(.shelf))
+        #expect(d.state.showsWelcome)
+        #expect(camera.shouldRun == false)
+    }
+
+    /// With every tab switched off there is no panel to open: it declines,
+    /// like every other opener, and the flag stays cleared for later.
+    @Test func showWelcomeAgainDeclinesWithNoVisibleTab() {
+        let defaults = TestDefaults.isolated("welcome")
+        PreferencesStore(defaults: defaults).setHasSeenWelcome(true)
+        let d = makeDelegate(defaults: defaults)
+        for module in [ModuleID.shelf, .clipboard, .timer, .power, .camera] {
+            d.switchboard.setEnabled(false, for: module, persist: false)
+        }
+
+        d.showWelcomeAgain()
+
+        #expect(d.state.state == .closed)
+        #expect(!PreferencesStore(defaults: defaults).hasSeenWelcome)
     }
 
     @Test func theMenuOffersShowWelcomeAgain() throws {
@@ -144,7 +286,7 @@ struct WelcomeWiringTests {
 
         let with = PanelRenderingTests.state(media: false)
         with.welcomeSeen = false
-        with.transition(to: .open(.timer))
+        with.transition(to: .open(.timer), openedBy: .tap)
         let welcomed = try #require(PanelRenderingTests.bitmap(with))
 
         #expect(PanelRenderingTests.ink(welcomed, in: corner) > 0.15,
