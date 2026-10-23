@@ -60,4 +60,72 @@ struct LineBufferTests {
         #expect(b.pending.isEmpty)
         #expect(b.append("ne\n") == ["ne"])
     }
+
+    // MARK: - Bytes, not strings
+
+    /// `readabilityHandler` cuts wherever the pipe happened to be, which is
+    /// byte-aligned, not character-aligned. A title with an emoji or an
+    /// accented letter straddling a read boundary used to arrive as two
+    /// halves of invalid UTF-8; decoding each chunk on its own returned
+    /// `nil` and the whole chunk — newline included — was dropped.
+    @Test func aMultibyteCharacterSplitAcrossChunksIsRejoined() {
+        var b = LineBuffer()
+        let line = "{\"title\":\"caf\u{E9} \u{1F3B5}\"}"
+        let bytes = Array((line + "\n").utf8)
+        // Cut inside the four-byte emoji, so neither half is valid UTF-8.
+        let cut = bytes.count - 4
+        #expect(b.append(Data(bytes[..<cut])) == [])
+        #expect(b.append(Data(bytes[cut...])) == [line])
+    }
+
+    /// Splitting on byte 0x0A is safe precisely because UTF-8 never uses
+    /// that byte inside a multibyte sequence — every continuation byte has
+    /// its high bit set.
+    @Test func everySingleByteCutOfAMultibyteLineReassembles() {
+        let line = "\u{1F3B5} \u{E9}\u{4E2D}\u{6587}"
+        let bytes = Array((line + "\n").utf8)
+        for cut in 1..<bytes.count {
+            var b = LineBuffer()
+            let first = b.append(Data(bytes[..<cut]))
+            let second = b.append(Data(bytes[cut...]))
+            #expect(first + second == [line], "cut at byte \(cut)")
+        }
+    }
+
+    /// The byte count the reader's cap is checked against.
+    @Test func pendingByteCountCountsBytesNotCharacters() {
+        var b = LineBuffer()
+        _ = b.append("\u{1F3B5}")
+        #expect(b.pendingByteCount == 4)
+    }
+
+    /// A 1 MB artwork line arrives as hundreds of pipe-sized chunks. Each
+    /// chunk must be scanned once for its newline — rescanning everything
+    /// already held back makes one line cost the square of its length.
+    @Test func eachByteIsScannedOnceHoweverManyChunksALineTakes() {
+        var b = LineBuffer()
+        let chunk = String(repeating: "x", count: 1024)
+        let chunks = 512
+        for _ in 0..<chunks { _ = b.append(chunk) }
+        #expect(b.append("\n") == [String(repeating: "x", count: 1024 * chunks)])
+        #expect(b.bytesScanned == 1024 * chunks + 1)
+    }
+
+    /// The scan offset must not survive a reset, or the next line's first
+    /// bytes would be skipped and its newline missed.
+    @Test func resetAlsoForgetsHowFarItHadScanned() {
+        var b = LineBuffer()
+        _ = b.append("a long partial line")
+        b.reset()
+        #expect(b.append("x\n") == ["x"])
+    }
+}
+
+/// The tests above were written against `String` chunks; the buffer takes
+/// the raw bytes a pipe delivers. Kept here rather than in the module, so
+/// production code has exactly one way in.
+extension LineBuffer {
+    mutating func append(_ chunk: String) -> [String] {
+        append(Data(chunk.utf8))
+    }
 }

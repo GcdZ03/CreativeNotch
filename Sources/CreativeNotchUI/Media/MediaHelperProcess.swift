@@ -136,11 +136,15 @@ public final class MediaHelperProcess {
         // `readabilityHandler` fires on a background queue, never the
         // main actor. Hop over explicitly rather than touching `self`
         // from here — `ingest` mutates actor-isolated state.
+        //
+        // The raw bytes cross the hop undecoded. A read can end inside a
+        // multibyte character, and decoding here dropped such a chunk
+        // whole; `LineBuffer` decodes only once a line is complete.
         stdoutPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
-            guard !data.isEmpty, let chunk = String(data: data, encoding: .utf8) else { return }
+            guard !data.isEmpty else { return }
             Task { @MainActor in
-                self?.deliverFromReader(chunk)
+                self?.deliverFromReader(data)
             }
         }
 
@@ -350,7 +354,7 @@ public final class MediaHelperProcess {
     /// Entry point for the stdout reader, after its hop to the main
     /// actor. See `isStopped` for why this check lives here rather than
     /// inside `ingest` itself.
-    func deliverFromReader(_ chunk: String) {
+    func deliverFromReader(_ chunk: Data) {
         guard !isStopped else { return }
         ingest(chunk)
     }
@@ -361,7 +365,7 @@ public final class MediaHelperProcess {
     /// Internal, not private: this is the only method the test suite
     /// touches, driven with the exact chunks a real `readabilityHandler`
     /// would deliver, so no test needs to spawn a process.
-    func ingest(_ chunk: String) {
+    func ingest(_ chunk: Data) {
         let lines = buffer.append(chunk)
         for line in lines {
             if line.utf8.count > Self.maxLineLength {
@@ -376,7 +380,7 @@ public final class MediaHelperProcess {
         // helper (or an attacker who controls it) kept writing. Reset the
         // buffer once pending data alone exceeds the cap, well before any
         // newline arrives, so the NEXT line still parses correctly.
-        if buffer.pending.utf8.count > Self.maxLineLength {
+        if buffer.pendingByteCount > Self.maxLineLength {
             discardedLineCount += 1
             buffer.reset()
         }

@@ -37,6 +37,39 @@ struct MediaHelperProcessTests {
         #expect(lines == ["{\"title\":\"x\"}"])
     }
 
+    /// The reader hands over raw bytes, and the pipe cuts wherever it
+    /// likes — including inside a character. Decoding each chunk on its own
+    /// returned `nil` for both halves of a split emoji, and both chunks,
+    /// newline included, were silently dropped: the track never updated.
+    @Test func aChunkBoundaryInsideACharacterStillDeliversTheLine() {
+        let helper = MediaHelperProcess()
+        var lines: [String] = []
+        helper.onLine = { lines.append($0) }
+
+        let line = "{\"title\":\"\u{1F3B5}\"}"
+        let bytes = Array((line + "\n").utf8)
+        let cut = bytes.firstIndex(of: 0xF0)! + 2  // inside the emoji
+        helper.ingest(Data(bytes[..<cut]))
+        helper.ingest(Data(bytes[cut...]))
+
+        #expect(lines == [line])
+    }
+
+    /// The cap is a memory bound, so it counts bytes; a line of emoji just
+    /// under the cap in characters is four times over it in bytes.
+    @Test func theLineCapCountsBytesNotCharacters() {
+        let helper = MediaHelperProcess()
+        var lines: [String] = []
+        helper.onLine = { lines.append($0) }
+
+        let overlong = String(repeating: "\u{1F3B5}", count: MediaHelperProcess.maxLineLength / 4 + 1)
+        helper.ingest(overlong)
+        helper.ingest("next\n")
+
+        #expect(lines == ["next"])
+        #expect(helper.discardedLineCount == 1)
+    }
+
     @Test func severalLinesInOneChunkAllForward() {
         let helper = MediaHelperProcess()
         var count = 0
@@ -366,5 +399,18 @@ struct MediaHelperStandardInputTests {
 
         #expect(reported == [9])
         #expect(helper.isRunning == false)
+    }
+}
+
+/// Most tests here read better as text. The reader itself takes the raw
+/// bytes a pipe delivers; these are kept in the test target so production
+/// code has exactly one way in.
+extension MediaHelperProcess {
+    func ingest(_ chunk: String) {
+        ingest(Data(chunk.utf8))
+    }
+
+    func deliverFromReader(_ chunk: String) {
+        deliverFromReader(Data(chunk.utf8))
     }
 }
