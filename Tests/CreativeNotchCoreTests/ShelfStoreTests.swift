@@ -413,6 +413,106 @@ struct ShelfStoreTests {
         #expect(FileManager.default.fileExists(atPath: oldest!.url.path))
     }
 
+    // MARK: - Undoing a clear
+
+    /// **Clear is undoable.** The files come back out of the Trash to where
+    /// they were, with their contents and their place in the list.
+    @Test func restoringAClearanceBringsTheFilesBack() throws {
+        let (store, _) = try makeStore()
+        let older = try store.add(.text("older"), now: t0)
+        let newer = try store.add(.text("newer"), now: t0.addingTimeInterval(1))
+
+        let clearance = try store.clear()
+        #expect(store.items.isEmpty)
+        #expect(FileManager.default.fileExists(atPath: older.url.path) == false)
+
+        let restoration = store.restore(clearance)
+
+        #expect(restoration.skipped.isEmpty)
+        #expect(store.items.map(\.id) == [newer.id, older.id])
+        #expect(store.items.map(\.url) == [newer.url, older.url])
+        #expect(try String(contentsOf: older.url, encoding: .utf8) == "older")
+        #expect(try String(contentsOf: newer.url, encoding: .utf8) == "newer")
+    }
+
+    /// A reference was never moved, so restoring it is putting the entry
+    /// back -- and the file it points at was never touched.
+    @Test func restoringAClearanceBringsReferencesBack() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+        let reference = try store.addReference(to: external, now: t0)
+
+        let clearance = try store.clear()
+        store.restore(clearance)
+
+        #expect(store.items == [reference])
+    }
+
+    /// A file emptied out of the Trash in the meantime cannot come back. It
+    /// is skipped and reported, and the rest are still restored.
+    @Test func anItemWhoseTrashedFileIsGoneIsSkipped() throws {
+        let (store, _) = try makeStore()
+        let kept = try store.add(.text("kept"), now: t0)
+        let lost = try store.add(.text("lost"), now: t0.addingTimeInterval(1))
+
+        let clearance = try store.clear()
+        let trashed = try #require(clearance.entries.first { $0.item.id == lost.id }?.trashedURL)
+        // Emptying the Trash, for this one file: move it out of the Trash
+        // to somewhere the shelf does not know about. (`removeItem` is kept
+        // out of the shelf's code, and this keeps it out of its tests too.)
+        let elsewhere = try makeExternalFile(named: "placeholder")
+            .deletingLastPathComponent().appendingPathComponent("emptied")
+        try FileManager.default.moveItem(at: trashed, to: elsewhere)
+
+        let restoration = store.restore(clearance)
+
+        #expect(restoration.skipped.map(\.id) == [lost.id])
+        #expect(restoration.restored.map(\.id) == [kept.id])
+        #expect(store.items.map(\.id) == [kept.id])
+    }
+
+    /// Something dropped since the clear may have taken the name. The
+    /// restored file gets a suffix rather than overwriting the new one.
+    @Test func restoringIntoATakenNameSuffixesRatherThanOverwriting() throws {
+        let (store, _) = try makeStore()
+        let original = try store.add(.text("original"), now: t0)
+        let clearance = try store.clear()
+        let newcomer = try store.add(.text("newcomer"), now: t0.addingTimeInterval(5))
+        #expect(newcomer.url == original.url)
+
+        store.restore(clearance)
+
+        #expect(store.items.count == 2)
+        #expect(try String(contentsOf: newcomer.url, encoding: .utf8) == "newcomer")
+        let restored = try #require(store.items.first { $0.id == original.id })
+        #expect(restored.url.lastPathComponent == "Dropped Text 2.txt")
+        #expect(try String(contentsOf: restored.url, encoding: .utf8) == "original")
+    }
+
+    /// A clear that fails partway still hands back what it did take, so
+    /// those can be undone too.
+    @Test func aPartialClearStillReportsWhatItTook() throws {
+        let (store, _) = try makeStore()
+        let external = try makeExternalFile(named: "Photo.jpg")
+        let reference = try store.addReference(to: external, now: t0)
+        let owned = try store.add(.text("stuck"), now: t0)
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: owned.url.deletingLastPathComponent().path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700],
+                ofItemAtPath: owned.url.deletingLastPathComponent().path)
+        }
+
+        do {
+            try store.clear()
+            Issue.record("a clear that could not trash did not throw")
+        } catch let error as ShelfStore.PartialClear {
+            #expect(error.clearance.entries.map(\.item.id) == [reference.id])
+        }
+        #expect(store.items.map(\.id) == [owned.id])
+    }
+
     /// A file moved or deleted from underneath the shelf -- in Finder, or a
     /// referenced capture the user tidied away -- leaves a tile pointing at
     /// nothing until something notices.

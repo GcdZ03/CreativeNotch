@@ -442,6 +442,21 @@ the shelf is shown (one `fileExists` per item), not by watching the disk.
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.
 
+**An item leaves the list only once its file is in the Trash.** Remove, clear,
+purge and eviction all follow it: a file whose trash failed is still in the
+directory, and dropping its tile would only hide it until the next launch
+reloaded it.
+
+**Clear can be undone for six seconds.** `clear()` returns a
+`ShelfClearance` — each item and the URL `trashItem` reported for its file —
+and `restore(_:)` moves the files back out of the Trash with their original
+identity and drop time (a move keeps the creation date). Anything that cannot
+come back, because it was emptied from the Trash, is skipped and reported,
+and the rest still return. The record lives in `AppDelegate`, not the store,
+because how long the offer lasts is a UI decision; it is withdrawn by a
+one-shot `Task`, scheduled only by a clear, so nothing is pending while the
+shelf is idle.
+
 ### The drop region follows the drawn shape
 
 AppKit locates dragging destinations by **hit-testing** — established by probe,

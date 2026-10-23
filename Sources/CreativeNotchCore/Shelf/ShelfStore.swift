@@ -146,23 +146,108 @@ public final class ShelfStore {
         items.removeAll { $0.id == id }
     }
 
-    /// Removes every item whose file could be trashed.
+    /// A clear that could not trash everything.
+    ///
+    /// Carries what it *did* take, so the items that went can still be
+    /// undone: a plain rethrow would leave them in the Trash with no record
+    /// of where they came from.
+    public struct PartialClear: Error {
+        public let clearance: ShelfClearance
+        public let underlying: any Error
+    }
+
+    /// Removes every item whose file could be trashed, returning where each
+    /// went so `restore(_:)` can undo it.
     ///
     /// An item whose move to the Trash fails stays listed, for the same
     /// reason as `remove`: emptying the list up front showed a clear shelf
     /// that quietly refilled from the directory at the next launch. Every
-    /// item is attempted; the first failure is rethrown afterwards.
-    public func clear() throws {
+    /// item is attempted; if any failed, `PartialClear` is thrown with the
+    /// first failure and the record of what did go.
+    @discardableResult
+    public func clear() throws -> ShelfClearance {
+        var entries: [ShelfClearance.Entry] = []
         var firstError: (any Error)?
         for item in items {
             do {
-                try trash(item)
+                let trashedURL = try trash(item)
                 items.removeAll { $0.id == item.id }
+                entries.append(.init(item: item, trashedURL: trashedURL))
             } catch {
                 if firstError == nil { firstError = error }
             }
         }
-        if let firstError { throw firstError }
+        let clearance = ShelfClearance(entries: entries)
+        if let firstError { throw PartialClear(clearance: clearance, underlying: firstError) }
+        return clearance
+    }
+
+    /// Puts back what a `clear()` took, as far as it still can.
+    ///
+    /// Owned files are moved back out of the Trash -- `trashItem` reported
+    /// where it put each one -- and keep their identity and drop time, so
+    /// they return to the same place in the list and age from the original
+    /// drop, not from the undo. A move preserves the creation date, which is
+    /// what `load` reads `addedAt` back from. If something dropped since has
+    /// taken the old name, the restored file is suffixed rather than
+    /// overwriting it.
+    ///
+    /// An item that cannot come back is skipped and reported, not thrown:
+    /// one file emptied out of the Trash should not cost the user the rest.
+    /// Anything already listed again is left alone.
+    ///
+    /// Restoring can take the shelf over capacity if things were dropped in
+    /// the meantime; the oldest are then evicted as after any add.
+    @discardableResult
+    public func restore(_ clearance: ShelfClearance) -> ShelfRestoration {
+        var restored: [ShelfItem] = []
+        var skipped: [ShelfItem] = []
+
+        for entry in clearance.entries {
+            let item = entry.item
+            guard !items.contains(where: { $0.id == item.id }) else { continue }
+
+            guard item.isOwned else {
+                if fileManager.fileExists(atPath: item.url.path) {
+                    restored.append(item)
+                } else {
+                    skipped.append(item)
+                }
+                continue
+            }
+
+            guard let trashed = entry.trashedURL,
+                  fileManager.fileExists(atPath: trashed.path)
+            else {
+                skipped.append(item)
+                continue
+            }
+            let destination = fileManager.fileExists(atPath: item.url.path)
+                ? uniqueURL(for: item.displayName)
+                : item.url
+            do {
+                try fileManager.moveItem(at: trashed, to: destination)
+            } catch {
+                skipped.append(item)
+                continue
+            }
+            restored.append(ShelfItem(
+                id: item.id,
+                url: destination,
+                displayName: destination.lastPathComponent,
+                addedAt: item.addedAt
+            ))
+        }
+
+        guard !restored.isEmpty else {
+            return ShelfRestoration(restored: [], skipped: skipped)
+        }
+        items.append(contentsOf: restored)
+        items.sort { $0.addedAt > $1.addedAt }
+        // `try?`: the restored files are back either way, and an eviction
+        // that cannot trash keeps its item listed, so nothing is lost.
+        try? evictBeyondCapacity()
+        return ShelfRestoration(restored: restored, skipped: skipped)
     }
 
     /// Drops items whose file no longer exists, returning what went.
@@ -258,9 +343,15 @@ public final class ShelfStore {
     /// about reclaiming space it allocated; applying them to a file it merely
     /// points at would mean a photograph taken this morning going to the Trash
     /// next week because twenty things were dragged onto the notch.
-    private func trash(_ item: ShelfItem) throws {
-        guard item.isOwned else { return }
-        guard fileManager.fileExists(atPath: item.url.path) else { return }
-        try fileManager.trashItem(at: item.url, resultingItemURL: nil)
+    ///
+    /// Returns where the Trash put the file, which is what lets `clear` be
+    /// undone; `nil` when nothing was moved.
+    @discardableResult
+    private func trash(_ item: ShelfItem) throws -> URL? {
+        guard item.isOwned else { return nil }
+        guard fileManager.fileExists(atPath: item.url.path) else { return nil }
+        var resulting: NSURL?
+        try fileManager.trashItem(at: item.url, resultingItemURL: &resulting)
+        return resulting as URL?
     }
 }
