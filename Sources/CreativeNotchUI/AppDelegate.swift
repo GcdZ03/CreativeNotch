@@ -1400,10 +1400,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// The grace counts from when the accepted region has caught up with the
+    /// drawn one, not from the exit. The shipped grace (400ms) is shorter
+    /// than the growth lag (420ms), so counted from the exit it fired before
+    /// `keepOpenIfPointerInside` could find the pointer inside the grown
+    /// region — and the panel shut under a user who had just tapped it open
+    /// and moved toward its controls. Waiting on `growthTask` rather than
+    /// lengthening the grace keeps both numbers meaning what they say.
     private func startDismissGrace() {
         graceTask?.cancel()
+        let growth = growthTask
         graceTask = Task { @MainActor [weak self] in
-            guard let self else { return }
+            await growth?.value
+            guard let self, !Task.isCancelled else { return }
             try? await Task.sleep(for: self.dismissGrace)
             guard !Task.isCancelled else { return }
             self.dismissIfOpen()
