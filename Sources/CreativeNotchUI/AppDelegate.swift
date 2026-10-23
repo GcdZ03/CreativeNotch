@@ -1277,9 +1277,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// loses its insertion point. Peeks are ambient and frequent, and the
     /// shelf and clipboard tabs are click-only, so none of them touch it.
     ///
-    /// `resignKey` rather than a stored "previous window": AppKit returns
-    /// key to whoever had it, and tracking that ourselves would be a second
-    /// derivation of state the window server already owns.
+    /// Giving focus back is `relinquishKey`, not `resignKey()`. AppKit sends
+    /// `resignKey` as a notification and documents that it must never be
+    /// called directly; called anyway, it moves nothing, so the closed panel
+    /// stayed key and swallowed every keystroke meant for the app underneath.
+    /// Still no stored "previous window": once the panel is not key, the
+    /// window server returns focus to the frontmost app, which never stopped
+    /// being frontmost (the panel is non-activating), and tracking that
+    /// ourselves would be a second derivation of state it already owns.
     ///
     /// Deliberately keyed on the *tab*, not on `.open`. Making every open
     /// steal the cursor would be a regression for the three surfaces that
@@ -1291,13 +1296,39 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return false
     }
 
+    /// Whether the panel holds keyboard focus. Injected because a headless
+    /// suite cannot make an offscreen panel key, so the give-back path would
+    /// otherwise be unreachable from a test.
+    var panelIsKey: (NSWindow) -> Bool = { $0.isKeyWindow }
+
+    /// Gives keyboard focus up. `nil` means the real thing,
+    /// `orderPanelOutOfFocus()`; a test hands in a counter, like
+    /// `presentPreferences`.
+    var relinquishKey: (() -> Void)?
+
     func syncKeyWindow(for newState: NotchState) {
         guard let panel else { return }
         if Self.shouldTakeKey(for: newState) {
             panel.makeKey()
-        } else if panel.isKeyWindow {
-            panel.resignKey()
+        } else if panelIsKey(panel) {
+            if let relinquishKey { relinquishKey() } else { orderPanelOutOfFocus(panel) }
         }
+    }
+
+    /// Ordering a window out is what actually takes key status from it, and
+    /// ordering it straight back with `orderFrontRegardless` does not hand it
+    /// back — that call never makes a window key. Both in the same turn of
+    /// the run loop, so nothing flickers. Re-hosted afterwards, because a
+    /// window ordered out may leave the fixed Space (see `NotchSpace`).
+    ///
+    /// Re-hosting only where a Space exists, so this can never be the call
+    /// that creates one — only the launch does that.
+    private func orderPanelOutOfFocus(_ panel: NotchPanel) {
+        let wasVisible = panel.isVisible
+        panel.orderOut(nil)
+        guard wasVisible else { return }
+        panel.orderFrontRegardless()
+        if fixedSpace != nil { hostPanelInFixedSpace() }
     }
 
     private func syncDismissAffordances(for newState: NotchState) {
