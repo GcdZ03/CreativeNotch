@@ -261,6 +261,30 @@ The monitor's lifetime is driven from `onTransition` rather than from call
 sites, so there is no path that opens the panel without arming it, or closes
 it and leaves a monitor running.
 
+**Esc** is a fourth way out, and needs no monitor at all: keys reach the panel
+only while it is key, so `NotchPanel` handles them itself (`keyDown`,
+`cancelOperation`, `performKeyEquivalent` for ⌘1…⌘N) and hands a decoded
+`PanelKey` to `AppDelegate.handlePanelKey`, which asks `PanelKeyboard` (Core)
+what it means and makes the same `transition(to:)` a click would. ⌘N counts
+the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
+a gap in the numbering. Neither key does anything unless the state is `.open`
+— Esc never tears down a drop target mid-drag.
+
+### Who gets the keyboard
+
+Becoming key costs the frontmost app its insertion point, so the panel takes
+it only when the person asked for the panel. `AppState.openReason` records
+why the panel opened — set by `transition(to:openedBy:)` on the change into
+`.open`, kept across a tab switch, cleared on leaving — and `PanelFocus`
+(Core) decides: the notch tap and the global shortcut are explicit and take
+key; hover-open, a swipe and a drop are ambient and do not, except on the
+timer tab, whose minutes field needs the keyboard however it was reached.
+**Hover-open must never steal keystrokes**: a pointer crossing the notch is not
+someone who has stopped typing. `openPanel(openedBy:)` takes the reason with
+no default, so a new route has to choose; a bare `transition(to:)` defaults to
+`.unspecified`, the ambient answer. Focus is still given back only once the
+panel leaves `.open` (`syncKeyWindow`), never on a tab switch.
+
 ### Peek arbitration
 
 One slot, four competitors. `PeekArbiter` resolves them: **drag > finished

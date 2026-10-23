@@ -253,6 +253,8 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
+| Press Esc | Closes the panel |
+| Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Puts it back on the clipboard, ready to paste |
@@ -282,6 +284,12 @@ hover** does that after a delay you choose (0.2–1.0 s) — straight to the
 panel, which has the progress bar and the music controls. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
+
+The keys work once the panel has the keyboard: when you opened it by clicking
+the notch or with the global shortcut, or after clicking inside it. A panel
+that opened on hover does not take the keyboard by itself, so whatever you were
+typing in keeps your keystrokes — the Timer tab is the one exception, because
+its minutes field has to be typable.
 
 The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
