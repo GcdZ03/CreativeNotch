@@ -1122,6 +1122,13 @@ notices. Measured in `docs/research/2026-09-13-capture-listener-scope.md`, and
 pinned by a source scan, because the tests inject the system read precisely so
 they touch no real device.
 
+**Subscribe global, read input.** The input-scope *value* was measured
+accurate; only its notification is missing. Global's value is true for a
+combined input/output device that is merely playing, so the microphone is read
+on input scope. The device lists themselves are listened to as well, so a
+device connected after start is attached and one unplugged mid-capture is
+re-read away rather than leaving the badge on.
+
 ### Read the value; do not react to the notification
 
 CoreAudio fires **one** event per edge. CoreMediaIO fires **three** on start

@@ -103,6 +103,65 @@ struct CaptureObserverTests {
                 "the microphone read is on global scope, which counts playback")
     }
 
+    /// **Devices come and go.** AirPods connecting, a USB webcam plugged in,
+    /// Continuity Camera waking: listeners attached only at `start()` would
+    /// never hear from any of them, and an unplugged device mid-capture would
+    /// leave the badge stuck on. So the device lists themselves are listened
+    /// to -- pinned by scan for the same reason the scope is.
+    @Test func theDeviceListsAreListenedTo() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI/Capture/CaptureObserver.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        let registration = try #require(text.range(of: "// MARK: - Registration"))
+        let readsBegin = try #require(text.range(of: "// MARK: - Reading the system"))
+        let block = String(text[registration.lowerBound..<readsBegin.lowerBound])
+
+        #expect(block.contains("kAudioHardwarePropertyDevices"),
+                "nothing listens for audio devices being added or removed")
+        #expect(block.contains("kCMIOHardwarePropertyDevices"),
+                "nothing listens for cameras being added or removed")
+    }
+
+    /// A device-list change re-reads, so an unplugged device that was
+    /// capturing clears the badge rather than leaving it stuck on -- and the
+    /// re-attach does not stack listeners.
+    @Test func aDeviceListChangeRereadsWithoutStacking() {
+        let observer = CaptureObserver()
+        var reading = CaptureUse(microphone: true)
+        observer.readCurrentUse = { reading }
+        var published: [CaptureUse] = []
+        observer.onChange = { published.append($0) }
+
+        observer.start()
+        let afterStart = observer.registrationCount
+
+        reading = .none
+        observer.devicesChangedForTesting()
+
+        #expect(published.last == CaptureUse.none, "an unplugged device left the badge on")
+        #expect(observer.registrationCount == afterStart, "re-attaching stacked listeners")
+        observer.stop()
+        #expect(observer.registrationCount == 0)
+    }
+
+    @Test func aDeviceListChangeAfterStopPublishesNothing() {
+        let observer = CaptureObserver()
+        observer.readCurrentUse = { .none }
+        var publishes = 0
+        observer.onChange = { _ in publishes += 1 }
+
+        observer.start()
+        observer.stop()
+        observer.devicesChangedForTesting()
+
+        #expect(publishes == 1)
+        #expect(observer.registrationCount == 0, "a late device-list callback re-attached listeners")
+    }
+
     @Test func startingPublishesTheCurrentStateImmediately() {
         let observer = CaptureObserver()
         observer.readCurrentUse = { CaptureUse(microphone: true) }

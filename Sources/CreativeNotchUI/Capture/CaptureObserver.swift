@@ -28,10 +28,19 @@ final class CaptureObserver {
     private var audioListeners: [(AudioObjectID, AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)] = []
     private var cmioListeners: [(CMIOObjectID, CMIOObjectPropertyAddress, CMIOObjectPropertyListenerBlock)] = []
 
+    /// The two listeners on the device *lists*, kept apart from the per-device
+    /// ones above because a list change tears those down and rebuilds them,
+    /// and must not tear down itself.
+    private var audioListListener: (AudioObjectPropertyAddress, AudioObjectPropertyListenerBlock)?
+    private var cmioListListener: (CMIOObjectPropertyAddress, CMIOObjectPropertyListenerBlock)?
+
     /// How many listeners are installed. Exposed for the same reason
     /// `PowerObserver.registrationCount` is: a stop that is asserted rather
     /// than observed is not a stop.
-    var registrationCount: Int { audioListeners.count + cmioListeners.count }
+    var registrationCount: Int {
+        audioListeners.count + cmioListeners.count
+            + (audioListListener == nil ? 0 : 1) + (cmioListListener == nil ? 0 : 1)
+    }
 
     /// **A backstop, and it is not paranoia.** There is an unanswered radar
     /// claiming `CMIOObjectRemovePropertyListenerBlock` returns `noErr` and
@@ -47,6 +56,7 @@ final class CaptureObserver {
     func start() {
         guard isStopped else { return }
         isStopped = false
+        installDeviceListListeners()
         installAudioListeners()
         installCameraListeners()
         publish()
@@ -56,6 +66,52 @@ final class CaptureObserver {
         guard !isStopped else { return }
         isStopped = true
 
+        removeDeviceListeners()
+
+        if let (address, block) = audioListListener {
+            var address = address
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &address, .main, block)
+            audioListListener = nil
+        }
+        if let (address, block) = cmioListListener {
+            var address = address
+            CMIOObjectRemovePropertyListenerBlock(
+                CMIOObjectID(kCMIOObjectSystemObject), &address, .main, block)
+            cmioListListener = nil
+        }
+    }
+
+    /// Test seam: drives the same path a listener callback does, so the
+    /// stopped-flag backstop can be exercised without a system that refuses to
+    /// remove a listener.
+    func publishForTesting() { publish() }
+
+    /// Test seam: drives the path a device-list callback does, without
+    /// plugging anything in.
+    func devicesChangedForTesting() { devicesChanged() }
+
+    private func publish() {
+        guard !isStopped else { return }
+        onChange?(readCurrentUse())
+    }
+
+    /// A device arrived or left. Rebuild the per-device listeners against the
+    /// list as it is now, then re-read: a device unplugged mid-capture never
+    /// fires its own "stopped" edge, so without the re-read the badge would
+    /// stay lit for hardware that is no longer there.
+    ///
+    /// Removing a listener from a device that has already gone fails, and
+    /// that is fine -- the device took the listener with it.
+    private func devicesChanged() {
+        guard !isStopped else { return }
+        removeDeviceListeners()
+        installAudioListeners()
+        installCameraListeners()
+        publish()
+    }
+
+    private func removeDeviceListeners() {
         for (id, address, block) in audioListeners {
             var address = address
             AudioObjectRemovePropertyListenerBlock(id, &address, .main, block)
@@ -69,17 +125,43 @@ final class CaptureObserver {
         cmioListeners.removeAll()
     }
 
-    /// Test seam: drives the same path a listener callback does, so the
-    /// stopped-flag backstop can be exercised without a system that refuses to
-    /// remove a listener.
-    func publishForTesting() { publish() }
-
-    private func publish() {
-        guard !isStopped else { return }
-        onChange?(readCurrentUse())
-    }
-
     // MARK: - Registration
+
+    /// Listens to the device lists themselves, on the system objects.
+    ///
+    /// The per-device listeners below can only be attached to devices that
+    /// exist at the time, and AirPods connecting, a USB webcam being plugged
+    /// in or Continuity Camera waking all happen later. Still one notification
+    /// per change and nothing between -- no polling for new hardware.
+    private func installDeviceListListeners() {
+        var audioAddress = AudioObjectPropertyAddress(
+            mSelector: kAudioHardwarePropertyDevices,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        let audioBlock: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.devicesChanged() }
+        }
+        if AudioObjectAddPropertyListenerBlock(
+            AudioObjectID(kAudioObjectSystemObject), &audioAddress, .main, audioBlock) == noErr {
+            audioListListener = (audioAddress, audioBlock)
+        }
+
+        var cmioAddress = CMIOObjectPropertyAddress(
+            mSelector: CMIOObjectPropertySelector(kCMIOHardwarePropertyDevices),
+            mScope: CMIOObjectPropertyScope(kCMIOObjectPropertyScopeGlobal),
+            mElement: CMIOObjectPropertyElement(kCMIOObjectPropertyElementMain)
+        )
+        let cmioBlock: CMIOObjectPropertyListenerBlock = { [weak self] _, _ in
+            MainActor.assumeIsolated { self?.devicesChanged() }
+        }
+        // `.main`, never `nil`, for the reason given in
+        // `installCameraListeners`.
+        if CMIOObjectAddPropertyListenerBlock(
+            CMIOObjectID(kCMIOObjectSystemObject), &cmioAddress, .main, cmioBlock) == noErr {
+            cmioListListener = (cmioAddress, cmioBlock)
+        }
+    }
 
     private func installAudioListeners() {
         var address = AudioObjectPropertyAddress(
