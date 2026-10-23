@@ -82,17 +82,55 @@ if ! codesign --verify --deep --strict "$TMP/$APP_NAME" 2>/dev/null; then
   die "signature verification failed — refusing to install."
 fi
 
-if pgrep -f "$APP_NAME/Contents/MacOS/CreativeNotch" >/dev/null 2>&1; then
+TARGET="$DEST/$APP_NAME"
+
+# Only the copy being replaced. A bare "$APP_NAME/Contents/MacOS/..." pattern
+# also matches a dev build running out of dist/, which this installer has no
+# business stopping. pgrep takes an extended regex, so the path's dots (and
+# anything else special in a custom INSTALL_DIR) are escaped, and the pattern
+# is anchored to the start of the command line.
+RUNNING="^$(printf '%s' "$TARGET/Contents/MacOS/CreativeNotch" | sed 's/[][\\.^$*+?(){}|]/\\&/g')"
+if pgrep -f "$RUNNING" >/dev/null 2>&1; then
   info "stopping the running copy"
-  pkill -f "$APP_NAME/Contents/MacOS/CreativeNotch" || true
+  pkill -f "$RUNNING" || true
   sleep 1
 fi
 
-info "installing to $DEST"
-rm -rf "$DEST/$APP_NAME"
-if ! mv "$TMP/$APP_NAME" "$DEST/$APP_NAME" 2>/dev/null; then
+# Every filesystem step below goes through `run`, which adds sudo only when
+# $DEST is not writable -- so a removal never lacks the permission the move
+# beside it had.
+SUDO=""
+run() { if [ -n "$SUDO" ]; then sudo "$@"; else "$@"; fi; }
+if [ ! -w "$DEST" ]; then
   info "$DEST needs elevated permission"
-  sudo mv "$TMP/$APP_NAME" "$DEST/$APP_NAME" || die "could not install to $DEST."
+  SUDO=1
+fi
+
+# The old copy is moved aside, not deleted, until the new one is in place. A
+# declined or failed sudo, or a move that dies halfway, then puts it back
+# rather than leaving the machine with no CreativeNotch at all. The aside
+# copy sits in $DEST itself so both renames stay on one filesystem.
+info "installing to $DEST"
+BACKUP=""
+if [ -e "$TARGET" ]; then
+  BACKUP="$DEST/.$APP_NAME.previous.$$"
+  run mv "$TARGET" "$BACKUP" || die "could not install to $DEST; the existing copy is untouched."
+fi
+
+if ! run mv "$TMP/$APP_NAME" "$TARGET"; then
+  if [ -n "$BACKUP" ]; then
+    # A cross-filesystem mv copies, so a failure can leave a partial bundle
+    # at $TARGET; mv'ing the backup onto it would nest it inside instead.
+    run rm -rf "$TARGET" 2>/dev/null || true
+    run mv "$BACKUP" "$TARGET" \
+      || die "could not install to $DEST, and the previous copy could not be restored. It is at $BACKUP."
+    die "could not install to $DEST; the previous copy is back in place."
+  fi
+  die "could not install to $DEST."
+fi
+
+if [ -n "$BACKUP" ]; then
+  run rm -rf "$BACKUP" || info "could not remove the previous copy at $BACKUP"
 fi
 
 xattr -dr com.apple.quarantine "$DEST/$APP_NAME" 2>/dev/null || true

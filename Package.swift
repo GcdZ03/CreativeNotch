@@ -16,7 +16,13 @@ let package = Package(
         // of nothing: the perl helper dlopens it, no Swift target links it.
         .target(
             name: "CreativeNotchMediaBridge",
-            linkerSettings: [.linkedFramework("Foundation")]
+            // ImageIO and CoreGraphics downscale artwork that would not fit
+            // on one line — see `CNArtworkWithinBudget` in bridge.m.
+            linkerSettings: [
+                .linkedFramework("Foundation"),
+                .linkedFramework("ImageIO"),
+                .linkedFramework("CoreGraphics"),
+            ]
         ),
         .target(
             name: "CreativeNotchUI",

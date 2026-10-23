@@ -19,6 +19,13 @@ public enum HotKeyValidation {
         /// keypress away from ordinary typing.
         case shiftOnly
 
+        /// One of the shortcuts every Mac app answers to -- ⌘C, ⌘V, ⌘Q and
+        /// the rest. These are not symbolic hotkeys, so `CopySymbolicHotKeys`
+        /// does not list them; they are menu key equivalents. A registration
+        /// succeeds, and from then on the press is delivered here instead of
+        /// to the frontmost app, so copy stops working everywhere.
+        case standardShortcut
+
         /// Already bound to something else inside CreativeNotch. This is the
         /// one conflict that IS detectable: same-process re-registration
         /// genuinely returns -9878.
@@ -46,9 +53,28 @@ public enum HotKeyValidation {
 
         if modifiers == 0 { return .noModifiers }
         if modifiers == HotKeyModifier.shift { return .shiftOnly }
+        if isStandardShortcut(keyCode: combo.keyCode, modifiers: modifiers) { return .standardShortcut }
         if taken.contains(combo) { return .alreadyUsedInThisApp }
         if systemReserved { return .usedByMacOS }
         return nil
+    }
+
+    /// Keycodes (`kVK_ANSI_*`, which Core cannot import) whose bare-⌘ form is
+    /// a standard menu shortcut: A C F H M N O P Q S T V W X Z, comma (⌘,
+    /// Settings) and Tab (⌘Tab, the app switcher).
+    ///
+    /// Deliberately short. It is the set a user would be astonished to lose
+    /// in every app, not every key equivalent any app has ever bound -- ⌥⌘C
+    /// is nobody's copy, so only the exact standard combination is refused.
+    private static let standardCommandKeys: Set<UInt32> = [
+        0, 8, 3, 4, 46, 45, 31, 35, 12, 1, 17, 9, 13, 7, 6, 43, 48,
+    ]
+
+    private static func isStandardShortcut(keyCode: UInt32, modifiers: UInt32) -> Bool {
+        if modifiers == HotKeyModifier.command { return standardCommandKeys.contains(keyCode) }
+        // ⇧⌘Z, Redo -- the one shifted standard worth naming.
+        if modifiers == HotKeyModifier.command | HotKeyModifier.shift { return keyCode == 6 }
+        return false
     }
 
     public static func isAcceptable(

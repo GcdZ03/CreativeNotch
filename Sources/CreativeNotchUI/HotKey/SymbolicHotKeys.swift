@@ -21,7 +21,19 @@ public enum SymbolicHotKeys {
         guard CopySymbolicHotKeys(&out) == noErr,
               let entries = out?.takeRetainedValue() as? [[String: Any]]
         else { return false }
+        return isReserved(combo, in: entries)
+    }
 
+    /// The matching, separated from the read so it can be tested against
+    /// entries a test supplies rather than whatever this machine holds.
+    ///
+    /// **Both sides are masked to the four recognised modifiers.** The system
+    /// stores extra bits alongside them -- the function-key and numeric-pad
+    /// flags that come with every arrow key, so Spaces' ⌃← is not stored as
+    /// plain ⌃ -- while the recorder strips those bits. An exact comparison
+    /// would never match such an entry and would call ⌃← free.
+    static func isReserved(_ combo: HotKeyCombo, in entries: [[String: Any]]) -> Bool {
+        let wanted = combo.carbonModifiers & HotKeyModifier.all
         for entry in entries {
             // Disabled symbolic hotkeys do not consume anything, so they are
             // not conflicts. A user who turned Spotlight's shortcut off has
@@ -31,7 +43,7 @@ public enum SymbolicHotKeys {
                   let modifiers = entry[kHISymbolicHotKeyModifiers as String] as? UInt32
             else { continue }
 
-            if code == combo.keyCode && modifiers == combo.carbonModifiers { return true }
+            if code == combo.keyCode && modifiers & HotKeyModifier.all == wanted { return true }
         }
         return false
     }

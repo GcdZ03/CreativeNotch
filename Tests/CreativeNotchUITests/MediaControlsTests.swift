@@ -43,19 +43,36 @@ struct MediaControlsTests {
     /// `MediaRemoteBridgeTests` in this same process, so no test can tell the
     /// two spellings apart by observing the bridge. Counting calls to this
     /// seam is the only way the order is provable at all.
-    @Test func installReadsAvailabilityThroughTheProbe() {
+    @Test func enablingTheControlsReadsAvailabilityThroughTheProbe() {
         var probes = 0
         let delegate = makeDelegate(available: { probes += 1; return true })
 
+        delegate.switchboard.setEnabled(true, for: .mediaControls)
+
         #expect(probes == 1)
         #expect(delegate.state.showsMediaControls)
+    }
+
+    /// `install` runs before any preference is loaded, so it must not probe
+    /// at all — it once did, which loaded MediaRemote at every launch even
+    /// for a user who had switched the controls off. The switchboard's
+    /// `.mediaControls` leg is the only reader.
+    @Test func installAloneDoesNotProbe() {
+        var probes = 0
+        let delegate = makeDelegate(available: { probes += 1; return true })
+
+        #expect(probes == 0)
+        #expect(delegate.state.showsMediaControls == false)
+        #expect(delegate.state.onSeek == nil)
     }
 
     /// And the seam is honoured rather than merely called: an unavailable
     /// bridge means no transport buttons.
     @Test func anUnavailableBridgeHidesTheControls() {
         let delegate = makeDelegate(available: { false })
+        delegate.switchboard.setEnabled(true, for: .mediaControls)
         #expect(delegate.state.showsMediaControls == false)
+        #expect(delegate.state.onSeek == nil)
     }
 
     @Test func thereAreThreeButtonsInTransportOrder() {

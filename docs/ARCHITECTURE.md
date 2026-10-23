@@ -36,12 +36,18 @@ running, or wake more often than the display actually changes.
 
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
-on `SystemActivity`. **The gate has four consumers, joining it in three
-different ways** — the clipboard poller and the media helper are suspended
-outside `.active`; the power module is never suspended, because a
-notification-driven source costs nothing idle; and the timer's *redraws* are
-gated while its *deadline* never is. Joining the gate does not have to mean
-being switched off.
+on `SystemActivity`, which is anything but `.active` when the machine is
+asleep, the screen is locked, the display is asleep (the energy saver
+timeout, a lid closed on an external display), or this session has been
+switched away from by fast user switching. A dark display reads as
+`.asleep` and a switched-away session as `.locked`. **The gate has five
+consumers, joining it in three different ways** — the clipboard poller and
+the media helper are suspended outside `.active`; the power module is never
+suspended, because a notification-driven source costs nothing idle; and the
+timer and the camera split: the timer's *redraws* are gated while its
+*deadline* never is, and the camera's *preview* stops outside `.active`
+while a *recording* in progress carries on. Joining the gate does not have
+to mean being switched off.
 
 ## Targets
 
@@ -427,7 +433,11 @@ so deleting outright would destroy it without the user ever deciding to.
 **The directory is the source of truth.** There is no sidecar index to fall out
 of step with it — the shelf reloads by listing the directory, and a file removed
 from underneath us simply stops appearing. `addedAt` comes from the file's
-creation date, which is what the purge measures against.
+creation date, which is what the purge measures against — and `add` stamps
+that date with the drop time, because `copyItem` keeps the *source's* creation
+date and a month-old file dropped today would otherwise be purged at the next
+launch. A file that vanishes while the app runs is pruned from the list when
+the shelf is shown (one `fileExists` per item), not by watching the disk.
 
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.
@@ -465,8 +475,8 @@ way to know something was copied is to read `changeCount` and compare.
 The poller is therefore designed around minimising what that costs:
 
 - **0.75s while you are working, 3s after two quiet minutes**, floored at 2s
-  under Low Power Mode, and fully suspended while the screen is locked or the
-  machine is asleep. Resuming resyncs the change count *without* capturing
+  under Low Power Mode, and fully suspended while the screen is locked, the
+  machine or its display is asleep, or the session is switched away. Resuming resyncs the change count *without* capturing
   whatever was copied in the meantime — otherwise unlocking your Mac would
   swallow a password you copied on another device.
 - **Opt-out types are honoured before any content is read.**
@@ -1122,6 +1132,13 @@ notices. Measured in `docs/research/2026-09-13-capture-listener-scope.md`, and
 pinned by a source scan, because the tests inject the system read precisely so
 they touch no real device.
 
+**Subscribe global, read input.** The input-scope *value* was measured
+accurate; only its notification is missing. Global's value is true for a
+combined input/output device that is merely playing, so the microphone is read
+on input scope. The device lists themselves are listened to as well, so a
+device connected after start is attached and one unplugged mid-capture is
+re-read away rather than leaving the badge on.
+
 ### Read the value; do not react to the notification
 
 CoreAudio fires **one** event per edge. CoreMediaIO fires **three** on start
@@ -1146,6 +1163,14 @@ to report camera use is the wrong shape.**
 So attribution is a per-process read, and the policy half of it is pure. Since
 the camera module's clips are silent, the microphone half has nothing of ours
 to exclude at all.
+
+The camera half has no public per-process read, so it is attributed per
+*device*: `CameraController` announces the `uniqueID` of the camera its session
+holds (before `startRunning()`, released after `stopRunning()` returns, both
+via the main queue CoreMediaIO's callbacks share), and
+`CaptureAttribution.othersAreUsingCamera` discounts that one device. Another
+application on the *same* camera while our preview holds it goes unreported —
+the least informative case, since the user is looking at that preview.
 
 ### It is not suspended by the activity gate
 

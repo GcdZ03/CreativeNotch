@@ -24,12 +24,16 @@ struct MediaWiringTests {
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchMediaWiring-\(UUID().uuidString)")
         delegate.install(metrics: Self.notched)
+        // What `apply()` does at launch for this module, without the rest of
+        // `startSubsystems()` — `install` alone wires no transport controls,
+        // because it runs before the preference is known.
+        delegate.switchboard.setEnabled(true, for: .mediaControls)
         return delegate
     }
 
     /// Left unset, every media button would be dead on screen with nothing
     /// failing — the exact bug this test exists for.
-    @Test func installingWiresTheMediaHandler() {
+    @Test func enablingTheControlsWiresTheMediaHandler() {
         #expect(makeDelegate().state.onMediaCommand != nil)
     }
 

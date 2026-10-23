@@ -38,6 +38,10 @@ public final class SystemActivityObserver {
         let workspace = NSWorkspace.shared.notificationCenter
         observe(NSWorkspace.willSleepNotification, on: workspace, as: .willSleep)
         observe(NSWorkspace.didWakeNotification, on: workspace, as: .didWake)
+        observe(NSWorkspace.screensDidSleepNotification, on: workspace, as: .screensDidSleep)
+        observe(NSWorkspace.screensDidWakeNotification, on: workspace, as: .screensDidWake)
+        observe(NSWorkspace.sessionDidResignActiveNotification, on: workspace, as: .sessionDidResignActive)
+        observe(NSWorkspace.sessionDidBecomeActiveNotification, on: workspace, as: .sessionDidBecomeActive)
 
         let distributed = DistributedNotificationCenter.default()
         observe(Notification.Name("com.apple.screenIsLocked"), on: distributed, as: .screenLocked)

@@ -85,4 +85,40 @@ public struct PeekArbiter: Equatable, Sendable {
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil
     }
+
+    /// What a peek that is *already on screen* should become, when
+    /// something changes underneath it.
+    ///
+    /// `content(now:)` answers "what would a hover show"; this answers a
+    /// different question, and the two differ in exactly two places, both
+    /// about the ambient now-playing peek:
+    ///
+    /// - **It is held while paused under the pointer.** Pressing Pause in
+    ///   the peek is the peek's own control, and `content(now:)` drops a
+    ///   paused track — so the peek collapsed under the click and Play was
+    ///   never reachable from it. While the pointer is still over a
+    ///   now-playing peek it stays, showing the paused track.
+    /// - **It is never fallen back to without the pointer.** Ambient content
+    ///   is something a hover asks for. Revealed underneath an expiring power
+    ///   or timer peek with nobody hovering, it sat open indefinitely with
+    ///   its equalizer running and its rect swallowing clicks; the badge on
+    ///   the closed notch already says what is playing.
+    ///
+    /// Transient content is unaffected by either rule: it was not asked for
+    /// and it expires on its own.
+    public func content(
+        now: TimeInterval,
+        replacing showing: PeekContent,
+        pointerInside: Bool
+    ) -> PeekContent? {
+        switch content(now: now) {
+        case .nowPlaying(let track):
+            return pointerInside ? .nowPlaying(track) : nil
+        case .some(let next):
+            return next
+        case nil:
+            guard pointerInside, case .nowPlaying = showing, let nowPlaying else { return nil }
+            return .nowPlaying(nowPlaying)
+        }
+    }
 }

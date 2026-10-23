@@ -32,6 +32,7 @@ struct SeekWiringTests {
     /// the same gate the buttons sit behind.
     @Test func theDelegateWiresSeekingWithTheControls() {
         let d = NotchedDelegate.make()
+        d.switchboard.setEnabled(true, for: .mediaControls)
         #expect((d.state.onSeek != nil) == d.state.showsMediaControls)
     }
 

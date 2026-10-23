@@ -119,8 +119,11 @@ final class PreferencesController {
     func recorder(for hotKey: HotKeyController) -> HotKeyRecorder {
         let key = ObjectIdentifier(hotKey)
         if let existing = recorders[key] { return existing }
+        // `record`, not `setCombo`: what the user presses is validated
+        // before it is registered, or a bare Space or ⌘C would become an
+        // exclusive system-wide hotkey.
         let recorder = HotKeyRecorder { [weak hotKey] combo in
-            hotKey?.setCombo(combo)
+            hotKey?.record(combo)
         }
         recorders[key] = recorder
         return recorder
@@ -323,10 +326,7 @@ struct PreferencesView: View {
                let hotKey = controller.hotKeyController {
                 HotKeyRow(
                     controller: hotKey,
-                    recorder: controller.recorder(for: hotKey),
-                    label: hotKey.combo.map {
-                        HotKeyGlyphs.label($0, key: KeyCodeDisplay.character(for: $0.keyCode))
-                    }
+                    recorder: controller.recorder(for: hotKey)
                 )
                 .padding(.leading, 36)
             }

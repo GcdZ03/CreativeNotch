@@ -47,17 +47,10 @@ public final class PowerController {
     /// while the module was switched off fires a peek the instant it comes
     /// back.
     ///
-    /// **`arming` is re-seeded as a defence, and no test bites it.** Said
-    /// plainly because the obvious justification -- "a battery already below
-    /// the threshold when the module went off would otherwise never speak
-    /// again" -- is false, and a test written to prove it passes either way.
-    /// `apply` advances `arming` *above* the baseline guard, so the first
-    /// snapshot after a reset spends the threshold and returns silently
-    /// whether or not `arming` was fresh. The line is kept because `reset()`
-    /// should mean what it says: leaving one field of the previous run behind
-    /// is how the next person's change to the baseline rule becomes a silent
-    /// suppressed warning. It is a defence without a test, and this comment
-    /// is the record of that, not an oversight.
+    /// `arming` is re-seeded too, so the module comes back exactly as it
+    /// launched. The first snapshot is allowed to warn about a low battery
+    /// (see `apply`), so a battery already below a threshold when the
+    /// module is re-enabled says so once, as it would on a fresh launch.
     public func reset() {
         previous = nil
         arming = LowBatteryArming()
@@ -100,14 +93,22 @@ public final class PowerController {
             isPluggedIn: snapshot.isPluggedIn
         )
 
-        // The first snapshot is a baseline, not an event: launching the app
-        // on a plugged-in machine is not the charger being plugged in.
-        guard let previous else { return }
-
         // Peeks only. Everything above this line still runs while locked or
         // asleep — the panel keeps current truth, and the arming stays
         // honest — but nothing is drawn at a screen nobody is looking at.
         guard activity == .active else { return }
+
+        // The first snapshot is a baseline for *transitions*: launching the
+        // app on a plugged-in machine is not the charger being plugged in.
+        // A low battery is a state, not a transition, so it is the one thing
+        // the first snapshot may announce — launching at 8% on battery is
+        // the problem `LowBatteryArming` starts armed to mention.
+        guard let previous else {
+            if let crossed {
+                onEvent?(.lowBattery(threshold: crossed, level: snapshot.level))
+            }
+            return
+        }
 
         // One slot, so one event. Ordered by what the person most needs to
         // know: the battery is running out, then the machine changed its

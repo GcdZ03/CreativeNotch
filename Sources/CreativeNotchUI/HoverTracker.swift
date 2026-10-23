@@ -39,9 +39,54 @@ public final class HoverTracker: NSView {
     /// y-axis inversion bug elsewhere in this codebase.
     public override var isFlipped: Bool { false }
 
+    /// Whether the pointer is inside `trackingRect`, as far as this view
+    /// knows: set by the enter and exit events, and re-read whenever the
+    /// rect is replaced.
+    private(set) var isPointerInside = false
+
+    /// Where the pointer is, in this view's coordinates, or `nil` when that
+    /// cannot be known (no window). Injected so a test can place it; `nil`
+    /// means the real one, read once from the window — never polled.
+    var pointerLocation: (() -> CGPoint?)?
+
+    private func currentPointer() -> CGPoint? {
+        if let pointerLocation { return pointerLocation() }
+        guard let window else { return nil }
+        return convert(window.mouseLocationOutsideOfEventStream, from: nil)
+    }
+
+    /// Replaces the tracking area, then re-reads where the pointer is.
+    ///
+    /// AppKit sends no `mouseExited` when an area is *replaced*, so a shape
+    /// that shrank out from under a still pointer — a peek expiring, the
+    /// panel closing from a button — left this view, and `isHovering`
+    /// downstream, believing the pointer was still over it. Found outside
+    /// the new rect after being inside, that is reported as the exit it is.
+    ///
+    /// No synthetic *enter* the other way: a region growing under the
+    /// pointer is `AppDelegate.keepOpenIfPointerInside`'s case, and a dwell
+    /// started by a rect change rather than by the user would peek unasked.
+    /// **Nor a silent one.** Growth never sets `isPointerInside`: a pointer
+    /// that only came to be inside because a peek grew around it was never
+    /// reported as entering, so its later shrink must not be reported as an
+    /// exit either -- `collapse()` would close a peek hover never opened.
+    /// Only a real enter, or `acknowledgePointerInside()`, makes it inside.
     public func updateTrackingRect(_ rect: CGRect) {
         trackingRect = rect
         updateTrackingAreas()
+        guard let pointer = currentPointer() else { return }
+        let inside = rect.contains(pointer)
+        let left = isPointerInside && !inside
+        isPointerInside = isPointerInside && inside
+        if left { exited() }
+    }
+
+    /// The app has found the pointer inside and is treating it as hovering
+    /// (`AppDelegate.keepOpenIfPointerInside`), so a later shrink out from
+    /// under it is an exit like any other. No `onEnter` and no dwell: the
+    /// caller has already done what an enter would.
+    func acknowledgePointerInside() {
+        isPointerInside = true
     }
 
     public override func updateTrackingAreas() {
@@ -56,6 +101,7 @@ public final class HoverTracker: NSView {
     }
 
     public override func mouseEntered(with event: NSEvent) {
+        isPointerInside = true
         onEnter()
         dwellTask?.cancel()
         dwellTask = Task { @MainActor [weak self] in
@@ -67,6 +113,11 @@ public final class HoverTracker: NSView {
     }
 
     public override func mouseExited(with event: NSEvent) {
+        isPointerInside = false
+        exited()
+    }
+
+    private func exited() {
         dwellTask?.cancel()
         dwellTask = nil
         onExit()

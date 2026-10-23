@@ -58,4 +58,41 @@ public enum CaptureAttribution {
         guard deviceIsRunningSomewhere else { return false }
         return isSomebodyElseCapturing(processes: processes, ownPID: ownPID)
     }
+
+    // MARK: - Cameras
+
+    /// One camera's state, as read from CoreMediaIO.
+    public struct Camera: Equatable, Sendable {
+        /// `kCMIODevicePropertyDeviceUID` -- the same string AVFoundation
+        /// vends as `AVCaptureDevice.uniqueID`, which is how the device this
+        /// app opened is recognised among the system's.
+        public var uid: String
+        public var isRunningSomewhere: Bool
+
+        public init(uid: String, isRunningSomewhere: Bool) {
+            self.uid = uid
+            self.isRunningSomewhere = isRunningSomewhere
+        }
+    }
+
+    /// Whether a camera **other than the one we hold** is running.
+    ///
+    /// **This is the half that actually points at itself.** The camera module
+    /// opens the built-in camera for its preview, and CoreMediaIO has no
+    /// public per-process read to set beside the audio one above -- its
+    /// running flag is all there is. So attribution is per *device*: the
+    /// camera this app holds is ours, and any other camera running is
+    /// somebody else's.
+    ///
+    /// The cost, stated rather than hidden: another application on the *same*
+    /// camera while our preview holds it is not reported. The user is looking
+    /// at that camera's preview at the time, with its hardware light on, so
+    /// what is lost is the least informative case -- and the alternative is a
+    /// badge that lights for our own preview every time the tab opens.
+    public static func othersAreUsingCamera(
+        cameras: [Camera],
+        ownDeviceUID: String?
+    ) -> Bool {
+        cameras.contains { $0.isRunningSomewhere && $0.uid != ownDeviceUID }
+    }
 }

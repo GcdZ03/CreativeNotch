@@ -57,6 +57,13 @@ final class CaptureController {
         if enabled { start() } else { stop() }
     }
 
+    /// Which camera this app's own preview holds, so it is not reported as
+    /// somebody else's -- ARCHITECTURE.md's "it must not point at itself".
+    /// Wired from `CameraController.onHeldCameraChange`.
+    func setOwnCamera(_ uid: String?) {
+        observer.ownCameraUID = uid
+    }
+
     private func apply(_ reading: CaptureUse, force: Bool = false) {
         if force {
             debounce = CaptureDebounce(initial: reading)

@@ -270,4 +270,40 @@ struct PreferencesWindowTests {
 
         #expect(shown == 2)
     }
+
+    // MARK: - The shortcut recorder
+
+    /// **What the recorder captures must go through validation**, not
+    /// straight to registration. Before this, a bare Space recorded in the
+    /// row became an exclusive system-wide hotkey that swallowed every
+    /// Space typed anywhere.
+    ///
+    /// The capture is driven through the recorder's monitor seam with a
+    /// synthesised event, so no real monitor is installed.
+    @Test func aRecordedBareKeyIsRefusedRatherThanRegistered() throws {
+        let delegate = makeDelegate()
+        let controller = makeController(delegate)
+        HotKeyCenter.shared.unregisterAll()
+        let suite = "com.gcdz.creativenotch.prefs-recorder.\(UUID().uuidString)"
+        let hotKey = HotKeyController(store: HotKeyStore(defaults: UserDefaults(suiteName: suite)!))
+        hotKey.isSystemReserved = { _ in false }
+
+        let recorder = controller.recorder(for: hotKey)
+        var handler: ((NSEvent) -> NSEvent?)?
+        recorder.installMonitor = { handler = $0; return NSNumber(value: 1) }
+        recorder.removeMonitor = { _ in }
+        recorder.start()
+
+        let space = try #require(NSEvent.keyEvent(
+            with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+            windowNumber: 0, context: nil, characters: " ",
+            charactersIgnoringModifiers: " ", isARepeat: false, keyCode: 49
+        ))
+        let capture = try #require(handler)
+        _ = capture(space)
+
+        #expect(hotKey.rejection == .noModifiers)
+        #expect(hotKey.combo == nil)
+        #expect(HotKeyCenter.shared.registrationCount == 0)
+    }
 }

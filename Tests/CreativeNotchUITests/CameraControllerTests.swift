@@ -278,6 +278,301 @@ struct CameraControllerTests {
         #expect(controller.capturesDirectory.lastPathComponent == "CreativeNotch")
     }
 
+    // MARK: - No camera
+
+    /// **A configure that fails must say so.** `CameraSession.configure()`
+    /// returning `false` used to be dropped on the floor, the tab went on
+    /// reading `.previewing`, and the shutter sent `capturePhoto` to an output
+    /// with no connection -- which AVFoundation answers with an exception.
+    @Test func aFailedConfigureShowsUnavailableAndDisablesCapture() {
+        let (controller, log) = makeController()
+        var photoRequests = 0
+        controller.capturePhoto = { _ in photoRequests += 1 }
+        controller.setTabVisible(true)
+
+        controller.configurationFailed()
+
+        #expect(controller.state == .unavailable)
+        #expect(log.runCalls.last == false)
+        controller.takePhoto()
+        controller.toggleRecording()
+        #expect(photoRequests == 0, "a still was requested from a camera that is not there")
+        #expect(log.recordingStarts == 0, "a clip was started on a camera that is not there")
+    }
+
+    /// Not sticky: a lid opened, or a camera released by another app, gets
+    /// a fresh attempt the next time the tab is opened.
+    @Test func reopeningTheTabRetriesAFailedConfigure() {
+        let (controller, log) = makeController()
+        controller.setTabVisible(true)
+        controller.configurationFailed()
+
+        controller.setTabVisible(false)
+        controller.setTabVisible(true)
+
+        #expect(controller.state == .previewing)
+        #expect(log.runCalls.last == true)
+    }
+
+    /// A denied camera has no shutter either -- the buttons are disabled in
+    /// the view, and the controller does not trust the view to have done it.
+    @Test func aDeniedCameraTakesNothing() {
+        let (controller, log) = makeController()
+        var photoRequests = 0
+        controller.capturePhoto = { _ in photoRequests += 1 }
+        controller.authorizationStatus = { .denied }
+        controller.setTabVisible(true)
+
+        controller.takePhoto()
+        controller.startRecording()
+
+        #expect(photoRequests == 0)
+        #expect(log.recordingStarts == 0)
+    }
+
+    // MARK: - The first-run prompt
+
+    /// **Denying the first-run prompt must land on `.denied`.** Nothing
+    /// re-read the grant after the user answered, so the tab sat on a black
+    /// preview until it was closed and reopened.
+    @Test func answeringThePromptReevaluatesTheGrant() async {
+        let (controller, _) = makeController()
+        var status: AVAuthorizationStatus = .notDetermined
+        controller.authorizationStatus = { status }
+        var answer: (@Sendable () -> Void)?
+        var prompts = 0
+        controller.requestAccess = { completion in
+            prompts += 1
+            answer = completion
+        }
+        controller.setTabVisible(true)
+        #expect(prompts == 1)
+
+        status = .denied
+        answer?()
+        for _ in 0..<50 where controller.state != .denied { await Task.yield() }
+
+        #expect(controller.state == .denied)
+    }
+
+    /// One prompt, however many times the tab opens while it is up.
+    @Test func thePromptIsRequestedOnce() {
+        let (controller, _) = makeController()
+        controller.authorizationStatus = { .notDetermined }
+        var prompts = 0
+        controller.requestAccess = { _ in prompts += 1 }
+
+        controller.setTabVisible(true)
+        controller.setTabVisible(false)
+        controller.setTabVisible(true)
+
+        #expect(prompts == 1)
+    }
+
+    // MARK: - Captures in flight
+
+    final class WeakPhotoDelegate {
+        weak var delegate: PhotoDelegate?
+    }
+
+    /// **`AVCapturePhotoOutput` holds its delegate weakly.** With one stored
+    /// delegate, a second shutter press released the first one and its photo
+    /// was never saved. The fake holds them weakly too, exactly as the real
+    /// output does.
+    @Test func aDoubleShutterSavesBothPhotos() async throws {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var held: [WeakPhotoDelegate] = []
+        controller.capturePhoto = { delegate in
+            let box = WeakPhotoDelegate()
+            box.delegate = delegate
+            held.append(box)
+        }
+        controller.setTabVisible(true)
+
+        controller.takePhoto(suffix: "aaaa")
+        controller.takePhoto(suffix: "bbbb")
+        #expect(held.count == 2)
+        for box in held { box.delegate?.finish(Data("a photo".utf8)) }
+        for _ in 0..<50 { await Task.yield() }
+
+        let saved = try FileManager.default.contentsOfDirectory(atPath: controller.capturesDirectory.path)
+        #expect(saved.count == 2, "a photo was lost to a released delegate")
+    }
+
+    /// **A late finish from the previous clip must not end the current one.**
+    /// Stop, then record again quickly: the first clip's delegate reports
+    /// after the second has started, and it used to clear `isRecording` for
+    /// the take still running.
+    @Test func aStaleFinishDoesNotEndTheCurrentRecording() {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var urls: [URL] = []
+        controller.beginRecording = { url, _ in urls.append(url) }
+        controller.setTabVisible(true)
+
+        controller.startRecording(suffix: "aaaa")
+        controller.stopRecording()
+        controller.startRecording(suffix: "bbbb")
+        #expect(urls.count == 2)
+
+        controller.didFinishRecording(urls[0])
+
+        guard case .recording = controller.state else {
+            Issue.record("the second take was ended by the first one's finish")
+            return
+        }
+        #expect(controller.shouldBadge)
+    }
+
+    /// The current clip's own finish -- the size or duration ceiling -- does
+    /// end it.
+    @Test func theCurrentClipsFinishEndsIt() throws {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var urls: [URL] = []
+        controller.beginRecording = { url, _ in urls.append(url) }
+        controller.setTabVisible(true)
+        controller.startRecording()
+
+        controller.didFinishRecording(try #require(urls.first))
+
+        #expect(controller.state == .previewing)
+        #expect(controller.shouldBadge == false)
+    }
+
+    // MARK: - Failed clips and collisions
+
+    /// A clip that failed outright is not listed. One stopped at its ceiling
+    /// reports an error too, but flags it as successfully finished.
+    @Test func onlyUsableClipsCount() {
+        #expect(MovieDelegate.isUsable(nil))
+        let ceiling = NSError(
+            domain: AVFoundationErrorDomain,
+            code: AVError.maximumDurationReached.rawValue,
+            userInfo: [AVErrorRecordingSuccessfullyFinishedKey: true]
+        )
+        #expect(MovieDelegate.isUsable(ceiling))
+        let failed = NSError(domain: AVFoundationErrorDomain, code: AVError.diskFull.rawValue)
+        #expect(!MovieDelegate.isUsable(failed))
+        let explicitFailure = NSError(
+            domain: AVFoundationErrorDomain,
+            code: AVError.unknown.rawValue,
+            userInfo: [AVErrorRecordingSuccessfullyFinishedKey: false]
+        )
+        #expect(!MovieDelegate.isUsable(explicitFailure))
+    }
+
+    @Test func aFailedClipIsNotAddedToTheShelf() throws {
+        let shelf = try ShelfStore(directory: FileManager.default.temporaryDirectory
+            .appendingPathComponent("CameraShelf-\(UUID().uuidString)"))
+        let controller = CameraController(shelf: shelf)
+        let clip = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Clip-\(UUID().uuidString).mov")
+        try Data("half a clip".utf8).write(to: clip)
+
+        controller.didFinishRecording(
+            clip,
+            error: NSError(domain: AVFoundationErrorDomain, code: AVError.diskFull.rawValue)
+        )
+
+        #expect(shelf.items.isEmpty, "a failed clip was listed")
+    }
+
+    /// **A photo never overwrites a file already there.** The random suffix
+    /// makes it unlikely; it is not a guarantee, and the only copy of an
+    /// earlier photo is not the thing to gamble.
+    @Test func aPhotoNeverOverwritesAnExistingFile() throws {
+        let controller = CameraController(shelf: nil)
+        let existing = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Photo-\(UUID().uuidString).jpg")
+        try Data("the earlier photo".utf8).write(to: existing)
+
+        controller.didCapturePhoto(Data("a new photo".utf8), to: existing)
+
+        #expect(try Data(contentsOf: existing) == Data("the earlier photo".utf8))
+    }
+
+    /// And a name that is already taken is replaced before the capture
+    /// starts, rather than discovered afterwards.
+    @Test func aTakenNameIsNotReused() throws {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(
+            at: controller.capturesDirectory,
+            withIntermediateDirectories: true
+        )
+        let now = Date()
+        let taken = controller.capturesDirectory
+            .appendingPathComponent(CaptureFileNaming.name(for: .clip, at: now, suffix: "abcd"))
+        try Data("an earlier clip".utf8).write(to: taken)
+        var urls: [URL] = []
+        controller.beginRecording = { url, _ in urls.append(url) }
+        controller.setTabVisible(true)
+
+        controller.startRecording(now: now, suffix: "abcd")
+
+        let url = try #require(urls.first)
+        #expect(url != taken)
+        #expect(!FileManager.default.fileExists(atPath: url.path))
+    }
+
+    // MARK: - Quit
+
+    /// **Quitting mid-recording finalizes the clip.** The session is torn
+    /// down synchronously and the quit waits for the file to be closed --
+    /// otherwise the process exits with the `.mov` missing its index.
+    @Test func shuttingDownMidRecordingFinalizesTheClip() {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var clip: (URL, MovieDelegate)?
+        controller.beginRecording = { url, delegate in clip = (url, delegate) }
+        var teardowns = 0
+        let closed = ClosedFlag()
+        controller.shutDownSession = {
+            teardowns += 1
+            // Closed later and off the main actor, the way AVFoundation
+            // reports it, so only an actual wait sees it before returning.
+            if let (url, delegate) = clip { closed.closeLater(url, delegate) }
+        }
+        controller.setTabVisible(true)
+        controller.startRecording()
+
+        controller.shutDown()
+
+        #expect(closed.isClosed)
+        #expect(teardowns == 1)
+        #expect(controller.shouldRun == false)
+        #expect(controller.shouldBadge == false)
+    }
+
+    /// **A clip stopped just before quit is waited for too.** Stop clears
+    /// the current take at once, but its file is closed later; quit must not
+    /// take "not recording" to mean "nothing left to finish".
+    @Test func shuttingDownRightAfterStopStillWaitsForTheClip() {
+        let (controller, _) = makeController()
+        controller.capturesDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("Captures-\(UUID().uuidString)")
+        var clip: (URL, MovieDelegate)?
+        controller.beginRecording = { url, delegate in clip = (url, delegate) }
+        let closed = ClosedFlag()
+        controller.endRecording = {
+            if let (url, delegate) = clip { closed.closeLater(url, delegate) }
+        }
+        controller.setTabVisible(true)
+        controller.startRecording()
+        controller.stopRecording()
+
+        controller.shutDown()
+
+        #expect(closed.isClosed)
+    }
+
     // MARK: - State is published
 
     @Test func stateChangesAreAnnouncedOnce() {
@@ -290,5 +585,21 @@ struct CameraControllerTests {
         controller.setTabVisible(false)
 
         #expect(states == [.previewing, .idle])
+    }
+}
+
+/// Closes a clip on another queue after a delay, and records that it did,
+/// so a test can tell whether `shutDown()` waited for it.
+private final class ClosedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var closed = false
+
+    var isClosed: Bool { lock.withLock { closed } }
+
+    func closeLater(_ url: URL, _ delegate: MovieDelegate) {
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) {
+            self.lock.withLock { self.closed = true }
+            delegate.finish(url, error: nil)
+        }
     }
 }

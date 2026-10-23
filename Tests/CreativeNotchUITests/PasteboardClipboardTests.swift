@@ -211,7 +211,32 @@ struct PasteboardClipboardTests {
         #expect(pb.clipboardCapture() == nil)
     }
 
-    // MARK: - Writing back
+    /// A copied web link is not a file. Browsers put it on the pasteboard
+    /// as a URL object as well as a string, and reading URL objects
+    /// without `.urlReadingFileURLsOnly` returns it too — which used to
+    /// send every copied link down the file path and drop it.
+    @Test func copiedWebLinksAreCapturedAsText() {
+        let pb = makePasteboard()
+        pb.writeObjects([URL(string: "https://example.com/page")! as NSURL])
+        pb.setString("https://example.com/page", forType: .string)
+
+        let captured = pb.clipboardCapture()
+        #expect(captured == .text("https://example.com/page"))
+        #expect(captured.map(ClipboardKind.classify) == .link)
+    }
+
+    /// Some apps put the link on as a URL object alone. The ring stores
+    /// text, so it is recorded as its absolute string rather than lost.
+    @Test func aWebLinkWithNoStringIsStillCaptured() {
+        let pb = makePasteboard()
+        pb.declareTypes([.URL], owner: nil)
+        (URL(string: "https://example.com/only-url")! as NSURL).write(to: pb)
+
+        #expect(pb.string(forType: .string) == nil)
+        #expect(pb.clipboardCapture() == .text("https://example.com/only-url"))
+    }
+
+        // MARK: - Writing back
 
     /// Clicking an entry writes it back and nothing more. No synthesized
     /// paste keystroke: spec section 6 commits this module to needing no

@@ -415,4 +415,54 @@ struct TimerWiringTests {
             for: .peek(.timerDone(TimerCompletion(duration: 60, lateness: 0)))
         ))
     }
+
+    /// Leaving the timer tab gives focus back, and not through
+    /// `resignKey()`: AppKit documents that as a notification you must not
+    /// call, and calling it moves nothing. The hidden panel stayed key and
+    /// swallowed every keystroke meant for the app underneath.
+    @Test func leavingTheTimerTabGivesKeyboardFocusBack() {
+        let delegate = NotchedDelegate.make()
+        var isKey = false
+        var given = 0
+        delegate.panelIsKey = { _ in isKey }
+        delegate.relinquishKey = { given += 1; isKey = false }
+
+        delegate.state.transition(to: .open(.timer))
+        isKey = true
+        delegate.state.transition(to: .closed)
+
+        #expect(given == 1)
+    }
+
+    /// A tab switch inside the open panel keeps focus rather than ordering
+    /// the visible window out and back in; the close afterwards gives it up.
+    @Test func switchingTabsInsideTheOpenPanelDefersGivingFocusBackToTheClose() {
+        let delegate = NotchedDelegate.make()
+        var isKey = false
+        var given = 0
+        delegate.panelIsKey = { _ in isKey }
+        delegate.relinquishKey = { given += 1; isKey = false }
+
+        delegate.state.transition(to: .open(.timer))
+        isKey = true
+        delegate.state.transition(to: .open(.shelf))
+        #expect(given == 0)
+
+        delegate.state.transition(to: .closed)
+        #expect(given == 1)
+    }
+
+    /// And only when it has focus to give: a shelf open and closed never
+    /// touched it, so must not reorder the window either.
+    @Test func closingWithoutFocusLeavesTheWindowAlone() {
+        let delegate = NotchedDelegate.make()
+        var given = 0
+        delegate.panelIsKey = { _ in false }
+        delegate.relinquishKey = { given += 1 }
+
+        delegate.state.transition(to: .open(.shelf))
+        delegate.state.transition(to: .closed)
+
+        #expect(given == 0)
+    }
 }

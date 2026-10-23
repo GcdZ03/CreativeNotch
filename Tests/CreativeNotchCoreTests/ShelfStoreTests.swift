@@ -298,6 +298,102 @@ struct ShelfStoreTests {
         #expect(reopened.items.isEmpty)
     }
 
+    /// **The drop time survives a relaunch, not the file's own birthday.**
+    ///
+    /// `copyItem` preserves the source's creation date, and reload reads
+    /// `addedAt` back from the creation date. Without stamping the copy, a
+    /// file made a month ago and dropped this morning reloads as a month
+    /// old -- and the launch purge sends it to the Trash.
+    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() throws {
+        let (store, dir) = try makeStore()
+        let source = try makeSourceFile(named: "old.txt")
+        try FileManager.default.setAttributes(
+            [.creationDate: t0.addingTimeInterval(-30 * 24 * 3600)],
+            ofItemAtPath: source.path)
+
+        try store.add(.file(source), now: t0)
+
+        let reopened = try ShelfStore(directory: dir)
+        let reloaded = try #require(reopened.items.first)
+        #expect(abs(reloaded.addedAt.timeIntervalSince(t0)) < 1,
+                "reload took the source's creation date, not the drop time")
+
+        // What the launch purge does, a day after the drop.
+        #expect(try reopened.purge(now: t0.addingTimeInterval(24 * 3600)).isEmpty,
+                "a file dropped yesterday was purged at launch")
+        #expect(FileManager.default.fileExists(atPath: reloaded.url.path))
+    }
+
+    /// A clear that fails partway must not forget files still on disk:
+    /// the list would empty now and refill from the directory next launch.
+    /// A read-only shelf directory makes every move to the Trash fail.
+    @Test func aClearThatCannotTrashKeepsTheItemsItCouldNotRemove() throws {
+        let (store, dir) = try makeStore()
+        try store.add(.text("one"), now: t0)
+        try store.add(.text("two"), now: t0)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        }
+
+        #expect(throws: (any Error).self) { try store.clear() }
+        #expect(store.items.count == 2,
+                "items were dropped from the list though their files are still on disk")
+    }
+
+    /// The single-item form of the same rule: a tile whose file cannot be
+    /// trashed stays listed, or it would vanish and come back at the next
+    /// launch when the directory is reloaded.
+    @Test func aRemoveThatCannotTrashKeepsTheItem() throws {
+        let (store, dir) = try makeStore()
+        let item = try store.add(.text("one"), now: t0)
+
+        try FileManager.default.setAttributes(
+            [.posixPermissions: 0o500], ofItemAtPath: dir.path)
+        defer {
+            try? FileManager.default.setAttributes(
+                [.posixPermissions: 0o700], ofItemAtPath: dir.path)
+        }
+
+        #expect(throws: (any Error).self) { try store.remove(item.id) }
+        #expect(store.items.count == 1,
+                "the item was dropped from the list though its file is still on disk")
+        #expect(FileManager.default.fileExists(atPath: item.url.path))
+    }
+
+    /// A file moved or deleted from underneath the shelf -- in Finder, or a
+    /// referenced capture the user tidied away -- leaves a tile pointing at
+    /// nothing until something notices.
+    @Test func pruningDropsItemsWhoseFileIsGone() throws {
+        let (store, _) = try makeStore()
+        let kept = try store.add(.text("kept"), now: t0)
+        let gone = try store.add(.text("gone"), now: t0)
+        let external = try makeExternalFile(named: "Photo.jpg")
+        let reference = try store.addReference(to: external, now: t0)
+
+        try FileManager.default.removeItem(at: gone.url)
+        try FileManager.default.removeItem(at: external)
+
+        store.pruneMissing()
+
+        #expect(store.items.map(\.id) == [kept.id])
+        #expect(store.items.contains { $0.id == reference.id } == false)
+    }
+
+    @Test func pruningAShelfWithNothingMissingChangesNothing() throws {
+        let (store, _) = try makeStore()
+        try store.add(.text("one"), now: t0)
+        try store.add(.text("two"), now: t0)
+        let before = store.items
+
+        store.pruneMissing()
+
+        #expect(store.items == before)
+    }
+
     @Test func theCapAndAgeAreWhatTheSpecSays() {
         #expect(ShelfStore.capacity == 20)
         #expect(ShelfStore.maxAge == 7 * 24 * 3600)
