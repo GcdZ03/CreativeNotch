@@ -92,7 +92,10 @@ struct PanelActionsWiringTests {
         d.state.onClearShelf?()
         #expect(d.state.canUndoShelfClear)
 
-        try await Task.sleep(for: .milliseconds(300))
+        // Awaited rather than slept past: under a parallel suite the main
+        // actor can be busy for longer than any fixed margin.
+        let offer = try #require(d.shelfUndoTask)
+        await offer.value
 
         #expect(d.state.canUndoShelfClear == false)
         #expect(d.shelfUndoTask == nil)
