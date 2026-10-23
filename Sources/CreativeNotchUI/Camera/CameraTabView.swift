@@ -20,6 +20,13 @@ struct CameraTabView: View {
     let onToggleRecording: () -> Void
     let onClose: () -> Void
 
+    /// System Settings → Privacy & Security → Camera. Split out so a test can
+    /// check the deep link, as `LaunchAtLoginController` does for its own:
+    /// `NSWorkspace.shared.open` is not seamed.
+    static let privacySettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Camera"
+    )
+
     private var isRecording: Bool {
         if case .recording = state { return true }
         return false
@@ -29,10 +36,23 @@ struct CameraTabView: View {
         ZStack {
             switch state {
             case .denied:
-                message(
-                    "CreativeNotch needs camera access",
-                    detail: "Grant it in System Settings › Privacy & Security › Camera."
-                )
+                VStack(spacing: 2) {
+                    message(
+                        "CreativeNotch needs camera access",
+                        detail: "Grant it in System Settings › Privacy & Security › Camera."
+                    )
+                    // The way to undo a refusal, not just its name: the panel
+                    // closes the moment the cursor leaves to go looking.
+                    Button("Open System Settings") {
+                        if let url = Self.privacySettingsURL { NSWorkspace.shared.open(url) }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.92))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(.white.opacity(0.16)))
+                }
             case .unavailable:
                 message("No camera found", detail: "This Mac has no built-in camera.")
             case .idle, .previewing, .recording:

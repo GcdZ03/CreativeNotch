@@ -62,4 +62,16 @@ struct CameraPreviewTests {
 
         #expect(view.isHoldingSession == false)
     }
+
+    // MARK: - The denied state has a way out
+
+    /// **A refusal must come with the way to undo it.** The denied message
+    /// named the pane and offered nothing to click, in a panel that closes
+    /// the moment the cursor leaves for System Settings. The deep link is the
+    /// only part with a right answer; opening it is not seamed.
+    @Test func theDeniedStateDeepLinksToTheCameraPane() throws {
+        let url = try #require(CameraTabView.privacySettingsURL)
+        #expect(url.scheme == "x-apple.systempreferences")
+        #expect(url.absoluteString.hasSuffix("com.apple.preference.security?Privacy_Camera"))
+    }
 }
