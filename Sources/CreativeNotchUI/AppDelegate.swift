@@ -1054,7 +1054,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         self.timer = timer
         wireTimerActions()
 
-        // Publishes into `AppState` for the power tab, and into the
+        // Publishes into `AppState` for the Battery tab, and into the
         // arbiter for the peek. Starting and stopping stays in
         // `applicationDidFinishLaunching` / `applicationWillTerminate`,
         // like the clipboard and media controllers — building the wiring
