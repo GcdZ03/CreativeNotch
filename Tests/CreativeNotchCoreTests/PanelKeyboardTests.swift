@@ -103,3 +103,32 @@ private let allTabs: [Tab] = [.shelf, .clipboard, .timer, .power, .camera]
         #expect(PanelKeyboard.action(for: .commandDigit(1), in: state, visible: allTabs) == nil)
     }
 }
+
+// MARK: - Esc and the clipboard search
+
+/// Esc takes back the last thing done first: with a search typed into the
+/// clipboard pane it clears the search, and only the next press closes.
+@Test func escapeClearsAClipboardSearchBeforeClosing() {
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "invoice") == .clearSearch)
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "") == .close)
+}
+
+/// A query of spaces filters nothing, so there is nothing for Esc to undo.
+@Test func aBlankClipboardSearchDoesNotHoldEscBack() {
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "   ") == .close)
+}
+
+/// The search is the clipboard pane's; on any other tab Esc closes as ever.
+@Test func aClipboardSearchDoesNotHoldEscBackOnAnotherTab() {
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.shelf), visible: allTabs,
+                                 clipboardQuery: "invoice") == .close)
+}
+
+/// ⌘N is not Esc: a typed search never stops the tab shortcuts.
+@Test func aClipboardSearchLeavesTheTabShortcutsAlone() {
+    #expect(PanelKeyboard.action(for: .commandDigit(1), in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "invoice") == .select(.shelf))
+}
