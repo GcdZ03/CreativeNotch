@@ -277,6 +277,15 @@ shows **Update to v…** and Settings → Updates says "Version … is available
 with **Update Now** and a link to the release notes. **Check for Updates…** in
 the menu bar asks straight away, whatever the setting.
 
+<p align="center">
+  <img src="docs/assets/features/updates-available.png" width="520" alt="Settings, Updates section: CreativeNotch 0.12.0, Version 0.13.0 is available, with Update Now, Check Now and Release Notes, and an Automatically check for updates switch that is on">
+</p>
+
+<sub>Rendered offscreen, in a window that is never active, so the controls
+are drawn in their inactive colours: the **Automatically check for updates**
+switch is on (its knob is to the right — on is the default) even though it is
+grey here.</sub>
+
 **Update Now** does what the installer does, from inside the app: it downloads
 the release's `.tar.gz` and its `.sha256`, refuses an archive whose checksum
 does not match, unpacks it, checks the app's code signature and that it is the

@@ -2177,6 +2177,14 @@ suspended or withheld, but prompted — and it does so from the same
 `ModuleSwitchboard`, because the updater is not a module: between checks it
 runs nothing, so there is nothing for a switch to stop.
 
+**The 24 hours are shared, not per trigger.** There is one
+`updates.lastCheck`, and every answered check sets it — so a launch check
+also holds off the wake and Settings-open checks for the next day, and a
+wake check holds off Settings. That is the point: the throttle means "ask
+GitHub at most about once a day unprompted", not "once a day from each
+door". The launch check ignores it (once per process), and the manual
+check ignores it and the toggle.
+
 The relative time in "Up to date — checked 2 hours ago" is computed when
 Settings draws and is not refreshed: refreshing it would take a timer, and
 opening Settings a day later checks again anyway.
@@ -2197,13 +2205,32 @@ with no requests remaining, a 429 or a body that is not a release change
 nothing, so the next wake tries again rather than waiting a day. Those
 failures are silent for the three automatic triggers — the status falls back
 to what the record says — and only a manual check says "Couldn't check for
-updates", in the status line, with no alert.
+updates", in the status line, with no alert. That line is brief: a one-shot
+`Task.sleep` (`failureNoticeDuration`, eight seconds), the shape of the
+shelf's notice and Settings' highlight, settles the status back to the
+record's afterwards; it runs once per reported failure, and a new check, an
+install or quitting cancels it. A check never hides an update already on
+offer: `UpdateStatus.checking` and `.checkFailed` carry the record's newer
+release (`UpdateStatus.offer`), so "Update to v…", **Update Now** (disabled
+while the request is out) and the release notes stay through Settings
+asking again and through an offline manual check.
 
 Versions are compared as numbers (`SemanticVersion`: 0.13.0 > 0.12.10 >
 0.12.9), never as text. A tag that is not one to three numbers, a leading
 "v" allowed, is "no update". Only assets named for the tag
 (`CreativeNotch-<tag>.tar.gz` and its `.sha256`, as `release.yml` names them)
-are taken, and only over HTTPS.
+are taken, and only from this repository: an asset link must be exactly
+`https://github.com/GcdZ03/CreativeNotch/releases/download/<tag>/<name>` —
+host `github.com`, no port, credentials, query, or "." / ".." component —
+and the release notes link a page under
+`https://github.com/GcdZ03/CreativeNotch/releases/`. A foreign asset makes the
+release uninstallable; foreign notes make the reply no release. The
+`.sha256` comes from the same reply as the archive, so it cannot vouch for a
+link served beside it — the host and path check is what does. GitHub's
+redirect from there to its asset storage is followed by `URLSession`. A
+cached release is held to the same check when read back
+(`Release.isTrusted`), so a hand-edited preference cannot redirect
+**Update Now**.
 
 ### Update Now, and why it is `install.sh` again
 

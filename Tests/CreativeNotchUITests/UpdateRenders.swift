@@ -14,6 +14,11 @@ import CreativeNotchCore
 ///
 /// Through a real offscreen `NSWindow` and `cacheDisplay`, never ordered
 /// front, because a grouped `Form` renders blank through `ImageRenderer`.
+/// That window is never active, so AppKit draws its controls in their
+/// inactive colours — the "Automatically check for updates" switch is on
+/// but grey, and the default button is not blue. Claiming key status and
+/// setting `controlActiveState` do not change that from a test process
+/// (tried 2026-10-25), so the README's caption says so instead.
 /// The controller is the real one over fake seams: nothing is fetched,
 /// downloaded or installed, and the clock is fixed.
 @MainActor
