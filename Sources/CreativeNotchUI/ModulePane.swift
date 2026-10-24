@@ -13,6 +13,9 @@ struct ModulePane<Content: View>: View {
     /// shelf can offer "AirDrop All" beside "Clear"; most panes have one
     /// or none.
     var actions: [(label: String, perform: () -> Void)] = []
+    /// A control at the far end of the title row, after the actions — the
+    /// timer tab's Timer | Stopwatch switch. Most panes have none.
+    var accessory: AnyView? = nil
     @ViewBuilder let content: () -> Content
     @Environment(\.notchTextScale) private var textScale
 
@@ -32,6 +35,7 @@ struct ModulePane<Content: View>: View {
                     Button(action.label, action: action.perform)
                         .buttonStyle(NotchButtonStyle(.quiet, compact: true))
                 }
+                if let accessory { accessory }
             }
             .frame(minHeight: NotchType.length(24, scale: textScale))
 

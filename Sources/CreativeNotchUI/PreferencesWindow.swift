@@ -471,7 +471,7 @@ struct PreferencesView: View {
         PreferencesRow(
             module: .timer, section: .notch, symbolName: "timer", tint: .orange,
             title: "Timer",
-            detail: "A countdown, in the ear of the notch."
+            detail: "Up to three countdowns in the ear of the notch, and a stopwatch."
         ),
         PreferencesRow(
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,

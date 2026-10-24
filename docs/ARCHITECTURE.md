@@ -1036,7 +1036,77 @@ failing test, because every test asserted *values* rather than
 non-`Equatable` box. `nowPlaying` keeps the dedupe on purpose: an equal
 `TrackSnapshot` renders identically. If you are tempted to "simplify" the box
 away, `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what stops
-you.
+you. `AppState.timers`, the list behind the tab (below), rides in the same
+box for the same reason.
+
+### Several countdowns, still one wake (2026-10-24)
+
+Up to three countdowns run at once (`TimerSet.capacity`). Each is an ordinary
+`Countdown`, and `TimerSet` (Core) answers the questions about the set from a
+`now` passed in: which one the ear shows, which have finished, and when to
+wake next.
+
+**There is still exactly one outstanding one-shot.** `TimerSet.nextWake` is
+the earliest of each member's own `TimerSchedule.nextWake`, and
+`TimerController` cancels and replaces its single `pending` task on every
+change, exactly as it did for one countdown. A timer per countdown would be
+three schedules waking independently; this is one schedule aimed at
+whichever countdown next needs a redraw or a completion, so three cost the
+wakes of the busiest, and paused members cost nothing. With the screen asleep
+it is the earliest deadline and nothing before it.
+
+Each countdown that passes its deadline completes on its own —
+`removeFinished` returns them in the order they finished, and each goes
+through `onFinished`, so each gets the chime, the peek and the announcement
+the single timer always had.
+
+- **The ear shows the soonest.** A running countdown outranks every paused
+  one (a paused countdown is not approaching anything); then least remaining;
+  then start order, so two that finish together never flicker. With
+  everything paused it is still the closest to done, dimmed. `badgeSlot` is
+  unchanged: it is handed that one countdown, as before.
+- **The tab lists in start order, not soonest-first.** A row that jumped when
+  its neighbour was paused would put a different timer's Cancel under the
+  pointer that just clicked Pause.
+- **One running looks exactly as it did.** A second countdown is asked for
+  through the title row's **Add**, which brings the picker back with **Back**
+  beside it. Presets stay replaced while a timer runs, so nobody starts a
+  second by brushing one. Two or more are a list, each row with its own pause
+  and cancel; at the cap Add is not offered, and `TimerSet.add` refuses rather
+  than replacing a countdown the user set.
+- **The bare verbs act on the whole set.** `cancel()` is what quitting and the
+  switchboard mean, so it cancels every countdown; the tab's rows use the
+  `id:` forms through `AppState.onPauseTimer` and friends, which now take the
+  row's id.
+
+### The stopwatch has no clock at all (2026-10-24)
+
+A **Timer | Stopwatch** switch in the timer tab's title row — not a tab of its
+own: the ear's icon row is already full on a 14" notch, and a stopwatch is a
+timer counting the other way. It is part of the timer module and switches off
+with it.
+
+`Stopwatch` (Core) stores the date it was last started and what it banked
+before that; laps are splits, capped at 99. Like `Countdown`, every reading is
+derived from those and a `now`, so sleep is a non-event — and unlike
+`Countdown` there is **nothing to schedule**: a stopwatch has no deadline.
+While the tab is on screen the digits are a `Text(timerInterval:)` counting up
+from `Stopwatch.anchor`, which the system keeps current with no wake of ours —
+the music peek's times are the precedent. Close the panel and there is no
+view, no text and no count: the stopwatch is two numbers in `AppState` until
+someone looks again. Paused or reset, the digits are plain text from
+`StopwatchDisplay`, in the live text's own format, so pausing does not jump.
+
+The value lives in `AppState` and is moved by one verb, `onStopwatch`, which
+`AppDelegate.applyStopwatch` applies at its injected clock — so the whole
+lifecycle is tested by passing timestamps. Switching the timer off resets it:
+unlike a countdown it has nothing to finish, and left counting invisibly it
+would greet the user with an hour they never saw when the tab came back.
+
+There is no ear badge for a running stopwatch. The trailing slot is already
+contended by the capture indicator, the recording dot, the countdown and the
+album cover, and a stopwatch is something you look at, not something that
+interrupts you.
 
 ## Preferences
 

@@ -18,33 +18,52 @@ import CreativeNotchCore
 /// common case, and it is the only one that works if focus is ever refused.
 ///
 /// The presets are **replaced**, not merely disabled, while a timer runs.
-/// One timer at a time is the model, and a visible preset button would
-/// promise a second one the model cannot deliver.
+/// A second countdown (2026-10-24) is asked for deliberately, through the
+/// title row's Add, which brings this same picker back (`isAdding`) — so
+/// one running timer looks exactly as it did when one was the whole model,
+/// and nobody starts a second by brushing a preset.
+///
+/// Two or more running are a list (`list`): one row each, with its own
+/// pause and cancel, in start order (`TimerSet`).
 ///
 /// Presentation only: every control calls a closure. Nothing here starts,
-/// schedules, or owns a timer — `TimerController` (a later module) is what
-/// turns `onStart` into a real countdown, and `AppState.countdown` is what
-/// this view renders `running` from once one exists.
+/// schedules, or owns a timer — `TimerController` is what turns `onStart`
+/// into a real countdown, and `AppState.timers` is what this view renders
+/// from once one exists.
 struct TimerTabView: View {
-    let countdown: Countdown?
+    let timers: [RunningTimer]
     let now: Date
     /// Three, in minutes, each already within `Limits.presetRange` — chosen
     /// in Settings (2026-10-24), 5 / 10 / 25 until then.
     var presets: [Int] = Limits.defaultTimerPresets
+    /// Showing the picker for one more countdown beside those running.
+    var isAdding = false
     var onStart: (TimeInterval) -> Void
-    var onPause: () -> Void
-    var onResume: () -> Void
-    var onCancel: () -> Void
+    var onPause: (Int) -> Void
+    var onResume: (Int) -> Void
+    var onCancel: (Int) -> Void
 
     @State private var customMinutes: Int = 15
     /// For the track's width, which grows with the digits above it.
     @Environment(\.notchTextScale) private var textScale
+    /// Only an offscreen render sets this: `ImageRenderer` cannot host the
+    /// AppKit view behind a `TextField` and draws a placeholder in its place.
+    @Environment(\.notchDrawsFieldsAsText) private var fieldsAsText
+
+    /// Which of the three layouts to draw. Static so the choice is pinned
+    /// by a test without rendering.
+    enum Layout: Equatable { case picker, single, list }
+
+    static func layout(count: Int, isAdding: Bool) -> Layout {
+        if count == 0 || isAdding { return .picker }
+        return count == 1 ? .single : .list
+    }
 
     var body: some View {
-        if let countdown {
-            running(countdown)
-        } else {
-            idle
+        switch Self.layout(count: timers.count, isAdding: isAdding) {
+        case .picker: idle
+        case .single: running(timers[0])
+        case .list: list
         }
     }
 
@@ -107,17 +126,22 @@ struct TimerTabView: View {
                 // The clamp is what stops a typed 500 reaching `Countdown`,
                 // which would reject it and leave Start silently doing
                 // nothing — a dead button being the worst of the options.
-                TextField("", value: $customMinutes, format: .number)
-                    .textFieldStyle(NotchFieldStyle())
-                    .notchFrame(width: 52)
-                    .onSubmit { start() }
-                    .onChange(of: customMinutes) { _, typed in
-                        customMinutes = min(
-                            TimerStepper.maximum,
-                            max(TimerStepper.minimum, typed)
-                        )
-                    }
-                    .accessibilityLabel("Minutes")
+                if fieldsAsText {
+                    NotchFieldStyle.staticText("\(customMinutes)")
+                        .notchFrame(width: 52)
+                } else {
+                    TextField("", value: $customMinutes, format: .number)
+                        .textFieldStyle(NotchFieldStyle())
+                        .notchFrame(width: 52)
+                        .onSubmit { start() }
+                        .onChange(of: customMinutes) { _, typed in
+                            customMinutes = min(
+                                TimerStepper.maximum,
+                                max(TimerStepper.minimum, typed)
+                            )
+                        }
+                        .accessibilityLabel("Minutes")
+                }
 
                 stepButton("plus", disabled: customMinutes == TimerStepper.maximum) {
                     customMinutes = TimerStepper.increment(customMinutes)
@@ -152,8 +176,9 @@ struct TimerTabView: View {
         .accessibilityLabel(symbol == "plus" ? "Longer" : "Shorter")
     }
 
-    private func running(_ countdown: Countdown) -> some View {
-        VStack(spacing: 12) {
+    private func running(_ timer: RunningTimer) -> some View {
+        let countdown = timer.countdown
+        return VStack(spacing: 12) {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 let remaining = TimerDisplay.text(remaining: countdown.remaining(at: now))
                 Text(remaining)
@@ -178,27 +203,107 @@ struct TimerTabView: View {
 
             // Redraws exactly when the digits do: same `now`, no clock of
             // its own.
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.hairline(0.14))
-                    Capsule()
-                        .fill(.ink(countdown.isPaused ? 0.45 : 0.95))
-                        .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
-                }
-            }
-            .frame(width: NotchType.length(220, scale: textScale), height: 4)
-            // Spoken as part of the countdown's value, so not a second stop.
-            .accessibilityHidden(true)
+            track(countdown)
+                .frame(width: NotchType.length(220, scale: textScale), height: 4)
 
             HStack(spacing: 8) {
                 if countdown.isPaused {
-                    Button("Resume", action: onResume).buttonStyle(NotchButtonStyle(.prominent))
+                    Button("Resume") { onResume(timer.id) }.buttonStyle(NotchButtonStyle(.prominent))
                 } else {
-                    Button("Pause", action: onPause).buttonStyle(NotchButtonStyle(.quiet))
+                    Button("Pause") { onPause(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
                 }
-                Button("Cancel", action: onCancel).buttonStyle(NotchButtonStyle(.quiet))
+                Button("Cancel") { onCancel(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The progress track, from Core. Spoken as part of the countdown's
+    /// value wherever it is drawn, so never a stop of its own.
+    private func track(_ countdown: Countdown) -> some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule().fill(.hairline(0.14))
+                Capsule()
+                    .fill(.ink(countdown.isPaused ? 0.45 : 0.95))
+                    .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
+            }
+        }
+        .accessibilityHidden(true)
+    }
+
+    // MARK: - Several
+
+    /// What a row's countdown is called aloud: by the duration it was set
+    /// to, so three rows are three different names rather than "Timer"
+    /// three times.
+    static func rowName(_ countdown: Countdown) -> String {
+        TimerSpokenText.name(duration: countdown.duration)
+    }
+
+    /// One row per countdown, in start order: what it was set to, what is
+    /// left, its track, and its own pause and cancel. The same digits,
+    /// caption, dimming and track as the single view, smaller — every row
+    /// redraws on the controller's one shared wake, never on a clock of its
+    /// own.
+    private var list: some View {
+        VStack(spacing: 10) {
+            ForEach(timers) { timer in
+                row(timer)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func row(_ timer: RunningTimer) -> some View {
+        let countdown = timer.countdown
+        let remaining = TimerDisplay.text(remaining: countdown.remaining(at: now))
+        let name = Self.rowName(countdown)
+        return HStack(spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(NotchRootView.durationLabel(countdown))
+                    .notchFont(11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.ink(0.45))
+                    .notchFrame(width: 40, alignment: .leading)
+                Text(remaining)
+                    .notchFont(20, weight: .medium, design: .rounded)
+                    .monospacedDigit()
+                    .rollingDigits(remaining, countsDown: true)
+                    .foregroundStyle(.ink(Self.digitsOpacity(isPaused: countdown.isPaused)))
+                Text(TimerDisplay.caption(isPaused: countdown.isPaused))
+                    .notchFont(11, weight: .medium, design: .rounded)
+                    .foregroundStyle(.ink(Self.captionOpacity(isPaused: countdown.isPaused)))
+            }
+            .notchFrame(width: 140, alignment: .leading)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(name)
+            .accessibilityValue(Self.accessibilityValue(countdown, at: now))
+
+            track(countdown)
+                .frame(height: 4)
+                .frame(maxWidth: .infinity)
+
+            rowButton(
+                countdown.isPaused ? "play.fill" : "pause.fill",
+                label: "\(countdown.isPaused ? "Resume" : "Pause") \(name)"
+            ) {
+                countdown.isPaused ? onResume(timer.id) : onPause(timer.id)
+            }
+            rowButton("xmark", label: "Cancel \(name)") { onCancel(timer.id) }
+        }
+    }
+
+    /// A glyph in the panel's compact capsule, named for VoiceOver by the
+    /// row it acts on.
+    private func rowButton(
+        _ symbol: String, label: String, action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .notchFont(10, weight: .bold)
+                .notchFrame(width: 12, height: 12)
+        }
+        .buttonStyle(NotchButtonStyle(.quiet, compact: true))
+        .accessibilityLabel(label)
     }
 }

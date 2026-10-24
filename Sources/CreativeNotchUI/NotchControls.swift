@@ -71,15 +71,36 @@ struct NotchFieldStyle: TextFieldStyle {
             .multilineTextAlignment(.center)
             .foregroundStyle(.white)
             .padding(.vertical, 6)
-            .background {
+            .background { Self.ring }
+    }
+
+    private static var ring: some View {
+        RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(.hairline(0.08))
+            .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.hairline(0.08))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(.hairline(0.12), lineWidth: 1)
-                    }
+                    .strokeBorder(.hairline(0.12), lineWidth: 1)
             }
     }
+
+    /// The field's look around a plain value, for an offscreen render:
+    /// `ImageRenderer` cannot host the AppKit view behind a `TextField`.
+    static func staticText(_ value: String) -> some View {
+        Text(value)
+            .notchFont(13, weight: .medium, design: .rounded)
+            .monospacedDigit()
+            .foregroundStyle(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 6)
+            .background { ring }
+    }
+}
+
+extension EnvironmentValues {
+    /// Draws the panel's fields as their value in the field's ring instead
+    /// of a live `TextField`. Off everywhere in the app; on only in an
+    /// offscreen render, where the AppKit field would be a placeholder.
+    @Entry var notchDrawsFieldsAsText: Bool = false
 }
 
 /// The panel's search field: `NotchFieldStyle`'s ring and fill, left-aligned
@@ -144,5 +165,45 @@ struct NotchIconButtonStyle: ButtonStyle {
                     .fill(.hairline(selected ? 0.14 : (configuration.isPressed ? 0.10 : 0)))
             }
             .contentShape(.rect)
+    }
+}
+
+/// Two choices in one capsule, for a title row: the timer tab's
+/// Timer | Stopwatch (2026-10-24).
+///
+/// Drawn in the panel's own ink rather than a stock `.segmented` picker,
+/// for the reason `NotchButtonStyle` gives: stock controls resolve their
+/// colours against the appearance and have rendered black on black here.
+/// The selected segment is a raised hairline with bright ink; the others
+/// are dim ink on the track. Increase Contrast lifts both through
+/// `NotchInk`, and the selection is also a trait, so VoiceOver says which
+/// is chosen rather than it resting on brightness alone.
+struct NotchSegmentedControl<Value: Hashable>: View {
+    let options: [(value: Value, title: String)]
+    let selection: Value
+    let onSelect: (Value) -> Void
+    var accessibilityLabel: String = "Mode"
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                let selected = option.value == selection
+                Button { onSelect(option.value) } label: {
+                    Text(option.title)
+                        .notchFont(11, weight: .semibold, design: .rounded)
+                        .foregroundStyle(.ink(selected ? 0.95 : 0.55))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(.hairline(selected ? 0.18 : 0)))
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(.hairline(0.08)))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
