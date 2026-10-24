@@ -53,6 +53,32 @@ public struct PanelLayout: Equatable, Sendable {
         return earInset + buttons + gaps + housingClearance
     }
 
+    /// The gap between the status ear's items: the dropper, the battery and
+    /// the gear (`PanelHeader`). Fixed: it is a gap, not text.
+    public static let statusSpacing: CGFloat = 10
+
+    /// The widest the header's battery cell draws (`BatteryCell`): the
+    /// 22pt glyph, a charging bolt and "100%", at the standard text size.
+    /// Grown with the text like a button, and checked against the drawn
+    /// cell at every size (`StatusEarFitTests`), so this stays an upper
+    /// bound rather than a guess.
+    public static let batteryCellWidth: CGFloat = 76
+
+    /// How wide an ear has to be to hold everything the status ear can show
+    /// at `scale` -- the colour picker's dropper, the battery and the gear,
+    /// all three (2026-10-24): the inset from the panel's edge, the items and
+    /// the gaps between them, and a clearance before the housing.
+    ///
+    /// Every item, not the ones switched on: Compact's width is decided from
+    /// it (`NotchGeometry.nominalPanelWidth`), and a panel that resized
+    /// when the colour picker or the header's battery was switched would be
+    /// a second reason for it to move that nobody asked for.
+    public static func statusEarWidth(scale: CGFloat = 1) -> CGFloat {
+        let buttons = 2 * NotchType.length(tabButtonWidth, scale: scale)
+        let battery = NotchType.length(batteryCellWidth, scale: scale)
+        return earInset + buttons + battery + 2 * statusSpacing + housingClearance
+    }
+
     /// The anchor's height: the hardware notch on a notched Mac, the pill's
     /// own band on a notchless one.
     public let headerHeight: CGFloat

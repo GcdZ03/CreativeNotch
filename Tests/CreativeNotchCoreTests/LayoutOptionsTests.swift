@@ -172,6 +172,84 @@ struct LayoutOptionsTests {
         }
     }
 
+    /// The status ear -- dropper, battery and gear -- fits whichever ear it
+    /// lands in, at every width, text size and tab count, on a 14" notch.
+    /// Compact is the one this binds: Default and Wide have room to spare.
+    @Test func theStatusItemsAlwaysFitTheirEarOnAFourteenInchNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in 0...Tab.allCases.count {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) on the \(side)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compact's floor is the wider of the two ears' needs: with no tabs at
+    /// all beside a notch, the status items still set it.
+    @Test func compactKeepsRoomForTheStatusItemsWithNoTabs() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let none = NotchGeometry.nominalPanelWidth(for: anchor, width: .compact, tabCount: 0)
+        #expect(none >= anchor.rect.width + 2 * PanelLayout.statusEarWidth())
+        #expect(none == max(PanelWidth.compact.nominalWidth, anchor.rect.width + 2 * PanelLayout.statusEarWidth()))
+        // A notch wide enough that the status items, not the nominal width,
+        // decide it.
+        let wideNotch = Anchor.notch(CGRect(x: 600, y: 950, width: 300, height: 32))
+        #expect(NotchGeometry.nominalPanelWidth(for: wideNotch, width: .compact, tabCount: 0)
+                == 300 + 2 * PanelLayout.statusEarWidth())
+    }
+
+    /// The status allowance is the sum of its parts, grown with the text.
+    @Test func theStatusEarAllowanceIsItsItemsAndGaps() {
+        let parts: [CGFloat] = [12, 34, 34, 76, 10, 10, 8]
+        #expect(PanelLayout.statusEarWidth() == parts.reduce(0, +))
+        #expect(PanelLayout.statusEarWidth(scale: 1.3) > PanelLayout.statusEarWidth())
+    }
+
+    // MARK: - Text scale fitted on the chosen width
+
+    /// The fit is computed on the chosen width: on a screen that holds
+    /// Default at Larger but not Wide, Wide comes down and Default does
+    /// not, and Compact keeps it -- and the frame always holds the
+    /// nominal width at the scale it was built for.
+    @Test func theFittedScaleIsComputedOnTheChosenWidth() {
+        let larger = TextSize.larger.scale
+        // Wide enough for Default at Larger, too narrow for Wide at Larger.
+        let defaultAtLarger = NotchType.length(PanelWidth.standard.nominalWidth, scale: larger)
+        let screen = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: defaultAtLarger + 10, height: 900),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        )
+        let anchor = NotchGeometry.anchor(for: screen)
+        for width in PanelWidth.allCases {
+            let nominal = NotchGeometry.nominalPanelWidth(for: anchor, width: width)
+            let scale = NotchGeometry.fittedTextScale(larger, within: screen.frame.size, nominalWidth: nominal)
+            let frame = NotchGeometry.panelFrame(for: anchor, in: screen, textScale: larger, width: width)
+            #expect(frame.width == max(min(nominal, NotchGeometry.expandedSize.width),
+                                       NotchType.length(nominal, scale: scale)))
+            #expect(frame.height == NotchType.length(NotchGeometry.expandedSize.height, scale: scale))
+            #expect(frame.maxX <= screen.frame.maxX && frame.minX >= screen.frame.minX)
+            // A fixed point, so `AppState.textScale` reads it back off the frame.
+            #expect(NotchGeometry.fittedTextScale(larger, within: frame.size, nominalWidth: nominal) == scale,
+                    "\(width): the frame does not give its scale back")
+            switch width {
+            case .wide:     #expect(scale < larger)
+            case .standard, .compact: #expect(scale == larger)
+            }
+        }
+    }
+
     /// Clamped to a screen narrower than the panel, never pushed off it.
     @Test func everyWidthStaysOnASmallScreen() {
         let small = ScreenMetrics(

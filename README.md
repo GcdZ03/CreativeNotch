@@ -385,18 +385,20 @@ Settings → **Layout** tunes the panel itself, and every option applies at once
 and costs nothing while you are not looking at it. **Panel width** is Compact
 (560pt), Default (620pt, the panel as it always was) or Wide (720pt), each
 grown by the text size and kept on the screen. Beside a real notch, Compact
-goes no narrower than leaves room for every tab you have on either side of
-the camera — 602pt on a 14" MacBook Pro with all five tabs, 560pt with four.
+goes no narrower than leaves room for every tab you have, and for the
+eyedropper, battery and gear, on either side of the camera — 602pt on a 14"
+MacBook Pro with all five tabs, 560pt with four.
 **Corners** rounds the open panel's bottom corners tighter or rounder; **Tabs**
-puts the tab icons right of the camera instead of left; and the battery in the
+puts the tab icons right of the camera instead of left, and the eyedropper,
+battery and gear left of it; and the battery in the
 header, the now-playing badge and the timer badge can each be switched off.
 The recording dot and the camera and microphone indicator cannot be hidden
 here: the first explains a camera left recording, and the second has its own
 switch under Camera.
 
 <p align="center">
-  <img src="docs/assets/features/notch-layout-compact.png" width="450" alt="The open panel at Compact width under a 14-inch notch: five tab icons in the left ear, the battery and gear in the right, a music column and a running timer">
-  <img src="docs/assets/features/notch-layout-tabs-right.png" width="450" alt="The open panel with the tabs moved to the right ear and the battery and gear on the left">
+  <img src="docs/assets/features/notch-layout-compact.png" width="450" alt="The open panel at Compact width under a 14-inch notch: five tab icons in the left ear, the eyedropper, battery and gear in the right, a music column and a running timer">
+  <img src="docs/assets/features/notch-layout-tabs-right.png" width="450" alt="The open panel with the tabs moved to the right ear and the gear, battery and eyedropper on the left">
 </p>
 
 With **VoiceOver** on, each peek is announced as it appears — the charger or

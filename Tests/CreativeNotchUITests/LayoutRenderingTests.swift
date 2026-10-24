@@ -62,12 +62,15 @@ struct LayoutRenderingTests {
 
     // MARK: - Tabs side
 
-    /// Right puts the tabs in the right ear: with the battery hidden, the
-    /// left ear holds only the gear at its outer edge.
+    /// Right puts the tabs in the right ear: with the battery hidden and
+    /// the colour picker off, the left ear holds only the gear at its outer
+    /// edge.
     @Test func tabsOnTheRightLeaveTheLeftEarToTheGear() throws {
         let left = Self.state(LayoutOptions(showsBattery: false))
+        left.preferences.colorPicker = false
         left.transition(to: .open(.timer))
         let right = Self.state(LayoutOptions(tabsSide: .right, showsBattery: false))
+        right.preferences.colorPicker = false
         right.transition(to: .open(.timer))
 
         let l = try #require(Self.bitmap(left))
@@ -80,14 +83,49 @@ struct LayoutRenderingTests {
         #expect(PanelRenderingTests.ink(r, in: TextSizeRenderingTests.housing(right)) == 0)
     }
 
+    /// The colour picker's dropper is a status item, so it moves with the
+    /// status ear: left of the camera with the tabs on the right, still
+    /// nearest the housing, the gear still at the outer edge. Measured as
+    /// the difference the picker makes, battery hidden, so the tabs and the
+    /// gear cancel out.
+    @Test func theEyedropperMovesWithTheStatusEar() throws {
+        func render(side: EarSide, picker: Bool) throws -> (NSBitmapImageRep, AppState) {
+            let s = Self.state(LayoutOptions(tabsSide: side, showsBattery: false))
+            s.preferences.colorPicker = picker
+            s.transition(to: .open(.timer))
+            return (try #require(Self.bitmap(s)), s)
+        }
+        let (rightOn, s) = try render(side: .right, picker: true)
+        let (rightOff, _) = try render(side: .right, picker: false)
+        let leftEar = s.anchor.rect.minX - s.panelFrame.minX
+        // Gear at 12...46 from the left edge; the dropper one gap past it.
+        let dropperSlot = CGRect(x: 52, y: 2, width: 42, height: 28)
+        let outerSlot = CGRect(x: 8, y: 2, width: 42, height: 28)
+        #expect(PanelRenderingTests.ink(rightOn, in: dropperSlot) > 0.01, "dropper missing from the left ear")
+        #expect(PanelRenderingTests.ink(rightOff, in: dropperSlot) == 0, "control: nothing there without it")
+        #expect(PanelRenderingTests.ink(rightOn, in: outerSlot) > 0.01, "gear left the outer edge")
+        #expect(PanelRenderingTests.ink(rightOn, in: TextSizeRenderingTests.housing(s)) == 0)
+        #expect(dropperSlot.maxX < leftEar)
+
+        // And with the tabs on the left, it is in the right ear, not the left.
+        let (leftOn, l) = try render(side: .left, picker: true)
+        let (leftOff, _) = try render(side: .left, picker: false)
+        let rightEarStart = l.anchor.rect.maxX - l.panelFrame.minX
+        let rightEar = CGRect(x: rightEarStart + 2, y: 2, width: l.panelFrame.width - rightEarStart - 4, height: 28)
+        #expect(PanelRenderingTests.ink(leftOn, in: rightEar) > PanelRenderingTests.ink(leftOff, in: rightEar))
+    }
+
     // MARK: - Battery
 
     /// Hidden, the battery cell's place beside the gear is empty.
     @Test func hidingTheBatteryEmptiesItsCell() throws {
         let cell = CGRect(x: 405 + 40, y: 2, width: 120, height: 28)
+        // The colour picker off: its dropper sits beside the battery.
         let shown = Self.state()
+        shown.preferences.colorPicker = false
         shown.transition(to: .open(.timer))
         let hidden = Self.state(LayoutOptions(showsBattery: false))
+        hidden.preferences.colorPicker = false
         hidden.transition(to: .open(.timer))
         #expect(PanelRenderingTests.ink(try #require(Self.bitmap(shown)), in: cell) > 0.01, "control: cell drawn")
         #expect(PanelRenderingTests.ink(try #require(Self.bitmap(hidden)), in: cell) == 0)

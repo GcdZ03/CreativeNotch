@@ -619,7 +619,7 @@ struct PreferencesView: View {
         } header: {
             Text("Layout")
         } footer: {
-            Text("Compact goes no narrower than leaves room for every tab beside the camera. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
+            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
         }
     }
 

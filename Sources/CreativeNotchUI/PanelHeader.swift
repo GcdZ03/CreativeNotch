@@ -43,6 +43,29 @@ struct PanelHeader: View {
 
     private enum EarContent { case tabs, status }
 
+    /// First, nearest the housing: a verb like the gear, kept apart from it
+    /// by the battery so neither is hit for the other.
+    @ViewBuilder private var dropper: some View {
+        if let colorPicker {
+            ColorPickerButton(model: colorPicker)
+        }
+    }
+
+    @ViewBuilder private var battery: some View {
+        if showsBattery, hasBattery, let power {
+            BatteryCell(level: power.level, isCharging: power.isCharging)
+        }
+    }
+
+    private var settingsButton: some View {
+        Button(action: onSettings) {
+            Image(systemName: "gearshape")
+        }
+        .buttonStyle(NotchIconButtonStyle())
+        .help("Settings")
+        .accessibilityLabel("Settings")
+    }
+
     /// One ear's contents, inset from the panel's outer edge.
     @ViewBuilder
     private func ear(_ content: EarContent, inset edge: Edge.Set) -> some View {
@@ -51,23 +74,20 @@ struct PanelHeader: View {
             PanelTabBar(selected: selected, enabled: enabled, hasBattery: hasBattery, onSelect: onSelect)
                 .padding(edge, PanelLayout.earInset)
         case .status:
-            HStack(spacing: 10) {
-                // First, nearest the housing: a verb like the gear, kept
-                // apart from it by the battery so neither is hit for the
-                // other. It follows the status ear to whichever side the
-                // tabs leave free.
-                if let colorPicker {
-                    ColorPickerButton(model: colorPicker)
+            // Mirrored with the ear (2026-10-24): the dropper stays nearest
+            // the housing and the gear at the panel's outer edge, whichever
+            // side the tabs leave free, so moving the tabs moves the status
+            // ear as a whole rather than reversing it.
+            HStack(spacing: PanelLayout.statusSpacing) {
+                if edge == .leading {
+                    settingsButton
+                    battery
+                    dropper
+                } else {
+                    dropper
+                    battery
+                    settingsButton
                 }
-                if showsBattery, hasBattery, let power {
-                    BatteryCell(level: power.level, isCharging: power.isCharging)
-                }
-                Button(action: onSettings) {
-                    Image(systemName: "gearshape")
-                }
-                .buttonStyle(NotchIconButtonStyle())
-                .help("Settings")
-                .accessibilityLabel("Settings")
             }
             .padding(edge, PanelLayout.earInset)
         }

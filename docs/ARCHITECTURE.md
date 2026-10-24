@@ -175,15 +175,26 @@ the setting. Each lands in the one Core function that already owned the fact:
   Compact's own), so Wide is a preference a small screen may refuse but no
   option shrinks the panel below what it always was there. Beside a real
   notch Compact also goes no narrower than `notch + 2 × PanelLayout.tabEarWidth`
-  for the tabs showing: the panel is centred, so both ears are equal, and
-  either may hold the tabs. That makes Compact the one width that depends on
+  for the tabs showing, nor than `notch + 2 × PanelLayout.statusEarWidth` for
+  the status ear (the colour picker's dropper, the battery and the gear — all
+  three, whether or not they are switched on, so neither switch resizes the
+  panel): the panel is centred, so both ears are equal, and either may hold
+  either. `BatteryCell`'s allowance (`batteryCellWidth`) is checked against the
+  drawn cell at every text size (`StatusEarFitTests`). That makes Compact the one width that depends on
   the tab count, so `AppDelegate.tabsDidChange` re-places the panel when a
   tab-bearing module is toggled or the Battery tab first appears — and only
   at Compact, so Default and Wide never move for a module switch.
   `PanelTabBar` and `NotchIconButtonStyle` read `tabEarWidth`'s constants, so
   the arithmetic and the drawing cannot drift.
 - **Tabs side** is `PanelLayout.tabsSide`. Only the ears' *contents* swap;
-  their widths and the housing between them are hardware facts.
+  their widths and the housing between them are hardware facts. The status
+  ear moves as a whole and mirrors: the dropper stays nearest the housing and
+  the gear at the panel's outer edge on either side.
+- **Text size** is fitted on the chosen width: `fittedTextScale(…,
+  nominalWidth:)` takes `NotchGeometry.nominalPanelWidth`, and
+  `AppState.textScale` reads the scale back off the frame with the same
+  nominal width, so Compact's narrower frame is not mistaken for a screen too
+  small for its text.
 - **Corners** is a parameter of `NotchShape.cornerRadii`, and rounds the
   expanded panel only. The closed notch must keep matching the cutout, and a
   peek is sized into the housing's band, where a 30pt radius would make a

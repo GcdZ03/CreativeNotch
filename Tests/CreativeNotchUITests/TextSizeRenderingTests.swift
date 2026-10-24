@@ -284,15 +284,16 @@ struct TextSizeRenderingTests {
     /// A semantic text style (`.title3`, `.largeTitle`, …) is a fixed size
     /// too on macOS -- there is no Dynamic Type behind it -- so in the panel
     /// it ignores Text size exactly as `.system(size:)` would. The camera's
-    /// close button was one. Settings and its shortcut recorder are a
-    /// standard window, where the system styles are right.
+    /// close button was one. Settings (its Layout rows included) and its
+    /// shortcut recorder are a standard window, where the system styles are
+    /// right.
     @Test func noPanelFontUsesAFixedTextStyle() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/CreativeNotchUI")
-        let settings: Set<String> = ["PreferencesWindow.swift", "HotKeyRecorder.swift"]
+        let settings: Set<String> = ["PreferencesWindow.swift", "HotKeyRecorder.swift", "LayoutRows.swift"]
         let styles = ["largeTitle", "title", "title2", "title3", "headline", "subheadline",
                       "body", "callout", "footnote", "caption", "caption2"]
         let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))

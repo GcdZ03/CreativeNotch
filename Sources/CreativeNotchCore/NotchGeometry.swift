@@ -198,8 +198,10 @@ public enum NotchGeometry {
     ///
     /// Beside a real notch the housing takes the middle of the header, and
     /// Compact goes no narrower than leaves each ear room for `tabCount` tabs
-    /// (`PanelLayout.tabEarWidth`) -- the ears are equal because the panel
-    /// is centred on the notch, and either one may hold the tabs. Default and Wide are fixed widths that hold every tab
+    /// (`PanelLayout.tabEarWidth`) or for the status items -- dropper,
+    /// battery and gear (`PanelLayout.statusEarWidth`) -- whichever is
+    /// wider. The ears are equal because the panel is centred on the notch,
+    /// and either one may hold either. Default and Wide are fixed widths that hold every tab
     /// on every notch Apple ships, so they never depend on it, and a module
     /// switched on or off never resizes them.
     ///
@@ -210,7 +212,7 @@ public enum NotchGeometry {
     ) -> CGFloat {
         switch option {
         case .compact:
-            let ears = 2 * PanelLayout.tabEarWidth(tabCount: tabCount)
+            let ears = 2 * max(PanelLayout.tabEarWidth(tabCount: tabCount), PanelLayout.statusEarWidth())
             return max(option.nominalWidth, (anchor.isNotch ? anchor.rect.width : 0) + ears)
         case .standard, .wide:
             return option.nominalWidth

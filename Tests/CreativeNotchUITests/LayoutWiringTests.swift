@@ -9,7 +9,8 @@ import CreativeNotchCore
 /// the next launch.
 ///
 /// `NotchedDelegate.metrics` has a 230×38 notch, wider than any real one, so
-/// Compact's tab floor is visible here at four tabs as well as at five.
+/// Compact's floor is visible here at four tabs (set by the status ear) as
+/// well as at five (set by the tabs).
 @MainActor
 struct LayoutWiringTests {
 
@@ -63,15 +64,17 @@ struct LayoutWiringTests {
     @Test func compactFollowsTheTabsThatShow() {
         let d = make()
         d.state.onSetLayoutOptions?(LayoutOptions(width: .compact))
-        // Shelf, clipboard, timer, camera: 230 + 2 × (12 + 4×34 + 3×4 + 8).
-        #expect(d.currentFrame.width == 566)
+        // Shelf, clipboard, timer, camera: four tabs (12 + 4×34 + 3×4 + 8 =
+        // 168) need less than the status ear's dropper, battery and gear
+        // (12 + 34 + 76 + 34 + 2×10 + 8 = 184), so that sets it: 230 + 2 × 184.
+        #expect(d.currentFrame.width == 598)
 
         d.powerDidChange(PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false))
         // The battery tab makes five: 230 + 2 × (12 + 5×34 + 4×4 + 8).
         #expect(d.currentFrame.width == 642)
 
         d.switchboard.setEnabled(false, for: .camera)
-        #expect(d.currentFrame.width == 566)
+        #expect(d.currentFrame.width == 598)
         #expect(d.panel?.frame == d.currentFrame)
     }
 
@@ -164,5 +167,19 @@ struct LayoutWiringTests {
         #expect(PanelWidth.allCases.map(LayoutRows.title(for:)) == ["Compact", "Default", "Wide"])
         #expect(PanelCorners.allCases.map(LayoutRows.title(for:)) == ["Tight", "Default", "Round"])
         #expect(EarSide.allCases.map(LayoutRows.title(for:)) == ["Left", "Right"])
+    }
+
+    /// The text scale the panel draws at is fitted on the width it was
+    /// built for: Compact at Larger draws Larger. Fitted on the default's
+    /// width instead, Compact's narrower frame read as too small and its
+    /// text came down a step the screen never asked for.
+    @Test func compactAtLargerDrawsAtLarger() {
+        let d = make()
+        d.state.onSetTextSize?(.larger)
+        d.state.onSetLayoutOptions?(LayoutOptions(width: .compact))
+        #expect(d.currentFrame.width < NotchType.length(NotchGeometry.expandedSize.width, scale: TextSize.larger.scale))
+        #expect(d.state.textScale == TextSize.larger.scale)
+        d.state.onSetLayoutOptions?(LayoutOptions(width: .wide))
+        #expect(d.state.textScale == TextSize.larger.scale)
     }
 }
