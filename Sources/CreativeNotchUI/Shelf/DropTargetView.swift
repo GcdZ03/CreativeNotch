@@ -13,12 +13,12 @@ struct DropTargetView: View {
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: "arrow.down.doc")
-                .font(.system(size: prominent ? 28 : 22, weight: .medium))
+                .notchFont(prominent ? 28 : 22, weight: .medium)
             Text(prominent ? "Drop to stash on the shelf" : "Drop files on the notch to stash them")
-                .font(.system(size: prominent ? 14 : 12, weight: .medium, design: .rounded))
+                .notchFont(prominent ? 14 : 12, weight: .medium, design: .rounded)
             if !prominent {
                 Text(Self.retentionLine(maxAge: maxAge))
-                    .font(.system(size: 11, design: .rounded))
+                    .notchFont(11, design: .rounded)
                     .foregroundStyle(.ink(0.4))
             }
         }

@@ -1,4 +1,5 @@
 import SwiftUI
+import CreativeNotchCore
 
 /// A tab's content with the title row above it (spec §5.3).
 ///
@@ -13,16 +14,17 @@ struct ModulePane<Content: View>: View {
     /// or none.
     var actions: [(label: String, perform: () -> Void)] = []
     @ViewBuilder let content: () -> Content
+    @Environment(\.notchTextScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .notchFont(13, weight: .semibold, design: .rounded)
                     .foregroundStyle(.ink(0.92))
                 if let count {
                     Text(count)
-                        .font(.system(size: 13, weight: .medium, design: .rounded))
+                        .notchFont(13, weight: .medium, design: .rounded)
                         .foregroundStyle(.ink(0.45))
                 }
                 Spacer(minLength: 8)
@@ -31,7 +33,7 @@ struct ModulePane<Content: View>: View {
                         .buttonStyle(NotchButtonStyle(.quiet, compact: true))
                 }
             }
-            .frame(minHeight: 24)
+            .frame(minHeight: NotchType.length(24, scale: textScale))
 
             content()
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)

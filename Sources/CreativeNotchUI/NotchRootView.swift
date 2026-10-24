@@ -933,7 +933,8 @@ public struct NotchRootView: View {
                     let layout = PanelLayout.resolve(
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
-                        showsMedia: tab != .camera && app.showsMediaControls
+                        showsMedia: tab != .camera && app.showsMediaControls,
+                        textScale: app.textSize.scale
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -954,6 +955,7 @@ public struct NotchRootView: View {
                             HStack(spacing: 0) {
                                 if layout.mediaColumnWidth > 0 {
                                     MediaColumn(
+                                        width: layout.mediaColumnWidth,
                                         snapshot: app.nowPlaying,
                                         artwork: app.nowPlayingArtwork,
                                         showsControls: app.showsMediaControls,
@@ -985,6 +987,11 @@ public struct NotchRootView: View {
                         )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // Text size (2026-10-24): every `.notchFont` and text-
+                    // holding length below reads it. Here and on the drop
+                    // target only, so the badges and the peeks above stay
+                    // the size the hardware band allows (`NotchType`).
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -997,6 +1004,7 @@ public struct NotchRootView: View {
                             .padding(.top, 10)
                             .padding(.bottom, 20)
                     }
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 // The music peek is a mini player that grows down from the
                 // notch (spec 2026-10-15); power and timer peeks stay one
