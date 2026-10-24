@@ -165,9 +165,13 @@ public struct Limits: Equatable, Sendable {
     }
 
     /// `NSNumber` holding an integer, and only that. A boolean bridges to
-    /// `NSNumber` too, but as 0 or 1 it is never on any menu here.
+    /// `NSNumber` too, as 1 or 0 — which are expiry choices (one day, never),
+    /// so `defaults write … -bool YES` would otherwise trash a week of shelf.
+    /// It is a wrongly typed value and is rejected like a string.
     private static func wholeNumber(_ raw: Any?) -> Int? {
-        guard let number = raw as? NSNumber else { return nil }
+        guard let number = raw as? NSNumber,
+              CFGetTypeID(number) != CFBooleanGetTypeID()
+        else { return nil }
         let double = number.doubleValue
         guard double.isFinite, double == double.rounded(),
               abs(double) < Double(Int32.max)

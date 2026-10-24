@@ -152,6 +152,24 @@ struct LimitsTests {
         #expect(PreferencesStore(defaults: d).loadLimits() == Limits())
     }
 
+    /// `defaults write … -bool YES` stores a boolean, which bridges to an
+    /// `NSNumber` of 1 — and 1 and 0 are expiry choices (one day, never). A
+    /// boolean is a wrongly typed value, so it reads as the default rather
+    /// than trashing every file older than a day or switching the purge off.
+    @Test func aBooleanIsNotANumber() {
+        for flag in [true, false] {
+            let d = defaults()
+            d.set(flag, forKey: PreferenceKeys.shelfExpiryDays)
+            d.set(flag, forKey: PreferenceKeys.shelfCapacity)
+            d.set([flag, flag, flag], forKey: PreferenceKeys.timerPresets)
+            #expect(PreferencesStore(defaults: d).loadLimits() == Limits())
+        }
+        #expect(Limits.resolveExpiry(kCFBooleanTrue) == Limits.defaultShelfExpiry)
+        #expect(Limits.resolveExpiry(kCFBooleanFalse) == Limits.defaultShelfExpiry)
+        #expect(Limits.resolveExpiry(NSNumber(value: 1)) == .oneDay)
+        #expect(Limits.resolveExpiry(NSNumber(value: 0)) == .never)
+    }
+
     /// A fractional number is not a capacity, even when it rounds to one.
     @Test func aFractionalCapacityReadsAsTheDefault() {
         #expect(Limits.resolveChoice(NSNumber(value: 20.5), among: [20], default: 10) == 10)
