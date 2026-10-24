@@ -138,11 +138,14 @@ struct ShelfStoreTests {
         #expect(FileManager.default.fileExists(atPath: dir.path))
     }
 
-    @Test func addingAFileCopiesItAndLeavesTheOriginalAlone() throws {
+    /// The copy itself runs in the background (`ShelfAsyncCopyTests`); here
+    /// it is simply awaited.
+    @Test func addingAFileCopiesItAndLeavesTheOriginalAlone() async throws {
         let (store, dir) = try makeStore()
         let source = try makeSourceFile(named: "notes.txt", contents: "hello")
 
         let item = try store.add(.file(source), now: t0)
+        await store.waitForPendingCopies()
 
         #expect(item.displayName == "notes.txt")
         #expect(item.url.deletingLastPathComponent().path == dir.path)
@@ -160,7 +163,7 @@ struct ShelfStoreTests {
         #expect(store.items.first?.addedAt == t0.addingTimeInterval(1))
     }
 
-    @Test func aCollidingNameGetsASuffixRatherThanOverwriting() throws {
+    @Test func aCollidingNameGetsASuffixRatherThanOverwriting() async throws {
         let (store, _) = try makeStore()
         let a = try makeSourceFile(named: "shot.png", contents: "first")
         let b = try makeSourceFile(named: "shot.png", contents: "second")
@@ -169,6 +172,7 @@ struct ShelfStoreTests {
         let i1 = try store.add(.file(a), now: t0)
         let i2 = try store.add(.file(b), now: t0)
         let i3 = try store.add(.file(c), now: t0)
+        await store.waitForPendingCopies()
 
         #expect(i1.url.lastPathComponent == "shot.png")
         #expect(i2.url.lastPathComponent == "shot 2.png")
@@ -304,7 +308,7 @@ struct ShelfStoreTests {
     /// `addedAt` back from the creation date. Without stamping the copy, a
     /// file made a month ago and dropped this morning reloads as a month
     /// old -- and the launch purge sends it to the Trash.
-    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() throws {
+    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() async throws {
         let (store, dir) = try makeStore()
         let source = try makeSourceFile(named: "old.txt")
         try FileManager.default.setAttributes(
@@ -312,6 +316,7 @@ struct ShelfStoreTests {
             ofItemAtPath: source.path)
 
         try store.add(.file(source), now: t0)
+        await store.waitForPendingCopies()
 
         let reopened = try ShelfStore(directory: dir)
         let reloaded = try #require(reopened.items.first)
