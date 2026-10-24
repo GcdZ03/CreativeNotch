@@ -287,6 +287,43 @@ public final class ShelfStore {
         _ = try? purge(now: now)
     }
 
+    /// What `setLimits` would take if handed these limits now, without
+    /// taking it (2026-10-24).
+    ///
+    /// Settings asks before it applies a lowered limit, so a change that
+    /// would trash files is confirmed first and one that would not applies
+    /// silently. Nothing here touches the disk or the list.
+    public func previewLimits(capacity: Int, maxAge: TimeInterval?, now: Date) -> ShelfLimitRemoval {
+        Self.removals(from: items, capacity: capacity, maxAge: maxAge, now: now)
+    }
+
+    /// The rule `setLimits` enforces, as a pure function of the list.
+    ///
+    /// Eviction first, oldest beyond the capacity, then the age purge over
+    /// what is left — the order `setLimits` runs them in, so an item past
+    /// both is counted once.
+    ///
+    /// **It assumes every file will go.** A file that refuses the Trash is
+    /// skipped by eviction for the next oldest, so the count still holds for
+    /// a lowered capacity even though *which* item goes differs; a stuck file
+    /// past the expiry simply stays. The preview cannot know which files are
+    /// stuck without trying to move them, which is the side effect it exists
+    /// to avoid. Items are judged by list order and drop time alone.
+    public nonisolated static func removals(
+        from items: [ShelfItem],
+        capacity: Int,
+        maxAge: TimeInterval?,
+        now: Date
+    ) -> ShelfLimitRemoval {
+        let capacity = max(1, capacity)
+        let removed = items.enumerated().filter { index, item in
+            let evicted = index >= capacity
+            let expired = maxAge.map { now.timeIntervalSince(item.addedAt) > $0 } ?? false
+            return evicted || expired
+        }
+        return ShelfLimitRemoval(items: removed.map(\.element))
+    }
+
     /// Drops items whose file no longer exists, returning what went.
     ///
     /// A file can be moved or deleted from underneath the shelf -- in
@@ -416,5 +453,55 @@ public final class ShelfStore {
         var resulting: NSURL?
         try fileManager.trashItem(at: item.url, resultingItemURL: &resulting)
         return resulting as URL?
+    }
+}
+
+/// What a change of shelf limits would take off the shelf, and the words
+/// Settings uses to ask before it does (2026-10-24).
+///
+/// The words live here rather than in the view so they can be tested: a
+/// confirmation that says "Move 2 files to the Trash" when the two are
+/// captures the shelf only links to would be the alarm that trains people to
+/// click through it.
+public struct ShelfLimitRemoval: Equatable, Sendable {
+    /// In list order, newest first.
+    public let items: [ShelfItem]
+
+    public init(items: [ShelfItem]) {
+        self.items = items
+    }
+
+    /// Nothing would go, so the change applies without asking.
+    public var isEmpty: Bool { items.isEmpty }
+
+    public var count: Int { items.count }
+
+    /// The ones whose file actually goes to the Trash. A reference leaves the
+    /// list and its file stays where it is.
+    public var trashedCount: Int { items.filter(\.isOwned).count }
+
+    private var linkedCount: Int { count - trashedCount }
+
+    public var title: String {
+        trashedCount > 0
+            ? "Move \(Self.plural(trashedCount, "file")) from the shelf to the Trash?"
+            : "Remove \(Self.plural(count, "item")) from the shelf?"
+    }
+
+    public var message: String {
+        var message = "The new limit is lower than what the shelf holds now."
+        if trashedCount > 0, linkedCount > 0 {
+            message += " \(Self.plural(linkedCount, "linked item")) also \(linkedCount == 1 ? "leaves" : "leave") the shelf, but \(linkedCount == 1 ? "its file stays" : "their files stay") where \(linkedCount == 1 ? "it is" : "they are")."
+        } else if trashedCount == 0 {
+            message += " Their files stay where they are."
+        }
+        return message
+    }
+
+    /// The destructive button: what it does, not "OK".
+    public var confirmLabel: String { trashedCount > 0 ? "Move to Trash" : "Remove" }
+
+    private static func plural(_ n: Int, _ noun: String) -> String {
+        "\(n) \(noun)\(n == 1 ? "" : "s")"
     }
 }
