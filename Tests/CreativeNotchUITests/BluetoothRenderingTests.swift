@@ -177,7 +177,7 @@ struct BluetoothRenderingTests {
             switchboard: delegate.switchboard, state: delegate.state,
             launchAtLogin: delegate.launchAtLogin, presenter: { _ in }
         )
-        let size = CGSize(width: 520, height: 1500)
+        let size = CGSize(width: 520, height: 2400)
         let host = NSHostingView(rootView: PreferencesView(controller: controller).frame(width: size.width, height: size.height))
         let window = NSWindow(contentRect: CGRect(origin: .zero, size: size), styleMask: [.borderless], backing: .buffered, defer: false)
         window.appearance = NSAppearance(named: .darkAqua)
@@ -192,7 +192,9 @@ struct BluetoothRenderingTests {
         let full = try #require(rep.cgImage)
 
         // Crop to the "In the notch" section, found by its rows' position.
-        let crop = try #require(cropRect(full, pointsHigh: size.height))
+        // The denied row adds a warning and a button, so its crop runs longer
+        // to keep the section's footer whole.
+        let crop = try #require(cropRect(full, pointsHigh: size.height, extra: denied ? 95 : 0))
         let cropped = try #require(full.cropping(to: crop))
         try write(cropped, to: name)
         delegate.activity.stop()
@@ -201,12 +203,12 @@ struct BluetoothRenderingTests {
     /// Where the crop starts and ends: the "In the notch" section of the
     /// form at 520pt wide, measured from a full render. Overridable with
     /// `CREATIVENOTCH_RENDER_CROP=y,height` (points) if the form moves.
-    private static func cropRect(_ image: CGImage, pointsHigh: CGFloat) -> CGRect? {
+    private static func cropRect(_ image: CGImage, pointsHigh: CGFloat, extra: CGFloat = 0) -> CGRect? {
         let scale = CGFloat(image.height) / pointsHigh
-        let spec = ProcessInfo.processInfo.environment["CREATIVENOTCH_RENDER_CROP"] ?? "605,600"
+        let spec = ProcessInfo.processInfo.environment["CREATIVENOTCH_RENDER_CROP"] ?? "1050,860"
         let parts = spec.split(separator: ",").compactMap { Double($0) }
         guard parts.count == 2 else { return nil }
-        return CGRect(x: 0, y: CGFloat(parts[0]) * scale, width: CGFloat(image.width), height: CGFloat(parts[1]) * scale)
+        return CGRect(x: 0, y: CGFloat(parts[0]) * scale, width: CGFloat(image.width), height: (CGFloat(parts[1]) + extra) * scale)
     }
 
     private static func write(_ image: CGImage, to name: String) throws {
