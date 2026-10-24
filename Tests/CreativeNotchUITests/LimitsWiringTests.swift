@@ -98,7 +98,7 @@ struct LimitsWiringTests {
     /// sandboxed Trash, so the ten evicted files never reach the real one.
     @Test func loweringTheShelfCapacityEvictsAtOnceWhenConfirmed() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 20)
         let c = controller(d)
@@ -121,7 +121,7 @@ struct LimitsWiringTests {
     /// moves, nothing is saved, and Settings is handed what to ask.
     @Test func aRemovingChangeIsHeldUntilConfirmed() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 20)
         let before = shelf.items
@@ -146,7 +146,7 @@ struct LimitsWiringTests {
     /// the value it was.
     @Test func cancelLeavesTheStoreAndThePreferenceUntouched() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 20)
         let before = shelf.items
@@ -170,7 +170,7 @@ struct LimitsWiringTests {
     /// one-day limit is asked about first.
     @Test func shorteningTheExpiryPastAFileIsHeld() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         let old = try shelf.add(.text("two days old"), now: Date().addingTimeInterval(-2 * 24 * 3600))
         let c = controller(d)
@@ -194,7 +194,7 @@ struct LimitsWiringTests {
     /// a click everyone learns to make without reading.
     @Test func aNonRemovingChangeAppliesDirectly() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 3)
         let c = controller(d)
@@ -215,7 +215,7 @@ struct LimitsWiringTests {
     /// dismissing it (Escape, a click outside) is a Cancel, never a confirm.
     @Test func dismissingTheDialogCancels() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 20)
         let c = controller(d)
@@ -236,7 +236,7 @@ struct LimitsWiringTests {
     /// dismissed it — and so dropped the hold — before the button's action.
     @Test func confirmingAfterTheDismissalStillApplies() throws {
         let trash = SandboxTrash()
-        let d = NotchedDelegate.make(shelfFileManager: trash)
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
         try fill(shelf, count: 20)
         let c = controller(d)

@@ -107,6 +107,56 @@ struct ShelfLimitPreviewTests {
         #expect(removed.message.contains("1 linked item also leaves the shelf"))
     }
 
+    // MARK: - Copies still in flight
+
+    /// A pending item counts toward the capacity, as eviction counts it, so
+    /// the oldest *ready* item is the one named -- never the pending one,
+    /// which eviction passes by.
+    @Test func aPendingItemCountsTowardTheCapacityButIsNeverNamed() {
+        var listed = items(agedDays: [0, 1, 2])
+        let old = listed[2]
+        listed[2] = ShelfItem(id: old.id, url: old.url, displayName: old.displayName,
+                              addedAt: old.addedAt, isPending: true)
+        let removed = ShelfStore.removals(from: listed, capacity: 2, maxAge: nil, now: t0)
+        #expect(removed.items.map(\.id) == [listed[1].id])
+    }
+
+    /// The purge never expires a pending item, so neither does the preview.
+    @Test func aPendingItemIsNeverExpired() {
+        let listed = items(agedDays: [9]).map {
+            ShelfItem(id: $0.id, url: $0.url, displayName: $0.displayName,
+                      addedAt: $0.addedAt, isPending: true)
+        }
+        #expect(ShelfStore.removals(from: listed, capacity: 50, maxAge: day, now: t0).isEmpty)
+    }
+
+    /// With a copy in flight, the preview still names exactly what
+    /// `setLimits` then trashes.
+    @Test func thePreviewMatchesSetLimitsWhileACopyIsInFlight() async throws {
+        let trash = SandboxTrash()
+        let gate = GatedCopier()
+        let store = try trash.store(copier: gate.copier)
+        for i in 0..<4 { try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i))) }
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent("preview-src-\(UUID().uuidString).txt")
+        try "x".write(to: source, atomically: true, encoding: .utf8)
+        defer { try? FileManager.default.removeItem(at: source) }
+        let pending = try store.add(.file(source), now: t0.addingTimeInterval(10))
+        let now = t0.addingTimeInterval(20)
+
+        let removed = store.previewLimits(capacity: 3, maxAge: nil, now: now)
+        let before = Set(store.items.map(\.id))
+        store.setLimits(capacity: 3, maxAge: nil, now: now)
+        let gone = before.subtracting(store.items.map(\.id))
+
+        #expect(!removed.items.contains { $0.id == pending.id })
+        #expect(Set(removed.items.map(\.id)) == gone)
+        #expect(trash.trashed.count == removed.trashedCount)
+
+        gate.finish(source)
+        await store.waitForPendingCopies()
+    }
+
     // MARK: - On the store
 
     /// **Asking changes nothing.** The whole point of the preview is that
@@ -164,41 +214,51 @@ struct ShelfLimitPreviewTests {
     }
 }
 
-/// A `FileManager` whose Trash is a temporary directory.
+/// A Trash that is a temporary directory and counts what reaches it.
 ///
-/// `trashItem` is the one call that would reach the user's real `~/.Trash`;
-/// here it moves into a directory the test owns, and can be told to refuse a
-/// file to stand in for one that is locked.
-final class SandboxTrash: FileManager, @unchecked Sendable {
+/// Handed to the store as `shelf`, the `ShelfTrash` every eviction and purge
+/// goes through, so nothing reaches the user's real `~/.Trash`; it can be
+/// told to refuse a file to stand in for one that is locked.
+final class SandboxTrash: @unchecked Sendable {
     let root: URL
     private let bin: URL
     private(set) var trashed: [URL] = []
     private var refused: Set<String> = []
 
-    override init() {
+    init() {
         root = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchSandboxTrash-\(UUID().uuidString)")
         bin = root.appendingPathComponent("Trash")
-        super.init()
-        try? createDirectory(at: bin, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: bin, withIntermediateDirectories: true)
     }
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
+    /// The store-facing Trash. Holds this sandbox for as long as the store
+    /// that uses it lives.
+    var shelf: ShelfTrash {
+        ShelfTrash { url in try self.move(url) }
+    }
+
     @MainActor
-    func store(capacity: Int = ShelfStore.defaultCapacity) throws -> ShelfStore {
-        try ShelfStore(directory: root.appendingPathComponent("Shelf"), fileManager: self, capacity: capacity)
+    func store(capacity: Int = ShelfStore.defaultCapacity, copier: ShelfCopier = .system) throws -> ShelfStore {
+        try ShelfStore(
+            directory: root.appendingPathComponent("Shelf"),
+            capacity: capacity,
+            copier: copier,
+            trash: shelf
+        )
     }
 
     func refuse(_ url: URL) { refused.insert(url.standardizedFileURL.path) }
 
-    override func trashItem(at url: URL, resultingItemURL outResultingURL: AutoreleasingUnsafeMutablePointer<NSURL?>?) throws {
+    private func move(_ url: URL) throws -> URL {
         guard !refused.contains(url.standardizedFileURL.path) else {
             throw CocoaError(.fileWriteNoPermission)
         }
         let destination = bin.appendingPathComponent("\(UUID().uuidString)-\(url.lastPathComponent)")
-        try moveItem(at: url, to: destination)
+        try FileManager.default.moveItem(at: url, to: destination)
         trashed.append(destination)
-        outResultingURL?.pointee = destination as NSURL
+        return destination
     }
 }

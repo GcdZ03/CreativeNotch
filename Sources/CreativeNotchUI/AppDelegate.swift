@@ -208,12 +208,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("CreativeNotch/Shelf")
 
-    /// The `FileManager` the shelf moves files to the Trash with.
-    /// Overridable for the reason `shelfDirectory` is: a test that lowers a
-    /// limit hands in one whose Trash is a temporary directory, so evicted
-    /// files never reach the user's real one.
-    var shelfFileManager: FileManager = .default
-
     private(set) var shelf: ShelfStore?
 
     /// How the shelf copies a dropped file. Overridable, like
@@ -805,7 +799,6 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         shelf = try? ShelfStore(
             directory: shelfDirectory,
-            fileManager: shelfFileManager,
             capacity: limits.shelfCapacity,
             maxAge: limits.shelfExpiry.maxAge,
             copier: shelfCopier,

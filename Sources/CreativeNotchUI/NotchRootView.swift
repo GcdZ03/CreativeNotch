@@ -1143,7 +1143,7 @@ public struct NotchRootView: View {
                         // row, which is for verbs; gone again on its own.
                         if let notice = app.shelfNotice {
                             Text(notice)
-                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .notchFont(11, weight: .medium, design: .rounded)
                                 .foregroundStyle(.ink(0.6))
                                 .lineLimit(1)
                                 .truncationMode(.middle)

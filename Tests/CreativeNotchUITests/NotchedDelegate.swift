@@ -51,14 +51,13 @@ enum NotchedDelegate {
     /// region from `visibleRect()` directly — that is how a test reaches
     /// the badged state without a scheduler running.
     ///
-    /// `shelfFileManager` defaults to the real one, as before; a suite that
-    /// makes the shelf trash something hands in a `SandboxTrash` so nothing
+    /// `shelfTrash` defaults to the shared `TestTrash`; a suite that counts
+    /// what the shelf trashes hands in a `SandboxTrash`'s. Either way nothing
     /// reaches the user's real Trash.
     @MainActor
-    static func make(countdown: Countdown? = nil, shelfFileManager: FileManager = .default) -> AppDelegate {
+    static func make(countdown: Countdown? = nil, shelfTrash: ShelfTrash = TestTrash.shelf) -> AppDelegate {
         let delegate = AppDelegate()
-        delegate.shelfTrash = TestTrash.shelf
-        delegate.shelfFileManager = shelfFileManager
+        delegate.shelfTrash = shelfTrash
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory

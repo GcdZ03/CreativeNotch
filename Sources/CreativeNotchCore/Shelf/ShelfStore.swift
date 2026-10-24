@@ -516,6 +516,12 @@ public final class ShelfStore {
     /// past the expiry simply stays. The preview cannot know which files are
     /// stuck without trying to move them, which is the side effect it exists
     /// to avoid. Items are judged by list order and drop time alone.
+    ///
+    /// **Pending items are judged as eviction judges them**: they count
+    /// toward the capacity, so a copy in flight still pushes the oldest
+    /// ready item out, but are never named themselves -- eviction passes
+    /// them by and the purge never expires one -- so a confirmation never
+    /// counts a file that does not exist yet.
     public nonisolated static func removals(
         from items: [ShelfItem],
         capacity: Int,
@@ -523,12 +529,20 @@ public final class ShelfStore {
         now: Date
     ) -> ShelfLimitRemoval {
         let capacity = max(1, capacity)
-        let removed = items.enumerated().filter { index, item in
-            let evicted = index >= capacity
-            let expired = maxAge.map { now.timeIntervalSince(item.addedAt) > $0 } ?? false
-            return evicted || expired
+        // As `evictBeyondCapacity` walks it: oldest first, every item
+        // counted, only ready ones taken, until the list fits.
+        var excess = max(0, items.count - capacity)
+        var evicted: Set<UUID> = []
+        for item in items.reversed() where excess > 0 && !item.isPending {
+            evicted.insert(item.id)
+            excess -= 1
         }
-        return ShelfLimitRemoval(items: removed.map(\.element))
+        let removed = items.filter { item in
+            guard !item.isPending else { return false }
+            let expired = maxAge.map { now.timeIntervalSince(item.addedAt) > $0 } ?? false
+            return evicted.contains(item.id) || expired
+        }
+        return ShelfLimitRemoval(items: removed)
     }
 
     /// Drops items whose file no longer exists, returning what went.

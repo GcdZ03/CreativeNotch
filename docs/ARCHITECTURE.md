@@ -580,7 +580,9 @@ very large age. Settings asks first: `previewLimits` (over the pure
 `ShelfStore.removals`) names what `setLimits` would take without touching the
 disk, assuming every file will go — a stuck file cannot be known without
 trying to move it, and eviction skipping it for the next oldest keeps the
-count right anyway.
+count right anyway. A file still copying is judged as eviction judges it: it
+counts toward the capacity but is never named, so the confirmation never
+counts a file that does not exist yet.
 
 **Clear can be undone for six seconds.** `clear()` returns a
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
