@@ -341,6 +341,16 @@ orders out; leaving puts it back. Only that display counts, and anything
 unreadable leaves the notch showing. It runs only when the fixed Space
 exists, since without it the omission above already does the job.
 
+**Which display.** "Show on" (`DisplayChoice`, Core) picks the screen from a
+list of `ScreenDescriptor`s — id, `CGDisplayIsBuiltin`, whether it is
+`NSScreen.main` — read fresh each time it is asked. Following the focused
+window (the default) asks on launch, on every `didActivateApplication` and on
+every `didChangeScreenParameters`; pinned to the built-in display it asks on
+everything but activation, falling back to the main screen when there is no
+built-in one (clamshell). Changing the setting repositions at once. All of it
+rides the two observers that already existed. Moving to another display goes
+through `reposition`, which re-checks full screen there.
+
 ## Motion and input
 
 Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
