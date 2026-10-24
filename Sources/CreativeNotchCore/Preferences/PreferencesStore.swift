@@ -59,6 +59,15 @@ public final class PreferencesStore {
         defaults.set(size.rawValue, forKey: PreferenceKeys.textSize)
     }
 
+    /// How a picked colour is copied. Read on every call, never cached.
+    public var colorFormat: ColorFormat {
+        PreferenceKeys.resolveColorFormat(defaults.object(forKey: PreferenceKeys.colorFormat))
+    }
+
+    public func setColorFormat(_ format: ColorFormat) {
+        defaults.set(format.rawValue, forKey: PreferenceKeys.colorFormat)
+    }
+
     /// Whether a timer finishing behind a full-screen app posts a
     /// notification. Absent means on. Read on every call, never cached.
     public var timerNotifyWhenHidden: Bool {

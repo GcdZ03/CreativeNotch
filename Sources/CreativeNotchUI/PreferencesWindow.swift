@@ -141,6 +141,14 @@ final class PreferencesController {
         state.onSetTextSize?(size)
     }
 
+    /// Copy as (2026-10-24). Written through `AppState`'s verb, which saves
+    /// and applies together, and read back from what applied.
+    var colorFormat: ColorFormat { state.colorFormat }
+
+    func setColorFormat(_ format: ColorFormat) {
+        state.onSetColorFormat?(format)
+    }
+
     /// The "Show on" menu: the general choices, each connected external
     /// display, and a pinned display that is unplugged
     /// (`DisplayChoice.options`). Derived from `AppState`'s observable
@@ -409,7 +417,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -477,6 +485,13 @@ struct PreferencesView: View {
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
             title: "Battery and power",
             detail: "Level, charging state and Low Power Mode. Costs almost nothing either way."
+        ),
+        PreferencesRow(
+            module: .colorPicker, section: .notch, symbolName: "eyedropper", tint: .teal,
+            title: "Colour picker",
+            // On by default, and the detail says why: no permission, and
+            // nothing runs until the dropper is clicked.
+            detail: "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper."
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -625,6 +640,11 @@ struct PreferencesView: View {
                     recorder: controller.recorder(for: hotKey)
                 )
                 .padding(.leading, 36)
+            }
+
+            if row.module == .colorPicker, controller.isEnabled(.colorPicker) {
+                ColorFormatRow(controller: controller)
+                    .padding(.leading, 36)
             }
 
             if Self.hasLimits(row.module), controller.isEnabled(row.module) {
@@ -895,6 +915,44 @@ struct TextSizeRow: View {
                     )
             }
         }
+    }
+}
+
+/// "Copy as" under the colour picker's switch (2026-10-24): which text a
+/// picked colour becomes on the pasteboard.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives. Each choice shows a sample of itself, so the menu
+/// answers "what will I get" without a trip to the panel.
+struct ColorFormatRow: View {
+    let controller: PreferencesController
+
+    /// The menu's wording: the name, then what the format looks like. Here
+    /// rather than on the Core enum, which knows nothing of how it is worded.
+    static func title(for format: ColorFormat) -> String {
+        let name: String
+        switch format {
+        case .hex:     name = "Hex"
+        case .rgb:     name = "RGB"
+        case .hsl:     name = "HSL"
+        case .swiftUI: name = "SwiftUI"
+        }
+        return "\(name) \u{2014} \(format.string(for: sample))"
+    }
+
+    /// The colour every sample is printed in.
+    static let sample = SampledColor(red8: 58, green8: 123, blue8: 213)
+
+    var body: some View {
+        Picker("Copy as", selection: Binding(
+            get: { controller.colorFormat },
+            set: { controller.setColorFormat($0) }
+        )) {
+            ForEach(ColorFormat.allCases, id: \.self) { format in
+                Text(Self.title(for: format)).tag(format)
+            }
+        }
+        .pickerStyle(.menu)
     }
 }
 

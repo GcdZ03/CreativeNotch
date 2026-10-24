@@ -285,6 +285,42 @@ public final class AppState {
     /// written down, like the history it searches.
     public var clipboardQuery: String = ""
 
+    /// The colour picker's last few picks, newest first (2026-10-24), for the
+    /// strip's swatches and the dropper's menu. Published by
+    /// `ColorPickerController` through `AppDelegate`; empty while the module
+    /// is off. Observable: a pick changes it while the panel is on screen.
+    public internal(set) var recentColors: [SampledColor] = []
+
+    /// The colour just copied, which puts the result strip over the body --
+    /// or `nil`, which takes it away. Set by a pick or a swatch; cleared by
+    /// the strip's close button and whenever the panel leaves `.open`, so the
+    /// result belongs to the opening it was shown in. Nothing times it out.
+    public internal(set) var pickedColor: SampledColor?
+
+    /// How a pick is copied: "Copy as" in Settings. Applied by
+    /// `onSetColorFormat`; the strip prints the value in it.
+    public internal(set) var colorFormat: ColorFormat = .default
+
+    /// The header's dropper: closes the panel, shows the system loupe, and
+    /// brings the panel back with the result. A verb, like the pane's, so the
+    /// view never holds a sampler. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onPickColor: (() -> Void)?
+
+    /// A swatch's click: copies that colour again in the current format.
+    @ObservationIgnored
+    public var onCopyColor: ((SampledColor) -> Void)?
+
+    /// Saves and applies a new copy format in one call, for the reason
+    /// `onSetTextSize` does both. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetColorFormat: ((ColorFormat) -> Void)?
+
+    /// The strip's close button. The history stays; only the strip goes.
+    public func dismissColorStrip() {
+        pickedColor = nil
+    }
+
     /// The header's gear. Closes the panel, then opens Settings — Settings
     /// is an activating window, and the panel should not sit open under it.
     @ObservationIgnored
@@ -1091,7 +1127,8 @@ public struct NotchRootView: View {
                             hasBattery: app.hasBattery,
                             power: app.power,
                             onSelect: { app.transition(to: .open($0)) },
-                            onSettings: { app.onOpenSettings?() }
+                            onSettings: { app.onOpenSettings?() },
+                            colorPicker: Self.colorPickerHeader(for: app)
                         )
                         // The first-run card stacks over the body, under the
                         // live header (`WelcomeCardView`). A `ZStack` rather
@@ -1115,6 +1152,22 @@ public struct NotchRootView: View {
                                 openContent(for: tab, at: now)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
+                            // A pick's result, over the bottom of the body
+                            // (`ColorStripView`). Under the welcome card, which
+                            // is the one thing that should cover it.
+                            if let picked = app.pickedColor {
+                                ColorStripView(
+                                    picked: picked,
+                                    recent: app.recentColors,
+                                    format: app.colorFormat,
+                                    onCopy: { app.onCopyColor?($0) },
+                                    onDismiss: { app.dismissColorStrip() }
+                                )
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 10)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                .transition(NotchMotion.content(reduceMotion: reduceMotion))
+                            }
                             // Read from `showsWelcome`, the one question the
                             // tests ask too.
                             if app.showsWelcome {
@@ -1131,6 +1184,12 @@ public struct NotchRootView: View {
                         .animation(
                             NotchMotion.animation(growing: false, reduceMotion: reduceMotion),
                             value: app.welcomeSeen
+                        )
+                        // The strip arrives with the panel's own grow spring
+                        // and leaves with the snappy one, a one-shot per pick.
+                        .animation(
+                            NotchMotion.animation(growing: app.pickedColor != nil, reduceMotion: reduceMotion),
+                            value: app.pickedColor
                         )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
@@ -1355,6 +1414,19 @@ public struct NotchRootView: View {
                 PowerView(snapshot: app.power)
             }
         }
+    }
+
+    /// The header's dropper, or `nil` while the colour picker is switched
+    /// off. Static so a test can read what the header is handed without
+    /// rendering it, like `timerPresets`.
+    static func colorPickerHeader(for app: AppState) -> ColorPickerHeaderModel? {
+        guard app.preferences.colorPicker else { return nil }
+        return ColorPickerHeaderModel(
+            recent: app.recentColors,
+            format: app.colorFormat,
+            onPick: { app.onPickColor?() },
+            onCopy: { app.onCopyColor?($0) }
+        )
     }
 
     /// The countdowns the timer tab lists: `AppState.timers`, or — when only
