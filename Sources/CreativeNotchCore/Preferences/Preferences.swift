@@ -21,6 +21,7 @@ public struct Preferences: Equatable, Sendable {
     public var camera: Bool
     public var captureIndicator: Bool
     public var calendar: Bool
+    public var colorPicker: Bool
 
     public init(
         shelf: Bool = true,
@@ -32,7 +33,8 @@ public struct Preferences: Equatable, Sendable {
         hotkey: Bool = true,
         camera: Bool = true,
         captureIndicator: Bool = true,
-        calendar: Bool = false
+        calendar: Bool = false,
+        colorPicker: Bool = true
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -44,6 +46,7 @@ public struct Preferences: Equatable, Sendable {
         self.camera = camera
         self.captureIndicator = captureIndicator
         self.calendar = calendar
+        self.colorPicker = colorPicker
     }
 
     /// The shipped state, and what a domain with no keys in it resolves to:
@@ -68,6 +71,7 @@ public struct Preferences: Equatable, Sendable {
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
             case .calendar:      return calendar
+            case .colorPicker:   return colorPicker
             }
         }
         set {
@@ -82,6 +86,7 @@ public struct Preferences: Equatable, Sendable {
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
             case .calendar:      calendar = newValue
+            case .colorPicker:   colorPicker = newValue
             }
         }
     }

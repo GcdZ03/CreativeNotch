@@ -1,52 +1,106 @@
 import SwiftUI
 import CreativeNotchCore
 
-/// The open panel's top band: tabs in the leading ear, battery and the gear
-/// in the trailing ear, and the camera housing black between them (spec §5.1).
-/// The calendar's tab, when it is switched on, sits in the trailing ear before
-/// the battery, because the leading ear has no room for a sixth icon
-/// (`TabVisibility.leadingEar`).
+/// The open panel's top band: tabs in one ear, battery and the gear in the
+/// other, and the camera housing black between them (spec §5.1).
 ///
 /// Widths come from `PanelLayout`, the same function that gives the peeks
 /// their `notchGap`; this view draws three columns and decides nothing. On a
 /// pill Mac the gap is zero and the two ears are each half the width, so the
 /// header reads as one row.
+///
+/// Which ear holds the tabs is `PanelLayout.tabsSide` ("Tabs" in Settings,
+/// 2026-10-24): the left by default, as it always was. Swapping moves the two
+/// groups and nothing else -- each still sits against the panel's outer edge,
+/// so the tabs never crowd the housing from its other side.
 struct PanelHeader: View {
     let layout: PanelLayout
     let selected: CreativeNotchCore.Tab
     let enabled: Preferences
     let hasBattery: Bool
     let power: PowerSnapshot?
+    /// "Battery in the header" (2026-10-24). The cell only: the Battery tab
+    /// and the peeks are the power module's switch's business.
+    var showsBattery: Bool = true
     let onSelect: (CreativeNotchCore.Tab) -> Void
     let onSettings: () -> Void
+    /// The colour picker's dropper, or `nil` while the module is off.
+    var colorPicker: ColorPickerHeaderModel? = nil
 
     var body: some View {
         HStack(spacing: 0) {
-            PanelTabBar(selected: selected, enabled: enabled, hasBattery: hasBattery, onSelect: onSelect)
-                .padding(.leading, 12)
+            ear(layout.tabsSide == .left ? .tabs : .status, inset: .leading)
                 .frame(width: layout.leadingEarWidth, alignment: .leading)
 
             // The camera housing. Nothing is drawn here on purpose.
             Color.clear.frame(width: layout.notchGap)
 
-            HStack(spacing: 10) {
-                ForEach(TabVisibility.trailingEar(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
-                    PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
-                }
-                if hasBattery, let power {
-                    BatteryCell(level: power.level, isCharging: power.isCharging)
-                }
-                Button(action: onSettings) {
-                    Image(systemName: "gearshape")
-                }
-                .buttonStyle(NotchIconButtonStyle())
-                .help("Settings")
-                .accessibilityLabel("Settings")
-            }
-            .padding(.trailing, 12)
-            .frame(width: layout.trailingEarWidth, alignment: .trailing)
+            ear(layout.tabsSide == .left ? .status : .tabs, inset: .trailing)
+                .frame(width: layout.trailingEarWidth, alignment: .trailing)
         }
         .frame(height: layout.headerHeight)
+    }
+
+    private enum EarContent { case tabs, status }
+
+    /// First, nearest the housing: a verb like the gear, kept apart from it
+    /// by the battery so neither is hit for the other.
+    @ViewBuilder private var dropper: some View {
+        if let colorPicker {
+            ColorPickerButton(model: colorPicker)
+        }
+    }
+
+    /// The tabs drawn with the status items rather than in the bar
+    /// (`TabVisibility.trailingEar`): the calendar.
+    @ViewBuilder private var statusTabs: some View {
+        ForEach(TabVisibility.trailingEar(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
+            PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
+        }
+    }
+
+    @ViewBuilder private var battery: some View {
+        if showsBattery, hasBattery, let power {
+            BatteryCell(level: power.level, isCharging: power.isCharging)
+        }
+    }
+
+    private var settingsButton: some View {
+        Button(action: onSettings) {
+            Image(systemName: "gearshape")
+        }
+        .buttonStyle(NotchIconButtonStyle())
+        .help("Settings")
+        .accessibilityLabel("Settings")
+    }
+
+    /// One ear's contents, inset from the panel's outer edge.
+    @ViewBuilder
+    private func ear(_ content: EarContent, inset edge: Edge.Set) -> some View {
+        switch content {
+        case .tabs:
+            PanelTabBar(selected: selected, enabled: enabled, hasBattery: hasBattery, onSelect: onSelect)
+                .padding(edge, PanelLayout.earInset)
+        case .status:
+            // Mirrored with the ear (2026-10-24): the dropper stays nearest
+            // the housing and the gear at the panel's outer edge, whichever
+            // side the tabs leave free, so moving the tabs moves the status
+            // ear as a whole rather than reversing it.
+            HStack(spacing: PanelLayout.statusSpacing) {
+                if edge == .leading {
+                    settingsButton
+                    battery
+                    dropper
+                    statusTabs
+                } else {
+                    statusTabs
+                    dropper
+                    battery
+                    settingsButton
+                }
+            }
+            .padding(edge, PanelLayout.earInset)
+        }
     }
 }
 
@@ -56,7 +110,8 @@ struct PanelHeader: View {
 /// The fill's colour is not the only signal: the glyph Core picks (a bolt
 /// while charging, and under Differentiate Without Color a mark when low)
 /// sits beside the level, where at 9pt it is legible. Inside a 22×11 cell
-/// it would not be.
+/// it would not be. VoiceOver hears the tone as a word, "low" or
+/// "charging", after the level (`PowerGaugeTone.spokenLabel`).
 struct BatteryCell: View {
     let level: Int
     let isCharging: Bool
@@ -102,7 +157,8 @@ struct BatteryCell: View {
                 .foregroundStyle(.ink(0.7))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Battery \(level) percent\(isCharging ? ", charging" : "")")
+        // The tone in words as well as colour: "…, low" or "…, charging".
+        .accessibilityLabel(PowerGaugeTone.spokenLabel(level: level, isCharging: isCharging))
     }
 
     private var tone: Color {

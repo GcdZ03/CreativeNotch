@@ -227,4 +227,96 @@ struct TimerControllerTests {
 
         #expect(finished.count == 1)
     }
+
+    // MARK: - Several at once
+
+    /// Starting with one running adds a second rather than replacing it.
+    @Test func startingWhileOneRunsAddsASecond() {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        c.start(duration: 1500)
+        c.start(duration: 300)
+        #expect(c.timers.all.map(\.countdown.duration) == [1500, 300])
+        // The ear's countdown is the soonest, not the newest or the first.
+        #expect(c.countdown?.duration == 300)
+    }
+
+    @Test func startingBeyondTheCapIsRefused() {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        for _ in 0..<(TimerSet.capacity + 2) { c.start(duration: 600) }
+        #expect(c.timers.all.count == TimerSet.capacity)
+    }
+
+    /// Still one outstanding wake for the whole set, aimed at the earliest
+    /// member's next display change.
+    @Test func severalTimersShareOneWake() throws {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        c.start(duration: 1500)
+        let first = try #require(c.pending)
+        c.start(duration: 30)
+        #expect(first.isCancelled)
+        #expect(c.scheduledWake == 1)
+    }
+
+    @Test func pauseResumeAndCancelActOnOneTimer() throws {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        c.start(duration: 600)
+        c.start(duration: 300)
+        let ids = c.timers.all.map(\.id)
+
+        c.pause(id: ids[1])
+        #expect(c.timers.timer(ids[1])?.countdown.isPaused == true)
+        #expect(c.timers.timer(ids[0])?.countdown.isPaused == false)
+        // The ear moves to the one still running.
+        #expect(c.countdown?.duration == 600)
+
+        clock.now = clock.now.addingTimeInterval(1000)
+        c.resume(id: ids[1])
+        #expect(c.timers.timer(ids[1])?.countdown.remaining(at: clock.now) == 300)
+
+        c.cancel(id: ids[0])
+        #expect(c.timers.all.map(\.id) == [ids[1]])
+    }
+
+    /// Each countdown gets its own completion, and the others carry on.
+    @Test func eachTimerFinishesOnItsOwn() {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        var finished: [TimeInterval] = []
+        c.onFinished = { finished.append($0.duration) }
+        c.start(duration: 600)
+        c.start(duration: 60)
+        c.start(duration: 120)
+
+        clock.now = clock.now.addingTimeInterval(61)
+        c.setActive(false)
+        #expect(finished == [60])
+        #expect(c.timers.all.count == 2)
+        #expect(c.scheduledWake == 59)
+
+        clock.now = clock.now.addingTimeInterval(1000)
+        c.setActive(true)
+        #expect(finished == [60, 120, 600])
+        #expect(c.countdown == nil)
+        #expect(c.scheduledWake == nil)
+    }
+
+    /// The no-argument verbs are the switchboard's and act on the whole set:
+    /// quitting cancels every countdown, not just the soonest.
+    @Test func theBareVerbsActOnEveryTimer() {
+        let clock = Clock()
+        let c = TimerController(now: { clock.now })
+        c.start(duration: 600)
+        c.start(duration: 300)
+        c.pause()
+        #expect(c.timers.all.allSatisfy { $0.countdown.isPaused })
+        #expect(c.scheduledWake == nil)
+        c.resume()
+        #expect(c.timers.all.allSatisfy { !$0.countdown.isPaused })
+        c.cancel()
+        #expect(c.timers.isEmpty)
+    }
 }

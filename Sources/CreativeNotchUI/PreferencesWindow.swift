@@ -104,6 +104,10 @@ final class PreferencesController {
         // The calendar's grants, for the same reason: a refusal changed in
         // System Settings since the last look must show in the row's warning.
         state.onRefreshCalendarAccess?()
+        // Likewise for notification permission: switched off in System
+        // Settings since the last show, the line under the timer's switch
+        // has to say so.
+        state.onRefreshTimerNotices?()
         presenter(self)
     }
 
@@ -138,6 +142,23 @@ final class PreferencesController {
 
     func setTextSize(_ size: TextSize) {
         state.onSetTextSize?(size)
+    }
+
+    /// Layout (2026-10-24). Written through `AppState`'s verb, which saves,
+    /// applies and re-places the panel together, and read back from what
+    /// applied -- the whole value each time, like `limits`.
+    var layoutOptions: LayoutOptions { state.layoutOptions }
+
+    func setLayoutOptions(_ options: LayoutOptions) {
+        state.onSetLayoutOptions?(options)
+    }
+
+    /// Copy as (2026-10-24). Written through `AppState`'s verb, which saves
+    /// and applies together, and read back from what applied.
+    var colorFormat: ColorFormat { state.colorFormat }
+
+    func setColorFormat(_ format: ColorFormat) {
+        state.onSetColorFormat?(format)
     }
 
     /// The "Show on" menu: the general choices, each connected external
@@ -226,6 +247,46 @@ final class PreferencesController {
     /// the hold is the whole of it.
     func cancelLimits() {
         pendingLimits.change = nil
+    }
+
+    /// "Notify when hidden by a full-screen app" (2026-10-24), through
+    /// `AppState`'s verb like the hover behaviour.
+    var timerNotifyWhenHidden: Bool { state.timerNotifyWhenHidden }
+
+    func setTimerNotifyWhenHidden(_ enabled: Bool) {
+        state.onSetTimerNotifyWhenHidden?(enabled)
+    }
+
+    /// The line under that switch -- why it may do nothing -- or `nil`.
+    var timerNoticeNote: String? {
+        TimerDoneNotice.settingsNote(for: state.timerNoticeAuthorization, enabled: state.timerNotifyWhenHidden)
+    }
+
+    /// Whether macOS has refused notifications, which is when the row offers
+    /// a way to System Settings.
+    var timerNoticesDenied: Bool {
+        state.timerNotifyWhenHidden && state.timerNoticeAuthorization == .denied
+    }
+
+    /// Clipboard history's excluded apps (2026-10-24), as bundle identifiers.
+    var clipboardExcludedApps: [String] { state.clipboardExcludedApps }
+
+    /// What "+" asks for: the apps chosen in an open panel, or none when it
+    /// is cancelled. A seam so no test opens a real `NSOpenPanel`.
+    var chooseApps: () -> [String] = { ExcludedApp.chooseWithOpenPanel() }
+
+    /// "+": appends what was chosen, skipping anything already listed.
+    func addExcludedApps() {
+        let chosen = chooseApps()
+        guard !chosen.isEmpty else { return }
+        let updated = ClipboardExclusions.adding(chosen, to: state.clipboardExcludedApps)
+        guard updated != state.clipboardExcludedApps else { return }
+        state.onSetClipboardExcludedApps?(updated)
+    }
+
+    /// "−" on one row.
+    func removeExcludedApp(_ bundleID: String) {
+        state.onSetClipboardExcludedApps?(ClipboardExclusions.removing(bundleID, from: state.clipboardExcludedApps))
     }
 
     /// The hotkey controller, for the recorder row. Reached through the
@@ -317,16 +378,45 @@ final class PendingLimits {
 /// again, but Settings reopened on it some other way — still scrolls. The
 /// view clears `section` once the tint has faded; nothing here runs on its
 /// own.
+///
+/// **The scroll waits for the form's first layout.** On the very first open
+/// the request arrives before the window's form has laid out, and a
+/// `scrollTo` issued then has no rows to scroll between — the window landed
+/// at the top, the Shortcut row tinted out of sight at the bottom. The view
+/// reports its first layout through `formDidLayOut()`, and `scrollKey`
+/// changes with it, so the view's one-shot runs again once there is
+/// something to scroll. The window is built once and reused, so after that
+/// first report every later ask scrolls straight away.
 @MainActor
 @Observable
 final class PreferencesHighlight {
     private(set) var section: PreferencesSection?
     private(set) var request = 0
+    private(set) var formLaidOut = false
 
     func ask(for section: PreferencesSection) {
         self.section = section
         request &+= 1
     }
+
+    /// Called by the view once its form has a size. Idempotent: a later
+    /// layout pass is not a new request and must not re-run the scroll.
+    func formDidLayOut() {
+        guard !formLaidOut else { return }
+        formLaidOut = true
+    }
+
+    /// The section to scroll to now — `nil` until the form can be scrolled.
+    var scrollTarget: PreferencesSection? { formLaidOut ? section : nil }
+
+    /// What the view's scroll task is keyed on: a new request, or the first
+    /// layout that makes a waiting request actionable.
+    struct ScrollKey: Hashable {
+        let request: Int
+        let formLaidOut: Bool
+    }
+
+    var scrollKey: ScrollKey { ScrollKey(request: request, formLaidOut: formLaidOut) }
 
     /// Clears the tint, unless a newer request arrived while it was showing.
     func fade(request finished: Int) {
@@ -355,7 +445,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -386,6 +476,12 @@ struct PreferencesRow: Identifiable {
 struct PreferencesView: View {
     let controller: PreferencesController
 
+    /// Which module rows to show; `nil`, the window's own value, shows the
+    /// whole form. A subset drops the app-wide sections and every module
+    /// outside it, so the feature renders (`SettingsFeatureRenders`) show the
+    /// real rows at a legible size instead of a 2,000-point-tall form.
+    var only: Set<ModuleID>? = nil
+
     /// The highlight's fade becomes a cut under Reduce Motion, like every
     /// spring in the panel.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -411,7 +507,7 @@ struct PreferencesView: View {
         PreferencesRow(
             module: .timer, section: .notch, symbolName: "timer", tint: .orange,
             title: "Timer",
-            detail: "A countdown, in the ear of the notch."
+            detail: "Up to three countdowns in the ear of the notch, and a stopwatch."
         ),
         PreferencesRow(
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
@@ -424,6 +520,13 @@ struct PreferencesView: View {
             // Required: the switch asks for two permissions, and the row says
             // so before it is pressed rather than after.
             detail: "Your next events and today's reminders, beside the battery. Asks for Calendars and Reminders access when you switch it on."
+        ),
+        PreferencesRow(
+            module: .colorPicker, section: .notch, symbolName: "eyedropper", tint: .teal,
+            title: "Colour picker",
+            // On by default, and the detail says why: no permission, and
+            // nothing runs until the dropper is clicked.
+            detail: "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper."
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -459,10 +562,12 @@ struct PreferencesView: View {
             form
                 // A one-shot per request, not a loop: scroll, wait out the
                 // tint, clear it. Keyed on the request so a second ask for
-                // the same section restarts it, and cancelled with the view.
-                .task(id: controller.highlight.request) {
+                // the same section restarts it, and on the form's first
+                // layout so an ask that arrived before it is acted on once
+                // there is something to scroll. Cancelled with the view.
+                .task(id: controller.highlight.scrollKey) {
                     let request = controller.highlight.request
-                    guard let section = controller.highlight.section else { return }
+                    guard let section = controller.highlight.scrollTarget else { return }
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
                         proxy.scrollTo(section, anchor: .center)
                     }
@@ -477,38 +582,13 @@ struct PreferencesView: View {
 
     private var form: some View {
         Form {
-            // First, and outside the `ForEach`: this is about the app rather
-            // than about a module, and `PreferencesSection`'s cases are module
-            // groups -- adding a case with no module rows would make the
-            // "every section has rows" test meaningless.
-            Section {
-                LaunchAtLoginRow(controller: controller.launchAtLogin)
-            } header: {
-                Text("Startup")
-            } footer: {
-                Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
-            }
+            if only == nil { appSections }
 
-            Section {
-                HoverRow(controller: controller)
-            } header: {
-                Text("Hover")
-            } footer: {
-                Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
-            }
-
-            Section {
-                DisplayRow(controller: controller)
-                TextSizeRow(controller: controller)
-            } header: {
-                Text("Display")
-            } footer: {
-                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
-            }
-
-            ForEach(PreferencesSection.allCases, id: \.self) { section in
+            ForEach(PreferencesSection.allCases.filter { section in
+                Self.rows.contains { $0.section == section && only?.contains($0.module) != false }
+            }, id: \.self) { section in
                 Section {
-                    ForEach(Self.rows.filter { $0.section == section }) { row in
+                    ForEach(Self.rows.filter { $0.section == section && only?.contains($0.module) != false }) { row in
                         moduleRow(row)
                     }
                 } header: {
@@ -522,6 +602,51 @@ struct PreferencesView: View {
             }
         }
         .formStyle(.grouped)
+        // Reported after layout, with the size layout produced: the moment
+        // a `scrollTo` has rows to land on. See `PreferencesHighlight`.
+        .onGeometryChange(for: Bool.self) { $0.size.height > 0 } action: { hasSize in
+            if hasSize { controller.highlight.formDidLayOut() }
+        }
+    }
+
+    @ViewBuilder
+    private var appSections: some View {
+        // First, and outside the `ForEach`: this is about the app rather
+        // than about a module, and `PreferencesSection`'s cases are module
+        // groups -- adding a case with no module rows would make the
+        // "every section has rows" test meaningless.
+        Section {
+            LaunchAtLoginRow(controller: controller.launchAtLogin)
+        } header: {
+            Text("Startup")
+        } footer: {
+            Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
+        }
+
+        Section {
+            HoverRow(controller: controller)
+        } header: {
+            Text("Hover")
+        } footer: {
+            Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
+        }
+
+        Section {
+            DisplayRow(controller: controller)
+            TextSizeRow(controller: controller)
+        } header: {
+            Text("Display")
+        } footer: {
+            Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
+        }
+
+        Section {
+            LayoutRows(controller: controller)
+        } header: {
+            Text("Layout")
+        } footer: {
+            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
+        }
     }
 
     @ViewBuilder
@@ -558,6 +683,11 @@ struct PreferencesView: View {
                     recorder: controller.recorder(for: hotKey)
                 )
                 .padding(.leading, 36)
+            }
+
+            if row.module == .colorPicker, controller.isEnabled(.colorPicker) {
+                ColorFormatRow(controller: controller)
+                    .padding(.leading, 36)
             }
 
             if Self.hasLimits(row.module), controller.isEnabled(row.module) {
@@ -838,6 +968,44 @@ struct TextSizeRow: View {
     }
 }
 
+/// "Copy as" under the colour picker's switch (2026-10-24): which text a
+/// picked colour becomes on the pasteboard.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives. Each choice shows a sample of itself, so the menu
+/// answers "what will I get" without a trip to the panel.
+struct ColorFormatRow: View {
+    let controller: PreferencesController
+
+    /// The menu's wording: the name, then what the format looks like. Here
+    /// rather than on the Core enum, which knows nothing of how it is worded.
+    static func title(for format: ColorFormat) -> String {
+        let name: String
+        switch format {
+        case .hex:     name = "Hex"
+        case .rgb:     name = "RGB"
+        case .hsl:     name = "HSL"
+        case .swiftUI: name = "SwiftUI"
+        }
+        return "\(name) \u{2014} \(format.string(for: sample))"
+    }
+
+    /// The colour every sample is printed in.
+    static let sample = SampledColor(red8: 58, green8: 123, blue8: 213)
+
+    var body: some View {
+        Picker("Copy as", selection: Binding(
+            get: { controller.colorFormat },
+            set: { controller.setColorFormat($0) }
+        )) {
+            ForEach(ColorFormat.allCases, id: \.self) { format in
+                Text(Self.title(for: format)).tag(format)
+            }
+        }
+        .pickerStyle(.menu)
+    }
+}
+
 /// The adjustable limits under the shelf, clipboard and timer switches
 /// (2026-10-24).
 ///
@@ -927,12 +1095,14 @@ struct LimitsRows: View {
                 Picker("Remembers", selection: Self.binding(\.clipboardCapacity, on: controller)) {
                     ForEach(Limits.clipboardCapacityChoices, id: \.self) { Text("\($0) items").tag($0) }
                 }
+                ExcludedAppsRows(controller: controller)
             case .timer:
                 presets
                 Picker("Chime", selection: Self.binding(\.chime, on: controller)) {
                     ForEach(ChimeSound.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
                 .help("With None, a timer that finishes while the panel is open shows no peek and makes no sound.")
+                TimerNoticeRow(controller: controller)
             default:
                 EmptyView()
             }
@@ -959,5 +1129,105 @@ struct LimitsRows: View {
                 .foregroundStyle(.secondary)
         }
         .help("\(Limits.presetRange.lowerBound)\u{2013}\(Limits.presetRange.upperBound) minutes each")
+    }
+}
+
+/// "Notify when hidden by a full-screen app" (2026-10-24), under the timer's
+/// chime.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives. The line underneath is `TimerDoneNotice.settingsNote`:
+/// nothing while notifications are allowed, when macOS will ask while it has
+/// not, and -- denied -- that the switch can do nothing until System Settings
+/// says otherwise, with the way there.
+struct TimerNoticeRow: View {
+    let controller: PreferencesController
+
+    /// System Settings → Notifications. The pane, not this app's row in it:
+    /// there is no documented URL for one app's entry.
+    static let notificationSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    )!
+
+    static func binding(for controller: PreferencesController) -> Binding<Bool> {
+        Binding(
+            get: { controller.timerNotifyWhenHidden },
+            set: { controller.setTimerNotifyWhenHidden($0) }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Notify when hidden by a full-screen app", isOn: Self.binding(for: controller))
+                .toggleStyle(.checkbox)
+                .help("The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification.")
+            if let note = controller.timerNoticeNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(controller.timerNoticesDenied ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if controller.timerNoticesDenied {
+                Button("Open Notification Settings") {
+                    NSWorkspace.shared.open(Self.notificationSettingsURL)
+                }
+            }
+        }
+    }
+}
+
+/// "Ignore copies from" (2026-10-24): clipboard history's excluded apps,
+/// under its capacity.
+///
+/// "+" chooses apps in an open panel on `/Applications`; "−" on a row removes
+/// that one. Empty by default, and says what that means: password-manager
+/// entries marked concealed are skipped whatever this list holds.
+struct ExcludedAppsRows: View {
+    let controller: PreferencesController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Ignore copies from")
+            let apps = controller.clipboardExcludedApps.map(ExcludedApp.init(bundleID:))
+            if apps.isEmpty {
+                Text("No apps. Everything you copy is remembered, except entries password managers mark as concealed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(apps) { app in
+                        HStack(spacing: 8) {
+                            Image(nsImage: app.icon)
+                                .resizable()
+                                .frame(width: 18, height: 18)
+                                .accessibilityHidden(true)
+                            Text(app.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(app.bundleID)
+                            Spacer()
+                            Button {
+                                controller.removeExcludedApp(app.bundleID)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Stop ignoring \(app.name)")
+                            .accessibilityLabel("Remove \(app.name)")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            Button {
+                controller.addExcludedApps()
+            } label: {
+                Label("Add App\u{2026}", systemImage: "plus")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add an app to ignore")
+        }
     }
 }

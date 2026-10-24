@@ -22,6 +22,7 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case camera
     case captureIndicator = "capture-indicator"
     case calendar
+    case colorPicker = "color-picker"
 
     /// What an absent key means for this module.
     ///

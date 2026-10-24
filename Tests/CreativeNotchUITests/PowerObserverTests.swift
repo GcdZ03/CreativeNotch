@@ -21,7 +21,7 @@ struct PowerObserverTests {
 
     /// Stopping must forget what was last seen, or the `read()` inside
     /// `start()` finds nothing new and publishes nothing -- and a re-enabled
-    /// Power tab sits empty until the hardware happens to move, which on a
+    /// Battery tab sits empty until the hardware happens to move, which on a
     /// desk machine on wall power can be hours. Only observable once
     /// something restarts the observer, which until preferences nothing did.
     @Test func stoppingForgetsTheLastSnapshotSoARestartRepublishes() {
