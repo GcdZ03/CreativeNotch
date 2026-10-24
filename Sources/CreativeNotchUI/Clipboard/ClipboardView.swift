@@ -166,7 +166,7 @@ struct ClipboardView: View {
             placeholder(symbol: "doc.on.clipboard", text: String(localized: "Nothing copied yet", bundle: .creativeNotch))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                NotchSearchField(prompt: "Search clipboard", text: query)
+                NotchSearchField(prompt: String(localized: "Search clipboard", bundle: .creativeNotch), text: query)
 
                 let shown = ClipboardSearch.filter(store.entries, query: query.wrappedValue)
                 if shown.isEmpty {

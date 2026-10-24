@@ -30,12 +30,12 @@ struct ColorPickerButton: View {
             Image(systemName: "eyedropper")
         }
         .buttonStyle(NotchIconButtonStyle())
-        .help("Pick a colour from the screen")
-        .accessibilityLabel("Pick a colour")
-        .accessibilityHint("Then click anywhere on screen to copy that colour as \(ColorStripView.formatName(model.format)). Escape cancels.")
+        .help(String(localized: "Pick a colour from the screen", bundle: .creativeNotch))
+        .accessibilityLabel(String(localized: "Pick a colour", bundle: .creativeNotch))
+        .accessibilityHint(String(localized: "Then click anywhere on screen to copy that colour as \(ColorStripView.formatName(model.format)). Escape cancels.", bundle: .creativeNotch))
         .contextMenu {
             if !model.recent.isEmpty {
-                Section("Copy Again") {
+                Section(String(localized: "Copy Again", bundle: .creativeNotch)) {
                     ForEach(model.recent, id: \.self) { color in
                         Button {
                             model.onCopy(color)
@@ -78,10 +78,10 @@ struct ColorStripView: View {
     /// rather than on the Core enum, the split `ColorFormatRow` makes.
     static func formatName(_ format: ColorFormat) -> String {
         switch format {
-        case .hex:     return "hex"
-        case .rgb:     return "RGB"
-        case .hsl:     return "HSL"
-        case .swiftUI: return "a SwiftUI colour"
+        case .hex:     return String(localized: "hex", bundle: .creativeNotch, comment: "Copy that colour as hex")
+        case .rgb:     return String(localized: "RGB", bundle: .creativeNotch)
+        case .hsl:     return String(localized: "HSL", bundle: .creativeNotch)
+        case .swiftUI: return String(localized: "a SwiftUI colour", bundle: .creativeNotch, comment: "Copy that colour as a SwiftUI colour")
         }
     }
 
@@ -101,14 +101,14 @@ struct ColorStripView: View {
                     .foregroundStyle(.white)
                     .lineLimit(1)
                     .truncationMode(.middle)
-                Text("Copied")
+                Text("Copied", bundle: .creativeNotch)
                     .notchFont(11, weight: .medium, design: .rounded)
                     .foregroundStyle(.ink(0.55))
                     .fixedSize()
             }
             .layoutPriority(1)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Copied \(ColorName.spoken(picked, as: format))")
+            .accessibilityLabel(String(localized: "Copied \(ColorName.spoken(picked, as: format))", bundle: .creativeNotch))
 
             Spacer(minLength: 6)
 
@@ -123,15 +123,15 @@ struct ColorStripView: View {
                     }
                 }
                 .accessibilityElement(children: .contain)
-                .accessibilityLabel("Recent colours")
+                .accessibilityLabel(String(localized: "Recent colours", bundle: .creativeNotch))
             }
 
             Button(action: onDismiss) {
                 Image(systemName: "xmark")
             }
             .buttonStyle(NotchIconButtonStyle())
-            .help("Hide")
-            .accessibilityLabel("Hide colour")
+            .help(String(localized: "Hide", bundle: .creativeNotch))
+            .accessibilityLabel(String(localized: "Hide colour", bundle: .creativeNotch))
         }
         .padding(.leading, 6)
         .padding(.trailing, 0)
@@ -152,7 +152,7 @@ struct ColorStripView: View {
         // shape's tap, which closes the open panel.
         .onTapGesture {}
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Picked colour")
+        .accessibilityLabel(String(localized: "Picked colour", bundle: .creativeNotch))
     }
 }
 
@@ -180,7 +180,7 @@ private struct RecentSwatchButton: View {
         .buttonStyle(.plain)
         .help(format.string(for: color))
         .accessibilityLabel(ColorName.spoken(color, as: format))
-        .accessibilityHint("Copies it again.")
+        .accessibilityHint(String(localized: "Copies it again.", bundle: .creativeNotch))
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
     }
 }

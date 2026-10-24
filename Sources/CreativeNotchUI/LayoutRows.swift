@@ -37,24 +37,24 @@ struct LayoutRows: View {
 
     static func title(for width: PanelWidth) -> String {
         switch width {
-        case .compact:  return "Compact"
-        case .standard: return "Default"
-        case .wide:     return "Wide"
+        case .compact:  return String(localized: "Compact", bundle: .creativeNotch)
+        case .standard: return String(localized: "Default", bundle: .creativeNotch)
+        case .wide:     return String(localized: "Wide", bundle: .creativeNotch)
         }
     }
 
     static func title(for corners: PanelCorners) -> String {
         switch corners {
-        case .tight:    return "Tight"
-        case .standard: return "Default"
-        case .round:    return "Round"
+        case .tight:    return String(localized: "Tight", bundle: .creativeNotch)
+        case .standard: return String(localized: "Default", bundle: .creativeNotch)
+        case .round:    return String(localized: "Round", bundle: .creativeNotch)
         }
     }
 
     static func title(for side: EarSide) -> String {
         switch side {
-        case .left:  return "Left"
-        case .right: return "Right"
+        case .left:  return String(localized: "Left", bundle: .creativeNotch)
+        case .right: return String(localized: "Right", bundle: .creativeNotch)
         }
     }
 
@@ -63,7 +63,7 @@ struct LayoutRows: View {
             ForEach(PanelWidth.allCases, id: \.self) { Text(Self.title(for: $0)).tag($0) }
         } label: {
             SettingsLabel(
-                title: "Panel width", detail: "How wide the open panel is.",
+                title: String(localized: "Panel width", bundle: .creativeNotch), detail: String(localized: "How wide the open panel is.", bundle: .creativeNotch),
                 symbol: "arrow.left.and.right", tint: .teal
             )
         }
@@ -72,7 +72,7 @@ struct LayoutRows: View {
             ForEach(PanelCorners.allCases, id: \.self) { Text(Self.title(for: $0)).tag($0) }
         } label: {
             SettingsLabel(
-                title: "Corners", detail: "How round the open panel's corners are.",
+                title: String(localized: "Corners", bundle: .creativeNotch), detail: String(localized: "How round the open panel's corners are.", bundle: .creativeNotch),
                 symbol: "square.bottomhalf.filled", tint: .mint
             )
         }
@@ -81,7 +81,7 @@ struct LayoutRows: View {
             ForEach(EarSide.allCases, id: \.self) { Text(Self.title(for: $0)).tag($0) }
         } label: {
             SettingsLabel(
-                title: "Tabs", detail: "Which side of the camera the tabs sit on.",
+                title: String(localized: "Tabs", bundle: .creativeNotch), detail: String(localized: "Which side of the camera the tabs sit on.", bundle: .creativeNotch),
                 symbol: "rectangle.split.3x1", tint: .indigo
             )
         }
@@ -89,28 +89,28 @@ struct LayoutRows: View {
 
         Toggle(isOn: Self.binding(\.showsBattery, on: controller)) {
             SettingsLabel(
-                title: "Battery in the header", detail: "The level beside the settings gear.",
+                title: String(localized: "Battery in the header", bundle: .creativeNotch), detail: String(localized: "The level beside the settings gear.", bundle: .creativeNotch),
                 symbol: "battery.75percent", tint: .green
             )
         }
 
         Toggle(isOn: Self.binding(\.showsNowPlayingBadge, on: controller)) {
             SettingsLabel(
-                title: "Now-playing badge", detail: "Artwork and bars beside the closed notch.",
+                title: String(localized: "Now-playing badge", bundle: .creativeNotch), detail: String(localized: "Artwork and bars beside the closed notch.", bundle: .creativeNotch),
                 symbol: "music.note", tint: .pink
             )
         }
 
         Toggle(isOn: Self.binding(\.showsTimerBadge, on: controller)) {
             SettingsLabel(
-                title: "Timer badge", detail: "The countdown beside the closed notch.",
+                title: String(localized: "Timer badge", bundle: .creativeNotch), detail: String(localized: "The countdown beside the closed notch.", bundle: .creativeNotch),
                 symbol: "timer", tint: .orange
             )
         }
 
         Toggle(isOn: Self.binding(\.showsDownloadsBadge, on: controller)) {
             SettingsLabel(
-                title: "Downloads badge", detail: "The progress ring beside the closed notch.",
+                title: String(localized: "Downloads badge", bundle: .creativeNotch), detail: String(localized: "The progress ring beside the closed notch.", bundle: .creativeNotch),
                 symbol: "arrow.down.circle", tint: .teal
             )
         }

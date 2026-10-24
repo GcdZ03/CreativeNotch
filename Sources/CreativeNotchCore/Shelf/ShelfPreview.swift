@@ -27,11 +27,11 @@ public enum ShelfTileVerb: CaseIterable, Equatable, Sendable {
 
     public var label: String {
         switch self {
-        case .open:      return "Open"
-        case .quickLook: return "Quick Look"
-        case .reveal:    return "Show in Finder"
-        case .airDrop:   return "AirDrop"
-        case .remove:    return "Remove"
+        case .open:      return String(localized: "Open", bundle: .creativeNotch)
+        case .quickLook: return String(localized: "Quick Look", bundle: .creativeNotch)
+        case .reveal:    return String(localized: "Show in Finder", bundle: .creativeNotch)
+        case .airDrop:   return String(localized: "AirDrop", bundle: .creativeNotch)
+        case .remove:    return String(localized: "Remove", bundle: .creativeNotch)
         }
     }
 

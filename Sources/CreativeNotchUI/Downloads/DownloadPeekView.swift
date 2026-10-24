@@ -72,7 +72,7 @@ struct DownloadPeekView: View {
                         .frame(width: 18)
                     // The verb never truncates; the name gives way, in the
                     // middle, so its start and its extension both survive.
-                    Text("Downloaded")
+                    Text("Downloaded", bundle: .creativeNotch)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
                         .foregroundStyle(.ink(0.6))
                         .fixedSize()
@@ -94,7 +94,7 @@ struct DownloadPeekView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(accessibilityText)
         .accessibilityAddTraits(reveals ? .isButton : [])
-        .accessibilityHint(reveals ? "Shows the file in Finder" : "")
+        .accessibilityHint(reveals ? String(localized: "Shows the file in Finder", bundle: .creativeNotch) : String())
         .accessibilityAction { if reveals { onReveal?() } }
     }
 

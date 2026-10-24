@@ -283,7 +283,7 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: -5)
-                    .accessibilityLabel("Remove \(item.displayName)")
+                    .accessibilityLabel(String(localized: "Remove \(item.displayName)", bundle: .creativeNotch))
                 }
                 .overlay(alignment: .bottomTrailing) {
                     Button(action: onAirDrop) {
@@ -296,8 +296,8 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: 5)
-                    .help("AirDrop")
-                    .accessibilityLabel("AirDrop \(item.displayName)")
+                    .help(String(localized: "AirDrop", bundle: .creativeNotch))
+                    .accessibilityLabel(String(localized: "AirDrop \(item.displayName)", bundle: .creativeNotch))
                 }
         }
     }

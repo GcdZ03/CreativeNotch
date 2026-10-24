@@ -475,7 +475,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening."
+            return String(localized: "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening.", bundle: .creativeNotch)
         case .music:
             return String(localized: "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch.", bundle: .creativeNotch)
         case .camera:
@@ -536,8 +536,8 @@ struct PreferencesView: View {
         ),
         PreferencesRow(
             module: .timer, section: .notch, symbolName: "timer", tint: .orange,
-            title: "Timer",
-            detail: "Up to three countdowns in the ear of the notch, and a stopwatch."
+            title: String(localized: "Timer", bundle: .creativeNotch),
+            detail: String(localized: "Up to three countdowns in the ear of the notch, and a stopwatch.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
@@ -546,31 +546,31 @@ struct PreferencesView: View {
         ),
         PreferencesRow(
             module: .bluetooth, section: .notch, symbolName: "airpods", tint: .blue,
-            title: "Bluetooth alerts",
+            title: String(localized: "Bluetooth alerts", bundle: .creativeNotch),
             // Says what it asks for, because switching it on is what shows
             // macOS's Bluetooth prompt.
-            detail: "A glance when AirPods, headphones or a speaker connect or disconnect. Needs Bluetooth access."
+            detail: String(localized: "A glance when AirPods, headphones or a speaker connect or disconnect. Needs Bluetooth access.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .calendar, section: .notch, symbolName: "calendar", tint: .red,
-            title: "Calendar and reminders",
+            title: String(localized: "Calendar and reminders", bundle: .creativeNotch),
             // Required: the switch asks for two permissions, and the row says
             // so before it is pressed rather than after.
-            detail: "Your next events and today's reminders, as the last tab. Asks for Calendars and Reminders access when you switch it on."
+            detail: String(localized: "Your next events and today's reminders, as the last tab. Asks for Calendars and Reminders access when you switch it on.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .colorPicker, section: .notch, symbolName: "eyedropper", tint: .teal,
-            title: "Colour picker",
+            title: String(localized: "Colour picker", bundle: .creativeNotch),
             // On by default, and the detail says why: no permission, and
             // nothing runs until the dropper is clicked.
-            detail: "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper."
+            detail: String(localized: "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .downloads, section: .notch, symbolName: "arrow.down.circle", tint: .teal,
-            title: "Downloads",
+            title: String(localized: "Downloads", bundle: .creativeNotch),
             // Says what the switch will ask for before it asks: the read
             // is a macOS prompt, and this is the "why" that prompt lacks.
-            detail: "Progress of Safari and other downloads, beside the closed notch. Asks to read your Downloads folder."
+            detail: String(localized: "Progress of Safari and other downloads, beside the closed notch. Asks to read your Downloads folder.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -662,34 +662,34 @@ struct PreferencesView: View {
         Section {
             LaunchAtLoginRow(controller: controller.launchAtLogin)
         } header: {
-            Text("Startup")
+            Text("Startup", bundle: .creativeNotch)
         } footer: {
-            Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
+            Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.", bundle: .creativeNotch)
         }
 
         Section {
             HoverRow(controller: controller)
         } header: {
-            Text("Hover")
+            Text("Hover", bundle: .creativeNotch)
         } footer: {
-            Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
+            Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.", bundle: .creativeNotch)
         }
 
         Section {
             DisplayRow(controller: controller)
             TextSizeRow(controller: controller)
         } header: {
-            Text("Display")
+            Text("Display", bundle: .creativeNotch)
         } footer: {
-            Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
+            Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.", bundle: .creativeNotch)
         }
 
         Section {
             LayoutRows(controller: controller)
         } header: {
-            Text("Layout")
+            Text("Layout", bundle: .creativeNotch)
         } footer: {
-            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. With the calendar on, six tabs need more than Default's width there, so Default widens to fit them. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
+            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. With the calendar on, six tabs need more than Default's width there, so Default widens to fit them. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.", bundle: .creativeNotch)
         }
     }
 
@@ -754,7 +754,7 @@ struct PreferencesView: View {
             }
 
             if Self.offersPrivacySettings(row.module, controller: controller) {
-                Button("Open Privacy Settings\u{2026}") { controller.openDownloadsPrivacy() }
+                Button(String(localized: "Open Privacy Settings\u{2026}", bundle: .creativeNotch)) { controller.openDownloadsPrivacy() }
                     .controlSize(.small)
                     .padding(.leading, 36)
             }
@@ -786,7 +786,7 @@ struct PreferencesView: View {
         case .timer where controller.hasRunningCountdown:
             // Required by the spec: the tab you would cancel it from is what
             // disappears, so say what happens to the countdown.
-            return "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
+            return String(localized: "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime.", bundle: .creativeNotch)
         case .downloads where controller.isEnabled(.downloads):
             // Switched on and seeing nothing is possible here too: the
             // switch must not read "on" over a refusal without saying so.
@@ -795,9 +795,9 @@ struct PreferencesView: View {
             // A switch must not read "on" over a module that can read
             // nothing (ARCHITECTURE.md, "Why the settings surface is a
             // window").
-            return "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security."
+            return String(localized: "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security.", bundle: .creativeNotch)
         case .calendar where controller.calendarAccessRestricted:
-            return "Calendars and Reminders access is restricted on this Mac by a profile or Screen Time, so the glance has nothing to show."
+            return String(localized: "Calendars and Reminders access is restricted on this Mac by a profile or Screen Time, so the glance has nothing to show.", bundle: .creativeNotch)
         default:
             return nil
         }
@@ -819,14 +819,14 @@ struct PreferencesView: View {
 struct BluetoothDeniedRow: View {
     let controller: PreferencesController
 
-    static let message = "Bluetooth access is off for CreativeNotch, so no alerts can show. Allow it in System Settings › Privacy & Security › Bluetooth."
+    static let message = String(localized: "Bluetooth access is off for CreativeNotch, so no alerts can show. Allow it in System Settings › Privacy & Security › Bluetooth.", bundle: .creativeNotch)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(Self.message)
                 .font(.caption)
                 .foregroundStyle(.orange)
-            Button("Open Bluetooth Settings") {
+            Button(String(localized: "Open Bluetooth Settings", bundle: .creativeNotch)) {
                 controller.openBluetoothSettings()
             }
         }
@@ -1082,19 +1082,21 @@ struct ColorFormatRow: View {
     static func title(for format: ColorFormat) -> String {
         let name: String
         switch format {
-        case .hex:     name = "Hex"
-        case .rgb:     name = "RGB"
-        case .hsl:     name = "HSL"
+        case .hex:     name = String(localized: "Hex", bundle: .creativeNotch)
+        case .rgb:     name = String(localized: "RGB", bundle: .creativeNotch)
+        case .hsl:     name = String(localized: "HSL", bundle: .creativeNotch)
+        // The framework's name, the same in every language.
         case .swiftUI: name = "SwiftUI"
         }
-        return "\(name) \u{2014} \(format.string(for: sample))"
+        let example = format.string(for: sample)
+        return String(localized: "\(name) \u{2014} \(example)", bundle: .creativeNotch, comment: "A colour format's name, then a sample of it: Hex — #3A7BD5")
     }
 
     /// The colour every sample is printed in.
     static let sample = SampledColor(red8: 58, green8: 123, blue8: 213)
 
     var body: some View {
-        Picker("Copy as", selection: Binding(
+        Picker(String(localized: "Copy as", bundle: .creativeNotch), selection: Binding(
             get: { controller.colorFormat },
             set: { controller.setColorFormat($0) }
         )) {
@@ -1211,7 +1213,7 @@ struct LimitsRows: View {
                 Picker(String(localized: "Chime", bundle: .creativeNotch), selection: Self.binding(\.chime, on: controller)) {
                     ForEach(ChimeSound.allCases, id: \.self) { Text(Self.title(for: $0)).tag($0) }
                 }
-                .help("With None, a timer that finishes while the panel is open shows no peek and makes no sound.")
+                .help(String(localized: "With None, a timer that finishes while the panel is open shows no peek and makes no sound.", bundle: .creativeNotch))
                 TimerNoticeRow(controller: controller)
             default:
                 EmptyView()
@@ -1270,9 +1272,9 @@ struct TimerNoticeRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Toggle("Notify when hidden by a full-screen app", isOn: Self.binding(for: controller))
+            Toggle(String(localized: "Notify when hidden by a full-screen app", bundle: .creativeNotch), isOn: Self.binding(for: controller))
                 .toggleStyle(.checkbox)
-                .help("The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification.")
+                .help(String(localized: "The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification.", bundle: .creativeNotch))
             if let note = controller.timerNoticeNote {
                 Text(note)
                     .font(.caption)
@@ -1280,7 +1282,7 @@ struct TimerNoticeRow: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             if controller.timerNoticesDenied {
-                Button("Open Notification Settings") {
+                Button(String(localized: "Open Notification Settings", bundle: .creativeNotch)) {
                     NSWorkspace.shared.open(Self.notificationSettingsURL)
                 }
             }
@@ -1299,10 +1301,10 @@ struct ExcludedAppsRows: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("Ignore copies from")
+            Text("Ignore copies from", bundle: .creativeNotch)
             let apps = controller.clipboardExcludedApps.map(ExcludedApp.init(bundleID:))
             if apps.isEmpty {
-                Text("No apps. Everything you copy is remembered, except entries password managers mark as concealed.")
+                Text("No apps. Everything you copy is remembered, except entries password managers mark as concealed.", bundle: .creativeNotch)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -1326,8 +1328,8 @@ struct ExcludedAppsRows: View {
                                     .foregroundStyle(.secondary)
                             }
                             .buttonStyle(.borderless)
-                            .help("Stop ignoring \(app.name)")
-                            .accessibilityLabel("Remove \(app.name)")
+                            .help(String(localized: "Stop ignoring \(app.name)", bundle: .creativeNotch))
+                            .accessibilityLabel(String(localized: "Remove \(app.name)", bundle: .creativeNotch))
                         }
                         .padding(.vertical, 4)
                     }
@@ -1336,10 +1338,10 @@ struct ExcludedAppsRows: View {
             Button {
                 controller.addExcludedApps()
             } label: {
-                Label("Add App\u{2026}", systemImage: "plus")
+                Label(String(localized: "Add App\u{2026}", bundle: .creativeNotch), systemImage: "plus")
             }
             .buttonStyle(.borderless)
-            .accessibilityLabel("Add an app to ignore")
+            .accessibilityLabel(String(localized: "Add an app to ignore", bundle: .creativeNotch))
         }
     }
 }

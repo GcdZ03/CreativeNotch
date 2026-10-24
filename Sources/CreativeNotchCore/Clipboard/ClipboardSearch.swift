@@ -42,7 +42,8 @@ public enum ClipboardSearch {
     static func searchableText(for content: ClipboardContent) -> String {
         switch content {
         case .text(let string):      return string
-        case .image(_, let ext):     return "\(ext.uppercased()) image"
+        case .image(_, let ext):
+            return String(localized: "\(ext.uppercased()) image", bundle: .creativeNotch, comment: "A copied image: PNG image")
         }
     }
 

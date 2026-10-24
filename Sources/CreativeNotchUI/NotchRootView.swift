@@ -1579,7 +1579,7 @@ public struct NotchRootView: View {
     /// explaining a refusal, where the pane's own button is the next step.
     static func calendarActions(_ app: AppState) -> [(label: String, perform: () -> Void)] {
         guard case .glance = app.calendar?.pane else { return [] }
-        return [("Open Calendar", { app.onOpenCalendarApp?() })]
+        return [(String(localized: "Open Calendar", bundle: .creativeNotch), { app.onOpenCalendarApp?() })]
     }
 
     /// The header's dropper, or `nil` while the colour picker is switched
@@ -1609,12 +1609,12 @@ public struct NotchRootView: View {
         switch app.timerMode {
         case .stopwatch:
             let laps = app.stopwatch.laps.count
-            return laps == 0 ? nil : "\(laps) lap\(laps == 1 ? "" : "s")"
+            return laps == 0 ? nil : String(localized: "\(laps) laps", bundle: .creativeNotch)
         case .timer:
             switch rows.count {
             case 0: return nil
             case 1: return durationLabel(rows[0].countdown)
-            default: return "\(rows.count) running"
+            default: return String(localized: "\(rows.count) running", bundle: .creativeNotch, comment: "Timer title row: how many countdowns are running")
             }
         }
     }
@@ -1626,9 +1626,9 @@ public struct NotchRootView: View {
         _ app: AppState, rows: [RunningTimer]
     ) -> [(label: String, perform: () -> Void)] {
         guard app.timerMode == .timer, !rows.isEmpty else { return [] }
-        if app.isAddingTimer { return [("Back", { app.isAddingTimer = false })] }
+        if app.isAddingTimer { return [(String(localized: "Back", bundle: .creativeNotch), { app.isAddingTimer = false })] }
         guard rows.count < TimerSet.capacity, app.onStartTimer != nil else { return [] }
-        return [("Add", { app.isAddingTimer = true })]
+        return [(String(localized: "Add", bundle: .creativeNotch), { app.isAddingTimer = true })]
     }
 
     /// The timer tab's presets: the ones chosen in Settings, read from
@@ -1677,7 +1677,7 @@ public struct NotchRootView: View {
         if let notice { return notice }
         guard let selection, let item = items.first(where: { $0.id == selection }),
               ShelfSelection.isSelectable(item) else { return nil }
-        return "Space to Quick Look · double-click to open"
+        return String(localized: "Space to Quick Look · double-click to open", bundle: .creativeNotch)
     }
 
     /// The clipboard's title-row verb: "Clear", while there is something for

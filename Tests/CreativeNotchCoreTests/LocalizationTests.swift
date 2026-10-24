@@ -102,10 +102,12 @@ struct LocalizationTests {
         #expect(Bundle.creativeNotch.bundleURL.lastPathComponent == Bundle.stringsBundleName)
     }
 
-    /// The camera permission prompt is shown by macOS from the app's own
-    /// `.lproj` folders, so it has its own catalog,
-    /// `Resources/InfoPlist.xcstrings`. Its English must be what Info.plist
-    /// says, or the prompt changes the moment a translation lands.
+    /// The permission prompts -- camera, Bluetooth, Calendars, Reminders,
+    /// the Downloads folder -- are shown by macOS from the app's own
+    /// `.lproj` folders, so they have their own catalog,
+    /// `Resources/InfoPlist.xcstrings`. Every usage description must be in
+    /// it, with the English Info.plist says, or that prompt is never
+    /// translated, or changes the moment a translation lands.
     @Test func everyUsageDescriptionIsInTheInfoPlistCatalog() throws {
         let plistData = try Data(contentsOf: Self.repoRoot.appendingPathComponent("Resources/Info.plist"))
         let plist = try #require(try PropertyListSerialization.propertyList(from: plistData, format: nil) as? [String: Any])
@@ -262,6 +264,16 @@ struct LocalizationTests {
         "Display Identifier", "Current Space", "Main",
         // The resource bundle's file name (`Bundle.stringsBundleName`).
         "CreativeNotch_CreativeNotchCore.bundle",
+        // Apple's product names, which are not translated, and the
+        // lowercased forms a device's name is matched against
+        // (`BluetoothAudioKind.named`).
+        "AirPods", "AirPods Pro", "AirPods Max", "Beats", "airpods max", "airpods pro",
+        // A picked colour as CSS or Swift source (`ColorFormat`): code to
+        // paste, the same in every language, and the framework it names.
+        #"rgb(\(color.red8), \(color.green8), \(color.blue8))"#,
+        #"hsl(\(hue), \(saturation)%, \(lightness)%)"#,
+        "Color(red: %.3f, green: %.3f, blue: %.3f)",
+        "SwiftUI",
     ]
 
     // MARK: - Helpers

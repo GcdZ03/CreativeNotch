@@ -624,7 +624,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// clears it -- and says what was copied, for someone who cannot see it.
     private func showPickedColor(_ color: SampledColor) {
         if case .open = state.state { state.pickedColor = color }
-        announce("Copied \(ColorName.spoken(color, as: state.colorFormat))")
+        announce(String(localized: "Copied \(ColorName.spoken(color, as: state.colorFormat))", bundle: .creativeNotch))
     }
 
     /// "Copy as" in Settings: saved, then applied to the next copy and the

@@ -42,7 +42,7 @@ struct StopwatchView: View {
     /// "paused" beside stopped-but-not-reset digits, nothing otherwise: a
     /// running count says it is running by moving.
     static func caption(_ stopwatch: Stopwatch) -> String? {
-        !stopwatch.isRunning && !stopwatch.isReset ? "paused" : nil
+        !stopwatch.isRunning && !stopwatch.isReset ? String(localized: "paused", bundle: .creativeNotch) : nil
     }
 
     /// What VoiceOver reads for a stopped stopwatch, in words — `1:05`
@@ -51,7 +51,7 @@ struct StopwatchView: View {
     /// second and this view deliberately never redraws to refresh it.
     static func accessibilityValue(_ stopwatch: Stopwatch, at now: Date) -> String {
         let words = StopwatchDisplay.spoken(elapsed: stopwatch.elapsed(at: now))
-        return stopwatch.isReset ? words : "Paused, \(words)"
+        return stopwatch.isReset ? words : String(localized: "Paused, \(words)", bundle: .creativeNotch)
     }
 
     var body: some View {
@@ -73,13 +73,13 @@ struct StopwatchView: View {
 
             HStack(spacing: 8) {
                 if stopwatch.isRunning {
-                    Button("Lap") { onCommand(.lap) }.buttonStyle(NotchButtonStyle(.quiet))
-                    Button("Pause") { onCommand(.pause) }.buttonStyle(NotchButtonStyle(.quiet))
+                    Button(String(localized: "Lap", bundle: .creativeNotch)) { onCommand(.lap) }.buttonStyle(NotchButtonStyle(.quiet))
+                    Button(String(localized: "Pause", bundle: .creativeNotch)) { onCommand(.pause) }.buttonStyle(NotchButtonStyle(.quiet))
                 } else if stopwatch.isReset {
-                    Button("Start") { onCommand(.start) }.buttonStyle(NotchButtonStyle(.prominent))
+                    Button(String(localized: "Start", bundle: .creativeNotch)) { onCommand(.start) }.buttonStyle(NotchButtonStyle(.prominent))
                 } else {
-                    Button("Reset") { onCommand(.reset) }.buttonStyle(NotchButtonStyle(.quiet))
-                    Button("Resume") { onCommand(.start) }.buttonStyle(NotchButtonStyle(.prominent))
+                    Button(String(localized: "Reset", bundle: .creativeNotch)) { onCommand(.reset) }.buttonStyle(NotchButtonStyle(.quiet))
+                    Button(String(localized: "Resume", bundle: .creativeNotch)) { onCommand(.start) }.buttonStyle(NotchButtonStyle(.prominent))
                 }
             }
         }
@@ -109,14 +109,14 @@ struct StopwatchView: View {
         return HStack(spacing: 14) {
             ForEach(recent, id: \.number) { lap in
                 HStack(spacing: 5) {
-                    Text("Lap \(lap.number)")
+                    Text("Lap \(lap.number)", bundle: .creativeNotch)
                         .foregroundStyle(.ink(0.45))
                     Text(lap.text)
                         .monospacedDigit()
                         .foregroundStyle(.ink(0.8))
                 }
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Lap \(lap.number)")
+                .accessibilityLabel(String(localized: "Lap \(lap.number)", bundle: .creativeNotch))
                 .accessibilityValue(StopwatchDisplay.spoken(elapsed: stopwatch.laps[lap.number - 1]))
             }
         }
@@ -140,12 +140,12 @@ private struct StopwatchAccessibility: ViewModifier {
             content
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel(
-                    Text("Stopwatch, \(Text(timerInterval: live, countsDown: false, showsHours: true))")
+                    Text("Stopwatch, \(Text(timerInterval: live, countsDown: false, showsHours: true))", bundle: .creativeNotch)
                 )
         } else {
             content
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Stopwatch")
+                .accessibilityLabel(String(localized: "Stopwatch", bundle: .creativeNotch))
                 .accessibilityValue(StopwatchView.accessibilityValue(stopwatch, at: now))
         }
     }

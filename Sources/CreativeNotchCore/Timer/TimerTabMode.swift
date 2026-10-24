@@ -11,8 +11,8 @@ public enum TimerTabMode: String, CaseIterable, Sendable {
 
     public var title: String {
         switch self {
-        case .timer: return "Timer"
-        case .stopwatch: return "Stopwatch"
+        case .timer: return String(localized: "Timer", bundle: .creativeNotch)
+        case .stopwatch: return String(localized: "Stopwatch", bundle: .creativeNotch)
         }
     }
 }

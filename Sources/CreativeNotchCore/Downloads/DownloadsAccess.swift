@@ -18,6 +18,6 @@ public enum DownloadsAccess: Equatable, Sendable {
     /// The Settings row's line while denied, or `nil`.
     public var warning: String? {
         guard self == .denied else { return nil }
-        return "CreativeNotch can't read your Downloads folder, so it can't see downloads. Allow it in System Settings \u{203A} Privacy & Security \u{203A} Files & Folders, then reopen Settings or switch this off and on."
+        return String(localized: "CreativeNotch can't read your Downloads folder, so it can't see downloads. Allow it in System Settings \u{203A} Privacy & Security \u{203A} Files & Folders, then reopen Settings or switch this off and on.", bundle: .creativeNotch)
     }
 }
