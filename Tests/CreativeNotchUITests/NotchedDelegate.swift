@@ -62,6 +62,8 @@ enum NotchedDelegate {
         delegate.announce = { _ in }
         // Far from any test panel, so the real pointer never decides a test.
         delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }
+        // The developer's real displays must not decide what Settings offers.
+        delegate.screenDescriptors = { [] }
         delegate.state.countdown = countdown
         delegate.install(metrics: metrics)
         // The indicator would otherwise read the developer's real

@@ -17,6 +17,13 @@ struct DisplayChoiceTests {
     private let builtInMain = ScreenDescriptor(id: 1, isBuiltIn: true, isMain: true)
     private let secondExternal = ScreenDescriptor(id: 3, isBuiltIn: false, isMain: false)
 
+    private static let dellUUID = "8A3F1E2C-1111-4C6B-9A0E-5D7C2B9E4F10"
+    private static let lgUUID = "0C2D4E6F-2222-4A1B-8C3D-9E8F7A6B5C4D"
+    private let dell = ScreenDescriptor(id: 4, isBuiltIn: false, isMain: false, uuid: dellUUID, name: "DELL U2720Q")
+    private let dellMain = ScreenDescriptor(id: 4, isBuiltIn: false, isMain: true, uuid: dellUUID, name: "DELL U2720Q")
+    private let lgMain = ScreenDescriptor(id: 5, isBuiltIn: false, isMain: true, uuid: lgUUID, name: "LG UltraFine")
+    private let pinned = DisplayChoice.display(uuid: dellUUID, name: "DELL U2720Q")
+
     // MARK: - Following focus (the default, and the behaviour before the setting)
 
     @Test func theDefaultFollowsTheFocusedWindow() {
@@ -59,9 +66,94 @@ struct DisplayChoiceTests {
     }
 
     @Test func noScreensChoosesNothing() {
-        for choice in DisplayChoice.allCases {
+        for choice in DisplayChoice.standardChoices + [pinned] {
             #expect(choice.screen(in: []) == nil)
         }
+    }
+
+    // MARK: - Pinned to a specific display
+
+    @Test func aPinnedDisplayThatIsConnectedWinsWhereverFocusIs() {
+        #expect(pinned.screen(in: [builtInMain, dell]) == 4)
+        #expect(pinned.screen(in: [builtIn, lgMain, dell]) == 4)
+    }
+
+    /// Disconnected, it falls back to the built-in display first -- the one
+    /// display a laptop always has -- rather than following focus.
+    @Test func aDisconnectedPinFallsBackToTheBuiltIn() {
+        #expect(pinned.screen(in: [lgMain, builtIn]) == 1)
+    }
+
+    /// Then the main screen, then the first, the order `screen(in:)` already
+    /// uses everywhere else.
+    @Test func aDisconnectedPinWithNoBuiltInTakesTheMainThenTheFirst() {
+        #expect(pinned.screen(in: [external, lgMain]) == 5)
+        #expect(pinned.screen(in: [secondExternal, external]) == 3)
+    }
+
+    /// Unplugged then plugged back in: nothing is remembered between calls,
+    /// so the next screen change simply finds it again.
+    @Test func aPinnedDisplayIsReturnedToWhenItReconnects() {
+        #expect(pinned.screen(in: [builtInMain, dell]) == 4)
+        #expect(pinned.screen(in: [builtInMain]) == 1)
+        #expect(pinned.screen(in: [builtInMain, dell]) == 4)
+    }
+
+    /// A display that could not report a UUID never matches a pin.
+    @Test func aScreenWithNoUUIDNeverMatchesAPin() {
+        let anonymous = ScreenDescriptor(id: 9, isBuiltIn: false, isMain: true)
+        #expect(pinned.screen(in: [anonymous]) == 9)
+        #expect(pinned.screen(in: [builtIn, anonymous]) == 1)
+    }
+
+    /// The display id can change across reboots and reconnections; the UUID
+    /// is what identifies the display, so a new id for it still matches.
+    @Test func aPinMatchesByUUIDNotByDisplayID() {
+        let renumbered = ScreenDescriptor(id: 42, isBuiltIn: false, isMain: false, uuid: Self.dellUUID, name: "DELL U2720Q")
+        #expect(pinned.screen(in: [builtInMain, renumbered]) == 42)
+    }
+
+    // MARK: - The Settings menu
+
+    /// The two general choices first, then one per connected external
+    /// display under its current name. The built-in display is already
+    /// "Built-in display", so it is not listed twice.
+    @Test func theMenuListsEachConnectedExternalDisplay() {
+        let options = DisplayChoice.options(for: [builtInMain, dell, lgMain], current: .focusedWindow)
+        #expect(options.map(\.choice) == [
+            .focusedWindow, .builtIn,
+            .display(uuid: Self.dellUUID, name: "DELL U2720Q"),
+            .display(uuid: Self.lgUUID, name: "LG UltraFine"),
+        ])
+        #expect(options.map(\.name) == [nil, nil, "DELL U2720Q", "LG UltraFine"])
+        #expect(options.allSatisfy { $0.isConnected })
+    }
+
+    /// The pinned display, unplugged, stays in the menu marked as not
+    /// connected, so the selection is still visible.
+    @Test func theMenuKeepsADisconnectedPinVisible() {
+        let options = DisplayChoice.options(for: [builtInMain, lgMain], current: pinned)
+        #expect(options.count == 4)
+        #expect(options.last == DisplayChoice.Option(choice: pinned, name: "DELL U2720Q", isConnected: false))
+    }
+
+    /// Connected, the pin appears once, under the display's current name,
+    /// tagged with the stored choice so the menu shows it selected even if
+    /// the display has been renamed since it was picked.
+    @Test func aConnectedPinIsListedOnceAndSelected() {
+        let renamed = DisplayChoice.display(uuid: Self.dellUUID, name: "Old name")
+        let options = DisplayChoice.options(for: [builtInMain, dell], current: renamed)
+        #expect(options.count == 3)
+        #expect(options.last == DisplayChoice.Option(choice: renamed, name: "DELL U2720Q", isConnected: true))
+    }
+
+    @Test func screensWithoutAUUIDAreLeftOutOfTheMenu() {
+        let anonymous = ScreenDescriptor(id: 9, isBuiltIn: false, isMain: true)
+        #expect(DisplayChoice.options(for: [anonymous], current: .builtIn).count == 2)
+    }
+
+    @Test func noScreensStillOffersTheGeneralChoices() {
+        #expect(DisplayChoice.options(for: [], current: .focusedWindow).map(\.choice) == DisplayChoice.standardChoices)
     }
 
     // MARK: - Activation
@@ -71,6 +163,7 @@ struct DisplayChoiceTests {
     @Test func onlyFollowingFocusRepositionsOnActivation() {
         #expect(DisplayChoice.focusedWindow.followsActivation)
         #expect(!DisplayChoice.builtIn.followsActivation)
+        #expect(!pinned.followsActivation)
     }
 
     /// An activation names a screen only when there is a main one: with no
@@ -88,6 +181,8 @@ struct DisplayChoiceTests {
     @Test func aPinnedActivationChoosesNothing() {
         #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtIn, externalMain]) == nil)
         #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtInMain, external]) == nil)
+        #expect(pinned.screenOnActivation(in: [builtInMain, dell]) == nil)
+        #expect(pinned.screenOnActivation(in: [builtIn, dellMain]) == nil)
     }
 
     // MARK: - Persistence
@@ -97,7 +192,7 @@ struct DisplayChoiceTests {
     }
 
     @Test func storedValuesResolve() {
-        for choice in DisplayChoice.allCases {
+        for choice in DisplayChoice.standardChoices + [pinned] {
             #expect(PreferenceKeys.resolveDisplayChoice(choice.rawValue) == choice)
         }
     }
@@ -108,6 +203,29 @@ struct DisplayChoiceTests {
         #expect(DisplayChoice.focusedWindow.rawValue == "focused-window")
         #expect(DisplayChoice.builtIn.rawValue == "built-in")
         #expect(PreferenceKeys.showOn == "display.showOn")
+        #expect(pinned.rawValue == "display:\(Self.dellUUID):DELL U2720Q")
+    }
+
+    /// The name is only for showing; a colon in it survives, because the
+    /// UUID is read up to the first colon after the prefix and has none.
+    @Test func aPinnedValueRoundTripsWithAnyName() {
+        for name in ["", "Studio Display", "Dell: 27\" (2)"] {
+            let choice = DisplayChoice.display(uuid: Self.dellUUID, name: name)
+            #expect(PreferenceKeys.resolveDisplayChoice(choice.rawValue) == choice)
+        }
+    }
+
+    /// `defaults write … display:<uuid>` by hand, without a name, still pins.
+    /// A lowercase UUID reads as the uppercase spelling the system reports.
+    @Test func aPinnedValueWithoutANameResolves() {
+        #expect(PreferenceKeys.resolveDisplayChoice("display:\(Self.dellUUID)") == .display(uuid: Self.dellUUID, name: ""))
+        #expect(PreferenceKeys.resolveDisplayChoice("display:\(Self.dellUUID.lowercased()):X") == .display(uuid: Self.dellUUID, name: "X"))
+    }
+
+    @Test func aMalformedPinnedValueResolvesToTheDefault() {
+        #expect(PreferenceKeys.resolveDisplayChoice("display:") == .focusedWindow)
+        #expect(PreferenceKeys.resolveDisplayChoice("display:not-a-uuid:DELL") == .focusedWindow)
+        #expect(PreferenceKeys.resolveDisplayChoice("display") == .focusedWindow)
     }
 
     @Test func anUnknownOrMistypedValueResolvesToTheDefault() {
@@ -132,6 +250,8 @@ struct DisplayChoiceTests {
         #expect(PreferencesStore(defaults: defaults).displayChoice == .builtIn)
         PreferencesStore(defaults: defaults).setDisplayChoice(.focusedWindow)
         #expect(PreferencesStore(defaults: defaults).displayChoice == .focusedWindow)
+        PreferencesStore(defaults: defaults).setDisplayChoice(pinned)
+        #expect(PreferencesStore(defaults: defaults).displayChoice == pinned)
     }
 
     /// A hand-typed value reads as the default and is left in place, the

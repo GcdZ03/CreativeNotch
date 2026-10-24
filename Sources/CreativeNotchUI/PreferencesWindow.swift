@@ -97,6 +97,10 @@ final class PreferencesController {
     func show(highlighting section: PreferencesSection?) {
         if let section { highlight.ask(for: section) }
         launchAtLogin.refresh()
+        // At the presentation boundary for the reason `refresh()` is: the
+        // reused window's `.onAppear` would read the displays once per
+        // process, and a monitor plugged in since would be missing.
+        state.onRefreshDisplays?()
         presenter(self)
     }
 
@@ -122,6 +126,14 @@ final class PreferencesController {
 
     func setDisplayChoice(_ choice: DisplayChoice) {
         state.onSetDisplayChoice?(choice)
+    }
+
+    /// The "Show on" menu: the general choices, each connected external
+    /// display, and a pinned display that is unplugged
+    /// (`DisplayChoice.options`). Derived from `AppState`'s observable
+    /// display list, so the open menu follows a cable without a poll.
+    var displayOptions: [DisplayChoice.Option] {
+        DisplayChoice.options(for: state.connectedDisplays, current: state.displayChoice)
     }
 
     /// The adjustable limits (2026-10-24), through `AppState`'s verb like the
@@ -368,7 +380,7 @@ struct PreferencesView: View {
             } header: {
                 Text("Display")
             } footer: {
-                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed.")
+                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again.")
             }
 
             ForEach(PreferencesSection.allCases, id: \.self) { section in
@@ -606,10 +618,16 @@ struct DisplayRow: View {
 
     /// What each choice is called in the menu. Here rather than on the Core
     /// enum, which stores the choice and knows nothing of how it is worded.
-    static func title(for choice: DisplayChoice) -> String {
-        switch choice {
+    /// A specific display goes by the name macOS gives it, the one System
+    /// Settings → Displays shows, and says so when it is unplugged -- the
+    /// pin is kept, and the panel is waiting for it.
+    static func title(for option: DisplayChoice.Option) -> String {
+        switch option.choice {
         case .focusedWindow: return "Display with the focused window"
         case .builtIn:       return "Built-in display"
+        case .display:
+            let name = option.name.flatMap { $0.isEmpty ? nil : $0 } ?? "External display"
+            return option.isConnected ? name : "\(name) (not connected)"
         }
     }
 
@@ -618,8 +636,8 @@ struct DisplayRow: View {
             get: { controller.displayChoice },
             set: { controller.setDisplayChoice($0) }
         )) {
-            ForEach(DisplayChoice.allCases, id: \.self) { choice in
-                Text(Self.title(for: choice)).tag(choice)
+            ForEach(controller.displayOptions, id: \.choice) { option in
+                Text(Self.title(for: option)).tag(option.choice)
             }
         } label: {
             Label {

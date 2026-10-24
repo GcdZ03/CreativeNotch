@@ -433,6 +433,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSScreen.chosenOnActivation(by: choice)?.metrics
     }
 
+    /// The connected displays, for the "Show on" menu. Injected so a test
+    /// can plug and unplug displays without a real one.
+    var screenDescriptors: () -> [ScreenDescriptor] = { NSScreen.descriptors }
+
+    /// Re-reads the displays the "Show on" menu offers. Asked when Settings
+    /// is shown and on every screen-parameter change -- the two moments the
+    /// list can be stale while someone is looking at it -- so nothing polls.
+    func refreshConnectedDisplays() {
+        state.connectedDisplays = screenDescriptors()
+    }
+
     /// Builds and presents the panel. `nil` means the real thing,
     /// `buildAndPresentPanel(metrics:)`; a test hands in a spy, because the
     /// real one puts a window on screen and hosts it in a Space.
@@ -764,6 +775,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSetDisplayChoice = { [weak self] choice in
             self?.setDisplayChoice(choice)
         }
+        state.onRefreshDisplays = { [weak self] in self?.refreshConnectedDisplays() }
 
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
@@ -1805,8 +1817,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A display was connected, disconnected or rearranged: place the panel
-    /// on whatever the choice picks from the screens there are now.
+    /// on whatever the choice picks from the screens there are now. This is
+    /// also how a pinned display that was unplugged gets the panel back --
+    /// plugging it in posts this, and the rule finds it again.
+    ///
+    /// The Settings menu's display list is refreshed first, so an open
+    /// Settings window offers what is connected now.
     func screenParametersDidChange() {
+        refreshConnectedDisplays()
         guard let metrics = screenMetrics(state.displayChoice) else { return }
         screenParametersDidChange(metrics: metrics)
     }
