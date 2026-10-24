@@ -21,7 +21,9 @@ delivers to the panel's own view (the trackpad swipes).
 are fine. A loop is not, with one named exception — the music peek's
 equalizer, which runs only while that peek is open — and
 `noStockControlStyleOrRepeatingAnimationSurvivesInTheUI` bans `TimelineView`
-and `.repeatForever` everywhere else.
+and `.repeatForever` everywhere else. The system spinner on a shelf tile
+whose file is still copying in is the same shape of exception: it exists
+only while a copy the user started is running and the pane is on screen.
 
 **Not allowed:** an unconditional `Timer`, a permanently-installed global
 event monitor, cursor-position polling, an audio tap. If you believe you
@@ -481,8 +483,10 @@ is Foundation, not AppKit, so the code that can destroy a file runs headlessly
 in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
 `CreativeNotchUI`.
 
-**Removal is always `FileManager.trashItem`.** `removeItem` must not appear in
-this module. Eviction at the item cap and the age purge — 20 items and 7 days
+**Removal is always `FileManager.trashItem`.** `removeItem` appears in this
+module once, in `discardPartial`, which deletes only hidden `.partial` files —
+half-finished copies that were never an item and whose original is still where
+it was dropped from. Eviction at the item cap and the age purge — 20 items and 7 days
 by default, chosen in Settings as 10/20/50 and 1/7/30 days or never — are
 automatic and silent; a file dropped here whose original was later deleted has no other copy,
 so deleting outright would destroy it without the user ever deciding to.
@@ -498,6 +502,26 @@ the shelf is shown (one `fileExists` per item), not by watching the disk.
 
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.
+
+**A dropped file is copied off the main actor.** `performDragOperation` must
+answer before it returns, and spec section 9 refuses a drop that cannot be
+stored, so `add(.file)` does the cheap checks synchronously — the source exists
+and is readable, the shelf directory is writable, a regular file fits in the
+volume's `volumeAvailableCapacityForImportantUsage` — and refuses what fails.
+A folder is not walked to measure it; it is accepted and its copy may fail
+later. An accepted file reserves its name at once and is listed as a *pending*
+`ShelfItem`, so a second drop of the same name is suffixed instead of racing
+`uniqueURL`. `ShelfCopier` copies it on a detached task into a hidden
+`.<uuid>.partial` in the shelf directory; back on the main actor it is renamed
+into the reserved name, stamped with the drop time, and marked ready. A
+failure deletes the partial, drops the item, and `AppDelegate` puts
+"Couldn't add <name>" under the shelf for a few seconds — withdrawn by a
+one-shot `Task`, like the clear's undo. Pending items count toward the
+capacity but are never evicted, purged, cleared, removed or pruned; they
+cannot be dragged out or AirDropped. A quit mid-copy abandons it, and the
+next launch deletes any `.partial` left behind. Text and image drops are
+small and stay synchronous. The copier is injectable, so tests decide when
+each copy finishes without sleeping.
 
 **An item leaves the list only once its file is in the Trash.** Remove, clear,
 purge and eviction all follow it: a file whose trash failed is still in the
