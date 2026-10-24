@@ -17,4 +17,21 @@ public enum PowerGaugeTone: Equatable, Sendable {
         if level <= lowThreshold { return .low }
         return .normal
     }
+
+    /// The SF Symbol drawn on the gauge, so the tone is not carried by
+    /// colour alone.
+    ///
+    /// The charging bolt is shown always: it is what the menu bar's own
+    /// battery does, so it reads as the system's convention rather than an
+    /// accessibility mode. The low mark is shown only under Differentiate
+    /// Without Color — for everyone else the yellow already says it, and a
+    /// glyph over a nearly empty cell is noise. `.normal` is the absence of
+    /// news and carries nothing.
+    public func glyph(differentiateWithoutColor: Bool) -> String? {
+        switch self {
+        case .charging: return "bolt.fill"
+        case .low:      return differentiateWithoutColor ? "exclamationmark" : nil
+        case .normal:   return nil
+        }
+    }
 }

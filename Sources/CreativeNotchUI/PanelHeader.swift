@@ -46,9 +46,22 @@ struct PanelHeader: View {
 
 /// A small battery glyph with the level beside it. Static: it redraws when
 /// the snapshot does, which is notification-driven.
+///
+/// The fill's colour is not the only signal: the glyph Core picks (a bolt
+/// while charging, and under Differentiate Without Color a mark when low)
+/// sits beside the level, where at 9pt it is legible. Inside a 22×11 cell
+/// it would not be.
 struct BatteryCell: View {
     let level: Int
     let isCharging: Bool
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
+    /// Static so which glyph shows for which state is testable without
+    /// rendering. Core decides; this only supplies the tone.
+    static func glyph(level: Int, isCharging: Bool, differentiateWithoutColor: Bool) -> String? {
+        PowerGaugeTone.tone(level: level, isCharging: isCharging)
+            .glyph(differentiateWithoutColor: differentiateWithoutColor)
+    }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -66,6 +79,15 @@ struct BatteryCell: View {
                     .fill(.ink(0.55))
                     .frame(width: 2, height: 4)
                     .offset(x: 3)
+            }
+            if let glyph = Self.glyph(
+                level: level,
+                isCharging: isCharging,
+                differentiateWithoutColor: differentiateWithoutColor
+            ) {
+                Image(systemName: glyph)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.ink(0.7))
             }
             Text("\(level)%")
                 .font(.system(size: 11, weight: .medium, design: .rounded))

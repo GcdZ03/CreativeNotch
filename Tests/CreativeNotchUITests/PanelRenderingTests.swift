@@ -196,6 +196,23 @@ struct TabRenderingTests {
         #expect(PowerView.fill(for: PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false)) == .white)
     }
 
+    /// The gauge and the header cell draw the glyph Core picks, so the two
+    /// cannot disagree about whether a low battery is marked.
+    @Test func theBatteryGlyphComesFromCore() {
+        let low = PowerSnapshot(level: 15, source: .battery, isCharging: false, isLowPowerMode: false)
+        let charging = PowerSnapshot(level: 15, source: .wall, isCharging: true, isLowPowerMode: false)
+        let normal = PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false)
+
+        #expect(PowerView.glyph(for: charging, differentiateWithoutColor: false) == "bolt.fill")
+        #expect(PowerView.glyph(for: low, differentiateWithoutColor: false) == nil)
+        #expect(PowerView.glyph(for: low, differentiateWithoutColor: true) == "exclamationmark")
+        #expect(PowerView.glyph(for: normal, differentiateWithoutColor: true) == nil)
+        #expect(BatteryCell.glyph(level: 15, isCharging: false, differentiateWithoutColor: true)
+                == "exclamationmark")
+        #expect(BatteryCell.glyph(level: 50, isCharging: true, differentiateWithoutColor: false)
+                == "bolt.fill")
+    }
+
     @Test func theClipboardRowLabelIsTheCoreClockTime() {
         let added = Date(timeIntervalSinceReferenceDate: 800_000)
         let now = added.addingTimeInterval(120)
