@@ -37,6 +37,8 @@ struct TimerTabView: View {
     var onCancel: () -> Void
 
     @State private var customMinutes: Int = 15
+    /// For the track's width, which grows with the digits above it.
+    @Environment(\.notchTextScale) private var textScale
 
     var body: some View {
         if let countdown {
@@ -107,7 +109,7 @@ struct TimerTabView: View {
                 // nothing — a dead button being the worst of the options.
                 TextField("", value: $customMinutes, format: .number)
                     .textFieldStyle(NotchFieldStyle())
-                    .frame(width: 52)
+                    .notchFrame(width: 52)
                     .onSubmit { start() }
                     .onChange(of: customMinutes) { _, typed in
                         customMinutes = min(
@@ -142,8 +144,8 @@ struct TimerTabView: View {
     ) -> some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 12, height: 12)
+                .notchFont(11, weight: .bold)
+                .notchFrame(width: 12, height: 12)
         }
         .buttonStyle(NotchButtonStyle(.quiet))
         .disabled(disabled)
@@ -155,7 +157,7 @@ struct TimerTabView: View {
             HStack(alignment: .firstTextBaseline, spacing: 5) {
                 let remaining = TimerDisplay.text(remaining: countdown.remaining(at: now))
                 Text(remaining)
-                    .font(.system(size: 44, weight: .medium, design: .rounded))
+                    .notchFont(44, weight: .medium, design: .rounded)
                     .monospacedDigit()
                     .rollingDigits(remaining, countsDown: true)
                     // Dimming says paused at a glance, as it does in the ear.
@@ -163,7 +165,7 @@ struct TimerTabView: View {
                 // The word says it outright, for anyone two greys do not
                 // separate — see `TimerDisplay.caption`.
                 Text(TimerDisplay.caption(isPaused: countdown.isPaused))
-                    .font(.system(size: 16, weight: .medium, design: .rounded))
+                    .notchFont(16, weight: .medium, design: .rounded)
                     .foregroundStyle(.ink(Self.captionOpacity(isPaused: countdown.isPaused)))
             }
             // One element, "Timer", whose value is the digits, "left" and
@@ -183,7 +185,7 @@ struct TimerTabView: View {
                         .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
                 }
             }
-            .frame(width: 220, height: 4)
+            .frame(width: NotchType.length(220, scale: textScale), height: 4)
             // Spoken as part of the countdown's value, so not a second stop.
             .accessibilityHidden(true)
 

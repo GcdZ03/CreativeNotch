@@ -12,6 +12,10 @@ import CreativeNotchCore
 /// The glow behind the cover is the artwork's average colour, computed once
 /// per artwork change in `.task(id:)`. Nothing here animates.
 struct MediaColumn: View {
+    /// `PanelLayout.mediaColumnWidth`, grown with the text size. Handed in
+    /// rather than read from the constant, so the column and the pane beside
+    /// it are split by the one function that splits the panel.
+    var width: CGFloat = PanelLayout.mediaColumnWidth
     let snapshot: TrackSnapshot?
     let artwork: Data?
     let showsControls: Bool
@@ -23,6 +27,7 @@ struct MediaColumn: View {
     let onCommand: (MediaCommand) -> Void
 
     @State private var tint: Color?
+    @Environment(\.notchTextScale) private var textScale
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -30,13 +35,13 @@ struct MediaColumn: View {
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(snapshot?.title ?? "Nothing playing")
-                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .notchFont(14, weight: .semibold, design: .rounded)
                     .foregroundStyle(.ink(snapshot == nil ? 0.5 : 0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let snapshot, !snapshot.artist.isEmpty {
                     Text(snapshot.artist)
-                        .font(.system(size: 12, design: .rounded))
+                        .notchFont(12, design: .rounded)
                         .foregroundStyle(.ink(0.55))
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -61,13 +66,14 @@ struct MediaColumn: View {
         .padding(.leading, 18)
         .padding(.trailing, 16)
         .padding(.bottom, 14)
-        .frame(width: PanelLayout.mediaColumnWidth, alignment: .topLeading)
+        .frame(width: width, alignment: .topLeading)
         .frame(maxHeight: .infinity, alignment: .top)
         .background(alignment: .topLeading) {
             if let tint {
                 Circle()
                     .fill(tint.opacity(0.35))
-                    .frame(width: 170, height: 170)
+                    .frame(width: NotchType.length(170, scale: textScale),
+                           height: NotchType.length(170, scale: textScale))
                     .blur(radius: 18)
                     .offset(x: -30, y: -20)
                     .allowsHitTesting(false)
@@ -89,7 +95,8 @@ struct MediaColumn: View {
         snapshot?.isPlaying
     }
 
-    /// A 72pt cover with the hairline ring `NowPlayingView` established:
+    /// A 72pt cover -- grown with the text, so the column keeps its
+    /// proportions -- with the hairline ring `NowPlayingView` established:
     /// album art is often dark at the edges and dissolves into the panel
     /// without it. With no artwork, a note glyph rather than a blank tile.
     @ViewBuilder
@@ -103,12 +110,12 @@ struct MediaColumn: View {
                 ZStack {
                     Rectangle().fill(.hairline(0.08))
                     Image(systemName: "music.note")
-                        .font(.system(size: 22, weight: .medium))
+                        .notchFont(22, weight: .medium)
                         .foregroundStyle(.ink(0.5))
                 }
             }
         }
-        .frame(width: 72, height: 72)
+        .frame(width: NotchType.length(72, scale: textScale), height: NotchType.length(72, scale: textScale))
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)

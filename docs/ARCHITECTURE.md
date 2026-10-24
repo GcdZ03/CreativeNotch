@@ -21,7 +21,9 @@ delivers to the panel's own view (the trackpad swipes).
 are fine. A loop is not, with one named exception — the music peek's
 equalizer, which runs only while that peek is open — and
 `noStockControlStyleOrRepeatingAnimationSurvivesInTheUI` bans `TimelineView`
-and `.repeatForever` everywhere else.
+and `.repeatForever` everywhere else. The system spinner on a shelf tile
+whose file is still copying in is the same shape of exception: it exists
+only while a copy the user started is running and the pane is on screen.
 
 **Not allowed:** an unconditional `Timer`, a permanently-installed global
 event monitor, cursor-position polling, an audio tap. If you believe you
@@ -102,8 +104,9 @@ invariant the peek geometry relies on.
 Inside the expanded rect, `PanelLayout.resolve(anchor:panelFrame:showsMedia:)`
 — pure, in Core — is the one place the panel is split up: a header as tall
 as the anchor whose middle column is the camera housing, and below it a
-fixed 212pt media column beside the module pane. Tabs live in the leading
-ear, battery and the settings gear in the trailing ear, and nothing is drawn
+fixed 212pt media column (grown with the text size) beside the module pane.
+Tabs live in the leading ear, battery and the settings gear in the trailing
+ear, and nothing is drawn
 behind the housing, the same rule every peek already follows. On a pill the
 gap is zero and the two ears are halves.
 
@@ -120,10 +123,41 @@ shadow would be clipped on three sides, and making room means insetting
 inner hairline on the expanded shape does the edge's job instead, and the
 closed notch gets none so it still vanishes into the housing.
 
+### Text size
+
+macOS gives a third-party app no Dynamic Type to follow: SwiftUI's
+`dynamicTypeSize` reads `.large` whatever System Settings says, and its Text
+Size pane lists Apple's apps only. So "Text size" (`TextSize`, Core) is an app
+setting — Default, Large, Larger, a factor of 1, 1.15 or 1.3 — and one factor
+drives three things that must agree:
+
+- **The panel's frame.** `NotchGeometry.panelFrame(for:in:textScale:)` grows
+  `expandedSize` by the factor, clamped to the screen but never below 620×260.
+  `AppDelegate` asks for every frame through one helper that passes the scale;
+  changing the setting goes through `reposition`, so the funnel, the tracking
+  rect and the hosting view follow as they do on a screen change.
+- **The layout.** `PanelLayout.resolve(…, textScale:)` grows the media column.
+  The header does not grow: it is the hardware notch's band.
+- **The fonts and text-holding frames.** `.notchFont` and `.notchFrame` size by
+  `NotchType` (pure, in Core) from a `notchTextScale` environment value that
+  `NotchRootView` sets on the open panel and the drop target **only**. A view
+  shared with a peek — the transport buttons, the progress bar — therefore
+  draws at the setting in the panel and at 1 in the peek without knowing which
+  it is in. The badges and the peeks keep plain `.system(size:)` fonts: they
+  are sized into the hardware band and into fixed `visibleRect` peeks, and
+  `everyPanelFontGoesThroughTheTypeScale` keeps every other file on the helper.
+
+At the default every size comes back exactly, so the look is unchanged.
+`TextSizeRenderingTests` renders each size with its own frame and checks that
+nothing runs off the bottom of the panel, with a control proving the check sees
+the clipping the larger frame exists to avoid. No observer: the view reads
+`AppState.textSize` on its next draw.
+
 ## The window is always full size
 
 `NotchPanel` is a borderless, non-activating `NSPanel` sized to the fully
-expanded bounds (620×260) at all times. Content animates inside it. That
+expanded bounds (620×260, larger with a larger text size) at all times.
+Content animates inside it. That
 avoids window-resize jank, but it means a large transparent rectangle sits
 permanently under your menu bar.
 
@@ -343,13 +377,22 @@ exists, since without it the omission above already does the job.
 
 **Which display.** "Show on" (`DisplayChoice`, Core) picks the screen from a
 list of `ScreenDescriptor`s — id, `CGDisplayIsBuiltin`, whether it is
-`NSScreen.main` — read fresh each time it is asked. Following the focused
+`NSScreen.main`, the persistent UUID from `CGDisplayCreateUUIDFromDisplayID`
+and `localizedName` — read fresh each time it is asked. Following the focused
 window (the default) asks on launch, on every `didActivateApplication` and on
 every `didChangeScreenParameters`; pinned to the built-in display it asks on
 everything but activation, falling back to the main screen when there is no
-built-in one (clamshell). Changing the setting repositions at once. All of it
-rides the two observers that already existed. Moving to another display goes
-through `reposition`, which re-checks full screen there.
+built-in one (clamshell). Pinned to a specific display it is stored as
+`display:<UUID>:<name>` — the UUID because display ids are not stable across
+reconnections, the name only so Settings can label it while unplugged — and
+it falls back to the built-in, then main, then first screen while that
+display is absent. Nothing remembers the fallback: plugging the display back
+in posts `didChangeScreenParameters`, the rule is asked again and finds it.
+The Settings menu's per-display entries come from `AppState.connectedDisplays`,
+re-read when Settings is shown and on that same notification, never polled.
+Changing the setting repositions at once. All of it rides the two observers
+that already existed. Moving to another display goes through `reposition`,
+which re-checks full screen there.
 
 ## Motion and input
 
@@ -481,8 +524,17 @@ is Foundation, not AppKit, so the code that can destroy a file runs headlessly
 in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
 `CreativeNotchUI`.
 
-**Removal is always `FileManager.trashItem`.** `removeItem` must not appear in
-this module. Eviction at the item cap and the age purge — 20 items and 7 days
+**Removal is always `FileManager.trashItem`**, through `ShelfTrash.system`;
+tests hand the store and `AppDelegate.shelfTrash` a stand-in folder so a test
+run never fills the user's Trash. **The delegate is sandboxed by default:** a
+bare `AppDelegate()` gets a temporary shelf folder, a stand-in Trash, a private
+`UserDefaults` suite and a temporary captures folder, and only
+`configureForRealLaunch()` — the first line of `applicationDidFinishLaunching`
+— points them at Application Support, `.system`, `.standard` and
+`~/Pictures/CreativeNotch` (`SandboxedSeamsTests`). `removeItem` appears in this
+module once, in `discardPartial`, which deletes only hidden `.partial` files —
+half-finished copies that were never an item and whose original is still where
+it was dropped from. Eviction at the item cap and the age purge — 20 items and 7 days
 by default, chosen in Settings as 10/20/50 and 1/7/30 days or never — are
 automatic and silent; a file dropped here whose original was later deleted has no other copy,
 so deleting outright would destroy it without the user ever deciding to.
@@ -499,6 +551,31 @@ the shelf is shown (one `fileExists` per item), not by watching the disk.
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.
 
+**A dropped file is copied off the main actor.** `performDragOperation` must
+answer before it returns, and spec section 9 refuses a drop that cannot be
+stored, so `add(.file)` does the cheap checks synchronously — the source exists
+and is readable, the shelf directory is writable, a regular file fits in the
+volume's `volumeAvailableCapacityForImportantUsage` — and refuses what fails.
+A folder is not walked to measure it; it is accepted and its copy may fail
+later. An accepted file reserves its name at once and is listed as a *pending*
+`ShelfItem`, so a second drop of the same name is suffixed instead of racing
+`uniqueURL`. `ShelfCopier` copies it on a detached task into a hidden
+`.<uuid>.partial` in the shelf directory; back on the main actor it is renamed
+into the reserved name, stamped with the drop time, and marked ready. A
+failure deletes the partial, drops the item, and `AppDelegate` announces
+"Couldn't add <name>" to VoiceOver and puts it under the shelf. The line
+stays until the shelf pane has shown it for a few seconds — withdrawn by a
+one-shot `Task` that runs only while the state is `.open(.shelf)` and is
+cancelled (keeping the line) when the pane is left — because the long copy
+this path exists for is the one the panel closes during. Pending items
+count toward the capacity but are never evicted, purged, cleared, removed or
+pruned; they cannot be dragged out or AirDropped. The pane's title row counts
+them, since their tiles are on screen, but its AirDrop All and Clear verbs and
+the menu bar's Clear Shelf act on, and count, ready items only. A quit mid-copy abandons it, and the
+next launch deletes any `.partial` left behind. Text and image drops are
+small and stay synchronous. The copier is injectable, so tests decide when
+each copy finishes without sleeping.
+
 **An item leaves the list only once its file is in the Trash.** Remove, clear,
 purge and eviction all follow it: a file whose trash failed is still in the
 directory, and dropping its tile would only hide it until the next launch
@@ -508,7 +585,13 @@ next oldest, so one stuck file neither refuses every later drop nor lets the
 shelf grow past its capacity plus the stuck ones. Lowering a limit in Settings
 runs the same eviction and purge at once (`setLimits`), sparing nothing since
 nothing was just added; "never" switches the purge off rather than setting a
-very large age.
+very large age. Settings asks first: `previewLimits` (over the pure
+`ShelfStore.removals`) names what `setLimits` would take without touching the
+disk, assuming every file will go — a stuck file cannot be known without
+trying to move it, and eviction skipping it for the next oldest keeps the
+count right anyway. A file still copying is judged as eviction judges it: it
+counts toward the capacity but is never named, so the confirmation never
+counts a file that does not exist yet.
 
 **Clear can be undone for six seconds.** `clear()` returns a
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
@@ -928,11 +1011,38 @@ rewritten, and a `String` is never parsed. `Limits` also normalises itself on
 every write, so a preset typed as 500 in Settings is stored and shown as 99.
 
 A change goes through `AppState.onSetLimits` → `AppDelegate.applyLimits`, which
-saves and applies in one call: the live `ShelfStore` evicts and purges at once
-by its usual trash-before-drop rules, the clipboard ring trims its oldest
+saves and applies in one call: when a shelf limit changed, the live
+`ShelfStore` evicts and purges at once by its usual trash-before-drop rules
+(any other change leaves the shelf alone), the clipboard ring trims its oldest
 entries, and the timer tab draws its presets from `AppState`. Nothing waits for
-a relaunch, and nothing is scheduled — each store acts once, on the change. A
-newly chosen chime is previewed through the same `playChime` seam the finish
+a relaunch, and nothing is scheduled — each store acts once, on the change.
+
+**Except a change that would trash shelf files, which is asked about first.**
+`PreferencesController.setLimits` asks only when a shelf limit changed: it
+previews both the new and the current limits through
+`AppState.onPreviewLimits`, and a change whose `ShelfLimitRemoval` names any
+item the current limits would not already take is held in `PendingLimits`
+instead of applied. (The purge runs only at launch and after an add, and a
+file that refuses the Trash stays listed, so the shelf can hold items already
+condemned; counting those would ask on every clipboard or chime change.) The
+shelf rows show a confirmation dialog whose wording comes from the removal
+(linked captures are "removed", never "moved to the Trash"; an expiry change
+says the files are too old rather than that the shelf is too full). Confirm
+previews again, and if the list moved while the dialog was up so the change
+would now take a file the dialog never counted, holds the change again with
+the new count instead of applying it; otherwise it applies the held value
+through the same `onSetLimits`. Cancel, or dismissing the dialog, drops it — nothing was
+saved or applied, and the picker, which shows the held value while the
+question is up, moves back to the applied one. There is no Undo after a
+confirmed change: the pane's six-second offer and the menu bar's "Undo Clear
+Shelf" are out of sight from Settings and say the wrong thing, and restoring
+under the new limit would evict the same files again unless the undo also
+reverted the setting — which is what Cancel already does before anything
+moves. The files are in the Trash either way. The clipboard's size is not
+asked about: its entries are in-memory text and images, not files, and the
+picker says plainly how many it keeps.
+
+A newly chosen chime is previewed through the same `playChime` seam the finish
 uses, which is what keeps the test suite silent.
 
 ### The first thing that ever turned a tab off

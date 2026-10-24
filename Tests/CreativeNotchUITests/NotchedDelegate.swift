@@ -50,9 +50,14 @@ enum NotchedDelegate {
     /// `countdown` is applied *before* `install`, which seeds the accepted
     /// region from `visibleRect()` directly — that is how a test reaches
     /// the badged state without a scheduler running.
+    ///
+    /// `shelfTrash` defaults to the shared `TestTrash`; a suite that counts
+    /// what the shelf trashes hands in a `SandboxTrash`'s. Either way nothing
+    /// reaches the user's real Trash.
     @MainActor
-    static func make(countdown: Countdown? = nil) -> AppDelegate {
+    static func make(countdown: Countdown? = nil, shelfTrash: ShelfTrash = TestTrash.shelf) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfTrash = shelfTrash
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
@@ -62,6 +67,8 @@ enum NotchedDelegate {
         delegate.announce = { _ in }
         // Far from any test panel, so the real pointer never decides a test.
         delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }
+        // The developer's real displays must not decide what Settings offers.
+        delegate.screenDescriptors = { [] }
         delegate.state.countdown = countdown
         delegate.install(metrics: metrics)
         // The indicator would otherwise read the developer's real

@@ -118,7 +118,7 @@ struct ShelfStoreTests {
     private func makeStore() throws -> (ShelfStore, URL) {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("shelf-\(UUID().uuidString)")
-        return (try ShelfStore(directory: dir), dir)
+        return (try ShelfStore(directory: dir, trash: TestTrash.shelf), dir)
     }
 
     private func makeSourceFile(named name: String, contents: String = "x") throws -> URL {
@@ -138,11 +138,14 @@ struct ShelfStoreTests {
         #expect(FileManager.default.fileExists(atPath: dir.path))
     }
 
-    @Test func addingAFileCopiesItAndLeavesTheOriginalAlone() throws {
+    /// The copy itself runs in the background (`ShelfAsyncCopyTests`); here
+    /// it is simply awaited.
+    @Test func addingAFileCopiesItAndLeavesTheOriginalAlone() async throws {
         let (store, dir) = try makeStore()
         let source = try makeSourceFile(named: "notes.txt", contents: "hello")
 
         let item = try store.add(.file(source), now: t0)
+        await store.waitForPendingCopies()
 
         #expect(item.displayName == "notes.txt")
         #expect(item.url.deletingLastPathComponent().path == dir.path)
@@ -160,7 +163,7 @@ struct ShelfStoreTests {
         #expect(store.items.first?.addedAt == t0.addingTimeInterval(1))
     }
 
-    @Test func aCollidingNameGetsASuffixRatherThanOverwriting() throws {
+    @Test func aCollidingNameGetsASuffixRatherThanOverwriting() async throws {
         let (store, _) = try makeStore()
         let a = try makeSourceFile(named: "shot.png", contents: "first")
         let b = try makeSourceFile(named: "shot.png", contents: "second")
@@ -169,6 +172,7 @@ struct ShelfStoreTests {
         let i1 = try store.add(.file(a), now: t0)
         let i2 = try store.add(.file(b), now: t0)
         let i3 = try store.add(.file(c), now: t0)
+        await store.waitForPendingCopies()
 
         #expect(i1.url.lastPathComponent == "shot.png")
         #expect(i2.url.lastPathComponent == "shot 2.png")
@@ -262,7 +266,7 @@ struct ShelfStoreTests {
         try store.add(.text("kept"), now: t0)
         try store.add(.text("also kept"), now: t0.addingTimeInterval(1))
 
-        let reopened = try ShelfStore(directory: dir)
+        let reopened = try ShelfStore(directory: dir, trash: TestTrash.shelf)
 
         #expect(reopened.items.count == 2)
     }
@@ -282,7 +286,7 @@ struct ShelfStoreTests {
         try FileManager.default.setAttributes(
             [.creationDate: t0.addingTimeInterval(3600)], ofItemAtPath: newer.url.path)
 
-        let reopened = try ShelfStore(directory: dir)
+        let reopened = try ShelfStore(directory: dir, trash: TestTrash.shelf)
 
         #expect(reopened.items.count == 2)
         #expect(reopened.items.first?.url.lastPathComponent == newer.url.lastPathComponent)
@@ -294,7 +298,7 @@ struct ShelfStoreTests {
         let item = try store.add(.text("doomed"), now: t0)
         try FileManager.default.removeItem(at: item.url)
 
-        let reopened = try ShelfStore(directory: dir)
+        let reopened = try ShelfStore(directory: dir, trash: TestTrash.shelf)
         #expect(reopened.items.isEmpty)
     }
 
@@ -304,7 +308,7 @@ struct ShelfStoreTests {
     /// `addedAt` back from the creation date. Without stamping the copy, a
     /// file made a month ago and dropped this morning reloads as a month
     /// old -- and the launch purge sends it to the Trash.
-    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() throws {
+    @Test func reopeningKeepsTheDropTimeRatherThanTheSourcesCreationDate() async throws {
         let (store, dir) = try makeStore()
         let source = try makeSourceFile(named: "old.txt")
         try FileManager.default.setAttributes(
@@ -312,8 +316,9 @@ struct ShelfStoreTests {
             ofItemAtPath: source.path)
 
         try store.add(.file(source), now: t0)
+        await store.waitForPendingCopies()
 
-        let reopened = try ShelfStore(directory: dir)
+        let reopened = try ShelfStore(directory: dir, trash: TestTrash.shelf)
         let reloaded = try #require(reopened.items.first)
         #expect(abs(reloaded.addedAt.timeIntervalSince(t0)) < 1,
                 "reload took the source's creation date, not the drop time")
@@ -534,6 +539,21 @@ struct ShelfStoreTests {
         #expect(store.items == [reference])
     }
 
+    /// What a clear lets go of goes where the store's `ShelfTrash` says --
+    /// here the tests' stand-in folder, never the user's real Trash.
+    @Test func aClearUsesTheInjectedTrash() throws {
+        let (store, _) = try makeStore()
+        let item = try store.add(.text("scratch"), now: t0)
+
+        let clearance = try store.clear()
+        let trashed = try #require(clearance.entries.first?.trashedURL)
+
+        #expect(trashed.path.hasPrefix(TestTrash.folder.path))
+        #expect(FileManager.default.fileExists(atPath: trashed.path))
+        #expect(!FileManager.default.fileExists(atPath: item.url.path))
+        #expect(store.restore(clearance).restored.map(\.id) == [item.id])
+    }
+
     /// A file emptied out of the Trash in the meantime cannot come back. It
     /// is skipped and reported, and the rest are still restored.
     @Test func anItemWhoseTrashedFileIsGoneIsSkipped() throws {
@@ -741,7 +761,7 @@ struct ShelfStoreTests {
     @Test func theLimitsCanBeSetAtConstruction() throws {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("shelf-\(UUID().uuidString)")
-        let store = try ShelfStore(directory: dir, capacity: 10, maxAge: nil)
+        let store = try ShelfStore(directory: dir, capacity: 10, maxAge: nil, trash: TestTrash.shelf)
         #expect(store.capacity == 10)
         #expect(store.maxAge == nil)
     }

@@ -9,17 +9,33 @@ import Observation
 ///
 /// `@MainActor` because every caller is: the drop target, the view, and the
 /// menu bar item. File I/O on the main actor is acceptable at this scale —
-/// fifty items at most, and disk is touched only on add or remove.
+/// fifty items at most, and disk is touched only on add or remove — with
+/// one exception, the copy of a dropped file.
 ///
-/// The known cost is `add(.file)`: a same-volume copy is an APFS clone and
-/// instant, but a multi-gigabyte drop from another volume holds the main
-/// thread for the length of the copy. It stays synchronous on purpose.
-/// `performDragOperation` must answer accepted-or-refused before it
-/// returns, and spec section 9 says a drop that cannot be stored is
-/// refused — an off-main copy could only accept optimistically and fail
-/// later, and concurrent copies would race `uniqueURL` for the same name.
-/// Moving it off-main means a pending-item state in the store, not a
-/// `Task` around the copy.
+/// **A dropped file is copied off the main actor.** A multi-gigabyte drop
+/// from another volume used to hold the main thread for the length of the
+/// copy. `performDragOperation` must still answer accepted-or-refused before
+/// it returns, and spec section 9 still refuses a drop that cannot be
+/// stored, so `add(.file)` splits in two:
+///
+/// - **At drop time, synchronously and cheaply**, it refuses what is known
+///   to fail: a source that is gone or unreadable, a shelf directory that
+///   cannot be written, a regular file bigger than the volume's free space.
+///   A folder is not walked to measure it — that walk could be the slow
+///   part — so it is accepted and its copy may fail later.
+/// - **Accepted**, it reserves the destination name at once and lists a
+///   *pending* item under it, so a second drop of the same name, or a text
+///   drop, is suffixed rather than racing `uniqueURL` for it. The copy runs
+///   on `copier` into a hidden `.<uuid>.partial` in the shelf directory —
+///   `load` already skips hidden files — and is renamed into the reserved
+///   name, stamped with the drop time, and marked ready back on the main
+///   actor. A failure deletes the partial, drops the pending item and calls
+///   `onCopyFailed`.
+///
+/// Every copy goes this way, same volume or not: an APFS clone finishes
+/// almost at once, and one path is simpler than two. A quit mid-copy
+/// abandons it; the next launch deletes the partial. Text and image drops
+/// are small and stay synchronous, and `addReference` copies nothing.
 ///
 /// `@Observable` so a view reading `items` is told when they change.
 /// Without it the shelf only appeared to work: every drop is followed by
@@ -50,8 +66,29 @@ public final class ShelfStore {
     /// Newest first.
     public private(set) var items: [ShelfItem] = []
 
+    /// Only the items with a file behind them: what AirDrop All and Clear
+    /// act on, and what a drag out can carry.
+    public var readyItems: [ShelfItem] { items.filter { !$0.isPending } }
+
+    /// Told when a dropped file's copy fails after the drop was accepted,
+    /// with the pending item that has just been taken off the list.
+    ///
+    /// The drop already returned true, so this is the only place the
+    /// failure can surface. How long the pane mentions it is a UI decision,
+    /// so the store reports and forgets.
+    @ObservationIgnored
+    public var onCopyFailed: ((ShelfItem, any Error) -> Void)?
+
     private let directory: URL
     private let fileManager: FileManager
+    private let copier: ShelfCopier
+    /// Where `trash(_:)` sends a file; the real Trash outside tests.
+    private let trashCan: ShelfTrash
+
+    /// The copies in flight, by pending item. Kept so a test can wait for
+    /// them; nothing ever cancels one.
+    @ObservationIgnored
+    private var copies: [UUID: Task<Void, Never>] = [:]
 
     /// The limits are taken here, not read later, so the app can hand over
     /// the saved ones before its launch purge runs: a purge against the
@@ -60,14 +97,41 @@ public final class ShelfStore {
         directory: URL,
         fileManager: FileManager = .default,
         capacity: Int = ShelfStore.defaultCapacity,
-        maxAge: TimeInterval? = ShelfStore.defaultMaxAge
+        maxAge: TimeInterval? = ShelfStore.defaultMaxAge,
+        copier: ShelfCopier = .system,
+        trash: ShelfTrash = .system
     ) throws {
         self.directory = directory
         self.fileManager = fileManager
+        self.copier = copier
+        self.trashCan = trash
         self.capacity = max(1, capacity)
         self.maxAge = maxAge
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        Self.discardStalePartials(in: directory, fileManager: fileManager)
         items = Self.load(from: directory, fileManager: fileManager)
+    }
+
+    /// Why a drop was refused before anything was copied.
+    public enum AddError: Error, Equatable {
+        /// The dropped file is gone, or cannot be read.
+        case sourceUnavailable(URL)
+        /// The shelf directory cannot be written.
+        case shelfNotWritable
+        /// The file is bigger than the free space on the shelf's volume.
+        case notEnoughSpace(needed: Int64, available: Int64)
+    }
+
+    /// Deletes the temporary copies a quit mid-copy left behind.
+    ///
+    /// They are hidden, so `load` never lists them and no removal would
+    /// ever reach them; without this each abandoned copy would hold its
+    /// space for good.
+    private static func discardStalePartials(in directory: URL, fileManager: FileManager) {
+        let names = (try? fileManager.contentsOfDirectory(atPath: directory.path)) ?? []
+        for name in names where isPartialName(name) {
+            discardPartial(directory.appendingPathComponent(name), fileManager: fileManager)
+        }
     }
 
     /// Rebuilds the list from what is actually on disk.
@@ -98,26 +162,32 @@ public final class ShelfStore {
         .sorted { $0.addedAt > $1.addedAt }
     }
 
+    /// Stores a drop. Text and images are written before this returns; a
+    /// file is validated, listed as pending under its reserved name, and
+    /// copied in the background -- see the type's note. Throws only when the
+    /// drop should be refused.
     @discardableResult
     public func add(_ payload: DropPayload, now: Date) throws -> ShelfItem {
-        let destination = uniqueURL(for: payload.suggestedName)
-
+        let destination: URL
         switch payload {
         case .file(let source):
-            try fileManager.copyItem(at: source, to: destination)
+            return try beginCopy(of: source, now: now)
         case .text(let string):
+            destination = uniqueURL(for: payload.suggestedName)
             try string.write(to: destination, atomically: true, encoding: .utf8)
         case .image(let data, _):
+            destination = uniqueURL(for: payload.suggestedName)
             try data.write(to: destination, options: .atomic)
         }
 
-        // `copyItem` keeps the source's creation date, and `load` reads
-        // `addedAt` back from it. Unstamped, a file made a month ago and
-        // dropped this morning reloads as a month old and the launch purge
-        // trashes it. The creation date is the record of the drop time --
-        // no sidecar index -- so it is set here, for every payload kind.
+        // The creation date is the record of the drop time -- no sidecar
+        // index -- and `load` reads `addedAt` back from it, so it is set
+        // for every payload kind. It matters most for a copied file, which
+        // keeps the source's creation date: unstamped, a file made a month
+        // ago and dropped this morning reloads as a month old and the
+        // launch purge trashes it. `finishCopy` stamps those the same way.
         //
-        // `try?` because the copy has already landed: failing the drop now
+        // `try?` because the write has already landed: failing the drop now
         // would leave an unlisted file that reappears at the next launch,
         // which is worse than an age that is merely wrong.
         try? fileManager.setAttributes([.creationDate: now], ofItemAtPath: destination.path)
@@ -132,6 +202,137 @@ public final class ShelfStore {
         housekeep(sparing: item.id, now: now)
         return item
     }
+
+    /// Waits until every copy in flight has landed or failed.
+    ///
+    /// For tests and nothing else: the app never waits on a copy, which is
+    /// the point of copying in the background.
+    public func waitForPendingCopies() async {
+        while let task = copies.values.first {
+            await task.value
+        }
+    }
+
+    // MARK: - Copying a dropped file
+
+    /// The synchronous half of a file drop: refuse, or reserve and list.
+    private func beginCopy(of source: URL, now: Date) throws -> ShelfItem {
+        try validate(source)
+
+        let destination = uniqueURL(for: source.lastPathComponent)
+        let partial = directory.appendingPathComponent(".\(UUID().uuidString).partial")
+        let item = ShelfItem(
+            id: UUID(),
+            url: destination,
+            displayName: destination.lastPathComponent,
+            addedAt: now,
+            isPending: true
+        )
+        items.insert(item, at: 0)
+        // The pending item counts toward the capacity, so the shelf never
+        // shows more tiles than its limit, but eviction passes it by.
+        housekeep(sparing: item.id, now: now)
+
+        let copier = self.copier
+        // Inherits the main actor, so the hand-back is on it; the copier
+        // itself runs elsewhere (`ShelfCopier.system` is detached).
+        copies[item.id] = Task { [weak self] in
+            do {
+                try await copier.copy(source, partial)
+                self?.finishCopy(of: item.id, from: partial)
+            } catch {
+                self?.failCopy(of: item.id, from: partial, error: error)
+            }
+        }
+        return item
+    }
+
+    /// Refuses what is known to fail, cheaply, while the drop can still be
+    /// refused.
+    ///
+    /// A folder is not measured: summing its tree could take as long as
+    /// the copy this is meant to keep off the main thread.
+    private func validate(_ source: URL) throws {
+        var isDirectory: ObjCBool = false
+        guard fileManager.fileExists(atPath: source.path, isDirectory: &isDirectory),
+              fileManager.isReadableFile(atPath: source.path)
+        else { throw AddError.sourceUnavailable(source) }
+
+        guard fileManager.isWritableFile(atPath: directory.path)
+        else { throw AddError.shelfNotWritable }
+
+        guard !isDirectory.boolValue,
+              let size = (try? fileManager.attributesOfItem(atPath: source.path))?[.size] as? NSNumber,
+              let available = copier.availableCapacity(directory)
+        else { return }
+        if size.int64Value > available {
+            throw AddError.notEnoughSpace(needed: size.int64Value, available: available)
+        }
+    }
+
+    /// The copy landed: rename it into the reserved name and mark it ready.
+    ///
+    /// If something took the reserved name in the meantime -- a file put in
+    /// the directory by hand; nothing in the store can -- the copy takes the
+    /// next free name rather than failing after all that copying.
+    private func finishCopy(of id: UUID, from partial: URL) {
+        copies[id] = nil
+        guard let index = items.firstIndex(where: { $0.id == id }) else {
+            Self.discardPartial(partial, fileManager: fileManager)
+            return
+        }
+        let pending = items[index]
+        let destination = fileManager.fileExists(atPath: pending.url.path)
+            ? uniqueURL(for: pending.displayName)
+            : pending.url
+        do {
+            try fileManager.moveItem(at: partial, to: destination)
+        } catch {
+            failCopy(of: id, from: partial, error: error)
+            return
+        }
+        // As in `add`: the creation date is the record of the drop time.
+        try? fileManager.setAttributes(
+            [.creationDate: pending.addedAt], ofItemAtPath: destination.path)
+
+        items[index] = ShelfItem(
+            id: id,
+            url: destination,
+            displayName: destination.lastPathComponent,
+            addedAt: pending.addedAt
+        )
+        // Pending items were passed over by the eviction their add ran; one
+        // that is now ready can be evicted like any other.
+        evictBeyondCapacity(sparing: id)
+    }
+
+    private func failCopy(of id: UUID, from partial: URL, error: any Error) {
+        copies[id] = nil
+        Self.discardPartial(partial, fileManager: fileManager)
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        items.removeAll { $0.id == id }
+        onCopyFailed?(item, error)
+    }
+
+    /// `.<uuid>.partial`: hidden, so `load` never lists it.
+    private static func isPartialName(_ name: String) -> Bool {
+        name.hasPrefix(".") && name.hasSuffix(".partial")
+    }
+
+    /// Deletes a temporary copy outright -- the one `removeItem` in this
+    /// module, and why it is allowed here.
+    ///
+    /// A partial is never an item and never the only copy of anything: it
+    /// is half of a copy whose original is still where it was dropped from.
+    /// Sending it to the Trash would fill the user's Trash with fragments
+    /// they never put on the shelf. The name check keeps this from ever
+    /// deleting anything else.
+    private static func discardPartial(_ url: URL, fileManager: FileManager) {
+        guard isPartialName(url.lastPathComponent) else { return }
+        try? fileManager.removeItem(at: url)
+    }
+
+    // MARK: - References
 
     /// Puts a file on the shelf **without copying or owning it**.
     ///
@@ -159,8 +360,12 @@ public final class ShelfStore {
 
     /// The item leaves the list only once its file is gone: one that stayed
     /// on disk would be reloaded from the directory at the next launch.
+    ///
+    /// A pending item is left alone: its copy is still running and would
+    /// land a moment later under a name nothing lists. The tile offers no
+    /// Remove while it copies, so this is only a backstop.
     public func remove(_ id: UUID) throws {
-        guard let item = items.first(where: { $0.id == id }) else { return }
+        guard let item = items.first(where: { $0.id == id }), !item.isPending else { return }
         try trash(item)
         items.removeAll { $0.id == id }
     }
@@ -183,11 +388,13 @@ public final class ShelfStore {
     /// that quietly refilled from the directory at the next launch. Every
     /// item is attempted; if any failed, `PartialClear` is thrown with the
     /// first failure and the record of what did go.
+    ///
+    /// Pending items stay listed, for the reason `remove` leaves them.
     @discardableResult
     public func clear() throws -> ShelfClearance {
         var entries: [ShelfClearance.Entry] = []
         var firstError: (any Error)?
-        for item in items {
+        for item in items where !item.isPending {
             do {
                 let trashedURL = try trash(item)
                 items.removeAll { $0.id == item.id }
@@ -203,7 +410,7 @@ public final class ShelfStore {
 
     /// Puts back what a `clear()` took, as far as it still can.
     ///
-    /// Owned files are moved back out of the Trash -- `trashItem` reported
+    /// Owned files are moved back out of the Trash -- `ShelfTrash` reported
     /// where it put each one -- and keep their identity and drop time, so
     /// they return to the same place in the list and age from the original
     /// drop, not from the undo. A move preserves the creation date, which is
@@ -287,6 +494,59 @@ public final class ShelfStore {
         _ = try? purge(now: now)
     }
 
+    /// What `setLimits` would take if handed these limits now, without
+    /// taking it (2026-10-24).
+    ///
+    /// Settings asks before it applies a lowered limit, so a change that
+    /// would trash files is confirmed first and one that would not applies
+    /// silently. Nothing here touches the disk or the list.
+    public func previewLimits(capacity: Int, maxAge: TimeInterval?, now: Date) -> ShelfLimitRemoval {
+        Self.removals(from: items, capacity: capacity, maxAge: maxAge, now: now)
+    }
+
+    /// The rule `setLimits` enforces, as a pure function of the list.
+    ///
+    /// Eviction first, oldest beyond the capacity, then the age purge over
+    /// what is left — the order `setLimits` runs them in, so an item past
+    /// both is counted once.
+    ///
+    /// **It assumes every file will go.** A file that refuses the Trash is
+    /// skipped by eviction for the next oldest, so the count still holds for
+    /// a lowered capacity even though *which* item goes differs; a stuck file
+    /// past the expiry simply stays. The preview cannot know which files are
+    /// stuck without trying to move them, which is the side effect it exists
+    /// to avoid. Items are judged by list order and drop time alone.
+    ///
+    /// **Pending items are judged as eviction judges them**: they count
+    /// toward the capacity, so a copy in flight still pushes the oldest
+    /// ready item out, but are never named themselves -- eviction passes
+    /// them by and the purge never expires one -- so a confirmation never
+    /// counts a file that does not exist yet.
+    public nonisolated static func removals(
+        from items: [ShelfItem],
+        capacity: Int,
+        maxAge: TimeInterval?,
+        now: Date
+    ) -> ShelfLimitRemoval {
+        let capacity = max(1, capacity)
+        // As `evictBeyondCapacity` walks it: oldest first, every item
+        // counted, only ready ones taken, until the list fits.
+        var excess = max(0, items.count - capacity)
+        var evicted: Set<UUID> = []
+        for item in items.reversed() where excess > 0 && !item.isPending {
+            evicted.insert(item.id)
+            excess -= 1
+        }
+        var expiredOnly = 0
+        let removed = items.filter { item in
+            guard !item.isPending else { return false }
+            let expired = maxAge.map { now.timeIntervalSince(item.addedAt) > $0 } ?? false
+            if expired, !evicted.contains(item.id) { expiredOnly += 1 }
+            return evicted.contains(item.id) || expired
+        }
+        return ShelfLimitRemoval(items: removed, expiredCount: expiredOnly)
+    }
+
     /// Drops items whose file no longer exists, returning what went.
     ///
     /// A file can be moved or deleted from underneath the shelf -- in
@@ -297,7 +557,8 @@ public final class ShelfStore {
     /// nothing left to trash.
     @discardableResult
     public func pruneMissing() -> [ShelfItem] {
-        let missing = items.filter { !fileManager.fileExists(atPath: $0.url.path) }
+        // A pending item's file is not there *yet*; that is not missing.
+        let missing = items.filter { !$0.isPending && !fileManager.fileExists(atPath: $0.url.path) }
         guard !missing.isEmpty else { return [] }
         let missingIDs = Set(missing.map(\.id))
         items.removeAll { missingIDs.contains($0.id) }
@@ -316,10 +577,12 @@ public final class ShelfStore {
     /// here used to be invisible twice over -- the tile vanished, and the
     /// file came back at the next launch to be purged, and fail, again.
     /// Every expired item is attempted; the first failure is rethrown.
+    /// A pending item is never expired: it has no file yet, and its age
+    /// counts from the drop once it is ready.
     @discardableResult
     public func purge(now: Date) throws -> [ShelfItem] {
         guard let maxAge else { return [] }
-        let expired = items.filter { now.timeIntervalSince($0.addedAt) > maxAge }
+        let expired = items.filter { !$0.isPending && now.timeIntervalSince($0.addedAt) > maxAge }
         guard !expired.isEmpty else { return [] }
 
         var removed: [ShelfItem] = []
@@ -340,9 +603,19 @@ public final class ShelfStore {
     // MARK: - Internals
 
     /// Appends " 2", " 3", ... before the extension until the name is free.
+    ///
+    /// Free means no file on disk *and* not reserved by a pending item,
+    /// whose file does not exist until its copy lands. Compared without
+    /// case, as the default APFS volume does.
     private func uniqueURL(for name: String) -> URL {
+        let reserved = Set(items.filter(\.isPending).map { $0.url.lastPathComponent.lowercased() })
+        func isFree(_ url: URL) -> Bool {
+            !reserved.contains(url.lastPathComponent.lowercased())
+                && !fileManager.fileExists(atPath: url.path)
+        }
+
         let candidate = directory.appendingPathComponent(name)
-        guard fileManager.fileExists(atPath: candidate.path) else { return candidate }
+        guard !isFree(candidate) else { return candidate }
 
         let base = (name as NSString).deletingPathExtension
         let ext = (name as NSString).pathExtension
@@ -350,7 +623,7 @@ public final class ShelfStore {
         while true {
             let suffixed = ext.isEmpty ? "\(base) \(n)" : "\(base) \(n).\(ext)"
             let url = directory.appendingPathComponent(suffixed)
-            if !fileManager.fileExists(atPath: url.path) { return url }
+            if isFree(url) { return url }
             n += 1
         }
     }
@@ -381,9 +654,17 @@ public final class ShelfStore {
     /// `sparing` is the item just added. Evicting the thing the user just
     /// dropped, because older ones would not go, would refuse the drop in
     /// all but name.
+    ///
+    /// Pending items **count** toward the capacity -- so the pane never
+    /// shows more tiles than the limit while copies run -- but are never
+    /// evicted, like a stuck file: there is nothing in the directory to
+    /// trash, and the copy would land under a name nothing lists.
+    /// `finishCopy` runs this again once a copy lands, so the shelf comes
+    /// back to its capacity as soon as the pending items can be counted
+    /// as evictable.
     private func evictBeyondCapacity(sparing spared: UUID?) {
         for candidate in items.reversed() where items.count > capacity {
-            guard candidate.id != spared else { continue }
+            guard candidate.id != spared, !candidate.isPending else { continue }
             do {
                 try trash(candidate)
                 items.removeAll { $0.id == candidate.id }
@@ -398,7 +679,8 @@ public final class ShelfStore {
     /// Eviction and purging are automatic and silent. A file dropped here
     /// whose original was later deleted has no other copy, so `removeItem`
     /// would destroy it without the user ever deciding to. `removeItem`
-    /// must not appear in this module.
+    /// appears in this module only in `discardPartial`, for temporary
+    /// copies that were never an item.
     /// Moves an item's file to the Trash -- **only if the shelf owns it**.
     ///
     /// A referenced file lives somewhere the user chose, and is usually the
@@ -413,8 +695,72 @@ public final class ShelfStore {
     private func trash(_ item: ShelfItem) throws -> URL? {
         guard item.isOwned else { return nil }
         guard fileManager.fileExists(atPath: item.url.path) else { return nil }
-        var resulting: NSURL?
-        try fileManager.trashItem(at: item.url, resultingItemURL: &resulting)
-        return resulting as URL?
+        return try trashCan.move(item.url)
+    }
+}
+
+/// What a change of shelf limits would take off the shelf, and the words
+/// Settings uses to ask before it does (2026-10-24).
+///
+/// The words live here rather than in the view so they can be tested: a
+/// confirmation that says "Move 2 files to the Trash" when the two are
+/// captures the shelf only links to would be the alarm that trains people to
+/// click through it.
+public struct ShelfLimitRemoval: Equatable, Sendable {
+    /// In list order, newest first.
+    public let items: [ShelfItem]
+
+    /// How many of `items` go only because they are older than the expiry,
+    /// rather than because the shelf is over its capacity. The reason the
+    /// confirmation gives depends on it: "lower than what the shelf holds"
+    /// explains nothing about a file that is merely old.
+    public let expiredCount: Int
+
+    public init(items: [ShelfItem], expiredCount: Int = 0) {
+        self.items = items
+        self.expiredCount = min(max(0, expiredCount), items.count)
+    }
+
+    /// Nothing would go, so the change applies without asking.
+    public var isEmpty: Bool { items.isEmpty }
+
+    public var count: Int { items.count }
+
+    /// The ones whose file actually goes to the Trash. A reference leaves the
+    /// list and its file stays where it is.
+    public var trashedCount: Int { items.filter(\.isOwned).count }
+
+    private var linkedCount: Int { count - trashedCount }
+
+    public var title: String {
+        trashedCount > 0
+            ? "Move \(Self.plural(trashedCount, "file")) from the shelf to the Trash?"
+            : "Remove \(Self.plural(count, "item")) from the shelf?"
+    }
+
+    public var message: String {
+        var message: String
+        if expiredCount == 0 {
+            message = "The new limit is lower than what the shelf holds now."
+        } else if expiredCount == count {
+            message = count == 1
+                ? "It is older than the shelf will now keep files."
+                : "They are older than the shelf will now keep files."
+        } else {
+            message = "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files."
+        }
+        if trashedCount > 0, linkedCount > 0 {
+            message += " \(Self.plural(linkedCount, "linked item")) also \(linkedCount == 1 ? "leaves" : "leave") the shelf, but \(linkedCount == 1 ? "its file stays" : "their files stay") where \(linkedCount == 1 ? "it is" : "they are")."
+        } else if trashedCount == 0 {
+            message += count == 1 ? " Its file stays where it is." : " Their files stay where they are."
+        }
+        return message
+    }
+
+    /// The destructive button: what it does, not "OK".
+    public var confirmLabel: String { trashedCount > 0 ? "Move to Trash" : "Remove" }
+
+    private static func plural(_ n: Int, _ noun: String) -> String {
+        "\(n) \(noun)\(n == 1 ? "" : "s")"
     }
 }

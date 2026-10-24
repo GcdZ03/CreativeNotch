@@ -145,7 +145,7 @@ struct TabRenderingTests {
     @Test func theEmptyShelfDrawsATarget() throws {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
         let s = PanelRenderingTests.state(media: false)
-        s.shelf = try ShelfStore(directory: dir)
+        s.shelf = try ShelfStore(directory: dir, trash: TestTrash.shelf)
         s.transition(to: .open(.shelf))
         let b = try #require(PanelRenderingTests.bitmap(s))
         #expect(PanelRenderingTests.ink(b, in: CGRect(x: 40, y: 243, width: 540, height: 6)) > 0.03)

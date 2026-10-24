@@ -92,6 +92,26 @@ public final class AppState {
     @ObservationIgnored
     public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
 
+    /// How large the open panel's text is (2026-10-24). Applied by
+    /// `onSetTextSize`, which also resizes the panel to fit it; the view reads
+    /// it on every draw, so a change needs nothing re-registered.
+    public internal(set) var textSize: TextSize = .default
+
+    /// Saves the size, applies it and resizes the panel in one call, so
+    /// Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTextSize: ((TextSize) -> Void)?
+
+    /// The displays connected when last asked, for the "Show on" menu's
+    /// per-display entries. Refreshed by `onRefreshDisplays` when Settings is
+    /// shown and on every screen-parameter change -- never polled, and never
+    /// read by the placement rule, which asks `NSScreen` afresh each time.
+    public internal(set) var connectedDisplays: [ScreenDescriptor] = []
+
+    /// Re-reads `connectedDisplays`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshDisplays: (() -> Void)?
+
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
     public internal(set) var limits = Limits()
@@ -101,6 +121,12 @@ public final class AppState {
     /// `AppDelegate`.
     @ObservationIgnored
     public var onSetLimits: ((Limits) -> Void)?
+
+    /// What `onSetLimits` would take off the shelf, without applying
+    /// anything — so Settings can ask before a lowered limit trashes files.
+    /// Wired by `AppDelegate`; unwired, nothing would be taken.
+    @ObservationIgnored
+    public var onPreviewLimits: ((Limits) -> ShelfLimitRemoval)?
 
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
@@ -150,6 +176,14 @@ public final class AppState {
     /// its own after a few seconds, and the button has to go with it.
     /// Set by `AppDelegate`, which holds what the clear took.
     public internal(set) var canUndoShelfClear = false
+
+    /// A short line under the shelf -- "Couldn't add Holiday.mov" -- when a
+    /// dropped file's background copy fails, or `nil`.
+    ///
+    /// The drop had already been accepted by then, so the pane is the only
+    /// place left to say so. Observable, like `canUndoShelfClear`, because
+    /// it lapses on its own; set and withdrawn by `AppDelegate`.
+    public internal(set) var shelfNotice: String?
 
     /// Puts back what the last Clear moved to the Trash. Wired, like
     /// `onClearShelf`, to the delegate that holds the record.
@@ -923,7 +957,8 @@ public struct NotchRootView: View {
                     let layout = PanelLayout.resolve(
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
-                        showsMedia: tab != .camera && app.showsMediaControls
+                        showsMedia: tab != .camera && app.showsMediaControls,
+                        textScale: app.textSize.scale
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -944,6 +979,7 @@ public struct NotchRootView: View {
                             HStack(spacing: 0) {
                                 if layout.mediaColumnWidth > 0 {
                                     MediaColumn(
+                                        width: layout.mediaColumnWidth,
                                         snapshot: app.nowPlaying,
                                         artwork: app.nowPlayingArtwork,
                                         showsControls: app.showsMediaControls,
@@ -975,6 +1011,11 @@ public struct NotchRootView: View {
                         )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // Text size (2026-10-24): every `.notchFont` and text-
+                    // holding length below reads it. Here and on the drop
+                    // target only, so the badges and the peeks above stay
+                    // the size the hardware band allows (`NotchType`).
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -987,6 +1028,7 @@ public struct NotchRootView: View {
                             .padding(.top, 10)
                             .padding(.bottom, 20)
                     }
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 // The music peek is a mini player that grows down from the
                 // notch (spec 2026-10-15); power and timer peeks stay one
@@ -1089,12 +1131,24 @@ public struct NotchRootView: View {
                     count: Self.shelfCount(shelf.items.count),
                     actions: Self.shelfActions(for: shelf, app: app)
                 ) {
-                    ShelfView(
-                        store: shelf,
-                        onRemove: { app.onRemoveShelfItem?($0) },
-                        onAirDrop: { app.onAirDropShelfItems?([$0]) },
-                        onReveal: { app.onRevealShelfItem?($0) }
-                    )
+                    VStack(alignment: .leading, spacing: 6) {
+                        ShelfView(
+                            store: shelf,
+                            onRemove: { app.onRemoveShelfItem?($0) },
+                            onAirDrop: { app.onAirDropShelfItems?([$0]) },
+                            onReveal: { app.onRevealShelfItem?($0) }
+                        )
+                        // A background copy that failed after its drop was
+                        // accepted. Under the tiles rather than in the title
+                        // row, which is for verbs; gone again on its own.
+                        if let notice = app.shelfNotice {
+                            Text(notice)
+                                .notchFont(11, weight: .medium, design: .rounded)
+                                .foregroundStyle(.ink(0.6))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
                 }
             }
 
@@ -1151,6 +1205,10 @@ public struct NotchRootView: View {
     /// when it is empty -- with "Undo" before Clear for the few seconds a
     /// clear can still be taken back.
     ///
+    /// Both act on `readyItems`: a file still copying in has nothing to
+    /// AirDrop, and Clear would pass it by, so a shelf holding only copies
+    /// in progress offers neither.
+    ///
     /// AirDrop All hands every file to AirDrop in one go — one picker, not
     /// one per file — through the same `onAirDropShelfItems` verb the
     /// tiles use. Clear stays last, at the edge, where the destructive verb
@@ -1161,13 +1219,13 @@ public struct NotchRootView: View {
         for shelf: ShelfStore, app: AppState
     ) -> [(label: String, perform: () -> Void)] {
         var actions: [(label: String, perform: () -> Void)] = []
-        if !shelf.items.isEmpty {
-            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }))
+        if !shelf.readyItems.isEmpty {
+            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
         }
         if app.canUndoShelfClear {
             actions.append(("Undo", { app.onUndoClearShelf?() }))
         }
-        if !shelf.items.isEmpty {
+        if !shelf.readyItems.isEmpty {
             actions.append(("Clear", { app.onClearShelf?() }))
         }
         return actions

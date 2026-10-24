@@ -65,7 +65,7 @@ command. It is not sold, and it is not on the App Store.
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
 | ✅ Hover to peek, click to open — or, in Settings, open on hover with a delay | Built |
-| ✅ Follows the focused screen — or, in Settings, stays on the built-in display | Built |
+| ✅ Follows the focused screen — or, in Settings, stays on the built-in display or a display you name | Built |
 | ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
@@ -87,7 +87,8 @@ command. It is not sold, and it is not on the App Store.
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
-back out anywhere later.
+back out anywhere later. A large file copies in the background, so the app
+never pauses for it.
 
 Nothing is ever drawn behind the camera housing. The closed notch's badges
 sit in the **ear to its right**, leaving the left clear for app menus; the
@@ -256,6 +257,7 @@ it back.
 | Two-finger swipe down on the notch | The notch follows your fingers and opens past a threshold, with one haptic tap |
 | Two-finger swipe up on the panel's top strip (the tab icons) | Closes it; scrolling anywhere else in the panel is just scrolling |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
+| Drop a large file | Its tile appears at once, dimmed under a spinner, while it copies in the background; it can be dragged out once the spinner goes. A file that is missing or bigger than the free space is refused at the drop; one whose copy fails later disappears with "Couldn't add …" under the shelf for a few seconds, also spoken by VoiceOver |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
@@ -297,14 +299,23 @@ Settings also holds the numbers the modules used to fix, under each module's
 switch: how many items the shelf holds (10, 20 or 50) and how long it keeps
 them (1, 7 or 30 days, or never), how many things clipboard history remembers
 (25, 50 or 100), the timer's three preset buttons (1–99 minutes each) and its
-chime, which plays once when you pick it. Changes apply at once — lowering a
-shelf limit moves the files that no longer fit to the Trash, oldest first, and
-a smaller clipboard forgets its oldest entries. With **Reduce Motion**
+chime, which plays once when you pick it. Changes apply at once, except that
+lowering a shelf limit past files already on the shelf first asks "Move N
+files from the shelf to the Trash?" — **Move to Trash** moves the files that
+no longer fit, oldest first, and **Cancel** puts the menu back and changes
+nothing. A smaller clipboard forgets its oldest entries without asking. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
 drawn brighter (no secondary text below 70% white); the default look is
 unchanged. The battery shows a bolt while charging, and with **Differentiate
 Without Color** on, a "!" when low as well as the yellow.
+
+For bigger text, Settings → Display → **Text size** → **Large** or **Larger**
+draws the open panel's text 15% or 30% larger and grows the panel to fit it
+(up to 806×338 on a 14" MacBook Pro, never past the screen). It applies at
+once. macOS's own Text Size setting covers only Apple's apps, so this one is
+separate. The closed notch's badges and the glances that drop from it keep
+their size: they have to fit beside the camera housing and the menu bar.
 
 With **VoiceOver** on, each peek is announced as it appears — the charger or
 Low Power Mode change with the battery level, a finished timer, and the track
@@ -326,7 +337,12 @@ With more than one display, the notch follows the display with the focused
 window, moving whenever you switch to an app on another one. To keep it in one
 place, Settings → Display → **Show on** → **Built-in display** pins it to the
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
-display instead. Connecting or disconnecting a display moves it at once.
+display instead. **Show on** also lists each connected external display by
+name: pick one and the notch stays there (as a pill, if that display has no
+notch). Unplug it and the notch waits on the built-in display — the menu shows
+the display as "(not connected)" so you can see it is still chosen — then
+returns as soon as you plug it back in. Connecting or disconnecting a display
+moves it at once.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

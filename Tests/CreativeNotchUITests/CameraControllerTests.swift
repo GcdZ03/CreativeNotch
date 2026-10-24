@@ -235,7 +235,7 @@ struct CameraControllerTests {
     @Test func aFinishedClipIsReferencedRatherThanCopiedIntoTheShelf() throws {
         let shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CameraShelf-\(UUID().uuidString)")
-        let shelf = try ShelfStore(directory: shelfDirectory)
+        let shelf = try ShelfStore(directory: shelfDirectory, trash: TestTrash.shelf)
         let controller = CameraController(shelf: shelf)
 
         let captures = FileManager.default.temporaryDirectory
@@ -254,7 +254,7 @@ struct CameraControllerTests {
     @Test func aPhotoIsReferencedRatherThanCopiedIntoTheShelf() throws {
         let shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CameraShelf-\(UUID().uuidString)")
-        let shelf = try ShelfStore(directory: shelfDirectory)
+        let shelf = try ShelfStore(directory: shelfDirectory, trash: TestTrash.shelf)
         let controller = CameraController(shelf: shelf)
 
         let captures = FileManager.default.temporaryDirectory
@@ -468,7 +468,7 @@ struct CameraControllerTests {
 
     @Test func aFailedClipIsNotAddedToTheShelf() throws {
         let shelf = try ShelfStore(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent("CameraShelf-\(UUID().uuidString)"))
+            .appendingPathComponent("CameraShelf-\(UUID().uuidString)"), trash: TestTrash.shelf)
         let controller = CameraController(shelf: shelf)
         let clip = FileManager.default.temporaryDirectory
             .appendingPathComponent("Clip-\(UUID().uuidString).mov")

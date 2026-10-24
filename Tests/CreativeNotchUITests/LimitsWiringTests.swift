@@ -36,6 +36,7 @@ struct LimitsWiringTests {
         PreferencesStore(defaults: defaults).saveLimits(Self.custom)
 
         let d = AppDelegate()
+        d.shelfTrash = TestTrash.shelf
         d.preferencesDefaults = defaults
         d.growthDelay = .zero
         d.shelfDirectory = FileManager.default.temporaryDirectory
@@ -64,9 +65,10 @@ struct LimitsWiringTests {
             .appendingPathComponent("CreativeNotchLimits-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let eightDaysAgo = Date().addingTimeInterval(-8 * 24 * 3600)
-        let old = try ShelfStore(directory: directory).add(.text("eight days old"), now: eightDaysAgo)
+        let old = try ShelfStore(directory: directory, trash: TestTrash.shelf).add(.text("eight days old"), now: eightDaysAgo)
 
         let d = AppDelegate()
+        d.shelfTrash = TestTrash.shelf
         d.preferencesDefaults = defaults
         d.growthDelay = .zero
         d.shelfDirectory = directory
@@ -92,19 +94,259 @@ struct LimitsWiringTests {
         #expect(d.preferencesStore.loadLimits() == Self.custom)
     }
 
-    @Test func loweringTheShelfCapacityEvictsAtOnce() throws {
-        let d = NotchedDelegate.make()
+    /// Once confirmed, a lowered capacity evicts at once — through a
+    /// sandboxed Trash, so the ten evicted files never reach the real one.
+    @Test func loweringTheShelfCapacityEvictsAtOnceWhenConfirmed() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
         let shelf = try #require(d.shelf)
-        for i in 0..<20 {
-            try shelf.add(.text("item \(i)"), now: Date().addingTimeInterval(Double(i)))
-        }
+        try fill(shelf, count: 20)
+        let c = controller(d)
 
         var limits = d.state.limits
         limits.shelfCapacity = 10
-        controller(d).setLimits(limits)
+        c.setLimits(limits)
+        c.confirmLimits(try #require(c.pendingLimits.change))
 
         #expect(shelf.capacity == 10)
         #expect(shelf.items.count == 10)
+        #expect(trash.trashed.count == 10)
+        #expect(d.preferencesStore.loadLimits().shelfCapacity == 10)
+        #expect(c.pendingLimits.change == nil)
+    }
+
+    // MARK: - Asking before a limit trashes files
+
+    /// **A change that would trash files is held, not applied.** Nothing
+    /// moves, nothing is saved, and Settings is handed what to ask.
+    @Test func aRemovingChangeIsHeldUntilConfirmed() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let before = shelf.items
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.shelfCapacity = 10
+        c.setLimits(limits)
+
+        let held = try #require(c.pendingLimits.change)
+        #expect(held.limits.shelfCapacity == 10)
+        #expect(held.removal.count == 10)
+        #expect(shelf.items == before)
+        #expect(shelf.capacity == 20)
+        #expect(trash.trashed.isEmpty)
+        #expect(d.state.limits.shelfCapacity == 20)
+        #expect(d.preferencesStore.loadLimits().shelfCapacity == 20)
+    }
+
+    /// **Cancel changes nothing**, and the picker goes back: while the
+    /// question is up it shows the choice being asked about, and after Cancel
+    /// the value it was.
+    @Test func cancelLeavesTheStoreAndThePreferenceUntouched() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let before = shelf.items
+        let c = controller(d)
+        let capacity = LimitsRows.binding(\.shelfCapacity, on: c)
+
+        capacity.wrappedValue = 10
+        #expect(capacity.wrappedValue == 10, "the picker should show what it is asking about")
+        c.cancelLimits()
+
+        #expect(c.pendingLimits.change == nil)
+        #expect(capacity.wrappedValue == 20)
+        #expect(shelf.items == before)
+        #expect(shelf.capacity == 20)
+        #expect(trash.trashed.isEmpty)
+        #expect(d.state.limits == Limits())
+        #expect(d.preferencesStore.loadLimits() == Limits())
+    }
+
+    /// The expiry is held the same way: a two-day-old file under a new
+    /// one-day limit is asked about first.
+    @Test func shorteningTheExpiryPastAFileIsHeld() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        let old = try shelf.add(.text("two days old"), now: Date().addingTimeInterval(-2 * 24 * 3600))
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.shelfExpiry = .oneDay
+        c.setLimits(limits)
+
+        #expect(c.pendingLimits.change?.removal.items.map(\.id) == [old.id])
+        #expect(shelf.maxAge == ShelfStore.defaultMaxAge)
+        #expect(FileManager.default.fileExists(atPath: old.url.path))
+
+        c.confirmLimits(try #require(c.pendingLimits.change))
+        #expect(shelf.items.isEmpty)
+        #expect(trash.trashed.count == 1)
+        #expect(d.state.limits.shelfExpiry == .oneDay)
+    }
+
+    /// **A change that takes nothing applies directly**, as before: the
+    /// question is for the cases that would trash something, or it becomes
+    /// a click everyone learns to make without reading.
+    @Test func aNonRemovingChangeAppliesDirectly() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 3)
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.shelfCapacity = 10
+        limits.shelfExpiry = .oneDay
+        c.setLimits(limits)
+
+        #expect(c.pendingLimits.change == nil)
+        #expect(shelf.capacity == 10)
+        #expect(shelf.maxAge == ShelfExpiry.oneDay.maxAge)
+        #expect(shelf.items.count == 3)
+        #expect(d.preferencesStore.loadLimits() == limits)
+    }
+
+    /// The dialog's presentation binding: up while a change is held, and
+    /// dismissing it (Escape, a click outside) is a Cancel, never a confirm.
+    @Test func dismissingTheDialogCancels() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let c = controller(d)
+        let presented = LimitsRows.confirming(c)
+        #expect(presented.wrappedValue == false)
+
+        LimitsRows.binding(\.shelfCapacity, on: c).wrappedValue = 10
+        #expect(presented.wrappedValue == true)
+
+        presented.wrappedValue = false
+        #expect(c.pendingLimits.change == nil)
+        #expect(shelf.items.count == 20)
+        #expect(trash.trashed.isEmpty)
+        #expect(d.state.limits.shelfCapacity == 20)
+    }
+
+    /// Confirm applies what the dialog showed even when SwiftUI has already
+    /// dismissed it — and so dropped the hold — before the button's action.
+    @Test func confirmingAfterTheDismissalStillApplies() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let c = controller(d)
+
+        LimitsRows.binding(\.shelfCapacity, on: c).wrappedValue = 10
+        let shown = try #require(c.pendingLimits.change)
+        LimitsRows.confirming(c).wrappedValue = false
+        c.confirmLimits(shown)
+
+        #expect(shelf.items.count == 10)
+        #expect(d.preferencesStore.loadLimits().shelfCapacity == 10)
+    }
+
+    /// **An item the current limits already condemn asks nothing.** The
+    /// purge runs only at launch and after an add, so a file can be past the
+    /// expiry and still listed. A clipboard change, or a raised shelf limit,
+    /// must apply without a shelf question -- with the shelf row hidden there
+    /// would be no dialog to answer it, and the change would be held forever.
+    @Test func anAlreadyExpiredItemDoesNotHoldAnUnrelatedChange() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        // Added "nine days ago" and purged at that time, so still listed.
+        try shelf.add(.text("nine days old"), now: Date().addingTimeInterval(-9 * 24 * 3600))
+        #expect(shelf.items.count == 1)
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.clipboardCapacity = 25
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.clipboardCapacity == 25)
+        #expect(shelf.items.count == 1, "the clipboard's change does not touch the shelf")
+
+        limits.shelfCapacity = 50
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.shelfCapacity == 50)
+    }
+
+    /// The same for a file that refuses the Trash: it stays listed past the
+    /// expiry, and must not bring the question back on every change.
+    @Test func aStuckExpiredFileDoesNotAskAgain() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        let stuck = try shelf.add(.text("two days old"), now: Date().addingTimeInterval(-2 * 24 * 3600))
+        trash.refuse(stuck.url)
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.shelfExpiry = .oneDay
+        c.setLimits(limits)
+        c.confirmLimits(try #require(c.pendingLimits.change))
+        #expect(shelf.items.map(\.id) == [stuck.id])
+
+        limits.shelfCapacity = 10
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.shelfCapacity == 10)
+    }
+
+    /// **Confirm never takes more than the dialog counted.** Files dropped
+    /// while the question is up change what the lowered capacity evicts; the
+    /// change is asked about again with the new count, and nothing moves
+    /// until that is confirmed.
+    @Test func confirmingAfterTheShelfChangedAsksAgain() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let c = controller(d)
+        let presented = LimitsRows.confirming(c)
+
+        LimitsRows.binding(\.shelfCapacity, on: c).wrappedValue = 10
+        let shown = try #require(c.pendingLimits.change)
+        #expect(presented.wrappedValue)
+        #expect(shown.removal.count == 10)
+
+        // Three drops while the dialog is open; the full shelf evicts its
+        // own three oldest, which is the add's rule, not the change's.
+        for i in 0..<3 {
+            try shelf.add(.text("late \(i)"), now: Date().addingTimeInterval(100 + Double(i)))
+        }
+        let trashedBefore = trash.trashed.count
+        let listedBefore = shelf.items
+
+        c.confirmLimits(shown)
+
+        let asked = try #require(c.pendingLimits.change, "the grown removal should be asked about")
+        #expect(asked.removal != shown.removal)
+        #expect(shelf.items == listedBefore)
+        #expect(trash.trashed.count == trashedBefore)
+        #expect(d.state.limits.shelfCapacity == 20)
+
+        // SwiftUI reporting the old dialog's dismissal after the action must
+        // not drop the new question.
+        presented.wrappedValue = false
+        #expect(c.pendingLimits.change == asked)
+
+        c.confirmLimits(asked)
+        #expect(c.pendingLimits.change == nil)
+        #expect(shelf.items.count == 10)
+        #expect(trash.trashed.count == trashedBefore + asked.removal.trashedCount)
+    }
+
+    private func fill(_ shelf: ShelfStore, count: Int) throws {
+        for i in 0..<count {
+            try shelf.add(.text("item \(i)"), now: Date().addingTimeInterval(Double(i)))
+        }
     }
 
     @Test func shorteningTheExpiryAppliesToTheShelf() throws {

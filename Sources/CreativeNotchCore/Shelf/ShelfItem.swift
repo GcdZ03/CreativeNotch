@@ -24,17 +24,29 @@ public struct ShelfItem: Equatable, Sendable, Identifiable {
     /// Trash -- from deleting a photograph the user took.
     public let isOwned: Bool
 
+    /// Whether the file is still being copied in.
+    ///
+    /// A dropped file is listed the moment the drop is accepted, under the
+    /// name it has reserved, and copied off the main actor. Until the copy
+    /// lands `url` names a file that does not exist yet: a pending item
+    /// cannot be dragged out or AirDropped, and the shelf's removals --
+    /// remove, clear, eviction, the age purge, the missing-file prune --
+    /// all pass it by.
+    public let isPending: Bool
+
     public init(
         id: UUID,
         url: URL,
         displayName: String,
         addedAt: Date,
-        isOwned: Bool = true
+        isOwned: Bool = true,
+        isPending: Bool = false
     ) {
         self.id = id
         self.url = url
         self.displayName = displayName
         self.addedAt = addedAt
         self.isOwned = isOwned
+        self.isPending = isPending
     }
 }

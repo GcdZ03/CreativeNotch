@@ -26,14 +26,14 @@ struct WelcomeCardView: View {
                     ForEach(WelcomeCard.tips, id: \.symbolName) { tip in
                         HStack(spacing: 10) {
                             Image(systemName: tip.symbolName)
-                                .font(.system(size: 12, weight: .medium))
+                                .notchFont(12, weight: .medium)
                                 .foregroundStyle(.ink(0.55))
-                                .frame(width: 18)
+                                .notchFrame(width: 18)
                                 // The sentence says it; the glyph would only
                                 // make VoiceOver read a symbol name first.
                                 .accessibilityHidden(true)
                             Text(tip.text)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .notchFont(12, weight: .medium, design: .rounded)
                                 .foregroundStyle(.ink(0.82))
                                 .lineLimit(2)
                                 .fixedSize(horizontal: false, vertical: true)

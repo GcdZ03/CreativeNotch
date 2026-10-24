@@ -121,11 +121,188 @@ struct ShowOnDisplayTests {
         #expect(shown == [false])
     }
 
+    // MARK: - Pinned to a specific display
+
+    private static let dellUUID = "8A3F1E2C-1111-4C6B-9A0E-5D7C2B9E4F10"
+    private static let pinned = DisplayChoice.display(uuid: dellUUID, name: "DELL U2720Q")
+    private static let builtInScreen = ScreenDescriptor(id: 1, isBuiltIn: true, isMain: true, name: "Built-in Retina Display")
+    private static let dellScreen = ScreenDescriptor(id: 2, isBuiltIn: false, isMain: false, uuid: dellUUID, name: "DELL U2720Q")
+
+    /// A delegate whose display lookup runs the real Core rule over a list a
+    /// test can plug and unplug: the built-in display is `NotchedDelegate`'s
+    /// notched one, the Dell is the notchless `external`.
+    private func makePinnedDelegate() -> (AppDelegate, Plugs) {
+        let d = NotchedDelegate.make()
+        let plugs = Plugs()
+        plugs.screens = [Self.builtInScreen, Self.dellScreen]
+        d.screenDescriptors = { plugs.screens }
+        d.screenMetrics = { choice in
+            switch choice.screen(in: plugs.screens) {
+            case 1: return NotchedDelegate.metrics
+            case 2: return Self.external
+            default: return nil
+            }
+        }
+        d.activationScreenMetrics = { choice in
+            plugs.activationsAsked += 1
+            return choice.screenOnActivation(in: plugs.screens) == nil ? nil : Self.external
+        }
+        return (d, plugs)
+    }
+
+    final class Plugs {
+        var screens: [ScreenDescriptor] = []
+        var activationsAsked = 0
+    }
+
+    /// Picking the display moves the panel there at once, as a pill: the
+    /// external display has no notch.
+    @Test func pinningADisplayMovesThePanelToIt() {
+        let (d, _) = makePinnedDelegate()
+        d.state.onSetDisplayChoice?(Self.pinned)
+        #expect(d.state.displayChoice == Self.pinned)
+        #expect(d.currentAnchor.isNotch == false)
+    }
+
+    /// Unplugged, the panel goes to the built-in display; plugged back in,
+    /// the screen-parameter change returns it -- with the choice untouched
+    /// in between.
+    @Test func aPinnedDisplayUnpluggedAndReconnected() {
+        let (d, plugs) = makePinnedDelegate()
+        d.state.onSetDisplayChoice?(Self.pinned)
+
+        plugs.screens = [Self.builtInScreen]
+        d.screenParametersDidChange()
+        #expect(d.currentAnchor.isNotch)
+        #expect(d.state.displayChoice == Self.pinned)
+
+        plugs.screens = [Self.builtInScreen, Self.dellScreen]
+        d.screenParametersDidChange()
+        #expect(d.currentAnchor.isNotch == false)
+    }
+
+    /// Pinned to a display, an app switch neither moves the panel nor asks.
+    @Test func aPinnedDisplayIgnoresActivation() {
+        let (d, plugs) = makePinnedDelegate()
+        d.state.onSetDisplayChoice?(Self.pinned)
+        plugs.screens = [Self.builtInScreen]
+        d.screenParametersDidChange()
+        d.activeApplicationDidChange()
+        #expect(d.currentAnchor.isNotch)
+        #expect(plugs.activationsAsked == 0)
+    }
+
+    /// Moving onto the pinned display when it reconnects re-checks full
+    /// screen there, through `reposition`.
+    @Test func reconnectingThePinnedDisplayReevaluatesFullScreen() {
+        let (d, plugs) = makePinnedDelegate()
+        d.state.onSetDisplayChoice?(Self.pinned)
+        plugs.screens = [Self.builtInScreen]
+        d.screenParametersDidChange()
+
+        var shown: [Bool] = []
+        d.setPanelShown = { shown.append($0) }
+        var fullScreen = false
+        let watcher = FullScreenWatcher(
+            center: NotificationCenter(),
+            readDisplays: {
+                [["Display Identifier": "D", "Current Space": ["type": fullScreen ? 4 : 0]]]
+            },
+            displayUUID: { "D" }
+        )
+        watcher.onChange = { d.applyFullScreen($0) }
+        d.fullScreenWatcher = watcher
+        watcher.start()
+
+        fullScreen = true
+        plugs.screens = [Self.builtInScreen, Self.dellScreen]
+        d.screenParametersDidChange()
+        #expect(shown == [false])
+    }
+
+    // MARK: - The Settings menu
+
+    /// Showing Settings reads the displays connected now -- the reused
+    /// window's `.onAppear` would not -- and the menu lists them.
+    @Test func showingSettingsRefreshesTheDisplayList() {
+        let (d, plugs) = makePinnedDelegate()
+        let controller = PreferencesController(
+            switchboard: d.switchboard, state: d.state, launchAtLogin: d.launchAtLogin,
+            presenter: { _ in }
+        )
+        #expect(controller.displayOptions.count == 2)
+        controller.show()
+        #expect(controller.displayOptions.map(\.choice).last == Self.pinned)
+
+        plugs.screens = [Self.builtInScreen]
+        controller.show()
+        #expect(controller.displayOptions.count == 2)
+    }
+
+    /// A cable plugged in while Settings is open reaches the menu through
+    /// the screen-parameter change, and an unplugged pin stays listed,
+    /// marked as not connected.
+    @Test func aScreenChangeRefreshesTheDisplayList() {
+        let (d, plugs) = makePinnedDelegate()
+        let controller = PreferencesController(
+            switchboard: d.switchboard, state: d.state, launchAtLogin: d.launchAtLogin,
+            presenter: { _ in }
+        )
+        controller.show()
+        controller.setDisplayChoice(Self.pinned)
+
+        plugs.screens = [Self.builtInScreen]
+        d.screenParametersDidChange()
+        let last = controller.displayOptions.last
+        #expect(last?.choice == Self.pinned)
+        #expect(last.map(DisplayRow.title(for:)) == "DELL U2720Q (not connected)")
+
+        plugs.screens = [Self.builtInScreen, Self.dellScreen]
+        d.screenParametersDidChange()
+        #expect(controller.displayOptions.last.map(DisplayRow.title(for:)) == "DELL U2720Q")
+    }
+
+    @Test func menuTitles() {
+        let options = DisplayChoice.options(for: [], current: .display(uuid: Self.dellUUID, name: ""))
+        #expect(options.map(DisplayRow.title(for:)) == [
+            "Display with the focused window", "Built-in display", "External display (not connected)",
+        ])
+    }
+
     // MARK: - Persisting
+
+    @Test func aPinnedDisplayIsRestoredOnTheNextLaunch() {
+        let defaults = TestDefaults.isolated("show-on-pinned")
+        let first = AppDelegate()
+        first.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        first.shelfTrash = TestTrash.shelf
+        first.screenDescriptors = { [] }
+        first.announce = { _ in }
+        first.preferencesDefaults = defaults
+        first.playChime = { _ in }
+        first.screenMetrics = { _ in nil }
+        first.install(metrics: NotchedDelegate.metrics)
+        first.state.onSetDisplayChoice?(Self.pinned)
+
+        let second = AppDelegate()
+        second.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        second.shelfTrash = TestTrash.shelf
+        second.screenDescriptors = { [] }
+        second.announce = { _ in }
+        second.preferencesDefaults = defaults
+        second.playChime = { _ in }
+        second.install(metrics: NotchedDelegate.metrics)
+        #expect(second.state.displayChoice == Self.pinned)
+    }
 
     @Test func theChoiceIsSavedAndRestoredOnTheNextLaunch() {
         let defaults = TestDefaults.isolated("show-on")
         let first = AppDelegate()
+        first.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        first.shelfTrash = TestTrash.shelf
         first.preferencesDefaults = defaults
         first.playChime = { _ in }
         first.screenMetrics = { _ in nil }
@@ -133,6 +310,9 @@ struct ShowOnDisplayTests {
         first.state.onSetDisplayChoice?(.builtIn)
 
         let second = AppDelegate()
+        second.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        second.shelfTrash = TestTrash.shelf
         second.preferencesDefaults = defaults
         second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)

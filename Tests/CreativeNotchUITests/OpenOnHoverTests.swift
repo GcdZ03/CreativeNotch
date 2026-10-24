@@ -91,12 +91,18 @@ struct OpenOnHoverTests {
     @Test func theSettingIsSavedAndRestoredOnTheNextLaunch() {
         let defaults = TestDefaults.isolated("open-on-hover")
         let first = AppDelegate()
+        first.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        first.shelfTrash = TestTrash.shelf
         first.preferencesDefaults = defaults
         first.playChime = { _ in }
         first.install(metrics: NotchedDelegate.metrics)
         first.state.onSetHoverBehaviour?(Self.on)
 
         let second = AppDelegate()
+        second.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        second.shelfTrash = TestTrash.shelf
         second.preferencesDefaults = defaults
         second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)

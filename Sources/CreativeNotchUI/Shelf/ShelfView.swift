@@ -18,6 +18,12 @@ import CreativeNotchCore
 /// carries the same verbs, plus Show in Finder, as accessibility actions
 /// and a context menu: VoiceOver and keyboard users have no hover, and a
 /// right-click is the Mac's way to ask a thing what it can do.
+///
+/// A file still copying in (`ShelfItem.isPending`) shows as its icon,
+/// dimmed, under a small spinner, and VoiceOver reads it as "<name>,
+/// copying". It has no verbs and cannot be dragged: there is no file
+/// behind it yet. The spinner is the shelf's one moving part and exists
+/// only while a copy runs and the pane is on screen.
 struct ShelfView: View {
     let store: ShelfStore
     var onRemove: (UUID) -> Void = { _ in }
@@ -53,18 +59,44 @@ struct ShelfView: View {
         ]
     }
 
+    /// The verbs `item` offers: none while it is still copying in, since
+    /// every one of them needs the file.
+    static func tileActions(
+        for item: ShelfItem,
+        onRemove: @escaping () -> Void,
+        onAirDrop: @escaping () -> Void,
+        onReveal: @escaping () -> Void
+    ) -> [TileAction] {
+        guard !item.isPending else { return [] }
+        return tileActions(onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
+    }
+
+    /// Whether a tile can be dragged out. A pending item's URL names a file
+    /// that does not exist yet; dropping it in Finder would copy nothing.
+    static func isDraggable(_ item: ShelfItem) -> Bool {
+        !item.isPending
+    }
+
     /// The empty shelf's target, stating this store's expiry rather than the
     /// default one. Static so a test can check which age it was handed.
     static func emptyTarget(for store: ShelfStore) -> DropTargetView {
         DropTargetView(maxAge: store.maxAge)
     }
 
-    /// What VoiceOver reads for a tile: the file's name, as shown under it.
+    /// What VoiceOver reads for a tile: the file's name, as shown under it,
+    /// and that it is still copying while it is.
     static func tileAccessibilityLabel(for item: ShelfItem) -> String {
-        item.displayName
+        item.isPending ? "\(item.displayName), copying" : item.displayName
     }
 
-    private let itemSize = CGSize(width: 64, height: 64)
+    @Environment(\.notchTextScale) private var textScale
+
+    /// A tile, grown with the text size so the name under it keeps its
+    /// width in characters -- and the thumbnail asked for at that size.
+    private var itemSize: CGSize {
+        let side = NotchType.length(64, scale: textScale)
+        return CGSize(width: side, height: side)
+    }
 
     var body: some View {
         content
@@ -86,14 +118,21 @@ struct ShelfView: View {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(alignment: .top, spacing: 12) {
                         ForEach(store.items) { item in
-                            ShelfItemView(
+                            let tile = ShelfItemView(
                                 item: item,
                                 size: itemSize,
                                 onRemove: { onRemove(item.id) },
                                 onAirDrop: { onAirDrop(item.url) },
                                 onReveal: { onReveal(item.url) }
                             )
-                            .draggable(item.url)
+                            // Two branches, so a tile turning ready is a new
+                            // view: its thumbnail task runs again, now that
+                            // there is a file for QuickLook to read.
+                            if Self.isDraggable(item) {
+                                tile.draggable(item.url)
+                            } else {
+                                tile
+                            }
                         }
                     }
                     .padding(.horizontal, 6)
@@ -116,7 +155,7 @@ private struct ShelfItemView: View {
     @State private var hovering = false
 
     private var actions: [ShelfView.TileAction] {
-        ShelfView.tileActions(onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
+        ShelfView.tileActions(for: item, onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
     }
 
     var body: some View {
@@ -134,13 +173,23 @@ private struct ShelfItemView: View {
                     .aspectRatio(contentMode: .fit)
                     .frame(width: size.width - 20, height: size.height - 20)
                     .frame(width: size.width, height: size.height)
+                    .opacity(item.isPending ? 0.35 : 1)
 
-                if hovering {
+                if item.isPending {
+                    // Indeterminate: `copyItem` reports no progress, and a
+                    // bar guessed from elapsed time would lie.
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .frame(width: size.width, height: size.height)
+                }
+
+                if hovering && !item.isPending {
                     Button(action: onRemove) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .bold))
+                            .notchFont(8, weight: .bold)
                             .foregroundStyle(.white)
-                            .frame(width: 16, height: 16)
+                            .notchFrame(width: 16, height: 16)
                             .background(Circle().fill(Color(white: 0.22)))
                             .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
                     }
@@ -150,12 +199,12 @@ private struct ShelfItemView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if hovering {
+                if hovering && !item.isPending {
                     Button(action: onAirDrop) {
                         Image(systemName: "dot.radiowaves.left.and.right")
-                            .font(.system(size: 9, weight: .bold))
+                            .notchFont(9, weight: .bold)
                             .foregroundStyle(.white)
-                            .frame(width: 18, height: 18)
+                            .notchFrame(width: 18, height: 18)
                             .background(Circle().fill(Color.accentColor.opacity(0.9)))
                             .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
                     }
@@ -168,7 +217,7 @@ private struct ShelfItemView: View {
             .frame(width: size.width, height: size.height)
 
             Text(item.displayName)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .notchFont(10, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.75))
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -193,6 +242,8 @@ private struct ShelfItemView: View {
             }
         }
         .task {
+            // Nothing to preview until the copy lands; the icon stands in.
+            guard !item.isPending else { return }
             image = await ShelfThumbnails.shared.thumbnail(for: item, size: size)
         }
     }

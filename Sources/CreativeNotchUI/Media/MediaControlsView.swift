@@ -51,9 +51,9 @@ struct MediaControlsView: View {
                     onCommand(button.command)
                 } label: {
                     Image(systemName: symbol)
-                        .font(.system(size: 13, weight: .semibold))
+                        .notchFont(13, weight: .semibold)
                         .foregroundStyle(.white)
-                        .frame(width: isToggle ? 40 : 32, height: 28)
+                        .notchFrame(width: isToggle ? 40 : 32, height: 28)
                         .background {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
                                 .fill(.hairline(isToggle ? 0.16 : 0.08))

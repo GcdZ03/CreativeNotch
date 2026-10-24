@@ -112,9 +112,9 @@ struct ClipboardView: View {
         if store.entries.isEmpty {
             VStack(spacing: 6) {
                 Image(systemName: "doc.on.clipboard")
-                    .font(.system(size: 22, weight: .medium))
+                    .notchFont(22, weight: .medium)
                 Text("Nothing copied yet")
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .notchFont(12, weight: .medium, design: .rounded)
             }
             .foregroundStyle(.ink(0.5))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -164,9 +164,7 @@ private struct ClipboardRow: View {
                 tile
 
                 Text(ClipboardPreview.text(for: entry.content))
-                    .font(kind == .code
-                          ? .system(size: 11, design: .monospaced)
-                          : .system(size: 12, design: .rounded))
+                    .notchFont(kind == .code ? 11 : 12, design: kind == .code ? .monospaced : .rounded)
                     .foregroundStyle(.ink(0.88))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -176,7 +174,7 @@ private struct ClipboardRow: View {
                 // A clock time at rest, the verb on hover, the
                 // confirmation after a click.
                 Text(ClipboardRowModel.trailingText(time: time, hovering: hovering, copied: copied))
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .notchFont(10, weight: .medium, design: .rounded)
                     .monospacedDigit()
                     .foregroundStyle(.ink(copied || hovering ? 0.7 : 0.4))
                     .contentTransition(reduceMotion ? .opacity : .interpolate)
@@ -250,12 +248,12 @@ private struct ClipboardRow: View {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(.hairline(0.08))
                     Image(systemName: kind.symbolName)
-                        .font(.system(size: 10, weight: .semibold))
+                        .notchFont(10, weight: .semibold)
                         .foregroundStyle(.ink(0.7))
                 }
             }
         }
-        .frame(width: 22, height: 22)
+        .notchFrame(width: 22, height: 22)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }

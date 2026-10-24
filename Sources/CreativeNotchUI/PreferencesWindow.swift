@@ -97,6 +97,10 @@ final class PreferencesController {
     func show(highlighting section: PreferencesSection?) {
         if let section { highlight.ask(for: section) }
         launchAtLogin.refresh()
+        // At the presentation boundary for the reason `refresh()` is: the
+        // reused window's `.onAppear` would read the displays once per
+        // process, and a monitor plugged in since would be missing.
+        state.onRefreshDisplays?()
         presenter(self)
     }
 
@@ -124,13 +128,101 @@ final class PreferencesController {
         state.onSetDisplayChoice?(choice)
     }
 
+    /// Text size (2026-10-24). Written through `AppState`'s verb, which saves,
+    /// applies and resizes the panel together, and read back from what
+    /// applied.
+    var textSize: TextSize { state.textSize }
+
+    func setTextSize(_ size: TextSize) {
+        state.onSetTextSize?(size)
+    }
+
+    /// The "Show on" menu: the general choices, each connected external
+    /// display, and a pinned display that is unplugged
+    /// (`DisplayChoice.options`). Derived from `AppState`'s observable
+    /// display list, so the open menu follows a cable without a poll.
+    var displayOptions: [DisplayChoice.Option] {
+        DisplayChoice.options(for: state.connectedDisplays, current: state.displayChoice)
+    }
+
     /// The adjustable limits (2026-10-24), through `AppState`'s verb like the
     /// hover behaviour: saved and applied together, read back from what
     /// applied.
     var limits: Limits { state.limits }
 
+    /// A change that would move shelf files to the Trash, held until the
+    /// user answers (2026-10-24). Held here, like `highlight`, because the
+    /// window's view is built once and reused.
+    let pendingLimits = PendingLimits()
+
+    /// What the rows show: the change being asked about while the question
+    /// is up, and what applied otherwise. Cancel then moves the picker from
+    /// the held value back to the applied one — a real change of value, so
+    /// the menu redraws instead of keeping the choice that was refused.
+    var displayedLimits: Limits { pendingLimits.change?.limits ?? state.limits }
+
+    /// Applies at once, unless the change would take something off the
+    /// shelf: a lowered capacity or expiry moves real files to the Trash, so
+    /// that change is held and Settings asks first. Everything else —
+    /// raising a limit, the clipboard, the presets, the chime — applies as
+    /// before, because a question asked about nothing is one people learn to
+    /// click through.
+    ///
+    /// "Would take something" means more than the limits in force already
+    /// take. The shelf purges only at launch and after an add, and a file
+    /// that refuses the Trash stays listed, so the shelf can hold items the
+    /// current limits have already condemned. Those are not this change's
+    /// doing: counting them would raise the question on every Limits change
+    /// — the clipboard's, the chime's, a raised capacity — and, with the
+    /// shelf row hidden, hold a change no dialog is there to answer.
     func setLimits(_ limits: Limits) {
-        state.onSetLimits?(limits)
+        if let removal = addedRemoval(limits) {
+            pendingLimits.change = PendingLimits.Change(limits: limits, removal: removal)
+        } else {
+            pendingLimits.change = nil
+            state.onSetLimits?(limits)
+        }
+    }
+
+    /// What applying `limits` would take off the shelf, when that includes
+    /// anything the current limits would not already take; `nil` when the
+    /// change can apply without asking. A change that leaves both shelf
+    /// limits alone never asks.
+    private func addedRemoval(_ limits: Limits) -> ShelfLimitRemoval? {
+        let current = state.limits
+        guard limits.shelfCapacity != current.shelfCapacity || limits.shelfExpiry != current.shelfExpiry,
+              let preview = state.onPreviewLimits else { return nil }
+        let removal = preview(limits)
+        let alreadyDue = Set(preview(current).items.map(\.id))
+        return removal.items.allSatisfy { alreadyDue.contains($0.id) } ? nil : removal
+    }
+
+    /// "Move to Trash": applies the held change. Takes the change rather
+    /// than reading `pendingLimits`, so it applies what the dialog showed
+    /// even if SwiftUI dismissed the dialog — clearing the hold — before
+    /// running the button's action.
+    ///
+    /// Measured again first: drops, finished copies and the clock all move
+    /// while the dialog is up, and applying re-runs eviction and the purge
+    /// on the list as it is now. If that would now take a file the dialog
+    /// never counted (and the current limits would not take anyway), the
+    /// change is held again with the new count instead of applied, so what
+    /// was confirmed is never less than what goes.
+    func confirmLimits(_ change: PendingLimits.Change) {
+        let shown = Set(change.removal.items.map(\.id))
+        if let fresh = addedRemoval(change.limits),
+           !fresh.items.allSatisfy({ shown.contains($0.id) }) {
+            pendingLimits.change = PendingLimits.Change(limits: change.limits, removal: fresh)
+            return
+        }
+        pendingLimits.change = nil
+        state.onSetLimits?(change.limits)
+    }
+
+    /// "Cancel", or the dialog dismissed: nothing was applied, so dropping
+    /// the hold is the whole of it.
+    func cancelLimits() {
+        pendingLimits.change = nil
     }
 
     /// The hotkey controller, for the recorder row. Reached through the
@@ -181,6 +273,22 @@ final class PreferencesController {
         NSApp.activate()
         self.window = window
     }
+}
+
+/// A limit change waiting on "Move N files to the Trash?" (2026-10-24).
+///
+/// Observable so the dialog appears when a change is held and goes when it
+/// is answered. Nothing here applies anything; the controller does, on
+/// confirm, through the same `onSetLimits` every other change takes.
+@MainActor
+@Observable
+final class PendingLimits {
+    struct Change: Equatable {
+        let limits: Limits
+        let removal: ShelfLimitRemoval
+    }
+
+    var change: Change?
 }
 
 /// A request to land on one section of the form (2026-10-24).
@@ -365,10 +473,11 @@ struct PreferencesView: View {
 
             Section {
                 DisplayRow(controller: controller)
+                TextSizeRow(controller: controller)
             } header: {
                 Text("Display")
             } footer: {
-                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed.")
+                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
             }
 
             ForEach(PreferencesSection.allCases, id: \.self) { section in
@@ -606,10 +715,16 @@ struct DisplayRow: View {
 
     /// What each choice is called in the menu. Here rather than on the Core
     /// enum, which stores the choice and knows nothing of how it is worded.
-    static func title(for choice: DisplayChoice) -> String {
-        switch choice {
+    /// A specific display goes by the name macOS gives it, the one System
+    /// Settings → Displays shows, and says so when it is unplugged -- the
+    /// pin is kept, and the panel is waiting for it.
+    static func title(for option: DisplayChoice.Option) -> String {
+        switch option.choice {
         case .focusedWindow: return "Display with the focused window"
         case .builtIn:       return "Built-in display"
+        case .display:
+            let name = option.name.flatMap { $0.isEmpty ? nil : $0 } ?? "External display"
+            return option.isConnected ? name : "\(name) (not connected)"
         }
     }
 
@@ -618,8 +733,8 @@ struct DisplayRow: View {
             get: { controller.displayChoice },
             set: { controller.setDisplayChoice($0) }
         )) {
-            ForEach(DisplayChoice.allCases, id: \.self) { choice in
-                Text(Self.title(for: choice)).tag(choice)
+            ForEach(controller.displayOptions, id: \.choice) { option in
+                Text(Self.title(for: option)).tag(option.choice)
             }
         } label: {
             Label {
@@ -643,6 +758,53 @@ struct DisplayRow: View {
     }
 }
 
+/// "Text size" (2026-10-24): how large the open panel's text is.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives.
+struct TextSizeRow: View {
+    let controller: PreferencesController
+
+    /// What each size is called in the menu. Here rather than on the Core
+    /// enum, which stores the size and knows nothing of how it is worded.
+    static func title(for size: TextSize) -> String {
+        switch size {
+        case .standard: return "Default"
+        case .large:    return "Large"
+        case .larger:   return "Larger"
+        }
+    }
+
+    var body: some View {
+        Picker(selection: Binding(
+            get: { controller.textSize },
+            set: { controller.setTextSize($0) }
+        )) {
+            ForEach(TextSize.allCases, id: \.self) { size in
+                Text(Self.title(for: size)).tag(size)
+            }
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Text size")
+                        .font(.body.weight(.medium))
+                    Text("How large the open panel's text is.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "textformat.size")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.blue)
+                    )
+            }
+        }
+    }
+}
+
 /// The adjustable limits under the shelf, clipboard and timer switches
 /// (2026-10-24).
 ///
@@ -650,6 +812,11 @@ struct DisplayRow: View {
 /// `controller.limits` — `AppState`'s, which is observable — and writes the
 /// whole value back through `setLimits`, so what the row shows is always what
 /// applied, normalisation included. A preset typed as 500 reads back as 99.
+///
+/// The one exception is a shelf change that would trash files: the row shows
+/// it (`displayedLimits`) while "Move N files to the Trash?" asks, and goes
+/// back to what applied if the answer is Cancel. One dialog serves both shelf
+/// pickers, since only one change can be held at a time.
 struct LimitsRows: View {
     let module: ModuleID
     let controller: PreferencesController
@@ -662,13 +829,42 @@ struct LimitsRows: View {
         on controller: PreferencesController
     ) -> Binding<Value> {
         Binding(
-            get: { controller.limits[keyPath: keyPath] },
+            get: { controller.displayedLimits[keyPath: keyPath] },
             set: { value in
                 var limits = controller.limits
                 limits[keyPath: keyPath] = value
                 controller.setLimits(limits)
             }
         )
+    }
+
+    /// Whether the shelf's "Move N files to the Trash?" is up. Dismissing it
+    /// any way other than the destructive button — Cancel, Escape — is a
+    /// cancel, so the held change is dropped and the picker reverts. Static,
+    /// like `binding`, so a test can drive it without rendering.
+    ///
+    /// A dismissal cancels only the change the dialog was showing. When
+    /// "Move to Trash" finds the count has grown, `confirmLimits` holds the
+    /// change again with the new count; if SwiftUI reports the dismissal
+    /// after that action, it must not drop the new question unasked.
+    static func confirming(_ controller: PreferencesController) -> Binding<Bool> {
+        let shown = ShownChange()
+        return Binding(
+            get: {
+                shown.change = controller.pendingLimits.change
+                return shown.change != nil
+            },
+            set: { presented in
+                guard !presented else { return }
+                let held = controller.pendingLimits.change
+                if shown.change == nil || held == shown.change { controller.cancelLimits() }
+            }
+        )
+    }
+
+    /// The change the presentation binding last reported as up.
+    private final class ShownChange {
+        var change: PendingLimits.Change?
     }
 
     var body: some View {
@@ -680,6 +876,19 @@ struct LimitsRows: View {
                 }
                 Picker("Keeps files for", selection: Self.binding(\.shelfExpiry, on: controller)) {
                     ForEach(ShelfExpiry.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .confirmationDialog(
+                    controller.pendingLimits.change?.removal.title ?? "",
+                    isPresented: Self.confirming(controller),
+                    titleVisibility: .visible,
+                    presenting: controller.pendingLimits.change
+                ) { change in
+                    Button(change.removal.confirmLabel, role: .destructive) {
+                        controller.confirmLimits(change)
+                    }
+                    Button("Cancel", role: .cancel) { controller.cancelLimits() }
+                } message: { change in
+                    Text(change.removal.message)
                 }
             case .clipboard:
                 Picker("Remembers", selection: Self.binding(\.clipboardCapacity, on: controller)) {

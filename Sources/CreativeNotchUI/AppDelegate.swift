@@ -152,13 +152,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Overridable so tests never read or write the real
     /// `com.gcdz.creativenotch` domain.
     ///
-    /// **Required, not a convenience.** Once the activity fan-out routes
+    /// **Defaults to a private, uniquely named suite, not `.standard`** --
+    /// see `configureForRealLaunch()`. A suite that forgets to set it gets an
+    /// empty domain of its own, never the developer's real one.
+    ///
+    /// **Setting it is still required, not a convenience.** Once the activity fan-out routes
     /// through the switchboard, a wiring suite reading the developer's real
     /// defaults means a developer who switched media off in the actual app
     /// makes `lockingStopsTheMediaHelper` fail on their machine and nowhere
     /// else. Set it before `install(metrics:)`, exactly as `shelfDirectory`
     /// and `growthDelay` are.
-    var preferencesDefaults: UserDefaults = .standard
+    var preferencesDefaults: UserDefaults
 
     /// Reads and writes the module toggles. Built in `install(metrics:)` from
     /// `preferencesDefaults`, so the seam above is the only thing a test has
@@ -178,6 +182,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The camera. Internal rather than private so the switchboard and the
     /// tests can reach its lifecycle, like every other controller.
     private(set) var camera: CameraController?
+
+    /// Where the camera saves captures, handed to it in `install(metrics:)`.
+    /// Sandboxed by default like `shelfDirectory`; the real
+    /// `~/Pictures/CreativeNotch/` is set by `configureForRealLaunch()`.
+    var capturesDirectory: URL
 
     /// The global hotkey. Internal rather than private so the switchboard and
     /// the tests can reach its lifecycle, like every other controller.
@@ -204,11 +213,38 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
-    var shelfDirectory: URL = FileManager.default
-        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("CreativeNotch/Shelf")
+    ///
+    /// Defaults to a folder under this delegate's own temporary sandbox; the
+    /// real one is `realShelfDirectory`, set by `configureForRealLaunch()`.
+    var shelfDirectory: URL
 
     private(set) var shelf: ShelfStore?
+
+    /// How the shelf copies a dropped file. Overridable, like
+    /// `shelfDirectory`, so a test can decide when -- and whether -- a copy
+    /// finishes. Set it before `install(metrics:)`.
+    var shelfCopier: ShelfCopier = .system
+
+    /// Where the shelf sends what it clears, evicts and purges. Overridable
+    /// so tests never move files into the user's real Trash. Set it before
+    /// `install(metrics:)`, whose launch purge already uses it.
+    ///
+    /// Defaults to a stand-in folder in this delegate's temporary sandbox;
+    /// only `configureForRealLaunch()` hands it `.system`.
+    var shelfTrash: ShelfTrash
+
+    /// How long "Couldn't add …" stays under the shelf after a background
+    /// copy fails. Long enough to read a file name; it is a report, not an
+    /// offer, so nothing waits on it.
+    static let defaultShelfNoticeDuration: Duration = .seconds(4)
+
+    /// Overridable for the reason `shelfUndoWindow` is.
+    var shelfNoticeDuration: Duration = AppDelegate.defaultShelfNoticeDuration
+
+    /// The one-shot that withdraws the notice. Scheduled only while a notice
+    /// is up and the shelf pane is on screen, sleeps once, and is gone:
+    /// `nil` whenever no notice is shown or nobody can see it.
+    private(set) var shelfNoticeTask: Task<Void, Never>?
 
     /// How long "Undo" stays on offer after the shelf is cleared.
     ///
@@ -234,7 +270,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Applied to the live stores, not left for a relaunch: a lowered shelf
     /// capacity or expiry trashes what no longer fits straight away, by the
-    /// rules an add already follows, and a smaller clipboard forgets its
+    /// rules an add already follows. Settings asks first, through
+    /// `previewLimits`, so by the time a change that trashes files reaches
+    /// here the user has confirmed it. A smaller clipboard forgets its
     /// oldest entries. The timer's presets need nothing here — the tab draws
     /// them from `AppState`.
     ///
@@ -246,15 +284,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = state.limits
         preferencesStore.saveLimits(limits)
         state.limits = limits
-        shelf?.setLimits(
-            capacity: limits.shelfCapacity,
-            maxAge: limits.shelfExpiry.maxAge,
-            now: Date(timeIntervalSince1970: now())
-        )
+        // Only a change to the shelf's own limits reaches the shelf: setting
+        // them re-runs eviction and the purge, and a clipboard or chime
+        // change has no business trashing a file — not even one already
+        // past the expiry and waiting for the next add's purge.
+        if limits.shelfCapacity != previous.shelfCapacity || limits.shelfExpiry != previous.shelfExpiry {
+            shelf?.setLimits(
+                capacity: limits.shelfCapacity,
+                maxAge: limits.shelfExpiry.maxAge,
+                now: Date(timeIntervalSince1970: now())
+            )
+        }
         clipboard?.store.setCapacity(limits.clipboardCapacity)
         if limits.chime != previous.chime, limits.chime != .none {
             playChime(limits.chime)
         }
+    }
+
+    /// What `applyLimits` would take off the shelf, without taking it —
+    /// asked by Settings before a change, so one that would trash files can
+    /// be confirmed first. Measured at the same `now` the apply uses.
+    func previewLimits(_ limits: Limits) -> ShelfLimitRemoval {
+        shelf?.previewLimits(
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge,
+            now: Date(timeIntervalSince1970: now())
+        ) ?? ShelfLimitRemoval(items: [])
     }
 
     /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
@@ -309,6 +364,55 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfUndoTask = nil
         pendingShelfClearance = nil
         state.canUndoShelfClear = false
+    }
+
+    /// How many shelf items the menu bar's Clear Shelf counts and acts on.
+    ///
+    /// Ready items only, as the pane's Clear verb: `clear()` never touches a
+    /// copy in progress, so counting one would offer a Clear that does
+    /// nothing.
+    var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
+
+    /// A dropped file's background copy failed after the drop was accepted.
+    ///
+    /// Logged, announced to VoiceOver, and said under the shelf. The
+    /// announcement reaches someone who cannot see the line; the line is
+    /// what reaches everyone else, so it stays until it has been on screen
+    /// for `shelfNoticeDuration`. A big copy is exactly the one the panel
+    /// closes or the tab changes during, and a line withdrawn on a timer
+    /// nobody saw would leave a pending tile that simply vanished. A second
+    /// failure replaces the first line rather than queueing behind it.
+    func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
+        NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
+        let notice = "Couldn't add \(item.displayName)"
+        announce(notice)
+        shelfNoticeTask?.cancel()
+        shelfNoticeTask = nil
+        state.shelfNotice = notice
+        syncShelfNotice(for: state.state)
+    }
+
+    /// Runs the notice's withdrawal only while the shelf pane is showing it.
+    ///
+    /// Called from the state funnel and after a failure. Leaving the pane
+    /// before the time is up stops the clock and keeps the line for the next
+    /// visit, with the full duration again: a glance on the way past is not
+    /// a reading.
+    func syncShelfNotice(for next: NotchState) {
+        guard state.shelfNotice != nil else { return }
+        guard next == .open(.shelf) else {
+            shelfNoticeTask?.cancel()
+            shelfNoticeTask = nil
+            return
+        }
+        guard shelfNoticeTask == nil else { return }
+        shelfNoticeTask = Task { @MainActor [weak self] in
+            guard let duration = self?.shelfNoticeDuration else { return }
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.state.shelfNotice = nil
+            self?.shelfNoticeTask = nil
+        }
     }
 
     // MARK: - Dismissal
@@ -376,11 +480,63 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// should be running while the notch is idle.
     var isWatchingForOutsideClicks: Bool { outsideClickToken != nil }
 
-    public override init() { super.init() }
+    public override init() {
+        let sandbox = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotch-\(UUID().uuidString)", isDirectory: true)
+        let suiteName = "com.gcdz.creativenotch.sandbox.\(UUID().uuidString)"
+        sandboxSuiteName = suiteName
+        preferencesDefaults = UserDefaults(suiteName: suiteName)!
+        shelfDirectory = sandbox.appendingPathComponent("Shelf", isDirectory: true)
+        shelfTrash = .folder(sandbox.appendingPathComponent("Trash", isDirectory: true))
+        capturesDirectory = sandbox.appendingPathComponent("Captures", isDirectory: true)
+        super.init()
+    }
+
+    /// The sandbox suite `preferencesDefaults` starts as, dropped again when
+    /// the delegate goes: a test run builds hundreds of delegates, and each
+    /// would otherwise leave an empty domain behind. Harmless after
+    /// `configureForRealLaunch()`, which never wrote to it.
+    private let sandboxSuiteName: String
+
+    deinit {
+        UserDefaults().removePersistentDomain(forName: sandboxSuiteName)
+    }
+
+    // MARK: - Real-world locations
+
+    /// The shelf's real storage, `~/Library/Application Support/CreativeNotch/Shelf`.
+    static let realShelfDirectory: URL = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("CreativeNotch/Shelf")
+
+    /// Points every seam that reaches the user's own data at the real thing:
+    /// the preferences domain, the shelf's folder, the Trash, and the
+    /// captures folder.
+    ///
+    /// **Why the defaults are sandboxed instead.** Each of these seams once
+    /// defaulted to the real location, and staying off it was something every
+    /// test had to remember: a suite that built an `AppDelegate()` and forgot
+    /// one opened the user's real shelf at `install(metrics:)` and ran its
+    /// launch purge into the user's real Trash. Now a fresh delegate reaches
+    /// nothing outside a temporary folder and a private defaults suite, and
+    /// the real app opts in here, once, before anything is built --
+    /// `applicationDidFinishLaunching` calls this first, and nothing else
+    /// does. A new seam of this kind belongs in this method, with a sandboxed
+    /// default.
+    func configureForRealLaunch() {
+        preferencesDefaults = .standard
+        shelfDirectory = Self.realShelfDirectory
+        shelfTrash = .system
+        capturesDirectory = CameraController.picturesCapturesDirectory
+    }
 
     // MARK: - Lifecycle
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before anything reads a preference or builds the shelf: every
+        // real-world seam defaults to a sandbox until this runs.
+        configureForRealLaunch()
+
         // With no screen at all, the screen-parameter observer builds the
         // panel when one appears (`screenParametersDidChange`). The choice is
         // read before `install` exists to load it, because it decides which
@@ -393,7 +549,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
             onClearShelf: { [weak self] in self?.clearShelf() },
-            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
+            shelfCount: { [weak self] in self?.menuShelfCount ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
             clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
@@ -431,6 +587,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// screen the way the launch does. Injected for the same reason.
     var activationScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
         NSScreen.chosenOnActivation(by: choice)?.metrics
+    }
+
+    /// The connected displays, for the "Show on" menu. Injected so a test
+    /// can plug and unplug displays without a real one.
+    var screenDescriptors: () -> [ScreenDescriptor] = { NSScreen.descriptors }
+
+    /// Re-reads the displays the "Show on" menu offers. Asked when Settings
+    /// is shown and on every screen-parameter change -- the two moments the
+    /// list can be stale while someone is looking at it -- so nothing polls.
+    func refreshConnectedDisplays() {
+        state.connectedDisplays = screenDescriptors()
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
@@ -631,9 +798,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Takes `ScreenMetrics` rather than an `NSScreen` so the whole path
     /// is drivable from a test with no real display attached.
     func install(metrics: ScreenMetrics) {
-        let size = NotchGeometry
-            .panelFrame(for: NotchGeometry.anchor(for: metrics), in: metrics)
-            .size
+        // Text size (2026-10-24) is read first, because it decides how large
+        // the window is built: built at the default and grown afterwards, the
+        // first frame would be the wrong size.
+        state.textSize = PreferencesStore(defaults: preferencesDefaults).textSize
+        let size = panelFrame(on: metrics).size
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
         panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
@@ -690,6 +859,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // capture was saved and never listed. Reading late also follows a
         // shelf rebuilt later, the same as the title-row verbs below.
         let camera = CameraController(shelf: { [weak self] in self?.shelf })
+        camera.capturesDirectory = capturesDirectory
         camera.onStateChange = { [weak self] next in
             self?.state.cameraState = next
             if case .recording = next {
@@ -723,8 +893,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelf = try? ShelfStore(
             directory: shelfDirectory,
             capacity: limits.shelfCapacity,
-            maxAge: limits.shelfExpiry.maxAge
+            maxAge: limits.shelfExpiry.maxAge,
+            copier: shelfCopier,
+            trash: shelfTrash
         )
+        shelf?.onCopyFailed = { [weak self] item, error in
+            self?.reportShelfCopyFailure(item, error)
+        }
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
 
@@ -764,8 +939,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSetDisplayChoice = { [weak self] choice in
             self?.setDisplayChoice(choice)
         }
+        state.onRefreshDisplays = { [weak self] in self?.refreshConnectedDisplays() }
+
+        // Text size (2026-10-24). Loaded at the top of `install`, which sized
+        // the window by it; applied at once, like "Show on".
+        state.onSetTextSize = { [weak self] size in self?.setTextSize(size) }
 
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
+        state.onPreviewLimits = { [weak self] limits in
+            self?.previewLimits(limits) ?? ShelfLimitRemoval(items: [])
+        }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
@@ -906,6 +1089,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // Spec section 9: a write that fails refuses the drop rather
             // than half-completing it. Swallowing the error and opening
             // the shelf anyway would show an empty shelf and no reason why.
+            //
+            // A file is not copied here: `add` checks what it cheaply can,
+            // lists it as pending and copies in the background, so a large
+            // drop no longer holds the main thread. A copy that fails after
+            // that is reported by `reportShelfCopyFailure`, since this drop
+            // has long since been answered.
             var stored = 0
             for payload in payloads {
                 do {
@@ -950,6 +1139,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
+                self.syncShelfNotice(for: newState)
                 self.tapIfOpening(newState)
             }
         }
@@ -962,7 +1152,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // and the tracking rect empty -- no tracking area at all, and hover
         // silently dead. (Follow-up F1.)
         let anchor = NotchGeometry.anchor(for: metrics)
-        let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
+        let frame = panelFrame(on: metrics, anchor: anchor)
         state.setGeometry(anchor: anchor, panelFrame: frame)
         panel.setFrame(frame, display: true)
         // Seeded directly rather than through the lag: at install there is
@@ -1805,8 +1995,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A display was connected, disconnected or rearranged: place the panel
-    /// on whatever the choice picks from the screens there are now.
+    /// on whatever the choice picks from the screens there are now. This is
+    /// also how a pinned display that was unplugged gets the panel back --
+    /// plugging it in posts this, and the rule finds it again.
+    ///
+    /// The Settings menu's display list is refreshed first, so an open
+    /// Settings window offers what is connected now.
     func screenParametersDidChange() {
+        refreshConnectedDisplays()
         guard let metrics = screenMetrics(state.displayChoice) else { return }
         screenParametersDidChange(metrics: metrics)
     }
@@ -1819,6 +2015,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.displayChoice = choice
         guard panel != nil, let metrics = screenMetrics(choice) else { return }
         reposition(metrics: metrics)
+    }
+
+    /// Saves and applies a new "Text size", then resizes the panel to fit it
+    /// at once (2026-10-24). Through `reposition`, the one path that changes
+    /// the panel's frame, so the funnel re-syncs the tracking rect and the
+    /// hosting view follows the window as it does on a screen change. No
+    /// observer: the view reads `state.textSize` on its next draw.
+    func setTextSize(_ size: TextSize) {
+        preferencesStore.setTextSize(size)
+        state.textSize = size
+        guard panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
+        reposition(metrics: metrics)
+    }
+
+    /// The window frame for `metrics` at the current text size. Every place
+    /// the panel is sized asks here, so a screen change, an activation and
+    /// the launch cannot disagree with the setting about how large it is.
+    private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
+        NotchGeometry.panelFrame(
+            for: anchor ?? NotchGeometry.anchor(for: metrics),
+            in: metrics,
+            textScale: state.textSize.scale
+        )
     }
 
     /// The display arrangement changed. Internal so a test can drive it
@@ -1861,7 +2080,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = NotchGeometry.anchor(for: metrics)
-        let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
+        let frame = panelFrame(on: metrics, anchor: anchor)
         // The dedupe lives in the funnel now, and the tracking rect
         // re-syncs from the geometry observer.
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }

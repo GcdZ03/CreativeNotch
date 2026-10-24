@@ -48,6 +48,7 @@ struct ShelfTileActionsTests {
     /// wired at install so the view never calls `NSWorkspace` itself.
     @Test func installingWiresShowInFinder() {
         let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated("shelf-tile-actions")
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory

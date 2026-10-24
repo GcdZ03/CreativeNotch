@@ -45,7 +45,7 @@ struct PowerView: View {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
                         Text("\(snapshot.level)%")
-                            .font(.system(size: 34, weight: .semibold, design: .rounded))
+                            .notchFont(34, weight: .semibold, design: .rounded)
                             .monospacedDigit()
                             .rollingDigits(snapshot.level)
                             .foregroundStyle(.white)
@@ -55,16 +55,16 @@ struct PowerView: View {
                             isCharging: snapshot.isCharging,
                             isCharged: snapshot.isCharged
                         ))
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
+                        .notchFont(14, weight: .medium, design: .rounded)
                         .foregroundStyle(.ink(0.55))
                     }
 
                     HStack(spacing: 8) {
                         Text("Low Power Mode")
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .notchFont(12, weight: .medium, design: .rounded)
                             .foregroundStyle(.ink(0.6))
                         Text(snapshot.isLowPowerMode ? "On" : "Off")
-                            .font(.system(size: 10, weight: .semibold, design: .rounded))
+                            .notchFont(10, weight: .semibold, design: .rounded)
                             .foregroundStyle(.ink(0.85))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
@@ -80,7 +80,7 @@ struct PowerView: View {
             // the first IOKit read. The tab itself is hidden on machines
             // with no battery, so this is never a permanent state.
             Text("Reading power state…")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .notchFont(12, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -106,7 +106,7 @@ struct PowerView: View {
         .overlay {
             if let glyph = Self.glyph(for: s, differentiateWithoutColor: differentiateWithoutColor) {
                 Image(systemName: glyph)
-                    .font(.system(size: 18, weight: .bold))
+                    .notchFont(18, weight: .bold)
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.6), radius: 1.5)
             }
