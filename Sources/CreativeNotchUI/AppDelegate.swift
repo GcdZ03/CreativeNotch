@@ -228,8 +228,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Overridable for the reason `shelfUndoWindow` is.
     var shelfNoticeDuration: Duration = AppDelegate.defaultShelfNoticeDuration
 
-    /// The one-shot that withdraws the notice. Scheduled only by a failed
-    /// copy, sleeps once, and is gone: `nil` whenever no notice is shown.
+    /// The one-shot that withdraws the notice. Scheduled only while a notice
+    /// is up and the shelf pane is on screen, sleeps once, and is gone:
+    /// `nil` whenever no notice is shown or nobody can see it.
     private(set) var shelfNoticeTask: Task<Void, Never>?
 
     /// How long "Undo" stays on offer after the shelf is cleared.
@@ -270,11 +271,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = state.limits
         preferencesStore.saveLimits(limits)
         state.limits = limits
-        shelf?.setLimits(
-            capacity: limits.shelfCapacity,
-            maxAge: limits.shelfExpiry.maxAge,
-            now: Date(timeIntervalSince1970: now())
-        )
+        // Only a change to the shelf's own limits reaches the shelf: setting
+        // them re-runs eviction and the purge, and a clipboard or chime
+        // change has no business trashing a file — not even one already
+        // past the expiry and waiting for the next add's purge.
+        if limits.shelfCapacity != previous.shelfCapacity || limits.shelfExpiry != previous.shelfExpiry {
+            shelf?.setLimits(
+                capacity: limits.shelfCapacity,
+                maxAge: limits.shelfExpiry.maxAge,
+                now: Date(timeIntervalSince1970: now())
+            )
+        }
         clipboard?.store.setCapacity(limits.clipboardCapacity)
         if limits.chime != previous.chime, limits.chime != .none {
             playChime(limits.chime)
@@ -348,24 +355,44 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// How many shelf items the menu bar's Clear Shelf counts and acts on.
     ///
-    /// Ready items only, as the pane's title row: `clear()` never touches a
+    /// Ready items only, as the pane's Clear verb: `clear()` never touches a
     /// copy in progress, so counting one would offer a Clear that does
     /// nothing.
     var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
 
     /// A dropped file's background copy failed after the drop was accepted.
     ///
-    /// Logged, announced to VoiceOver, and said under the shelf for
-    /// `shelfNoticeDuration`. The announcement is what reaches someone whose
-    /// pane is closed or who cannot see the line: the drop already said yes,
-    /// and no view is left carrying the item. A second failure replaces the
-    /// first line rather than queueing behind it.
+    /// Logged, announced to VoiceOver, and said under the shelf. The
+    /// announcement reaches someone who cannot see the line; the line is
+    /// what reaches everyone else, so it stays until it has been on screen
+    /// for `shelfNoticeDuration`. A big copy is exactly the one the panel
+    /// closes or the tab changes during, and a line withdrawn on a timer
+    /// nobody saw would leave a pending tile that simply vanished. A second
+    /// failure replaces the first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
         let notice = "Couldn't add \(item.displayName)"
         announce(notice)
         shelfNoticeTask?.cancel()
+        shelfNoticeTask = nil
         state.shelfNotice = notice
+        syncShelfNotice(for: state.state)
+    }
+
+    /// Runs the notice's withdrawal only while the shelf pane is showing it.
+    ///
+    /// Called from the state funnel and after a failure. Leaving the pane
+    /// before the time is up stops the clock and keeps the line for the next
+    /// visit, with the full duration again: a glance on the way past is not
+    /// a reading.
+    func syncShelfNotice(for next: NotchState) {
+        guard state.shelfNotice != nil else { return }
+        guard next == .open(.shelf) else {
+            shelfNoticeTask?.cancel()
+            shelfNoticeTask = nil
+            return
+        }
+        guard shelfNoticeTask == nil else { return }
         shelfNoticeTask = Task { @MainActor [weak self] in
             guard let duration = self?.shelfNoticeDuration else { return }
             try? await Task.sleep(for: duration)
@@ -1046,6 +1073,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
+                self.syncShelfNotice(for: newState)
                 self.tapIfOpening(newState)
             }
         }

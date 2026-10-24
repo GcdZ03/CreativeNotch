@@ -146,6 +146,57 @@ struct ShelfPendingCopyTests {
         #expect(delegate.shelfNoticeTask == nil)
     }
 
+    /// **A failure nobody was looking at waits for them.** The panel closed
+    /// while the copy ran -- the case the background copy exists for -- so
+    /// the line stays, with no clock running, until the shelf pane is shown;
+    /// only then is it withdrawn after the usual time.
+    @Test func aFailureWhileThePaneIsClosedStaysUntilTheShelfIsShown() async throws {
+        let failing = ShelfCopier(copy: { _, _ in throw CopyFailed() }, availableCapacity: { _ in nil })
+        let delegate = makeDelegate(copier: failing)
+        delegate.shelfNoticeDuration = .milliseconds(20)
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        let shelf = try #require(delegate.shelf)
+        let source = try makeSourceFile(named: "Holiday.mov")
+
+        #expect(container.onDrop([.file(source)]))
+        delegate.state.transition(to: .closed)
+        await shelf.waitForPendingCopies()
+
+        #expect(delegate.state.shelfNotice == "Couldn't add Holiday.mov")
+        #expect(delegate.shelfNoticeTask == nil, "nothing should withdraw a line no one can see")
+
+        delegate.state.transition(to: .open(.shelf))
+        let notice = try #require(delegate.shelfNoticeTask)
+        await notice.value
+        #expect(delegate.state.shelfNotice == nil)
+        #expect(delegate.shelfNoticeTask == nil)
+    }
+
+    /// Leaving the shelf before the time is up keeps the line for the next
+    /// visit rather than letting it lapse out of sight.
+    @Test func leavingTheShelfBeforeTheNoticeLapsesKeepsIt() async throws {
+        let failing = ShelfCopier(copy: { _, _ in throw CopyFailed() }, availableCapacity: { _ in nil })
+        let delegate = makeDelegate(copier: failing)
+        delegate.shelfNoticeDuration = .seconds(60)
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        let shelf = try #require(delegate.shelf)
+        let source = try makeSourceFile(named: "Holiday.mov")
+
+        #expect(container.onDrop([.file(source)]))
+        await shelf.waitForPendingCopies()
+        let running = try #require(delegate.shelfNoticeTask)
+
+        delegate.state.transition(to: .open(.clipboard))
+        #expect(running.isCancelled)
+        #expect(delegate.shelfNoticeTask == nil)
+        #expect(delegate.state.shelfNotice == "Couldn't add Holiday.mov")
+
+        delegate.state.transition(to: .open(.shelf))
+        #expect(delegate.shelfNoticeTask != nil)
+        delegate.state.transition(to: .closed)
+        #expect(delegate.state.shelfNotice == "Couldn't add Holiday.mov")
+    }
+
     /// Nothing is scheduled while nothing has failed.
     @Test func noNoticeIsScheduledWhenNothingFailed() {
         let delegate = makeDelegate()
