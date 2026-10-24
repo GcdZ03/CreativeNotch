@@ -24,6 +24,10 @@ struct TimerNoticeWiringTests {
         return (delegate, notices)
     }
 
+    private func cancelAll(_ delegate: AppDelegate) {
+        for id in delegate.state.timers.map(\.id) { delegate.state.onCancelTimer?(id) }
+    }
+
     private func finished(_ duration: TimeInterval = 600) throws -> Countdown {
         try #require(Countdown(duration: duration, startingAt: Date().addingTimeInterval(-duration)))
     }
@@ -77,6 +81,32 @@ struct TimerNoticeWiringTests {
         #expect(spoken == ["10-minute timer finished"])
     }
 
+    // MARK: - Several timers
+
+    /// Each countdown's completion takes the notify-when-hidden decision on
+    /// its own: two finishing behind a full-screen app post two notices,
+    /// through the controller's per-countdown `onFinished` the delegate wired.
+    @Test func everyTimerFinishingBehindAFullScreenAppPostsItsOwnNotice() throws {
+        let (delegate, notices) = makeDelegate()
+        delegate.applyFullScreen(true)
+        let finish = try #require(delegate.timer?.onFinished)
+
+        finish(try finished(600))
+        finish(try finished(300))
+
+        #expect(notices.posted.map(\.body) == ["10-minute timer finished", "5-minute timer finished"])
+    }
+
+    /// Every start is a start: a second countdown asks the seam again, and
+    /// the seam decides whether macOS has already been asked.
+    @Test func startingASecondCountdownPreparesNoticesAgain() {
+        let (delegate, notices) = makeDelegate()
+        delegate.state.onStartTimer?(300)
+        delegate.state.onStartTimer?(600)
+        cancelAll(delegate)
+        #expect(notices.prepareCount == 2)
+    }
+
     // MARK: - Asking for permission
 
     /// Starting a countdown is where permission is asked for -- the seam
@@ -84,7 +114,7 @@ struct TimerNoticeWiringTests {
     @Test func startingACountdownPreparesNotices() {
         let (delegate, notices) = makeDelegate()
         delegate.state.onStartTimer?(300)
-        delegate.state.onCancelTimer?()
+        cancelAll(delegate)
         #expect(notices.prepareCount == 1)
     }
 
@@ -92,7 +122,7 @@ struct TimerNoticeWiringTests {
         let (delegate, notices) = makeDelegate()
         delegate.state.onSetTimerNotifyWhenHidden?(false)
         delegate.state.onStartTimer?(300)
-        delegate.state.onCancelTimer?()
+        cancelAll(delegate)
         #expect(notices.prepareCount == 0)
     }
 

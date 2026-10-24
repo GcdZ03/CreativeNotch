@@ -22,6 +22,25 @@ struct StopwatchTimersWiringTests {
         #expect(delegate.state.countdown?.duration == 300)
     }
 
+    /// The ear draws the soonest countdown, and its pause glyph follows
+    /// that one: a running countdown outranks a paused one, so the glyph
+    /// shows only once every countdown is paused.
+    @Test func theEarsPauseGlyphFollowsTheSoonestCountdown() throws {
+        let delegate = NotchedDelegate.make()
+        delegate.state.onStartTimer?(1500)
+        delegate.state.onStartTimer?(300)
+        let ids = delegate.state.timers.map(\.id)
+
+        delegate.state.onPauseTimer?(ids[1])
+        #expect(delegate.state.countdown?.duration == 1500)
+        #expect(delegate.state.countdown?.isPaused == false)
+
+        delegate.state.onPauseTimer?(ids[0])
+        #expect(delegate.state.countdown?.isPaused == true)
+
+        for id in ids { delegate.state.onCancelTimer?(id) }
+    }
+
     /// The row verbs reach one countdown each through `AppState`.
     @Test func theRowVerbsActOnOneCountdown() throws {
         let delegate = NotchedDelegate.make()
