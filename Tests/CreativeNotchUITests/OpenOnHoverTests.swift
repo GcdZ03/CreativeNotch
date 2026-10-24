@@ -92,13 +92,13 @@ struct OpenOnHoverTests {
         let defaults = TestDefaults.isolated("open-on-hover")
         let first = AppDelegate()
         first.preferencesDefaults = defaults
-        first.playChime = {}
+        first.playChime = { _ in }
         first.install(metrics: NotchedDelegate.metrics)
         first.state.onSetHoverBehaviour?(Self.on)
 
         let second = AppDelegate()
         second.preferencesDefaults = defaults
-        second.playChime = {}
+        second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)
         #expect(second.state.hoverBehaviour == Self.on)
     }

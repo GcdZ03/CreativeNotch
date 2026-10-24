@@ -24,7 +24,7 @@ struct CaptureBadgeTests {
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CaptureBadge-\(UUID().uuidString)")
-        delegate.playChime = {}
+        delegate.playChime = { _ in }
         delegate.install(metrics: NotchedDelegate.metrics)
         // The indicator would otherwise read the developer's real
         // microphone and camera, so the suite would pass or fail
