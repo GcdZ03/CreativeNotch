@@ -519,7 +519,7 @@ struct PreferencesView: View {
             title: "Calendar and reminders",
             // Required: the switch asks for two permissions, and the row says
             // so before it is pressed rather than after.
-            detail: "Your next events and today's reminders, beside the battery. Asks for Calendars and Reminders access when you switch it on."
+            detail: "Your next events and today's reminders, as the last tab. Asks for Calendars and Reminders access when you switch it on."
         ),
         PreferencesRow(
             module: .colorPicker, section: .notch, symbolName: "eyedropper", tint: .teal,
@@ -645,7 +645,7 @@ struct PreferencesView: View {
         } header: {
             Text("Layout")
         } footer: {
-            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
+            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. With the calendar on, six tabs need more than Default's width there, so Default widens to fit them. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
         }
     }
 

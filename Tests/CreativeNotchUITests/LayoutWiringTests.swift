@@ -78,12 +78,27 @@ struct LayoutWiringTests {
         #expect(d.panel?.frame == d.currentFrame)
     }
 
-    /// At Default, a tab coming or going never resizes the panel.
-    @Test func defaultIgnoresTheTabCount() {
+    /// At Default, a tab coming or going never resizes the panel -- up to
+    /// the five that ship on. The calendar's sixth tab is the exception: six
+    /// do not fit beside the housing, so Default grows to hold them, and
+    /// goes back when the calendar does.
+    @Test func defaultIgnoresTheTabCountUpToTheShippedFive() {
         let d = make()
         d.powerDidChange(PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false))
         d.switchboard.setEnabled(false, for: .camera)
         #expect(d.currentFrame.size == NotchGeometry.expandedSize)
+        d.switchboard.setEnabled(true, for: .camera)
+        #expect(d.currentFrame.size == NotchGeometry.expandedSize)
+
+        // Six tabs on this 230pt notch: 230 + 2 × (12 + 6×34 + 5×4 + 8).
+        d.switchboard.setEnabled(true, for: .calendar)
+        #expect(d.currentFrame.width == 718)
+        #expect(d.currentFrame.midX == d.currentAnchor.rect.midX)
+        #expect(d.panel?.frame == d.currentFrame)
+
+        d.switchboard.setEnabled(false, for: .calendar)
+        #expect(d.currentFrame.size == NotchGeometry.expandedSize)
+        #expect(d.panel?.frame == d.currentFrame)
     }
 
     /// Hiding the timer badge takes it off the closed notch at once, and the

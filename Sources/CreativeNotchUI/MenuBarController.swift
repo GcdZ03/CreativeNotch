@@ -3,7 +3,7 @@ import AppKit
 /// The status item, and the way to the settings window.
 ///
 /// It used to say it was "the only settings surface", on the grounds that a
-/// four-module personal tool does not need a preferences window. Ten modules
+/// four-module personal tool does not need a preferences window. Eleven modules
 /// later it does. The panel's header has a gear that opens it too, but this
 /// item is the one that survives every tab-bearing module being switched off
 /// -- then the panel has nowhere to open, and the menu bar is the way in. That

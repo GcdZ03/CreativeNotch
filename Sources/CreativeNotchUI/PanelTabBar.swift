@@ -56,14 +56,11 @@ struct PanelTabBar: View {
     /// That is the same shape as the `PassthroughContainer` trap recorded in
     /// ARCHITECTURE.md: each piece correct, the assembly wrong. One rule,
     /// spelled once, is the only fix that stays fixed.
-    ///
-    /// The leading ear's share of that one list: the calendar is a tab too,
-    /// but it is drawn beside the battery (`TabVisibility.leadingEar`).
     static func visible(
         enabled: Preferences,
         hasBattery: Bool
     ) -> [CreativeNotchCore.Tab] {
-        TabVisibility.leadingEar(enabled: enabled, hasBattery: hasBattery)
+        TabVisibility.visible(enabled: enabled, hasBattery: hasBattery)
     }
 
     let selected: CreativeNotchCore.Tab
@@ -80,9 +77,7 @@ struct PanelTabBar: View {
     }
 }
 
-/// One tab's icon button, wherever in the header it is drawn: the bar in the
-/// leading ear and the calendar in the trailing one are the same control, so
-/// they are one view.
+/// One tab's icon button in the bar.
 struct PanelTabButton: View {
     let tab: CreativeNotchCore.Tab
     let selected: CreativeNotchCore.Tab

@@ -183,10 +183,15 @@ the setting. Each lands in the one Core function that already owned the fact:
   three, whether or not they are switched on, so neither switch resizes the
   panel): the panel is centred, so both ears are equal, and either may hold
   either. `BatteryCell`'s allowance (`batteryCellWidth`) is checked against the
-  drawn cell at every text size (`StatusEarFitTests`). That makes Compact the one width that depends on
-  the tab count, so `AppDelegate.tabsDidChange` re-places the panel when a
-  tab-bearing module is toggled or the Battery tab first appears — and only
-  at Compact, so Default and Wide never move for a module switch.
+  drawn cell at every text size (`StatusEarFitTests`). Default and Wide
+  hold the five tabs that ship on beside every notch Apple ships, so up to
+  five they ignore the count; past five — only the calendar's sixth tab gets
+  there — they take Compact's floor too, so Default is 678 with the calendar
+  on under a 14" notch and Wide does not move. `AppDelegate.tabsDidChange`
+  re-places the panel when a tab-bearing module is toggled or the Battery tab
+  first appears, but only when the width it is sized from
+  (`nominalPanelWidth`, recorded at each placement) actually changed, so
+  Default and Wide never move for any other module switch.
   `PanelTabBar` and `NotchIconButtonStyle` read `tabEarWidth`'s constants, so
   the arithmetic and the drawing cannot drift.
 - **Tabs side** is `PanelLayout.tabsSide`. Only the ears' *contents* swap;
@@ -1703,7 +1708,7 @@ closed notch mid-call.
 ## The calendar glance
 
 The next three events of today and tomorrow, and today's reminder count, in a
-pane reached from an icon beside the battery. Off until switched on, because
+pane reached from the last icon in the tab bar. Off until switched on, because
 it needs a grant (see Permissions).
 
 ### It reads nothing while its pane is closed
@@ -1744,13 +1749,20 @@ timer's box guards against, avoided in the value instead.
 
 ### Where it lives
 
-A tab, but in the **trailing** ear: the leading ear on a 14-inch notch is about
-215pt from the panel's edge to the housing, and five 34pt icons with their gaps
-and inset already take 198pt. `TabVisibility.visible` still decides existence
-and order in one list — `.calendar` last — and `leadingEar` / `trailingEar`
-partition it for drawing, so ⌘N counts left to right as drawn and the
-switchboard's retargeting needs nothing new. `CalendarPanelRenderingTests`
-renders the ear at every text size and checks it stays out of the housing.
+A tab like any other, **last in the one bar** (`TabVisibility.visible`), so
+it moves with the tabs when Settings → Layout puts them right of the camera,
+⌘N counts it last left to right as drawn in either ear, and the switchboard's
+retargeting needs nothing new. It was first drawn beside the battery, because
+six icons do not fit Default's 215pt ear on a 14-inch notch; the status ear has
+since gained the colour picker's dropper and has no room either (dropper,
+calendar, battery and gear would need 228pt), and a tab among the verbs
+would have counted out of order once the ears could swap. So the bar keeps all
+six and the panel makes the room: past the five tabs that ship on,
+`NotchGeometry.nominalPanelWidth` gives Default and Wide the floor Compact
+already had, 678pt under a 14" notch (`LayoutOptionsTests` checks every width,
+side, text size and tab count with the calendar on). `CalendarPanelRenderingTests`
+renders the header at every text size with the tabs on either side and
+checks it stays out of the housing.
 
 ### Pure where it can be
 

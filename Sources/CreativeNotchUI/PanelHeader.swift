@@ -2,7 +2,8 @@ import SwiftUI
 import CreativeNotchCore
 
 /// The open panel's top band: tabs in one ear, battery and the gear in the
-/// other, and the camera housing black between them (spec §5.1).
+/// other, and the camera housing black between them (spec §5.1). Every tab,
+/// the calendar included, is in the one bar, so the tabs move as a group.
 ///
 /// Widths come from `PanelLayout`, the same function that gives the peeks
 /// their `notchGap`; this view draws three columns and decides nothing. On a
@@ -51,14 +52,6 @@ struct PanelHeader: View {
         }
     }
 
-    /// The tabs drawn with the status items rather than in the bar
-    /// (`TabVisibility.trailingEar`): the calendar.
-    @ViewBuilder private var statusTabs: some View {
-        ForEach(TabVisibility.trailingEar(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
-            PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
-        }
-    }
-
     @ViewBuilder private var battery: some View {
         if showsBattery, hasBattery, let power {
             BatteryCell(level: power.level, isCharging: power.isCharging)
@@ -91,9 +84,7 @@ struct PanelHeader: View {
                     settingsButton
                     battery
                     dropper
-                    statusTabs
                 } else {
-                    statusTabs
                     dropper
                     battery
                     settingsButton

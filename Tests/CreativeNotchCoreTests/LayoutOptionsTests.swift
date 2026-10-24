@@ -172,6 +172,72 @@ struct LayoutOptionsTests {
         }
     }
 
+    /// With the calendar on, every header still fits a 14" notch: every
+    /// width, either side for the tabs, every text size, and every tab count
+    /// the calendar can be part of -- each from `TabVisibility`, so a tab
+    /// added later is counted here without editing the test. Both ears are
+    /// checked, the bar of up to six tabs and the dropper, battery and gear.
+    @Test func everyHeaderFitsAFourteenInchNotchWithTheCalendarOn() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        var counts = Set<Int>()
+        for mask in 0..<(1 << 5) {
+            var p = Preferences.allEnabled
+            p.shelf = mask & 1 != 0
+            p.clipboard = mask & 2 != 0
+            p.timer = mask & 4 != 0
+            p.power = mask & 8 != 0
+            p.camera = mask & 16 != 0
+            for hasBattery in [true, false] {
+                let tabs = TabVisibility.visible(enabled: p, hasBattery: hasBattery)
+                #expect(tabs.last == .calendar)
+                counts.insert(tabs.count)
+            }
+        }
+        #expect(counts == Set(1...Tab.allCases.count))
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in counts {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        #expect(layout.tabsEarWidth >= PanelLayout.tabEarWidth(tabCount: count, scale: size.scale),
+                                "\(count) tabs overflow a \(width) panel at \(size) on the \(side)")
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) with \(count) tabs")
+                        #expect(frame.midX == anchor.rect.midX)
+                        #expect(frame.minX >= fourteen.frame.minX && frame.maxX <= fourteen.frame.maxX)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Default is the 620pt it always was for the five tabs that ship on,
+    /// and grows only for the calendar's sixth -- to exactly what six need
+    /// beside the housing. Wide already holds six and does not move.
+    @Test func defaultGrowsOnlyForTheCalendarsSixthTab() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        for count in 0...NotchGeometry.shippedTabCount {
+            #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .standard, tabCount: count).size
+                    == NotchGeometry.expandedSize, "\(count) tabs moved Default")
+        }
+        let six = NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .standard, tabCount: 6)
+        #expect(six.width == anchor.rect.width + 2 * PanelLayout.tabEarWidth(tabCount: 6))
+        #expect(six.width == 678)
+        #expect(six.height == NotchGeometry.expandedSize.height)
+        #expect(six.midX == anchor.rect.midX)
+        #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .wide, tabCount: 6).width
+                == PanelWidth.wide.nominalWidth)
+        // Compact needs the same room for six; it cannot be narrower than
+        // Default there, only no wider.
+        #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .compact, tabCount: 6).width == 678)
+    }
+
     /// The status ear -- dropper, battery and gear -- fits whichever ear it
     /// lands in, at every width, text size and tab count, on a 14" notch.
     /// Compact is the one this binds: Default and Wide have room to spare.

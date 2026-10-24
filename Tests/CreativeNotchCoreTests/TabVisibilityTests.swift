@@ -101,36 +101,17 @@ import Testing
     #expect(TabVisibility.fallback(from: .camera, enabled: noCamera, hasBattery: true) == .shelf)
 }
 
-// MARK: - Which ear
+// MARK: - The calendar
 
-/// The calendar lives in the trailing ear beside the battery, not in the
-/// leading ear's bar: six icons do not fit the leading ear of a 14-inch notch
-/// beside the camera housing. It is still a tab -- one list decides existence
-/// and order, and ⌘N counts it last, after the bar, left to right as drawn.
-@Test func theCalendarIsAppendedLastAndDrawnInTheTrailingEar() {
+/// The calendar is appended last, in the one bar with every other tab
+/// (2026-10-24): it moves with the tabs when they go to the right ear, and
+/// ⌘N counts it last, left to right as drawn, whichever ear that is. Nothing
+/// draws it anywhere else, so the bar is the whole list.
+@Test func theCalendarIsAppendedLastInTheOneBar() {
     let all = TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
-    #expect(all.last == .calendar)
-    #expect(TabVisibility.leadingEar(enabled: .allEnabled, hasBattery: true)
-            == [.shelf, .clipboard, .timer, .power, .camera])
-    #expect(TabVisibility.trailingEar(enabled: .allEnabled, hasBattery: true) == [.calendar])
-    #expect(TabVisibility.trailingEar(enabled: .shipped, hasBattery: true).isEmpty)
-}
-
-/// The two ears partition the one list: nothing drawn twice, nothing lost.
-@Test func theEarsPartitionTheVisibleTabs() {
-    for mask in 0..<64 {
-        var preferences = Preferences.allEnabled
-        preferences.shelf     = mask & 1 != 0
-        preferences.clipboard = mask & 2 != 0
-        preferences.timer     = mask & 4 != 0
-        preferences.power     = mask & 8 != 0
-        preferences.camera    = mask & 16 != 0
-        preferences.calendar  = mask & 32 != 0
-        let visible = TabVisibility.visible(enabled: preferences, hasBattery: true)
-        let leading = TabVisibility.leadingEar(enabled: preferences, hasBattery: true)
-        let trailing = TabVisibility.trailingEar(enabled: preferences, hasBattery: true)
-        #expect(leading + trailing == visible, "mask \(mask)")
-    }
+    #expect(all == [.shelf, .clipboard, .timer, .power, .camera, .calendar])
+    #expect(!TabVisibility.visible(enabled: .shipped, hasBattery: true).contains(.calendar))
+    #expect(NotchGeometry.shippedTabCount == 5)
 }
 
 /// A calendar switched off falls back like any tab whose module went.

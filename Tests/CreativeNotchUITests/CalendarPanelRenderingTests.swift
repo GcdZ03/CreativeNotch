@@ -4,7 +4,8 @@ import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
 
-/// That the panel draws the calendar: its tab in the trailing ear, and each
+/// That the panel draws the calendar: its tab, last in the one bar with the
+/// others (so it moves with them when the tabs go to the right ear), and each
 /// state of its pane.
 ///
 /// Rendered offscreen in the shape `PanelRenderingTests` set, with the
@@ -49,17 +50,31 @@ struct CalendarPanelRenderingTests {
         CalendarSnapshot(eventsAccess: events, remindersAccess: reminders, refreshedAt: now)
     }
 
-    /// The 14-inch panel `PanelRenderingTests` uses, with the calendar on.
+    /// The 14-inch panel `PanelRenderingTests` uses, with the calendar on --
+    /// sized as the app sizes it for the tabs that show (`fit`), which with
+    /// the calendar's sixth tab is wider than 620.
     static func state(_ snapshot: CalendarSnapshot?, tab: CreativeNotchCore.Tab = .calendar,
-                      calendarOn: Bool = true) -> AppState {
+                      calendarOn: Bool = true, tabsSide: EarSide = .left) -> AppState {
         let s = PanelRenderingTests.state()
         s.preferences.calendar = calendarOn
+        s.layoutOptions.tabsSide = tabsSide
         s.calendar = snapshot
+        fit(s)
         s.transition(to: .open(tab))
         return s
     }
 
-    /// The panel as `NotchRootView` draws it, in the pinned environment.
+    /// Re-sizes `s`'s panel for the tabs it shows, at its text size, on the
+    /// 14" screen -- the frame `AppDelegate.panelFrame(on:)` would give it.
+    static func fit(_ s: AppState) {
+        let screen = TextSizeRenderingTests.screen
+        let anchor = NotchGeometry.anchor(for: screen)
+        s.setGeometry(anchor: anchor, panelFrame: NotchGeometry.panelFrame(
+            for: anchor, in: screen, textScale: s.textSize.scale, width: s.layoutOptions.width,
+            tabCount: TabVisibility.visible(enabled: s.preferences, hasBattery: s.hasBattery).count
+        ))
+    }
+
     static func panel(_ s: AppState) -> some View {
         NotchRootView(app: s, now: now)
             .frame(width: s.panelFrame.width, height: s.panelFrame.height)
@@ -79,53 +94,78 @@ struct CalendarPanelRenderingTests {
         bitmap(s)?.representation(using: .png, properties: [:])
     }
 
-    /// The trailing ear left of the battery cell: where the calendar's icon
-    /// sits, and where nothing else is drawn. In the 620-wide render the
-    /// housing ends at x 405 and the battery starts near x 505.
-    static let calendarIconRect = CGRect(x: 410, y: 4, width: 85, height: 24)
+    /// The bar's sixth slot, where the calendar's icon sits at the standard
+    /// size: in from the edge of the ear that holds the tabs by the inset and
+    /// five buttons with their gaps.
+    static func calendarSlot(_ s: AppState) -> CGRect {
+        let step = PanelLayout.tabButtonWidth + PanelLayout.tabSpacing
+        let x = s.layoutOptions.tabsSide == .left
+            ? PanelLayout.earInset + 5 * step
+            : s.panelFrame.width - PanelLayout.earInset - PanelLayout.tabButtonWidth
+        return CGRect(x: x, y: 4, width: PanelLayout.tabButtonWidth, height: 24)
+    }
 
     /// The module pane, right of the music column, under the title row.
     static let paneRect = CGRect(x: 230, y: 70, width: 370, height: 170)
 
     // MARK: - The tab
 
-    @Test func theTrailingEarShowsTheCalendarOnlyWhileItIsOn() throws {
+    /// On, the calendar's icon is the bar's sixth; off, the bar ends at five
+    /// and the panel is the 620 it always was.
+    @Test func theBarShowsTheCalendarOnlyWhileItIsOn() throws {
+        let onState = Self.state(Self.busyDay, tab: .shelf)
+        let offState = Self.state(nil, tab: .shelf, calendarOn: false)
+        #expect(onState.panelFrame.width == 678)
+        #expect(offState.panelFrame.size == NotchGeometry.expandedSize)
+        let on = try #require(Self.bitmap(onState))
+        let off = try #require(Self.bitmap(offState))
+        #expect(PanelRenderingTests.ink(on, in: Self.calendarSlot(onState)) > 0.02)
+        #expect(PanelRenderingTests.ink(off, in: Self.calendarSlot(onState)) == 0)
+    }
+
+    /// Selected, the icon gets the tab bar's highlight, like any tab -- in
+    /// the left ear or, with the tabs moved, the right.
+    @Test(arguments: EarSide.allCases)
+    func theCalendarIconHighlightsWhenSelected(side: EarSide) throws {
+        let selectedState = Self.state(Self.busyDay, tabsSide: side)
+        let selected = try #require(Self.bitmap(selectedState))
+        let unselected = try #require(Self.bitmap(Self.state(Self.busyDay, tab: .shelf, tabsSide: side)))
+        let slot = Self.calendarSlot(selectedState)
+        #expect(PanelRenderingTests.ink(selected, in: slot) > PanelRenderingTests.ink(unselected, in: slot),
+                "no highlight in the \(side) ear's last slot")
+    }
+
+    /// The status ear -- dropper, battery and gear -- is untouched by the
+    /// calendar: it sits against the panel's outer edge, and the calendar is
+    /// in the other ear's bar. Compared from the right edge, since the panel
+    /// is wider with the calendar on.
+    @Test func theStatusEarIsUntouched() throws {
         let on = try #require(Self.bitmap(Self.state(Self.busyDay, tab: .shelf)))
         let off = try #require(Self.bitmap(Self.state(nil, tab: .shelf, calendarOn: false)))
-        #expect(PanelRenderingTests.ink(on, in: Self.calendarIconRect) > 0.02)
-        #expect(PanelRenderingTests.ink(off, in: Self.calendarIconRect) == 0)
-    }
-
-    /// Selected, the icon gets the tab bar's highlight, like any tab.
-    @Test func theCalendarIconHighlightsWhenSelected() throws {
-        let selected = try #require(Self.bitmap(Self.state(Self.busyDay)))
-        let unselected = try #require(Self.bitmap(Self.state(Self.busyDay, tab: .shelf)))
-        #expect(PanelRenderingTests.ink(selected, in: Self.calendarIconRect)
-                > PanelRenderingTests.ink(unselected, in: Self.calendarIconRect))
-    }
-
-    /// The leading ear is unchanged by the calendar: five icons, same place.
-    @Test func theLeadingEarIsUntouched() throws {
-        let on = try #require(Self.png(Self.state(Self.busyDay, tab: .shelf)))
-        let off = try #require(Self.png(Self.state(nil, tab: .shelf, calendarOn: false)))
-        let crop: (Data) -> Data? = { data in
-            guard let rep = NSBitmapImageRep(data: data),
-                  let cg = rep.cgImage?.cropping(to: CGRect(x: 0, y: 0, width: 214, height: 32)) else { return nil }
+        let crop: (NSBitmapImageRep) -> Data? = { rep in
+            let width: CGFloat = 200
+            guard let cg = rep.cgImage?.cropping(
+                to: CGRect(x: CGFloat(rep.pixelsWide) - width, y: 0, width: width, height: 32)
+            ) else { return nil }
             return NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:])
         }
         #expect(Render.same(try #require(crop(on)), try #require(crop(off))))
     }
 
-    /// At every text size the trailing ear, now holding three things, stays
-    /// clear of the camera housing.
-    @Test(arguments: TextSize.allCases)
-    func theTrailingEarStaysOutOfTheHousing(size: TextSize) throws {
+    /// At every text size, with the tabs in either ear, six tabs in one and
+    /// the dropper, battery and gear in the other stay clear of the camera
+    /// housing.
+    @Test(arguments: TextSize.allCases, EarSide.allCases)
+    func theHeaderStaysOutOfTheHousing(size: TextSize, side: EarSide) throws {
         let s = TextSizeRenderingTests.state(size)
         s.preferences.calendar = true
+        s.layoutOptions.tabsSide = side
         s.calendar = Self.busyDay
+        Self.fit(s)
         s.transition(to: .open(.calendar))
-        let b = try #require(TextSizeRenderingTests.bitmap(s))
-        #expect(PanelRenderingTests.ink(b, in: TextSizeRenderingTests.housing(s)) == 0)
+        let b = try #require(Self.bitmap(s))
+        #expect(PanelRenderingTests.ink(b, in: TextSizeRenderingTests.housing(s)) == 0,
+                "the header reaches the housing at \(size) with the tabs on the \(side)")
     }
 
     // MARK: - The pane
@@ -172,6 +212,7 @@ struct CalendarPanelRenderingTests {
             let s = TextSizeRenderingTests.state(size)
             s.preferences.calendar = true
             s.calendar = snapshot
+            Self.fit(s)
             s.transition(to: .open(.calendar))
             let renderer = ImageRenderer(content: Self.panel(s))
             renderer.scale = 1
@@ -216,6 +257,7 @@ struct CalendarPanelRenderingTests {
         let larger = TextSizeRenderingTests.state(.larger)
         larger.preferences.calendar = true
         larger.calendar = Self.busyDay
+        Self.fit(larger)
         larger.transition(to: .open(.calendar))
         let data = try #require(Self.screenshot(larger))
         try data.write(to: directory.appendingPathComponent("calendar-larger-text.png"))

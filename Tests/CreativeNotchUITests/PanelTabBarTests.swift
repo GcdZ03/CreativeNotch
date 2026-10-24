@@ -18,7 +18,7 @@ struct PanelTabBarTests {
     /// spot-checked with `contains`.
     @Test func onlyTabsWithContentAreShown() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: true)
-                == [.shelf, .clipboard, .timer, .power, .camera])
+                == [.shelf, .clipboard, .timer, .power, .camera, .calendar])
     }
 
     // MARK: - The view must not keep its own list
@@ -34,8 +34,7 @@ struct PanelTabBarTests {
     /// Same shape as the `PassthroughContainer` trap: each piece correct, the
     /// assembly wrong.
     ///
-    /// The bar is the leading ear's share of the Core list: the calendar is a
-    /// tab too, drawn beside the battery (`TabVisibility.leadingEar`).
+    /// The calendar included: it is in the bar like any tab.
     @Test func theTabBarAgreesWithTheCoreRuleForEveryCombination() {
         for mask in 0..<64 {
             var preferences = Preferences.allEnabled
@@ -49,7 +48,7 @@ struct PanelTabBarTests {
             for hasBattery in [true, false] {
                 #expect(
                     PanelTabBar.visible(enabled: preferences, hasBattery: hasBattery)
-                    == TabVisibility.leadingEar(enabled: preferences, hasBattery: hasBattery),
+                    == TabVisibility.visible(enabled: preferences, hasBattery: hasBattery),
                     "the view disagreed with the rule at mask \(mask), hasBattery \(hasBattery)"
                 )
             }
@@ -91,14 +90,14 @@ struct PanelTabBarTests {
         let tabs = PanelTabBar.visible(enabled: noClipboard, hasBattery: true)
 
         #expect(tabs.contains(.clipboard) == false)
-        #expect(tabs == [.shelf, .timer, .power, .camera])
+        #expect(tabs == [.shelf, .timer, .power, .camera, .calendar])
     }
 
     /// Three of the four facts on the Battery tab are meaningless without a
     /// battery, so it is hidden on a Mac mini.
     @Test func thePowerTabIsHiddenWithoutABattery() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false)
-                == [.shelf, .clipboard, .timer, .camera])
+                == [.shelf, .clipboard, .timer, .camera, .calendar])
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false).contains(.power) == false)
     }
 

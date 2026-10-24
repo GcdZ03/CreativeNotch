@@ -163,15 +163,17 @@ public enum NotchGeometry {
     /// that holds Default at Larger may come down a step, and Compact may
     /// keep a factor Default could not.
     ///
-    /// `tabCount` is how many tabs the header shows (`TabVisibility`), and
-    /// only Compact reads it (`nominalPanelWidth`). Defaulted to every tab,
-    /// the widest Compact can need.
+    /// `tabCount` is how many tabs the header shows (`TabVisibility`): Compact
+    /// is sized by it, and Default and Wide only once a sixth tab -- the
+    /// calendar -- needs more than they have (`nominalPanelWidth`).
+    /// Defaulted to the tabs that ship on (`shippedTabCount`), the header
+    /// someone who never switched the calendar on has.
     public static func panelFrame(
         for anchor: Anchor,
         in m: ScreenMetrics,
         textScale: CGFloat = 1,
         width option: PanelWidth = .standard,
-        tabCount: Int = Tab.allCases.count
+        tabCount: Int = shippedTabCount
     ) -> CGRect {
         let nominalWidth = nominalPanelWidth(for: anchor, width: option, tabCount: tabCount)
         let scale = fittedTextScale(textScale, within: m.frame.size, nominalWidth: nominalWidth)
@@ -201,23 +203,37 @@ public enum NotchGeometry {
     /// (`PanelLayout.tabEarWidth`) or for the status items -- dropper,
     /// battery and gear (`PanelLayout.statusEarWidth`) -- whichever is
     /// wider. The ears are equal because the panel is centred on the notch,
-    /// and either one may hold either. Default and Wide are fixed widths that hold every tab
-    /// on every notch Apple ships, so they never depend on it, and a module
-    /// switched on or off never resizes them.
+    /// and either one may hold either.
+    ///
+    /// Default and Wide are fixed widths that hold the five tabs that ship
+    /// on, on every notch Apple ships, so up to five they never depend on the
+    /// count and a module toggle never resizes them. The calendar is a sixth
+    /// tab in the same bar (2026-10-24), and six do not fit Default's 215pt
+    /// ear on a 14" notch: past five, Default and Wide take the same floor
+    /// Compact does, so Default grows to hold them (678pt on a 14" notch)
+    /// rather than run the last tab under the camera. Wide already holds
+    /// six there and does not move.
     ///
     /// Public so `AppState.textScale` can fit against the same width the
     /// frame was built from.
     public static func nominalPanelWidth(
-        for anchor: Anchor, width option: PanelWidth, tabCount: Int = Tab.allCases.count
+        for anchor: Anchor, width option: PanelWidth, tabCount: Int = shippedTabCount
     ) -> CGFloat {
+        let ears = 2 * max(PanelLayout.tabEarWidth(tabCount: tabCount), PanelLayout.statusEarWidth())
+        let floor = (anchor.isNotch ? anchor.rect.width : 0) + ears
         switch option {
         case .compact:
-            let ears = 2 * max(PanelLayout.tabEarWidth(tabCount: tabCount), PanelLayout.statusEarWidth())
-            return max(option.nominalWidth, (anchor.isNotch ? anchor.rect.width : 0) + ears)
+            return max(option.nominalWidth, floor)
         case .standard, .wide:
-            return option.nominalWidth
+            return tabCount > shippedTabCount ? max(option.nominalWidth, floor) : option.nominalWidth
         }
     }
+
+    /// How many tabs the header shows with every module at its shipped
+    /// state on a Mac with a battery: five, the calendar being off until
+    /// someone switches it on.
+    public static let shippedTabCount =
+        TabVisibility.visible(enabled: .shipped, hasBattery: true).count
 
     /// The text scale the open panel actually draws at: `requested`, or on
     /// a space too small for the panel it implies, the largest scale whose

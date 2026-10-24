@@ -158,7 +158,7 @@ final class ModuleSwitchboard {
         preferences[module] = enabled
         if persist { delegate.preferencesStore.setEnabled(enabled, for: module) }
         delegate.state.preferences = preferences
-        // A tab may have come or gone, which a Compact panel is sized by.
+        // A tab may have come or gone, which the panel's width may be sized by.
         delegate.tabsDidChange()
 
         switch module {

@@ -1916,8 +1916,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // never show the tab.
         let gainedTab = !state.hasBattery
         state.hasBattery = true
-        // The Battery tab just appeared, which a Compact panel makes room
-        // for (`tabsDidChange`). Once per process: it is never cleared.
+        // The Battery tab just appeared, which a Compact panel (or a Default
+        // one holding the calendar too) makes room for (`tabsDidChange`). Once per process: it is never cleared.
         if gainedTab { tabsDidChange() }
     }
 
@@ -2452,14 +2452,30 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The header's tabs changed: a module with a tab was switched on or off,
     /// or the Battery tab arrived with the first power snapshot.
     ///
-    /// Only Compact's width depends on the tabs (`NotchGeometry.panelFrame`),
-    /// so only Compact re-places the panel. Default and Wide never move for a
-    /// module toggle, which also keeps every toggle path that runs at launch
-    /// and in the test suites from asking the real screens where to go.
+    /// Re-places the panel only when the tab count changes the width it is
+    /// sized from (`NotchGeometry.nominalPanelWidth`): Compact follows the
+    /// tabs, Default and Wide only past the five tabs that ship on -- the
+    /// calendar's sixth. Any other toggle leaves the panel where it is, which also
+    /// keeps the toggle paths that run at launch and in the test suites from
+    /// asking the real screens where to go.
     func tabsDidChange() {
-        guard state.layoutOptions.width == .compact,
-              panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
+        guard panel != nil,
+              let placed = placedNominalWidth,
+              nominalPanelWidth(for: currentAnchor) != placed,
+              let metrics = screenMetrics(state.displayChoice) else { return }
         reposition(metrics: metrics)
+    }
+
+    /// The width the panel was last sized from, recorded by `panelFrame(on:)`
+    /// so `tabsDidChange` can tell whether a tab coming or going moves it.
+    private var placedNominalWidth: CGFloat?
+
+    private var visibleTabCount: Int {
+        TabVisibility.visible(enabled: state.preferences, hasBattery: state.hasBattery).count
+    }
+
+    private func nominalPanelWidth(for anchor: Anchor) -> CGFloat {
+        NotchGeometry.nominalPanelWidth(for: anchor, width: state.layoutOptions.width, tabCount: visibleTabCount)
     }
 
     /// The window frame for `metrics` at the current text size and layout.
@@ -2467,12 +2483,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// activation and the launch cannot disagree with the settings about how
     /// large it is.
     private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
-        NotchGeometry.panelFrame(
-            for: anchor ?? NotchGeometry.anchor(for: metrics),
+        let anchor = anchor ?? NotchGeometry.anchor(for: metrics)
+        placedNominalWidth = nominalPanelWidth(for: anchor)
+        return NotchGeometry.panelFrame(
+            for: anchor,
             in: metrics,
             textScale: state.textSize.scale,
             width: state.layoutOptions.width,
-            tabCount: TabVisibility.visible(enabled: state.preferences, hasBattery: state.hasBattery).count
+            tabCount: visibleTabCount
         )
     }
 

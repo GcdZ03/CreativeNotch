@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
+**The foundation is complete. All eleven modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -120,9 +120,10 @@ on quit too.
   <img src="docs/assets/features/clipboard-search-pin-pinned.png" width="620" alt="The clipboard tab: a search field under the title row, two pinned entries with pin glyphs at the top of the list, then the latest copies">
 </p>
 
-The calendar glance is the newest, and the first module that ships **off**.
+The calendar glance is the first module that ships **off**.
 Switch it on in Settings and it asks for Calendars and Reminders access; the
-calendar icon then sits beside the battery in the right ear, and its pane
+calendar icon then joins the tabs as the last of them (and moves with them if
+Settings → Layout puts the tabs right of the camera), and its pane
 shows the next three events of today and tomorrow — under way, "in 15 min",
 or a time — and how many reminders are due or overdue. It reads the
 calendar only while that pane is open: on opening, when Calendar changes
@@ -359,7 +360,7 @@ it back.
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Switch on Calendar and reminders in Settings | Asks for Calendars and Reminders access, then puts a calendar icon beside the battery in the panel's right ear |
+| Switch on Calendar and reminders in Settings | Asks for Calendars and Reminders access, then adds a calendar icon as the last tab. Six tabs need more room beside the camera than the 620pt panel has, so at Default it widens to fit them (678pt on a 14" MacBook Pro) |
 | Click the calendar icon | The next three events of today and tomorrow, each with its calendar's colour and when — "Now, until 9:30", "in 28 min", "12:30–13:30", "Tomorrow 10:00", "All day" — and how many reminders are due or overdue. **Open Calendar** in the title row opens Calendar |
 | Change something in Calendar with the pane open | It shows at once; with the pane closed, the next open reads it |
 | Click **Add** beside a running timer | The presets come back (with **Back** to return); start up to three countdowns at once |
@@ -413,7 +414,10 @@ and costs nothing while you are not looking at it. **Panel width** is Compact
 grown by the text size and kept on the screen. Beside a real notch, Compact
 goes no narrower than leaves room for every tab you have, and for the
 eyedropper, battery and gear, on either side of the camera — 602pt on a 14"
-MacBook Pro with all five tabs, 560pt with four.
+MacBook Pro with all five tabs, 560pt with four. Default and Wide stay put
+for any module you switch, with one exception: the calendar's sixth tab does
+not fit beside a 14" notch at 620pt, so with it on Default widens to 678pt
+(Compact too); Wide already has the room.
 **Corners** rounds the open panel's bottom corners tighter or rounder; **Tabs**
 puts the tab icons right of the camera instead of left, and the eyedropper,
 battery and gear left of it; and the battery in the
