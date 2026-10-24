@@ -44,8 +44,9 @@ struct ClipboardSearchPinWiringTests {
         #expect(s.clipboardQuery == "")
     }
 
-    @Test func escapeClearsTheSearchThenCloses() {
+    @Test func escapeClearsTheSearchThenCloses() throws {
         let d = makeDelegate()
+        try #require(d.state.clipboard).record(.text("invoice 42"), now: Date(timeIntervalSince1970: 0))
         openClipboard(d)
         d.state.clipboardQuery = "invoice"
 
@@ -61,6 +62,7 @@ struct ClipboardSearchPinWiringTests {
     /// takes, as `cancelOperation` — clears the search first too.
     @Test func escapeFromTheFocusedFieldClearsTheSearch() throws {
         let d = makeDelegate()
+        try #require(d.state.clipboard).record(.text("invoice 42"), now: Date(timeIntervalSince1970: 0))
         openClipboard(d)
         d.state.clipboardQuery = "invoice"
         let panel = try #require(d.panel)
@@ -69,6 +71,30 @@ struct ClipboardSearchPinWiringTests {
 
         #expect(d.state.clipboardQuery == "")
         #expect(d.state.state == .open(.clipboard))
+    }
+
+    /// Clearing a history with no pins, or removing its last entry, hides
+    /// the search field ("Nothing copied yet"); a query typed before must not
+    /// cost an Esc press that changes nothing on screen.
+    @Test func escapeClosesAtOnceOnceTheHistoryIsEmptied() throws {
+        for empty: (AppDelegate, UUID) -> Void in [
+            { d, _ in d.state.onClearClipboard?() },
+            { d, id in d.state.onRemoveClipboardEntry?(id) },
+            { d, _ in d.clipboard?.store.clear() },   // the menu bar's Clear
+        ] {
+            let d = makeDelegate()
+            let store = try #require(d.state.clipboard)
+            let a = try #require(store.record(.text("invoice 42"), now: Date(timeIntervalSince1970: 0)))
+            openClipboard(d)
+            d.state.clipboardQuery = "invoice"
+
+            empty(d, a.id)
+            #expect(store.entries.isEmpty)
+
+            #expect(d.handlePanelKey(.escape))
+            #expect(d.state.state == .closed)
+            #expect(d.state.clipboardQuery == "")
+        }
     }
 
     /// The search field must never be the reason the panel takes the

@@ -127,6 +127,15 @@ private let allTabs: [Tab] = [.shelf, .clipboard, .timer, .power, .camera]
                                  clipboardQuery: "invoice") == .close)
 }
 
+/// An empty history shows no search field, so a query left from before a
+/// Clear or the last Remove is invisible: Esc closes at once.
+@Test func aSearchOverAnEmptyHistoryDoesNotHoldEscBack() {
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "invoice", clipboardIsEmpty: true) == .close)
+    #expect(PanelKeyboard.action(for: .escape, in: .open(.clipboard), visible: allTabs,
+                                 clipboardQuery: "invoice", clipboardIsEmpty: false) == .clearSearch)
+}
+
 /// ⌘N is not Esc: a typed search never stops the tab shortcuts.
 @Test func aClipboardSearchLeavesTheTabShortcutsAlone() {
     #expect(PanelKeyboard.action(for: .commandDigit(1), in: .open(.clipboard), visible: allTabs,

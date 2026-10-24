@@ -81,13 +81,19 @@ public enum PanelKeyboard {
     /// field on the Mac: with a search on the clipboard tab it clears the
     /// search, and only the next press closes. A query of spaces filters
     /// nothing (`ClipboardSearch.isActive`), so it holds nothing back.
+    ///
+    /// `clipboardIsEmpty` says the history has no entries. The pane then
+    /// shows "Nothing copied yet" and no search field, so a query left over
+    /// from before a Clear or the last Remove is one nobody can see — Esc
+    /// closes at once rather than spend a press clearing it.
     public static func action(
-        for key: PanelKey, in state: NotchState, visible: [Tab], clipboardQuery: String = ""
+        for key: PanelKey, in state: NotchState, visible: [Tab],
+        clipboardQuery: String = "", clipboardIsEmpty: Bool = false
     ) -> PanelKeyAction? {
         guard case .open(let tab) = state else { return nil }
         switch key {
         case .escape:
-            if tab == .clipboard, ClipboardSearch.isActive(clipboardQuery) { return .clearSearch }
+            if tab == .clipboard, !clipboardIsEmpty, ClipboardSearch.isActive(clipboardQuery) { return .clearSearch }
             return .close
         case .commandDigit(let n):
             guard visible.indices.contains(n - 1) else { return nil }

@@ -1887,7 +1887,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             hasBattery: state.hasBattery
         )
         guard let action = PanelKeyboard.action(
-            for: key, in: state.state, visible: visible, clipboardQuery: state.clipboardQuery
+            for: key, in: state.state, visible: visible,
+            clipboardQuery: state.clipboardQuery,
+            clipboardIsEmpty: state.clipboard?.entries.isEmpty ?? true
         ) else {
             return false
         }
