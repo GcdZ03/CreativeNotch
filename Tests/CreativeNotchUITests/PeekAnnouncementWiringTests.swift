@@ -37,6 +37,29 @@ struct PeekAnnouncementWiringTests {
         #expect(spoken() == ["10-minute timer finished"])
     }
 
+    /// A finished timer is news the peek cannot always carry: the peek path
+    /// declines to interrupt an open panel, and with the chime set to None
+    /// nothing else would tell a VoiceOver user. So it is spoken anyway --
+    /// once, not again by a peek.
+    @Test func aTimerFinishingUnderAnOpenPanelIsStillAnnounced() throws {
+        let (delegate, spoken) = makeDelegate()
+        delegate.state.transition(to: .open(.shelf))
+        let countdown = try #require(Countdown(duration: 600, startingAt: Date().addingTimeInterval(-600)))
+        delegate.timerDidFinish(countdown)
+        #expect(delegate.state.state == .open(.shelf))
+        #expect(spoken() == ["10-minute timer finished"])
+    }
+
+    /// Switched off mid-countdown, the timer still finishes but takes no
+    /// peek slot; it is still spoken, as it still chimes.
+    @Test func aTimerFinishingWhileSwitchedOffIsStillAnnounced() throws {
+        let (delegate, spoken) = makeDelegate()
+        delegate.switchboard.setEnabled(false, for: .timer)
+        let countdown = try #require(Countdown(duration: 600, startingAt: Date().addingTimeInterval(-600)))
+        delegate.timerDidFinish(countdown)
+        #expect(spoken() == ["10-minute timer finished"])
+    }
+
     /// The panel is a deliberate state the peek path declines to interrupt;
     /// a peek that was never shown must not be heard either.
     @Test func aPeekThatIsNotShownIsNotAnnounced() {

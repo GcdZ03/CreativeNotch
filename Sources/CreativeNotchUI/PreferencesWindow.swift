@@ -690,6 +690,7 @@ struct LimitsRows: View {
                 Picker("Chime", selection: Self.binding(\.chime, on: controller)) {
                     ForEach(ChimeSound.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
+                .help("With None, a timer that finishes while the panel is open shows no peek and makes no sound.")
             default:
                 EmptyView()
             }

@@ -1072,17 +1072,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // switched-off module, swallowing the peeks behind it. And it would
         // be unclearable: `dismissTimerDone()`'s only caller sits behind a
         // transition to `.open`, and there is no tab left to reach.
+        let completion = TimerCompletion(duration: countdown.duration, lateness: max(0, lateness))
         if state.preferences.timer {
-            arbiter.recordTimerFinished(
-                TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
-                now: self.now()
-            )
+            arbiter.recordTimerFinished(completion, now: self.now())
         }
         playChime(state.limits.chime)
         // The existing peek path, not a second one: it already declines to
         // interrupt `.open` and `.receiving`, and it is what makes the
         // arbiter — rather than this caller — decide what is shown.
         presentPeek()
+        // When no peek carries it -- the panel is open, the module is off, a
+        // drag holds the slot -- VoiceOver is told here instead. With the
+        // chime set to None nothing else would say the timer finished. A
+        // shown peek was already announced by `applyPeek`, so not twice.
+        if case .peek(.timerDone(completion)) = state.state { return }
+        announce(TimerSpokenText.completion(completion))
     }
 
     /// Moves the accepted region toward the drawn one.
