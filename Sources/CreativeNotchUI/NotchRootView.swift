@@ -97,6 +97,20 @@ public final class AppState {
     /// it on every draw, so a change needs nothing re-registered.
     public internal(set) var textSize: TextSize = .default
 
+    /// The scale the open panel actually draws at: `textSize.scale`, brought
+    /// down to what the panel's frame holds on a screen too small for the
+    /// full factor (`NotchGeometry.fittedTextScale`).
+    ///
+    /// Read from the frame rather than stored beside it, so the two cannot
+    /// disagree: `panelFrame` was built from the same fitted scale, and the
+    /// fit is a fixed point, so asking it of the frame gives that scale
+    /// back. Before any geometry arrives there is no frame to fit, and the
+    /// setting is used as it is.
+    public var textScale: CGFloat {
+        guard !panelFrame.isEmpty else { return textSize.scale }
+        return NotchGeometry.fittedTextScale(textSize.scale, within: panelFrame.size)
+    }
+
     /// Saves the size, applies it and resizes the panel in one call, so
     /// Settings cannot do one without the others. Wired by `AppDelegate`.
     @ObservationIgnored
@@ -127,6 +141,34 @@ public final class AppState {
     /// Wired by `AppDelegate`; unwired, nothing would be taken.
     @ObservationIgnored
     public var onPreviewLimits: ((Limits) -> ShelfLimitRemoval)?
+
+    /// Whether a timer finishing behind a full-screen app also posts a
+    /// notification (2026-10-24). Applied by `onSetTimerNotifyWhenHidden`;
+    /// read by `AppDelegate.timerDidFinish` at the moment it fires.
+    public internal(set) var timerNotifyWhenHidden = true
+
+    /// Saves and applies the switch in one call, for the reason
+    /// `onSetHoverBehaviour` does both. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTimerNotifyWhenHidden: ((Bool) -> Void)?
+
+    /// What macOS allows the timer's notification, as last asked. Read when
+    /// Settings is shown (`onRefreshTimerNotices`), never polled, so the line
+    /// under the switch can say when notifications are off.
+    public internal(set) var timerNoticeAuthorization: TimerNoticeAuthorization = .allowed
+
+    /// Re-reads `timerNoticeAuthorization`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshTimerNotices: (() -> Void)?
+
+    /// Bundle identifiers whose copies clipboard history ignores
+    /// (2026-10-24). Applied by `onSetClipboardExcludedApps`; the poller asks
+    /// for it at each detected change, so an edit applies to the next copy.
+    public internal(set) var clipboardExcludedApps: [String] = []
+
+    /// Saves and applies the list in one call. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetClipboardExcludedApps: (([String]) -> Void)?
 
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
@@ -976,7 +1018,7 @@ public struct NotchRootView: View {
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
                         showsMedia: tab != .camera && app.showsMediaControls,
-                        textScale: app.textSize.scale
+                        textScale: app.textScale
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -1033,7 +1075,7 @@ public struct NotchRootView: View {
                     // holding length below reads it. Here and on the drop
                     // target only, so the badges and the peeks above stay
                     // the size the hardware band allows (`NotchType`).
-                    .environment(\.notchTextScale, app.textSize.scale)
+                    .environment(\.notchTextScale, app.textScale)
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -1046,7 +1088,7 @@ public struct NotchRootView: View {
                             .padding(.top, 10)
                             .padding(.bottom, 20)
                     }
-                    .environment(\.notchTextScale, app.textSize.scale)
+                    .environment(\.notchTextScale, app.textScale)
 
                 // The music peek is a mini player that grows down from the
                 // notch (spec 2026-10-15); power and timer peeks stay one
@@ -1157,8 +1199,10 @@ public struct NotchRootView: View {
                             onReveal: { app.onRevealShelfItem?($0) }
                         )
                         // A background copy that failed after its drop was
-                        // accepted. Under the tiles rather than in the title
-                        // row, which is for verbs; gone again on its own.
+                        // accepted, or an Undo that could not bring every
+                        // file back. Under the tiles rather than in the
+                        // title row, which is for verbs; gone again once
+                        // it has been on screen for a while.
                         if let notice = app.shelfNotice {
                             Text(notice)
                                 .notchFont(11, weight: .medium, design: .rounded)

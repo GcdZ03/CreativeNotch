@@ -85,6 +85,8 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
+| ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -100,7 +102,7 @@ get a single centred pill instead; there is no housing to work around.
 Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images (25 or 100 if you prefer, in Settings), in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
-content is read. It backs off when nothing is happening and suspends
+content is read, and an optional list of apps whose copies it never records. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
 
 A search field at the top of the pane filters the history as you type,
@@ -219,7 +221,7 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and one module asks later.**
+**Nothing is asked for at launch, and two things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
@@ -231,6 +233,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**Notifications, for the timer only.** The notch is hidden over full-screen
+apps, so a timer that finishes there posts a "Timer done" notification. macOS
+asks whether CreativeNotch may notify you the first time you *start* a timer —
+not at launch, and never if you switch off Settings → Timer → **Notify when
+hidden by a full-screen app** first. Say no and the timer chimes and VoiceOver
+announces it, exactly as before; Settings says notifications are off and links
+to System Settings → Notifications. Sounds are not requested: the app plays its
+own chime.
 
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
@@ -277,11 +288,12 @@ it back.
 | Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
-| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
+| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back. Clearing again inside those six seconds adds to the same Undo, which brings back everything cleared; restored files are kept even if the shelf goes over its limit until the next drop, and any that could not come back (emptied from the Trash meanwhile) are reported under the shelf as "Couldn't restore N items", also spoken by VoiceOver |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied; pinned entries sit above the rest |
 | Type in the clipboard's search field | Narrows the list to entries containing every word you type, ignoring case and accents; the title row counts what is kept, and closing the panel clears the search. The field takes the keyboard only when you click it, or when you opened the panel by clicking the notch or with the shortcut — never on a hover-open |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
 | Right-click a clipboard entry | Copy; Pin, to keep it at the top (up to ten), or Unpin; or Remove to forget just that one. Clear in the title row forgets everything but the pins. VoiceOver offers Pin and Remove as actions on the row, whose press is Copy, and reads a pinned row as "Pinned" |
+| Settings → Clipboard history → **Ignore copies from** → **Add App…** | Copies made in that app (or that declare it as their source) are never recorded; − beside an app takes it off the list. Empty until you add one |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -296,8 +308,9 @@ it back.
 | Switch to the Timer tab | Presets (5, 10 and 25 minutes until you change them in Settings), or type your own up to 99 minutes |
 | Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
-| Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
+| Pause it | The countdown dims, shows a pause symbol beside the notch, and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
+| Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
 
@@ -320,12 +333,14 @@ on in System Settings, springs become a short fade and the cover and bars stay
 still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
 drawn brighter (no secondary text below 70% white); the default look is
 unchanged. The battery shows a bolt while charging, and with **Differentiate
-Without Color** on, a "!" when low as well as the yellow.
+Without Color** on, a "!" when low as well as the yellow; VoiceOver says "low"
+or "charging" after the level.
 
 For bigger text, Settings → Display → **Text size** → **Large** or **Larger**
 draws the open panel's text 15% or 30% larger and grows the panel to fit it
-(up to 806×338 on a 14" MacBook Pro, never past the screen). It applies at
-once. macOS's own Text Size setting covers only Apple's apps, so this one is
+(up to 806×338 on a 14" MacBook Pro). On a screen too small for that, the text
+comes down to the largest size the screen holds rather than being cut off. It
+applies at once. macOS's own Text Size setting covers only Apple's apps, so this one is
 separate. The closed notch's badges and the glances that drop from it keep
 their size: they have to fit beside the camera housing and the menu bar.
 
@@ -351,7 +366,8 @@ place, Settings → Display → **Show on** → **Built-in display** pins it to 
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
 display instead. **Show on** also lists each connected external display by
 name: pick one and the notch stays there (as a pill, if that display has no
-notch). Unplug it and the notch waits on the built-in display — the menu shows
+notch). Rename a display and **Show on** picks up the new name the next time
+Settings or a display change reads the list. Unplug it and the notch waits on the built-in display — the menu shows
 the display as "(not connected)" so you can see it is still chosen — then
 returns as soon as you plug it back in. Connecting or disconnecting a display
 moves it at once.

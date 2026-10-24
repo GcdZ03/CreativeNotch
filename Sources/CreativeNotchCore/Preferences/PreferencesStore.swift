@@ -59,6 +59,26 @@ public final class PreferencesStore {
         defaults.set(size.rawValue, forKey: PreferenceKeys.textSize)
     }
 
+    /// Whether a timer finishing behind a full-screen app posts a
+    /// notification. Absent means on. Read on every call, never cached.
+    public var timerNotifyWhenHidden: Bool {
+        PreferenceKeys.resolveEnabled(defaults.object(forKey: PreferenceKeys.timerNotifyWhenHidden))
+    }
+
+    public func setTimerNotifyWhenHidden(_ enabled: Bool) {
+        defaults.set(enabled, forKey: PreferenceKeys.timerNotifyWhenHidden)
+    }
+
+    /// The apps whose copies clipboard history ignores. Read on every call,
+    /// never cached.
+    public var clipboardExcludedApps: [String] {
+        ClipboardExclusions.resolve(defaults.object(forKey: PreferenceKeys.clipboardExcludedApps))
+    }
+
+    public func setClipboardExcludedApps(_ ids: [String]) {
+        defaults.set(ids, forKey: PreferenceKeys.clipboardExcludedApps)
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {
