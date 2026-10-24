@@ -192,6 +192,33 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// tests can reach its lifecycle, like every other controller.
     private(set) var camera: CameraController?
 
+    /// The calendar glance. Internal rather than private so the switchboard
+    /// and the tests can reach its lifecycle, like every other controller.
+    private(set) var calendar: CalendarController?
+
+    /// Where the calendar glance reads from, handed to the controller in
+    /// `install(metrics:)`.
+    ///
+    /// **Sandboxed by default, like the shelf's Trash:** a stand-in that
+    /// reads nothing and prompts for nothing. Only `configureForRealLaunch()`
+    /// hands it EventKit, so no test can put a Calendars prompt on screen or
+    /// read the developer's diary by forgetting to set it.
+    var calendarSource: CalendarSource = InertCalendarSource()
+
+    /// How the app opens something outside itself -- Calendar, or a pane of
+    /// System Settings. Sandboxed by default to do nothing, so a test that
+    /// presses "Open Calendar" opens no app; `configureForRealLaunch()` hands
+    /// it `NSWorkspace`.
+    var openExternalURL: (URL) -> Void = { _ in }
+
+    /// Privacy & Security's Calendars list, where a refused grant is changed.
+    static let calendarPrivacyURL = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Calendars"
+    )!
+
+    /// Calendar itself, for the pane's "Open Calendar".
+    static let calendarAppURL = URL(fileURLWithPath: "/System/Applications/Calendar.app")
+
     /// Where the camera saves captures, handed to it in `install(metrics:)`.
     /// Sandboxed by default like `shelfDirectory`; the real
     /// `~/Pictures/CreativeNotch/` is set by `configureForRealLaunch()`.
@@ -665,6 +692,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        calendarSource = EventKitCalendarSource()
+        openExternalURL = { url in NSWorkspace.shared.open(url) }
         shelfOpener = .system
         shelfPreview = ShelfQuickLook()
         timerNotices = SystemTimerNotices()
@@ -840,6 +869,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// showing. Leaving the tab is not a request to discard a take.
     func syncCameraVisibility(for next: NotchState) {
         camera?.setTabVisible(next == .open(.camera))
+    }
+
+    /// Tells the calendar whether its pane is on screen, from the funnel for
+    /// the camera's reason: the view is not told when it disappears. Opening
+    /// the pane is what reads the calendar, and leaving it cancels the
+    /// one-shot that would have read it again -- so nothing about the
+    /// calendar runs while the pane is closed.
+    func syncCalendarVisibility(for next: NotchState) {
+        calendar?.setPaneVisible(next == .open(.calendar))
     }
 
     /// Re-derives everything that depends on which modules are on.
@@ -1071,6 +1109,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.cameraState = camera.state
         state.onCameraShutter = { [weak camera] in camera?.takePhoto() }
         state.onCameraToggleRecording = { [weak camera] in camera?.toggleRecording() }
+
+        // Constructed here, started by the switchboard. Building a panel must
+        // not open the calendar database, and a bare delegate's source is the
+        // inert stand-in anyway (`calendarSource`).
+        let calendar = CalendarController(source: calendarSource)
+        calendar.onChange = { [weak self] snapshot in self?.state.calendar = snapshot }
+        self.calendar = calendar
+        state.onRequestCalendarAccess = { [weak calendar] in calendar?.requestAccess() }
+        state.onRefreshCalendarAccess = { [weak calendar] in calendar?.refreshAccess() }
+        state.onOpenCalendarPrivacySettings = { [weak self] in
+            self?.openExternalURL(Self.calendarPrivacyURL)
+        }
+        state.onOpenCalendarApp = { [weak self] in
+            self?.openExternalURL(Self.calendarAppURL)
+        }
 
         // Constructed here, started by the switchboard. Building a panel must
         // not register a system-wide hotkey.
@@ -1386,6 +1439,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
+                self.syncCalendarVisibility(for: newState)
                 self.syncShelfNotice(for: newState)
                 self.syncColorStrip(for: newState)
                 self.tapIfOpening(newState)
@@ -1862,8 +1916,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // never show the tab.
         let gainedTab = !state.hasBattery
         state.hasBattery = true
-        // The Battery tab just appeared, which a Compact panel makes room
-        // for (`tabsDidChange`). Once per process: it is never cleared.
+        // The Battery tab just appeared, which a Compact panel (or a Default
+        // one holding the calendar too) makes room for (`tabsDidChange`). Once per process: it is never cleared.
         if gainedTab { tabsDidChange() }
     }
 
@@ -2398,14 +2452,30 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The header's tabs changed: a module with a tab was switched on or off,
     /// or the Battery tab arrived with the first power snapshot.
     ///
-    /// Only Compact's width depends on the tabs (`NotchGeometry.panelFrame`),
-    /// so only Compact re-places the panel. Default and Wide never move for a
-    /// module toggle, which also keeps every toggle path that runs at launch
-    /// and in the test suites from asking the real screens where to go.
+    /// Re-places the panel only when the tab count changes the width it is
+    /// sized from (`NotchGeometry.nominalPanelWidth`): Compact follows the
+    /// tabs, Default and Wide only past the five tabs that ship on -- the
+    /// calendar's sixth. Any other toggle leaves the panel where it is, which also
+    /// keeps the toggle paths that run at launch and in the test suites from
+    /// asking the real screens where to go.
     func tabsDidChange() {
-        guard state.layoutOptions.width == .compact,
-              panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
+        guard panel != nil,
+              let placed = placedNominalWidth,
+              nominalPanelWidth(for: currentAnchor) != placed,
+              let metrics = screenMetrics(state.displayChoice) else { return }
         reposition(metrics: metrics)
+    }
+
+    /// The width the panel was last sized from, recorded by `panelFrame(on:)`
+    /// so `tabsDidChange` can tell whether a tab coming or going moves it.
+    private var placedNominalWidth: CGFloat?
+
+    private var visibleTabCount: Int {
+        TabVisibility.visible(enabled: state.preferences, hasBattery: state.hasBattery).count
+    }
+
+    private func nominalPanelWidth(for anchor: Anchor) -> CGFloat {
+        NotchGeometry.nominalPanelWidth(for: anchor, width: state.layoutOptions.width, tabCount: visibleTabCount)
     }
 
     /// The window frame for `metrics` at the current text size and layout.
@@ -2413,12 +2483,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// activation and the launch cannot disagree with the settings about how
     /// large it is.
     private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
-        NotchGeometry.panelFrame(
-            for: anchor ?? NotchGeometry.anchor(for: metrics),
+        let anchor = anchor ?? NotchGeometry.anchor(for: metrics)
+        placedNominalWidth = nominalPanelWidth(for: anchor)
+        return NotchGeometry.panelFrame(
+            for: anchor,
             in: metrics,
             textScale: state.textSize.scale,
             width: state.layoutOptions.width,
-            tabCount: TabVisibility.visible(enabled: state.preferences, hasBattery: state.hasBattery).count
+            tabCount: visibleTabCount
         )
     }
 

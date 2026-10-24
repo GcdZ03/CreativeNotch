@@ -8,7 +8,8 @@ import CoreGraphics
 ///
 /// A *nominal* width. The text size grows it by the same factor it grows the
 /// default, and Compact beside a real notch goes no narrower than the tabs
-/// need (`NotchGeometry.panelFrame(for:in:textScale:width:tabCount:)`).
+/// need -- nor, past the five tabs that ship on, do Default and Wide
+/// (`NotchGeometry.panelFrame(for:in:textScale:width:tabCount:)`).
 public enum PanelWidth: String, CaseIterable, Sendable {
     case compact
     case standard = "default"

@@ -28,6 +28,13 @@ public enum TabVisibility {
         // Appended last for the same reason `.power` is: hiding it never
         // reorders the tabs that were already there.
         if enabled.camera { tabs.append(.camera) }
+        // Last of all, in the same bar as the rest (2026-10-24): it is a tab
+        // like any other, so it moves with the tabs when Settings → Layout
+        // puts them in the right ear, and ⌘N counts it last, left to right
+        // as drawn. A sixth tab does not fit the 620pt panel's ear on a
+        // 14" notch; `NotchGeometry.nominalPanelWidth` widens the panel
+        // for it rather than splitting the tabs between two ears.
+        if enabled.calendar { tabs.append(.calendar) }
         return tabs
     }
 

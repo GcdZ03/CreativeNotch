@@ -34,7 +34,10 @@ known future instant, when something the user deliberately started is
 counting down to it. The rule is not "never schedule work" — it is that
 nothing runs when it isn't needed, and a countdown you started is needed by
 definition. What it must not do is schedule anything when no countdown is
-running, or wake more often than the display actually changes.
+running, or wake more often than the display actually changes. The calendar
+glance is the second user: one one-shot to the next instant its rows would
+read differently, and only while its pane is on screen (see "The calendar
+glance").
 
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
@@ -180,10 +183,15 @@ the setting. Each lands in the one Core function that already owned the fact:
   three, whether or not they are switched on, so neither switch resizes the
   panel): the panel is centred, so both ears are equal, and either may hold
   either. `BatteryCell`'s allowance (`batteryCellWidth`) is checked against the
-  drawn cell at every text size (`StatusEarFitTests`). That makes Compact the one width that depends on
-  the tab count, so `AppDelegate.tabsDidChange` re-places the panel when a
-  tab-bearing module is toggled or the Battery tab first appears — and only
-  at Compact, so Default and Wide never move for a module switch.
+  drawn cell at every text size (`StatusEarFitTests`). Default and Wide
+  hold the five tabs that ship on beside every notch Apple ships, so up to
+  five they ignore the count; past five — only the calendar's sixth tab gets
+  there — they take Compact's floor too, so Default is 678 with the calendar
+  on under a 14" notch and Wide does not move. `AppDelegate.tabsDidChange`
+  re-places the panel when a tab-bearing module is toggled or the Battery tab
+  first appears, but only when the width it is sized from
+  (`nominalPanelWidth`, recorded at each placement) actually changed, so
+  Default and Wide never move for any other module switch.
   `PanelTabBar` and `NotchIconButtonStyle` read `tabEarWidth`'s constants, so
   the arithmetic and the drawing cannot drift.
 - **Tabs side** is `PanelLayout.tabsSide`. Only the ears' *contents* swap;
@@ -539,8 +547,8 @@ holding the observer weakly. Do the same for any new C callback.
 
 ## Permissions
 
-**Nothing is requested at launch. The camera is the one module that needs a
-grant to work at all; the timer asks for one optional extra.** The file shelf's drag detection and drop target work through
+**Nothing is requested at launch. Two modules need a grant to work at all:
+the camera and the calendar glance; the timer asks for one optional extra.** The file shelf's drag detection and drop target work through
 AppKit's own drag events, clipboard needs nothing, and the global shortcut
 goes through the window server rather than a monitor. The colour picker uses
 `NSColorSampler`, which returns only the clicked pixel and so needs no Screen
@@ -554,6 +562,18 @@ is otherwise indistinguishable from a bug. `.notDetermined` falls through to
 — the app never calls `requestAccess` itself. `NSCameraUsageDescription` in
 `Info.plist` is the text that prompt shows. There is deliberately no
 `NSMicrophoneUsageDescription`: clips are silent.
+
+The calendar glance needs Calendars and Reminders, and is the first module to
+ship **off** for it (`ModuleID.shippedDefault`): a prompt belongs to someone
+switching the feature on. The switch in Settings is what asks
+(`requestFullAccessToEvents`, then `…ToReminders`, one prompt after the
+other, only for what is still undecided); a stored "on" applied at launch asks
+nothing, and the pane offers "Allow Access…" instead. A refusal is shown as
+such — the pane explains it with a button to Privacy & Security, and Settings
+warns under the switch, re-reading the grants each time it is shown — rather
+than as an empty calendar. `NSCalendarsFullAccessUsageDescription` and
+`NSRemindersFullAccessUsageDescription` are the prompts' text; without them
+macOS refuses the request with no prompt at all.
 
 **Notifications are the timer's, and optional.** A finished timer posts a
 notification only where its peek cannot be seen — the notch ordered out for a
@@ -1167,7 +1187,7 @@ interrupts you.
 
 ## Preferences
 
-Seven switches. **Switching a module off stops what it runs**, rather than
+Ten switches. **Switching a module off stops what it runs**, rather than
 hiding it — which is the only reason this module was worth building. A
 preference that removes the feature and leaves the cost running is strictly
 worse than no preference, because the user pays for something they explicitly
@@ -1233,7 +1253,7 @@ This is the shape `ROADMAP.md` condemns — hide the UI, leave the cost running 
 except that here the idle cost genuinely is zero. Stating that is the
 difference between an honest toggle and a decorative one.
 
-### An absent key means ON, and that is the whole compatibility surface
+### An absent key means the shipped default — ON for all but one
 
 `UserDefaults.bool(forKey:)` returns `false` for an absent key. For a set of
 enable-flags **that is the wrong polarity**, and the failure mode is the entire
@@ -1248,6 +1268,12 @@ entire compatibility surface and is tested with no `UserDefaults` in sight. A
 value of the wrong type reads as absent and is **not** rewritten: someone who
 ran `defaults write … -string yes` gets working software and keeps the evidence
 of what they typed.
+
+One module ships off: the calendar, which needs a permission
+(`ModuleID.shippedDefault`). Its absent key resolves through the same function
+with `shippedDefault: false`, so "absent" is still decided in one place, and
+`Preferences.shipped` — not `.allEnabled`, which now means every switch on —
+is what an empty domain loads.
 
 `UserDefaults.register(defaults:)` is refused. It is invisible to
 `defaults read`, it is per-process, and it makes "what does absent mean" depend
@@ -1678,6 +1704,77 @@ Above the timer and above now-playing, below this app's own recording:
 Both glyphs can show at once, and the slot is the two-glyph width whichever is
 showing — a badge that grew when the second device started would resize the
 closed notch mid-call.
+
+## The calendar glance
+
+The next three events of today and tomorrow, and today's reminder count, in a
+pane reached from the last icon in the tab bar. Off until switched on, because
+it needs a grant (see Permissions).
+
+### It reads nothing while its pane is closed
+
+Switched on, the module registers one `EKEventStoreChanged` observer — a
+notification, free until Calendar changes — and reads the two grants, which is
+a status read rather than a query. The calendar itself is queried only:
+
+- when the pane opens (`AppDelegate.syncCalendarVisibility`, from the funnel,
+  the camera's route — a view is not told when it disappears);
+- when the database changes *while the pane is open*. A change posted while it
+  is closed is ignored: the next open reads afresh anyway;
+- when one one-shot `Task` reaches `CalendarGlance.nextBoundary` — the next
+  event start or end, an event coming within the hour ("10:30–11:00" becomes
+  "in 60 min"), a counting-down row's next whole minute ("in 28 min" becomes
+  "in 27 min"), a timed reminder falling due, or midnight, whichever is
+  first — again only while the pane is open. A countdown inside the hour
+  therefore wakes once a minute, the way the timer's display does
+  (`TimerDisplay.nextChange`): the display's granularity is the schedule. Leaving the pane cancels it; a
+  refresh that leaves the boundary where it was keeps the task already sleeping
+  towards it, so there is never more than one.
+
+So there is no polling and no repeating timer, and it is not on the
+`SystemActivity` axis: the pane cannot be open on a locked or sleeping screen,
+so the one-shot is already gone, and the observer costs nothing idle (the
+power module's reasoning). Switching it off removes the observer, drops the
+`EKEventStore` and its connection to the calendar daemon, cancels the
+one-shot and withdraws the glance.
+
+**Why the rows are computed at draw time.** The controller publishes the raw
+events of the fetch window (`CalendarSnapshot`), and the view asks Core which
+three to show and what each says for the instant it is drawn at. "in 15 min"
+therefore reads right on any open, however old the read, and the boundary
+one-shot exists only for a pane left open across an edge. Each snapshot
+carries its `refreshedAt`, so a boundary refresh that reads the same events is
+still a new value and still redraws — the `@Observable` equality trap the
+timer's box guards against, avoided in the value instead.
+
+### Where it lives
+
+A tab like any other, **last in the one bar** (`TabVisibility.visible`), so
+it moves with the tabs when Settings → Layout puts them right of the camera,
+⌘N counts it last left to right as drawn in either ear, and the switchboard's
+retargeting needs nothing new. It was first drawn beside the battery, because
+six icons do not fit Default's 215pt ear on a 14-inch notch; the status ear has
+since gained the colour picker's dropper and has no room either (dropper,
+calendar, battery and gear would need 228pt), and a tab among the verbs
+would have counted out of order once the ears could swap. So the bar keeps all
+six and the panel makes the room: past the five tabs that ship on,
+`NotchGeometry.nominalPanelWidth` gives Default and Wide the floor Compact
+already had, 678pt under a 14" notch (`LayoutOptionsTests` checks every width,
+side, text size and tab count with the calendar on). `CalendarPanelRenderingTests`
+renders the header at every text size with the tabs on either side and
+checks it stays out of the housing.
+
+### Pure where it can be
+
+Every judgement is in Core with `now` and a `Calendar` passed in
+(`CalendarGlance`, `CalendarText`), tested on a fixed Wednesday in Berlin:
+which events show (timed before all-day within a day, so a holiday cannot push
+the next meeting off a three-row glance; an event begun on an earlier day
+counts as today), what each says, what VoiceOver hears, the reminder tally (a
+date-only reminder is overdue only once its day has passed), and the next
+boundary. EventKit is behind `CalendarSource`; tests use a fake, and a bare
+`AppDelegate` gets `InertCalendarSource`, which reads and prompts for nothing
+— only `configureForRealLaunch()` hands it EventKit.
 
 ## Launch at login
 

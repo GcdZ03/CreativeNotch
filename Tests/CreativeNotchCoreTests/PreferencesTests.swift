@@ -19,12 +19,13 @@ import Testing
     #expect(ModuleID.hotkey.rawValue == "hotkey")
     #expect(ModuleID.camera.rawValue == "camera")
     #expect(ModuleID.captureIndicator.rawValue == "capture-indicator")
+    #expect(ModuleID.calendar.rawValue == "calendar")
     #expect(ModuleID.colorPicker.rawValue == "color-picker")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 10)
+    #expect(keys.count == 11)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -69,10 +70,20 @@ import Testing
 
 // MARK: - The value
 
-@Test func preferencesShipWithEverythingOn() {
+@Test func preferencesShipWithEverythingOnButTheCalendar() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
+        #expect(Preferences.shipped[module] == (module != .calendar), "\(module)")
+        #expect(Preferences.shipped[module] == module.shippedDefault)
     }
+}
+
+/// The calendar is the first module to ship off: it needs a permission, and
+/// a permission is asked for when someone switches the feature on -- never
+/// at launch, and never for a feature nobody chose.
+@Test func theCalendarShipsOffBecauseItNeedsAPermission() {
+    #expect(ModuleID.calendar.shippedDefault == false)
+    #expect(Preferences().calendar == false)
 }
 
 @Test func theSubscriptReachesEveryModuleIndependently() {

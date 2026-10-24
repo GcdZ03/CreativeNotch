@@ -20,6 +20,7 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var calendar: Bool
     public var colorPicker: Bool
 
     public init(
@@ -32,6 +33,7 @@ public struct Preferences: Equatable, Sendable {
         hotkey: Bool = true,
         camera: Bool = true,
         captureIndicator: Bool = true,
+        calendar: Bool = false,
         colorPicker: Bool = true
     ) {
         self.shelf = shelf
@@ -43,12 +45,18 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.calendar = calendar
         self.colorPicker = colorPicker
     }
 
-    /// Everything on. The shipped state, and what a domain with no keys in it
-    /// resolves to.
-    public static let allEnabled = Preferences()
+    /// The shipped state, and what a domain with no keys in it resolves to:
+    /// every module on except the calendar, which needs a permission and so
+    /// waits to be asked for (`ModuleID.shippedDefault`).
+    public static let shipped = Preferences()
+
+    /// Every module on, the calendar included. Not the shipped state since
+    /// the calendar arrived; what a person who switched everything on has.
+    public static let allEnabled = Preferences(calendar: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -62,6 +70,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .calendar:      return calendar
             case .colorPicker:   return colorPicker
             }
         }
@@ -76,6 +85,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .calendar:      calendar = newValue
             case .colorPicker:   colorPicker = newValue
             }
         }

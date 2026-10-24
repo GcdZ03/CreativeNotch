@@ -2,7 +2,8 @@ import SwiftUI
 import CreativeNotchCore
 
 /// The open panel's top band: tabs in one ear, battery and the gear in the
-/// other, and the camera housing black between them (spec §5.1).
+/// other, and the camera housing black between them (spec §5.1). Every tab,
+/// the calendar included, is in the one bar, so the tabs move as a group.
 ///
 /// Widths come from `PanelLayout`, the same function that gives the peeks
 /// their `notchGap`; this view draws three columns and decides nothing. On a

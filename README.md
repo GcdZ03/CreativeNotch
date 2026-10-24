@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
+**The foundation is complete. All eleven modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -87,6 +87,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Shelf Quick Look and Open** — Space previews a tile, a double-click opens it | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Calendar and reminders** — your next three events and today's due reminders, off until you switch it on | Done |
 | ✅ **Size and layout** — panel width, corners, which ear holds the tabs, the header's battery and the notch's badges | Done |
 | ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
 | ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
@@ -117,6 +118,20 @@ on quit too.
 
 <p align="center">
   <img src="docs/assets/features/clipboard-search-pin-pinned.png" width="620" alt="The clipboard tab: a search field under the title row, two pinned entries with pin glyphs at the top of the list, then the latest copies">
+</p>
+
+The calendar glance is the first module that ships **off**.
+Switch it on in Settings and it asks for Calendars and Reminders access; the
+calendar icon then joins the tabs as the last of them (and moves with them if
+Settings → Layout puts the tabs right of the camera), and its pane
+shows the next three events of today and tomorrow — under way, "in 15 min",
+or a time — and how many reminders are due or overdue. It reads the
+calendar only while that pane is open: on opening, when Calendar changes
+under it, and once at the next moment the rows would read differently. It
+never polls.
+
+<p align="center">
+  <img src="docs/assets/features/calendar-glance.png" width="620" alt="The open panel on the calendar tab: three events with coloured calendar dots — Product sync now, until 9:30; Design review in 28 min; Lunch with Sam 12:30 to 13:30 — and a line reading 3 reminders due, 1 overdue">
 </p>
 
 Media controls are the fourth: play/pause, next and previous, sent through
@@ -237,7 +252,7 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and two things ask later.**
+**Nothing is asked for at launch, and three things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
@@ -245,7 +260,7 @@ is registered with the window server rather than a monitor. Quick Look and
 Open on the shelf use the system's own viewers on files the shelf already
 holds, so they ask for nothing either. The colour picker uses
 `NSColorSampler`, the system's own loupe, which hands back only the pixel
-you click and so needs no Screen Recording permission. Nine of the ten
+you click and so needs no Screen Recording permission. Nine of the eleven
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -253,6 +268,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**The calendar glance asks for Calendars and Reminders** — full access, since
+it reads events rather than adding them — and only when you switch it on in
+Settings, which it ships off for that reason. If it was already on (after an
+update re-signs the app), the pane offers **Allow Access…** instead of
+prompting at launch. Grant one and not the other and it shows what it can.
+Refuse both and the pane says so, with **Open Privacy Settings**; Settings
+warns under its switch too. Events and reminders are read on your Mac, only
+while the pane is open, and kept nowhere.
 
 **Notifications, for the timer only.** The notch is hidden over full-screen
 apps, so a timer that finishes there posts a "Timer done" notification. macOS
@@ -305,7 +329,7 @@ it back.
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
 | Press Esc | Closes the panel — or, with a clipboard search typed, clears the search first |
-| Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
+| Press ⌘1 … ⌘6 | Switches to that tab, counting only the tabs you have switched on, left to right as drawn |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Right-click a shelf item | Open, Quick Look, Show in Finder, AirDrop, Remove; VoiceOver offers the same five as actions on the tile, which it reads by file name. A file still copying in offers none |
 | Click a shelf item | Selects it: a ring round the tile, and "Space to Quick Look · double-click to open" under the shelf |
@@ -336,6 +360,9 @@ it back.
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
 | Sleep through the deadline | It fires on wake and says how late it was |
+| Switch on Calendar and reminders in Settings | Asks for Calendars and Reminders access, then adds a calendar icon as the last tab. Six tabs need more room beside the camera than the 620pt panel has, so at Default it widens to fit them (678pt on a 14" MacBook Pro) |
+| Click the calendar icon | The next three events of today and tomorrow, each with its calendar's colour and when — "Now, until 9:30", "in 28 min", "12:30–13:30", "Tomorrow 10:00", "All day" — and how many reminders are due or overdue. **Open Calendar** in the title row opens Calendar |
+| Change something in Calendar with the pane open | It shows at once; with the pane closed, the next open reads it |
 | Click **Add** beside a running timer | The presets come back (with **Back** to return); start up to three countdowns at once |
 | Run several | The tab lists them, each with its own pause and cancel; the notch shows whichever finishes first, and each one peeks and chimes when it finishes |
 | Switch to **Stopwatch** in the timer tab's title row | Start, then Lap and Pause while it runs, Reset and Resume while it is paused; the latest three laps show under the digits |
@@ -387,7 +414,10 @@ and costs nothing while you are not looking at it. **Panel width** is Compact
 grown by the text size and kept on the screen. Beside a real notch, Compact
 goes no narrower than leaves room for every tab you have, and for the
 eyedropper, battery and gear, on either side of the camera — 602pt on a 14"
-MacBook Pro with all five tabs, 560pt with four.
+MacBook Pro with all five tabs, 560pt with four. Default and Wide stay put
+for any module you switch, with one exception: the calendar's sixth tab does
+not fit beside a 14" notch at 620pt, so with it on Default widens to 678pt
+(Compact too); Wide already has the room.
 **Corners** rounds the open panel's bottom corners tighter or rounder; **Tabs**
 puts the tab icons right of the camera instead of left, and the eyedropper,
 battery and gear left of it; and the battery in the
@@ -404,7 +434,9 @@ switch under Camera.
 With **VoiceOver** on, each peek is announced as it appears — the charger or
 Low Power Mode change with the battery level, a finished timer, and the track
 when the music player drops down or the song changes under it (never a pause
-or a seek). The timer's countdown reads as words with its progress ("8 minutes
+or a seek). Each calendar row reads as a sentence with its calendar's name
+("Design review, in 28 minutes, Work calendar"), so the colour dot is never
+the only clue. The timer's countdown reads as words with its progress ("8 minutes
 remaining, 25% done"), at the same granularity as the digits, and every badge
 beside the notch says what it shows. With several timers, each row is named by
 its duration ("5-minute timer") and so are its Pause and Cancel buttons; a

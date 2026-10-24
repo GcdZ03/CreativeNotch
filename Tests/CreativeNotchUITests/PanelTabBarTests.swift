@@ -18,7 +18,7 @@ struct PanelTabBarTests {
     /// spot-checked with `contains`.
     @Test func onlyTabsWithContentAreShown() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: true)
-                == [.shelf, .clipboard, .timer, .power, .camera])
+                == [.shelf, .clipboard, .timer, .power, .camera, .calendar])
     }
 
     // MARK: - The view must not keep its own list
@@ -33,14 +33,17 @@ struct PanelTabBarTests {
     ///
     /// Same shape as the `PassthroughContainer` trap: each piece correct, the
     /// assembly wrong.
+    ///
+    /// The calendar included: it is in the bar like any tab.
     @Test func theTabBarAgreesWithTheCoreRuleForEveryCombination() {
-        for mask in 0..<32 {
+        for mask in 0..<64 {
             var preferences = Preferences.allEnabled
             preferences.shelf     = mask & 1 != 0
             preferences.clipboard = mask & 2 != 0
             preferences.timer     = mask & 4 != 0
             preferences.power     = mask & 8 != 0
             preferences.camera    = mask & 16 != 0
+            preferences.calendar  = mask & 32 != 0
 
             for hasBattery in [true, false] {
                 #expect(
@@ -87,14 +90,14 @@ struct PanelTabBarTests {
         let tabs = PanelTabBar.visible(enabled: noClipboard, hasBattery: true)
 
         #expect(tabs.contains(.clipboard) == false)
-        #expect(tabs == [.shelf, .timer, .power, .camera])
+        #expect(tabs == [.shelf, .timer, .power, .camera, .calendar])
     }
 
     /// Three of the four facts on the Battery tab are meaningless without a
     /// battery, so it is hidden on a Mac mini.
     @Test func thePowerTabIsHiddenWithoutABattery() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false)
-                == [.shelf, .clipboard, .timer, .camera])
+                == [.shelf, .clipboard, .timer, .camera, .calendar])
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false).contains(.power) == false)
     }
 
