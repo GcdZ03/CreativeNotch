@@ -8,7 +8,9 @@ public enum TimerCompletionText {
 
     /// Below a minute is scheduler jitter rather than lateness, and saying
     /// "finished 12s ago" about a timer that just fired reads as noise.
-    private static let latenessFloor: TimeInterval = 60
+    /// Internal rather than private because `TimerSpokenText` applies the
+    /// same floor: the spoken and written peek must agree on "late".
+    static let latenessFloor: TimeInterval = 60
 
     public static func detail(for completion: TimerCompletion) -> String {
         let duration = TimerDisplay.text(remaining: completion.duration)

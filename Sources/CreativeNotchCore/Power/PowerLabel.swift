@@ -47,4 +47,21 @@ public enum PowerLabel {
         case .lowPowerMode(let enabled): return enabled ? "Low Power Mode On" : "Low Power Mode Off"
         }
     }
+
+    /// The peek as one sentence, for VoiceOver: the title and, when the
+    /// event carries one, the level — the same two things the row shows, in
+    /// the same order. The bar is not spoken separately; it is the
+    /// percentage drawn.
+    ///
+    /// Low Power Mode carries no level and must not invent one, which is
+    /// the same rule `PowerPeekView.percentage` follows.
+    public static func spoken(for event: PowerEvent) -> String {
+        let title = peekTitle(for: event)
+        switch event {
+        case .pluggedIn(let level), .unplugged(let level), .lowBattery(_, let level):
+            return "\(title), \(level)%"
+        case .lowPowerMode:
+            return title
+        }
+    }
 }
