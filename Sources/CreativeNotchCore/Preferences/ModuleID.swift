@@ -21,22 +21,33 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case hotkey
     case camera
     case captureIndicator = "capture-indicator"
+    /// AirPods and other audio Bluetooth devices connecting (2026-10-24).
+    case bluetooth
+    case calendar
+    case colorPicker = "color-picker"
     case downloads
 
     /// What an absent key means for this module.
     ///
-    /// On for every module but one. **Downloads ships off**, because reading
-    /// the Downloads folder is a privacy prompt, and a module that prompts on
-    /// a fresh install's first launch is the prompt-with-no-stated-reason the
-    /// architecture refuses: switched on in Settings, the prompt follows the
-    /// person's own click and the row beside it says why.
+    /// On for every module but three. **The calendar, Bluetooth alerts and
+    /// downloads ship off** because none can work without asking for
+    /// something: the calendar's glance needs the Calendars and Reminders
+    /// grants, Bluetooth alerts need Bluetooth access, and the downloads
+    /// ring needs the Downloads folder. A permission prompt belongs to the
+    /// moment someone switches the feature on, never to a launch, and never
+    /// to a feature nobody chose (see Permissions in `ARCHITECTURE.md`):
+    /// switched on in Settings, the prompt follows the person's own click and
+    /// the row beside it says why. Every other module either needs no grant
+    /// or, like the camera, asks only when its tab is opened -- and costs
+    /// nothing at rest.
     ///
-    /// Read by `PreferencesStore.load` through `resolveEnabled`, so "absent"
-    /// is still decided in one function — this only supplies its default.
+    /// Read by `PreferencesStore.load` through `resolveEnabled`'s
+    /// `shippedDefault`, so "absent" is still decided in one function -- and
+    /// a mistyped value reads as off too.
     public var shippedDefault: Bool {
         switch self {
-        case .downloads: return false
-        default:         return true
+        case .bluetooth, .calendar, .downloads: return false
+        default:                                return true
         }
     }
 }

@@ -16,5 +16,6 @@ struct TabSymbolsTests {
         #expect(Tab.timer.symbolName == "timer")
         #expect(Tab.power.symbolName == "battery.100percent")
         #expect(Tab.camera.symbolName == "camera")
+        #expect(Tab.calendar.symbolName == "calendar")
     }
 }

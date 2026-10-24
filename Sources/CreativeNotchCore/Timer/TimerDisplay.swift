@@ -44,8 +44,9 @@ public enum TimerDisplay {
     /// Increase Contrast, which lifts the dim one most of the way to the
     /// bright). The word is shown to everyone rather than only under the
     /// setting: it reads naturally ("12m paused") and costs nothing, since
-    /// a paused timer does not redraw. The ear's badge keeps dimming alone
-    /// — see `TimerBadgeView` for why a 44pt slot has no room for more.
+    /// a paused timer does not redraw. The ear's badge has no room for a
+    /// word, so it draws a pause glyph ahead of its digits instead (see
+    /// `TimerBadgeView`).
     public static func caption(isPaused: Bool) -> String {
         isPaused ? "paused" : "left"
     }

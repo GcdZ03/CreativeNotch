@@ -20,6 +20,9 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var bluetooth: Bool
+    public var calendar: Bool
+    public var colorPicker: Bool
     public var downloads: Bool
 
     public init(
@@ -32,7 +35,10 @@ public struct Preferences: Equatable, Sendable {
         hotkey: Bool = true,
         camera: Bool = true,
         captureIndicator: Bool = true,
-        downloads: Bool = true
+        bluetooth: Bool = false,
+        calendar: Bool = false,
+        colorPicker: Bool = true,
+        downloads: Bool = false
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -43,22 +49,22 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.bluetooth = bluetooth
+        self.calendar = calendar
+        self.colorPicker = colorPicker
         self.downloads = downloads
     }
 
-    /// Everything on. What a bare `AppState` and the switchboard start from
-    /// before `apply()` has read anything, so a test that builds a delegate
-    /// gets every module's wiring without having to switch it on.
-    public static let allEnabled = Preferences()
+    /// The shipped state, and what a domain with no keys in it resolves to:
+    /// every module on except the three that need a permission and so wait
+    /// to be asked for -- Bluetooth alerts, the calendar and downloads
+    /// (`ModuleID.shippedDefault`).
+    public static let shipped = Preferences()
 
-    /// What a domain with no keys in it resolves to: everything on except the
-    /// modules that ship off (`ModuleID.shippedDefault`). The two differ only
-    /// in downloads, whose permission prompt must follow a click.
-    public static let shipped: Preferences = {
-        var preferences = Preferences()
-        for module in ModuleID.allCases { preferences[module] = module.shippedDefault }
-        return preferences
-    }()
+    /// Every module on, Bluetooth alerts, the calendar and downloads
+    /// included. Not the shipped state; what a person who switched
+    /// everything on has.
+    public static let allEnabled = Preferences(bluetooth: true, calendar: true, downloads: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -72,6 +78,9 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .bluetooth:     return bluetooth
+            case .calendar:      return calendar
+            case .colorPicker:   return colorPicker
             case .downloads:     return downloads
             }
         }
@@ -86,6 +95,9 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .bluetooth:     bluetooth = newValue
+            case .calendar:      calendar = newValue
+            case .colorPicker:   colorPicker = newValue
             case .downloads:     downloads = newValue
             }
         }

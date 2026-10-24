@@ -21,12 +21,15 @@ struct DownloadPeekArbitrationTests {
         #expect(PreferenceKeys.enabled(.downloads) == "module.downloads.enabled")
     }
 
-    /// The first module to ship off. Reading the Downloads folder is a
-    /// privacy prompt, and a module that prompts on a fresh install's first
-    /// launch is the prompt-with-no-reason the architecture refuses.
-    @Test func downloadsShipOffAndEverythingElseOn() {
+    /// Ships off, with the other permission modules. Reading the Downloads
+    /// folder is a privacy prompt, and a module that prompts on a fresh
+    /// install's first launch is the prompt-with-no-reason the architecture
+    /// refuses.
+    @Test func downloadsShipOffWithTheOtherPermissionModules() {
+        #expect(ModuleID.downloads.shippedDefault == false)
+        #expect(Preferences.shipped.downloads == false)
+        #expect(Preferences.allEnabled.downloads == true)
         for module in ModuleID.allCases {
-            #expect(module.shippedDefault == (module != .downloads), "\(module)")
             #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
         }
     }

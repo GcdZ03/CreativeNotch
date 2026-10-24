@@ -22,6 +22,8 @@ struct ClipboardPollerTests {
     private final class Box {
         var captured: [ClipboardContent] = []
         var timers: [FakeTimer] = []
+        var frontmost: String?
+        var frontmostReads = 0
     }
 
     private struct Harness {
@@ -59,6 +61,9 @@ struct ClipboardPollerTests {
             return timer
         }
         poller.cancelTimer = { ($0 as? FakeTimer)?.cancelled = true }
+        // Nothing in front unless a test says so: the real answer depends on
+        // whatever the developer has open.
+        poller.frontmostApp = { box.frontmostReads += 1; return box.frontmost }
 
         return Harness(poller: poller, pasteboard: pb, box: box)
     }
@@ -329,5 +334,77 @@ struct ClipboardPollerTests {
         let h = makeHarness()
         h.poller.stop()
         #expect(h.poller.scheduledInterval == nil)
+    }
+
+    // MARK: - Excluded apps (2026-10-24)
+
+    @Test func aCopyMadeInAnExcludedFrontmostAppIsNotCaptured() {
+        let h = makeHarness()
+        h.poller.excludedApps = { ["com.apple.Terminal"] }
+        h.box.frontmost = "com.apple.Terminal"
+        h.poller.start(now: 0)
+        h.copy("token")
+        h.poller.tick(now: 1)
+
+        #expect(h.captured.isEmpty)
+
+        // Another app in front, and copies are recorded again.
+        h.box.frontmost = "com.apple.Safari"
+        h.copy("hello")
+        h.poller.tick(now: 2)
+        #expect(h.captured == [.text("hello")])
+    }
+
+    /// `org.nspasteboard.source` names the copying app even when it is not
+    /// in front -- a menu bar password manager.
+    @Test func aCopyDeclaringAnExcludedSourceIsNotCaptured() {
+        let h = makeHarness()
+        h.poller.excludedApps = { ["com.example.vault"] }
+        h.box.frontmost = "com.apple.Safari"
+        h.poller.start(now: 0)
+
+        h.pasteboard.clearContents()
+        h.pasteboard.setString("hunter2", forType: .string)
+        h.pasteboard.setString("com.example.vault", forType: .nsSource)
+        h.poller.tick(now: 1)
+
+        #expect(h.captured.isEmpty)
+    }
+
+    /// The frontmost app is read only when the pasteboard changed and the
+    /// list has something in it -- never on an idle tick, and never at all
+    /// for the people who left the list empty.
+    @Test func theFrontmostAppIsReadOnlyForAChangeWithAList() {
+        let h = makeHarness()
+        h.poller.start(now: 0)
+        h.copy("one")
+        h.poller.tick(now: 1)
+        #expect(h.box.frontmostReads == 0)
+
+        h.poller.excludedApps = { ["com.apple.Terminal"] }
+        h.poller.tick(now: 2)
+        h.poller.tick(now: 3)
+        #expect(h.box.frontmostReads == 0)
+
+        h.copy("two")
+        h.poller.tick(now: 4)
+        #expect(h.box.frontmostReads == 1)
+    }
+
+    /// Refused for its app, the copy is still activity, like a concealed
+    /// one: the back-off measures time since anything changed.
+    @Test func anExcludedCopyStillCountsAsActivity() {
+        let h = makeHarness()
+        h.poller.excludedApps = { ["com.apple.Terminal"] }
+        h.box.frontmost = "com.apple.Terminal"
+        h.poller.start(now: 0)
+        h.poller.tick(now: 300)
+        #expect(h.poller.scheduledInterval == ClipboardPollSchedule.idleInterval)
+
+        h.copy("token")
+        h.poller.tick(now: 301)
+
+        #expect(h.captured.isEmpty)
+        #expect(h.poller.scheduledInterval == ClipboardPollSchedule.activeInterval)
     }
 }

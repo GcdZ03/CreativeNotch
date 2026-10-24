@@ -218,19 +218,20 @@ struct ShelfPendingCopyTests {
         #expect(ShelfView.tileAccessibilityLabel(for: pending) == "Big.mov, copying")
     }
 
-    /// Show in Finder, AirDrop and Remove all need the file, which is not
-    /// there yet: a pending tile offers none of them, and cannot be dragged.
+    /// Open, Quick Look, Show in Finder, AirDrop and Remove all need the
+    /// file, which is not there yet: a pending tile offers none of them, and
+    /// cannot be dragged.
     @Test func aPendingTileOffersNoVerbsAndCannotBeDragged() {
-        let actions = ShelfView.tileActions(for: pending, onRemove: {}, onAirDrop: {}, onReveal: {})
+        let actions = ShelfView.tileActions(for: pending) { _ in }
         #expect(actions.isEmpty)
         #expect(!ShelfView.isDraggable(pending))
     }
 
-    /// The control: a ready tile still has its three verbs and drags.
+    /// The control: a ready tile still has its verbs and drags.
     @Test func aReadyTileKeepsItsVerbsAndDrags() {
         let ready = ShelfItem(id: UUID(), url: pending.url, displayName: "Big.mov", addedAt: Date())
-        let actions = ShelfView.tileActions(for: ready, onRemove: {}, onAirDrop: {}, onReveal: {})
-        #expect(actions.map(\.label) == ["Show in Finder", "AirDrop", "Remove"])
+        let actions = ShelfView.tileActions(for: ready) { _ in }
+        #expect(actions.map(\.label) == ["Open", "Quick Look", "Show in Finder", "AirDrop", "Remove"])
         #expect(ShelfView.isDraggable(ready))
         #expect(ShelfView.tileAccessibilityLabel(for: ready) == "Big.mov")
     }

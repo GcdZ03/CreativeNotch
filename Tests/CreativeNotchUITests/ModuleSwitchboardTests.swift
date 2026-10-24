@@ -151,7 +151,7 @@ struct ModuleSwitchboardTests {
         let delegate = makeDelegate()
         let clipboard = try #require(delegate.clipboard)
 
-        #expect(delegate.switchboard.preferences == .allEnabled)
+        #expect(delegate.switchboard.preferences == .shipped)
         #expect(clipboard.poller.scheduledInterval == nil)
         #expect(delegate.power?.isObserving == false)
     }

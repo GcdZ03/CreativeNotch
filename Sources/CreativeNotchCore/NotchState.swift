@@ -1,7 +1,7 @@
 import Foundation
 
 public enum Tab: String, CaseIterable, Equatable, Sendable {
-    case shelf, clipboard, power, timer, camera
+    case shelf, clipboard, power, timer, camera, calendar
 }
 
 public struct TrackSnapshot: Equatable, Sendable {
@@ -65,6 +65,8 @@ public enum PeekContent: Equatable, Sendable {
     case downloads(DownloadSummary)
     /// A download that has just finished: transient, shown unasked.
     case downloadDone(DownloadCompletion)
+    /// An audio Bluetooth device arriving or leaving (2026-10-24).
+    case bluetooth(BluetoothAudioEvent)
 }
 
 /// The one state the panel is ever in.
@@ -83,6 +85,9 @@ public enum NotchState: Equatable, Sendable {
         // is exactly what a download needs too, and a name is too long for
         // the one-line ears.
         case .peek(.downloads), .peek(.downloadDone): return .statusPeek
+        // The battery peek's one row below the notch: an icon, a name and
+        // a word, which is the same shape of message.
+        case .peek(.bluetooth):  return .statusPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }

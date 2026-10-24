@@ -16,7 +16,7 @@ import CreativeNotchCore
 /// activity" is right for the lifecycle verbs and wrong applied uniformly —
 /// see `setActivity(_:)` for the two modules where it is wrong and why.
 ///
-/// It starts at `.allEnabled` rather than loading from the store, so
+/// It starts at `.shipped` rather than loading from the store, so
 /// constructing a delegate performs no defaults read: `apply()` is the only
 /// thing that consults storage, and it runs from `startSubsystems()`. That is
 /// also what lets the existing fan-out suites, which never call `apply()`,
@@ -28,7 +28,7 @@ import CreativeNotchCore
 @MainActor
 final class ModuleSwitchboard {
 
-    private(set) var preferences: Preferences = .allEnabled
+    private(set) var preferences: Preferences = .shipped
     private(set) var activity: SystemActivity = .active
 
     private unowned let delegate: AppDelegate
@@ -66,6 +66,9 @@ final class ModuleSwitchboard {
         setEnabled(preferences.hotkey, for: .hotkey)
         setEnabled(preferences.camera, for: .camera)
         setEnabled(preferences.captureIndicator, for: .captureIndicator)
+        setEnabled(preferences.calendar, for: .calendar)
+        setEnabled(preferences.colorPicker, for: .colorPicker)
+        setEnabled(preferences.bluetooth, for: .bluetooth)
         setEnabled(preferences.downloads, for: .downloads)
     }
 
@@ -79,12 +82,17 @@ final class ModuleSwitchboard {
         delegate.media?.setEnabled(false)
         delegate.media?.stop()
         delegate.power?.stop()
+        delegate.bluetooth?.stop()
         delegate.timer?.cancel()
         delegate.capture?.stop()
         delegate.downloads?.stop()
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
+        delegate.calendar?.stop()
+        // A pick whose loupe is still up must not write the pasteboard on
+        // the way out.
+        delegate.colorPicker?.setEnabled(false)
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -135,6 +143,9 @@ final class ModuleSwitchboard {
         delegate.media?.setActivity(next)
         delegate.timer?.setActive(next == .active)
         delegate.power?.setActivity(next)
+        // Power's shape: peeks suppressed, notifications kept, so the set of
+        // connected devices is still right on unlock.
+        delegate.bluetooth?.setActivity(next)
         // Fanned out regardless of the module's preference, like the timer:
         // the controller holds its own enabled flag, and `CameraRunReason`
         // composes the two -- locking stops the preview, never a recording.
@@ -159,6 +170,8 @@ final class ModuleSwitchboard {
         preferences[module] = enabled
         if persist { delegate.preferencesStore.setEnabled(enabled, for: module) }
         delegate.state.preferences = preferences
+        // A tab may have come or gone, which the panel's width may be sized by.
+        delegate.tabsDidChange()
 
         switch module {
         case .clipboard:
@@ -171,7 +184,10 @@ final class ModuleSwitchboard {
                 // resident for the session and reappear the moment the
                 // switch goes back on. Here rather than in `stop()`, which
                 // quitting also calls and where it would be redundant.
-                delegate.clipboard?.store.clear()
+                // `removeAll`, not `clear`: Clear keeps pins, and off keeps
+                // nothing — pins included.
+                delegate.clipboard?.store.removeAll()
+                delegate.state.clipboardQuery = ""
             }
 
         case .mediaMetadata:
@@ -248,6 +264,17 @@ final class ModuleSwitchboard {
                 delegate.state.onResumeTimer = nil
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
+                // The stopwatch is different: it has nothing to finish and,
+                // with the tab gone, nowhere to be read. It costs nothing
+                // running — it is two numbers — but one left counting
+                // invisibly would greet the user with an hour they never
+                // saw when the tab came back. So it is reset, its verb goes
+                // with the others, and the tab comes back on its default
+                // half.
+                delegate.state.onStopwatch = nil
+                delegate.state.stopwatch = Stopwatch()
+                delegate.state.timerMode = .timer
+                delegate.state.isAddingTimer = false
             }
 
         case .camera:
@@ -275,6 +302,14 @@ final class ModuleSwitchboard {
             // showed it made the controller's own clearing untestable.
             delegate.capture?.setEnabled(enabled)
 
+        case .bluetooth:
+            // On is what asks macOS for Bluetooth, and only if it has never
+            // been asked; off unregisters every IOBluetooth notification.
+            // The controller owns that decision (`BluetoothRunState`); this
+            // leg states the preference and withdraws a peek already in the
+            // slot, the way `.power` does.
+            delegate.bluetooth?.setEnabled(enabled)
+            if !enabled { delegate.arbiter.clearBluetooth() }
         case .downloads:
             // On asks for the Downloads folder -- the read that makes macOS
             // prompt, which is why it happens here, after the person's own
@@ -296,11 +331,39 @@ final class ModuleSwitchboard {
             // there is nothing running between presses to suspend.
             delegate.hotkey?.setEnabled(enabled)
 
+        case .calendar:
+            // Off stops everything the module runs -- the store-change
+            // observer, the store's connection, the boundary one-shot -- and
+            // withdraws the glance. On, a prompt only when the person switched
+            // it on (`persist` is the Settings path); the launch path applying
+            // a stored "on" asks nothing, because nothing is requested at
+            // launch.
+            //
+            // No activity axis: it reads only while its pane is open, and the
+            // pane cannot be open on a locked or sleeping screen.
+            delegate.calendar?.setEnabled(enabled, userInitiated: persist)
+        case .colorPicker:
+            // Nothing runs at rest, so off has two jobs only: forget the
+            // history -- off means the app holds nothing, as the clipboard
+            // leg says -- and drop a pick whose loupe is still up, since
+            // `NSColorSampler` cannot be cancelled. The controller does both,
+            // and publishes the empty history, which takes the strip with
+            // it. The dropper goes because the header reads
+            // `state.preferences`. No activity axis: there is nothing to
+            // suspend between picks.
+            delegate.colorPicker?.setEnabled(enabled)
+
         case .shelf:
             // Nothing to stop: the shelf owns no timer, observer or process,
             // and its idle cost is genuinely zero. Disabling hides the tab and
             // refuses drops — the drop closures read `state.preferences`.
             delegate.state.shelf = enabled ? delegate.shelf : nil
+            // The one thing it can leave on screen: a Quick Look of its
+            // files. A switched-off shelf must not keep previewing them.
+            if !enabled {
+                delegate.shelfPreview.close()
+                delegate.state.shelfSelection = nil
+            }
         }
 
         retargetTabsIfNeeded()

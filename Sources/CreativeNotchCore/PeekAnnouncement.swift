@@ -31,6 +31,8 @@ public enum PeekAnnouncement {
             return TimerSpokenText.completion(completion)
         case .power(let event):
             return PowerLabel.spoken(for: event)
+        case .bluetooth(let event):
+            return BluetoothLabel.spoken(for: event)
         case .nowPlaying(let track):
             return nowPlaying(track)
         case .downloads(let summary):

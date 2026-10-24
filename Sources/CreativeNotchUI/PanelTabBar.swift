@@ -15,6 +15,7 @@ public extension CreativeNotchCore.Tab {
         case .power:     return "Battery"
         case .timer:     return "Timer"
         case .camera:    return "Camera"
+        case .calendar:  return "Calendar"
         }
     }
 }
@@ -68,20 +69,31 @@ struct PanelTabBar: View {
     let onSelect: (CreativeNotchCore.Tab) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: PanelLayout.tabSpacing) {
             ForEach(Self.visible(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
-                Button {
-                    onSelect(tab)
-                } label: {
-                    Image(systemName: tab.symbolName)
-                }
-                .buttonStyle(NotchIconButtonStyle(selected: tab == selected))
-                // An icon without a name is a regression for anyone using
-                // VoiceOver, and a tooltip is how a sighted user learns it.
-                .help(tab.title)
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(tab == selected ? .isSelected : [])
+                PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
             }
         }
+    }
+}
+
+/// One tab's icon button in the bar.
+struct PanelTabButton: View {
+    let tab: CreativeNotchCore.Tab
+    let selected: CreativeNotchCore.Tab
+    let onSelect: (CreativeNotchCore.Tab) -> Void
+
+    var body: some View {
+        Button {
+            onSelect(tab)
+        } label: {
+            Image(systemName: tab.symbolName)
+        }
+        .buttonStyle(NotchIconButtonStyle(selected: tab == selected))
+        // An icon without a name is a regression for anyone using
+        // VoiceOver, and a tooltip is how a sighted user learns it.
+        .help(tab.title)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(tab == selected ? .isSelected : [])
     }
 }

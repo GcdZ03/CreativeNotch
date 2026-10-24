@@ -20,23 +20,21 @@ struct ShelfTileActionsTests {
         addedAt: Date()
     )
 
-    /// Show in Finder, AirDrop, then Remove: the destructive verb last, at
-    /// the bottom of the menu, as Clear sits at the edge of the title row.
-    @Test func theTileOffersShowInFinderAirDropAndRemove() {
-        let actions = ShelfView.tileActions(onRemove: {}, onAirDrop: {}, onReveal: {})
-        #expect(actions.map(\.label) == ["Show in Finder", "AirDrop", "Remove"])
-        #expect(actions.map(\.isDestructive) == [false, false, true])
+    /// Open and Quick Look first, as Finder's menu has them; then Show in
+    /// Finder and AirDrop; Remove last, at the bottom of the menu, as Clear
+    /// sits at the edge of the title row. The order itself is Core's
+    /// (`ShelfTileVerb`); this checks the view builds its menu from it.
+    @Test func theTileOffersOpenQuickLookShowInFinderAirDropAndRemove() {
+        let actions = ShelfView.tileActions(for: item) { _ in }
+        #expect(actions.map(\.label) == ["Open", "Quick Look", "Show in Finder", "AirDrop", "Remove"])
+        #expect(actions.map(\.isDestructive) == [false, false, false, false, true])
     }
 
     @Test func eachActionPerformsItsOwnVerb() {
-        var calls: [String] = []
-        let actions = ShelfView.tileActions(
-            onRemove: { calls.append("remove") },
-            onAirDrop: { calls.append("airdrop") },
-            onReveal: { calls.append("reveal") }
-        )
+        var calls: [ShelfTileVerb] = []
+        let actions = ShelfView.tileActions(for: item) { calls.append($0) }
         for action in actions { action.perform() }
-        #expect(calls == ["reveal", "airdrop", "remove"])
+        #expect(calls == [.open, .quickLook, .reveal, .airDrop, .remove])
     }
 
     /// VoiceOver reads the file's name, the same text under the tile.
