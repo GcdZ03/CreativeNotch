@@ -102,6 +102,12 @@ public final class AppState {
     @ObservationIgnored
     public var onSetLimits: ((Limits) -> Void)?
 
+    /// What `onSetLimits` would take off the shelf, without applying
+    /// anything — so Settings can ask before a lowered limit trashes files.
+    /// Wired by `AppDelegate`; unwired, nothing would be taken.
+    @ObservationIgnored
+    public var onPreviewLimits: ((Limits) -> ShelfLimitRemoval)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
