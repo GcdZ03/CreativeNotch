@@ -84,6 +84,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Ready for translation** — every word on screen and every VoiceOver label in one String Catalog; English only so far | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -221,6 +222,9 @@ open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
 
+The camera prompt's wording is in `Resources/InfoPlist.xcstrings`, so it is
+translated with everything else; that adds no permission.
+
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
 went with it — so unlike before, starting the app grants nothing and asks
@@ -351,9 +355,17 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 1000+ tests, ~3s, no window server needed
-./Scripts/dev.sh     # stop, rebuild, sign, relaunch
+swift test                 # 1000+ tests, ~3s, no window server needed
+./Scripts/dev.sh           # stop, rebuild, sign, relaunch
+./Scripts/sync-strings.sh  # after changing any user-facing string
 ```
+
+Every user-facing string goes through one String Catalog,
+`Sources/CreativeNotchCore/Localizable.xcstrings`, as
+`String(localized: "…", bundle: .creativeNotch)` or
+`Text("…", bundle: .creativeNotch)`; a test fails on a literal that skips it.
+The app ships in English only. Adding a language is adding entries to the
+catalog — see [`CONTRIBUTING.md`](CONTRIBUTING.md#strings-and-translations).
 
 Xcode opens `Package.swift` directly — there is no project file to maintain.
 
@@ -377,6 +389,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI — panel, hosting view, hover tracker,
                        menu bar, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
+Plugins/
+  StringCatalogCompiler/  compiles Localizable.xcstrings for swift build
 Tests/
   CreativeNotchCoreTests/   the pure logic, headless and fast
   CreativeNotchUITests/     the views, the delegate and the wiring

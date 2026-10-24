@@ -67,6 +67,9 @@ machine, and peek arbitration run headlessly in CI in under a second. When
 something in `CreativeNotchUI` turns out to be worth testing, the answer is
 usually to move its logic down into Core rather than to reach for a mock.
 
+One more, `StringCatalogCompiler`, is a build-tool plugin rather than code
+that ships — see [Localization](#localization).
+
 `CreativeNotch` exists only to construct `NSApplication`, attach the
 delegate, set `.accessory` activation policy, and run. Anything that
 accumulates there should move up into `CreativeNotchUI` — that target is
@@ -465,6 +468,57 @@ observer released without `stop()` left a dangling pointer registered, and the
 test process crashed twice on a battery change. It now passes a retained box
 holding the observer weakly. Do the same for any new C callback.
 
+## Localization
+
+Every user-facing string — panel, Settings, menu bar, VoiceOver labels and
+announcements, the welcome card — is looked up in one String Catalog,
+`Sources/CreativeNotchCore/Localizable.xcstrings`, through
+`Bundle.creativeNotch`. One catalog rather than one per target, so a
+translator has one file and a string moving between Core and the UI never
+changes catalogs. Core's words (`PowerLabel`, `TimerSpokenText`,
+`ShelfLimitRemoval`) are localized where they are built, which keeps them
+testable: the tests that pin the English are the same ones that would see a
+missing entry. The app ships English only; adding a language is adding
+entries (CONTRIBUTING.md has the steps).
+
+### SwiftPM ships a String Catalog it cannot read
+
+`swift build` copies an `.xcstrings` into the resource bundle as raw JSON.
+`Bundle` reads only compiled `.strings`/`.stringsdict`, so every lookup falls
+back to its key — which for most strings *is* the English, so nothing looks
+wrong. Only plurals give it away: `"%lld items"` comes back as "1 items".
+Xcode compiles catalogs; the command line does not.
+
+`StringCatalogCompiler` is the missing step: a build-tool plugin that runs
+`xcstringstool compile` into `<lang>.lproj` tables, for every language the
+catalog names. The catalog is under the target's `exclude:` so the raw JSON is
+not copied as well. `LocalizationTests` reads the compiled table directly, so
+a catalog that is shipped but not compiled fails there rather than in
+another language.
+
+### The bundle lives in `Contents/Resources`, not where SwiftPM looks
+
+SwiftPM's generated `Bundle.module` looks for the resource bundle at the
+root of the `.app`, beside `Contents/` — where anything at all breaks the
+code signature. `bundle.sh` copies it into `Contents/Resources/`, and
+`Bundle.creativeNotch` looks there first, falling back to `Bundle.module`
+(the build directory) only under `swift run` and `swift test`.
+
+### Plurals belong to the catalog, with one exception
+
+Every hand-rolled `n == 1 ? "" : "s"` became a catalog plural: "1 day",
+"Kept 7 days", "Move 2 files to the Trash". The exception is a sentence that
+agrees with a count it never shows ("It is older…" / "They are older…"):
+`xcstringstool` refuses a plural variation that does not reference its
+number, so those are two entries chosen by `count == 1`.
+
+### Deliberately not translated
+
+Logs, the app's name, and the alert sounds' names (they are the system's
+files, and the raw value is what `NSSound(named:)` is handed). Capture and
+drop file names translate their words but keep fixed digits, so they sort by
+time in any language.
+
 ## Permissions
 
 **Nothing is requested at launch. The camera is the one module that needs a
@@ -512,6 +566,11 @@ mutating the source rather than by reading it. Two more were only proven
 adequate after a reviewer showed they covered half the bug.
 
 When adding a test: introduce the bug, watch it fail, revert, watch it pass.
+
+`LocalizationTests` scans the sources: prose in a string literal outside
+`String(localized:bundle:)`/`Text(_:bundle:)` fails, and so does a localized
+literal the catalog lacks. A lone lowercase word reads like an identifier and
+is not flagged — that gap is stated in the test, not hidden.
 
 Not covered, and known: anything requiring a screen (notch alignment, hover
 feel), anything requiring a real `NSScreen` (the menu bar height
