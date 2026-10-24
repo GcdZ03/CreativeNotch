@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All eleven modules are built, and every one of them can be switched off.**
+**The foundation is complete. All twelve modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -79,6 +79,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 | ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
 | ✅ **Capture indicator** — when another app is using your camera or microphone | Done |
+| ✅ **Bluetooth alerts** — a glance when AirPods, headphones or a speaker connect or disconnect (off until you switch it on) | Done |
 | ✅ **Redesigned panel** — tabs in the ears, music as a column, one control vocabulary | Done |
 | ✅ **Launch at login** — a switch that reads the system rather than remembering | Done |
 | ✅ **Music and battery peeks** — a mini player and a status row that drop below the notch | Done |
@@ -103,6 +104,19 @@ sit in the **ear to its right**, leaving the left clear for app menus; the
 timer and drag-target peeks are one line in the ears either side; and the music and battery peeks **drop below the notch**,
 so their contents read together instead of being split by it. Notchless Macs
 get a single centred pill instead; there is no housing to work around.
+
+<p align="center">
+  <img src="docs/assets/features/bluetooth-connected.png" width="620" alt="A one-row glance hanging below the notch: an AirPods Pro glyph, the name Gerald's AirPods Pro, and the word Connected">
+</p>
+
+Bluetooth alerts drop the same one-row glance below the notch for two and a
+half seconds when an audio device connects or disconnects: its glyph (AirPods,
+AirPods Pro or Max, Beats, headphones, a headset, a speaker or car audio), its
+name, and "Connected" or "Disconnected". Keyboards, mice and phones never
+show. IOBluetooth tells the app when a connection opens or closes, so nothing
+checks in between; there is no battery level, because macOS offers none
+without polling or a private API. The module is **off until you switch it
+on**, because switching it on is what asks for Bluetooth access.
 
 Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images (25 or 100 if you prefer, in Settings), in memory only and gone on quit, with the
@@ -252,7 +266,7 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and three things ask later.**
+**Nothing is asked for at launch, and four things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
@@ -260,7 +274,7 @@ is registered with the window server rather than a monitor. Quick Look and
 Open on the shelf use the system's own viewers on files the shelf already
 holds, so they ask for nothing either. The colour picker uses
 `NSColorSampler`, the system's own loupe, which hands back only the pixel
-you click and so needs no Screen Recording permission. Nine of the eleven
+you click and so needs no Screen Recording permission. Nine of the twelve
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -268,6 +282,12 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**Bluetooth alerts ask for Bluetooth access when you switch them on** in
+Settings — they ship off, so a fresh install never sees this prompt. Deny it
+and the Settings row says so in orange, with an **Open Bluetooth Settings**
+button (Privacy & Security › Bluetooth); allow it there and the alerts start
+the next time you open Settings, without a relaunch.
 
 **The calendar glance asks for Calendars and Reminders** — full access, since
 it reads events rather than adding them — and only when you switch it on in
@@ -350,6 +370,7 @@ it back.
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |
 | Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |
+| Connect or disconnect AirPods, headphones or a speaker (with Bluetooth alerts on) | A one-row glance drops below the notch for two and a half seconds: the device's glyph, its name, and "Connected" or "Disconnected". The charger, a finished timer and a drag take precedence over it |
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
@@ -432,7 +453,8 @@ switch under Camera.
 </p>
 
 With **VoiceOver** on, each peek is announced as it appears — the charger or
-Low Power Mode change with the battery level, a finished timer, and the track
+Low Power Mode change with the battery level, a finished timer, a Bluetooth
+device connecting or disconnecting ("AirPods Pro connected"), and the track
 when the music player drops down or the song changes under it (never a pause
 or a seek). Each calendar row reads as a sentence with its calendar's name
 ("Design review, in 28 minutes, Work calendar"), so the colour dot is never

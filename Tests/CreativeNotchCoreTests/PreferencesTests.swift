@@ -19,13 +19,14 @@ import Testing
     #expect(ModuleID.hotkey.rawValue == "hotkey")
     #expect(ModuleID.camera.rawValue == "camera")
     #expect(ModuleID.captureIndicator.rawValue == "capture-indicator")
+    #expect(ModuleID.bluetooth.rawValue == "bluetooth")
     #expect(ModuleID.calendar.rawValue == "calendar")
     #expect(ModuleID.colorPicker.rawValue == "color-picker")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 11)
+    #expect(keys.count == 12)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -73,17 +74,26 @@ import Testing
 @Test func preferencesShipWithEverythingOnButTheCalendar() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
-        #expect(Preferences.shipped[module] == (module != .calendar), "\(module)")
+        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault)
     }
 }
 
-/// The calendar is the first module to ship off: it needs a permission, and
-/// a permission is asked for when someone switches the feature on -- never
-/// at launch, and never for a feature nobody chose.
+/// Bluetooth alerts and the calendar are the modules that ship off: each
+/// needs a permission, and a permission is asked for when someone switches
+/// the feature on -- never at launch, and never for a feature nobody chose.
+/// Everything else needs no grant and costs nothing at rest, so it stays on.
+@Test func onlyThePermissionModulesShipOff() {
+    for module in ModuleID.allCases {
+        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar), "\(module)")
+        #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
+    }
+}
+
 @Test func theCalendarShipsOffBecauseItNeedsAPermission() {
     #expect(ModuleID.calendar.shippedDefault == false)
     #expect(Preferences().calendar == false)
+    #expect(Preferences().bluetooth == false)
 }
 
 @Test func theSubscriptReachesEveryModuleIndependently() {

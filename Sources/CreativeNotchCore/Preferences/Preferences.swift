@@ -20,6 +20,7 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var bluetooth: Bool
     public var calendar: Bool
     public var colorPicker: Bool
 
@@ -33,6 +34,7 @@ public struct Preferences: Equatable, Sendable {
         hotkey: Bool = true,
         camera: Bool = true,
         captureIndicator: Bool = true,
+        bluetooth: Bool = false,
         calendar: Bool = false,
         colorPicker: Bool = true
     ) {
@@ -45,18 +47,20 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.bluetooth = bluetooth
         self.calendar = calendar
         self.colorPicker = colorPicker
     }
 
     /// The shipped state, and what a domain with no keys in it resolves to:
-    /// every module on except the calendar, which needs a permission and so
-    /// waits to be asked for (`ModuleID.shippedDefault`).
+    /// every module on except the two that need a permission and so wait to
+    /// be asked for -- Bluetooth alerts and the calendar
+    /// (`ModuleID.shippedDefault`).
     public static let shipped = Preferences()
 
-    /// Every module on, the calendar included. Not the shipped state since
-    /// the calendar arrived; what a person who switched everything on has.
-    public static let allEnabled = Preferences(calendar: true)
+    /// Every module on, Bluetooth alerts and the calendar included. Not the
+    /// shipped state; what a person who switched everything on has.
+    public static let allEnabled = Preferences(bluetooth: true, calendar: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -70,6 +74,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .bluetooth:     return bluetooth
             case .calendar:      return calendar
             case .colorPicker:   return colorPicker
             }
@@ -85,6 +90,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .bluetooth:     bluetooth = newValue
             case .calendar:      calendar = newValue
             case .colorPicker:   colorPicker = newValue
             }

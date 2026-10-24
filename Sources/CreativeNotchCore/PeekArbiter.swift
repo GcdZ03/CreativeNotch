@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Transient sources preempt ambient ones, then fall back — the same model
 /// as the iPhone Dynamic Island. Priority is drag, then a finished timer,
-/// then power, then media.
+/// then power, then a Bluetooth device, then media.
 ///
 /// `content(now:)` takes the time as a parameter rather than reading a
 /// clock so TTL expiry is testable without sleeping.
@@ -23,6 +23,15 @@ public struct PeekArbiter: Equatable, Sendable {
     /// appearing until someone clicked.
     public static let timerDoneTTL: TimeInterval = 600
 
+    /// Shorter than power's 3 s. A Bluetooth peek is a name and one word,
+    /// and it confirms something the person just did with their own hands —
+    /// put the AirPods in, switched the speaker on — so it needs to be
+    /// readable, not lingered over. Long enough for a long device name to
+    /// be read once; short enough to be gone before it is in the way.
+    public static let bluetoothTTL: TimeInterval = 2.5
+
+    private var bluetooth: BluetoothAudioEvent?
+    private var bluetoothExpiry: TimeInterval = 0
     private var power: PowerEvent?
     private var powerExpiry: TimeInterval = 0
     private var dragActive = false
@@ -75,6 +84,24 @@ public struct PeekArbiter: Equatable, Sendable {
         power = nil
     }
 
+    /// Below power, above now-playing. Power is unsolicited and
+    /// consequential; a device arriving is unsolicited but expected — the
+    /// person caused it — so it yields to anything that is news to them and
+    /// outranks only the ambient music peek. A newer event replaces an
+    /// older one rather than queueing: two devices in a second are one
+    /// glance's worth, and the latest is the one that is true.
+    public mutating func recordBluetooth(_ event: BluetoothAudioEvent, now: TimeInterval) {
+        bluetooth = event
+        bluetoothExpiry = now + Self.bluetoothTTL
+    }
+
+    /// Withdraws a Bluetooth peek whose module has just been switched off,
+    /// for `clearPower`'s reasons: its own module only, so whatever was
+    /// queued behind it is revealed rather than hidden.
+    public mutating func clearBluetooth() {
+        bluetooth = nil
+    }
+
     public func content(now: TimeInterval) -> PeekContent? {
         if dragActive { return .dragTarget }
         if let timerDone, now < timerDoneExpiry { return .timerDone(timerDone) }
@@ -82,6 +109,7 @@ public struct PeekArbiter: Equatable, Sendable {
         // and yields to anything, while power is unsolicited but
         // consequential.
         if let power, now < powerExpiry { return .power(power) }
+        if let bluetooth, now < bluetoothExpiry { return .bluetooth(bluetooth) }
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil
     }

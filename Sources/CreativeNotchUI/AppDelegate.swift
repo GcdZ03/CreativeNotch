@@ -122,6 +122,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// provable, like `clipboard` and `media`.
     private(set) var power: PowerController?
 
+    /// Bluetooth alerts (2026-10-24). Internal rather than private so the
+    /// switchboard and the tests can reach its lifecycle, like `power`.
+    private(set) var bluetooth: BluetoothController?
+
+    /// Where Bluetooth connect and disconnect callbacks come from, and the
+    /// grant behind them. Sandboxed by default like `shelfTrash`: a fresh
+    /// delegate registers nothing with IOBluetooth and can never show the
+    /// Bluetooth prompt. Only `configureForRealLaunch()` hands them the real
+    /// thing. Set them before `install(metrics:)`, which builds the
+    /// controller from them.
+    var bluetoothSource: BluetoothSource = SandboxBluetoothSource()
+    var bluetoothAccess: BluetoothAccess = SandboxBluetoothAccess()
+
+    /// Opens Privacy & Security › Bluetooth, for the Settings row's denied
+    /// state. A seam because opening System Settings from a test would put
+    /// an app in front of the person running the suite; it does nothing
+    /// until `configureForRealLaunch()`.
+    var openBluetoothSettings: () -> Void = {}
+
     /// One observer for the whole app. Internal rather than private so the
     /// fan-out is provable — `SystemActivityFanOutTests` asserts there is
     /// exactly one registration set.
@@ -138,6 +157,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Overridable so tests need not wait out the real 3 seconds.
     var powerTTLDelay: Duration = AppDelegate.defaultPowerTTLDelay
+
+    /// How long a Bluetooth peek occupies the slot before this re-checks the
+    /// arbiter. Mirrors `PeekArbiter.bluetoothTTL`.
+    public static let defaultBluetoothTTLDelay: Duration = .milliseconds(2500)
+
+    /// Overridable for the reason `powerTTLDelay` is.
+    var bluetoothTTLDelay: Duration = AppDelegate.defaultBluetoothTTLDelay
 
     /// How long a finished-timer peek occupies the slot before this
     /// re-checks the arbiter. Mirrors `PeekArbiter.timerDoneTTL`.
@@ -699,6 +725,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         timerNotices = SystemTimerNotices()
         colorSampler = SystemColorSampler()
         colorPasteboard = .general
+        // Building these registers nothing and asks for nothing: the source
+        // registers on `start()`, the access prompts on `request`, and both
+        // happen only once Bluetooth alerts are switched on.
+        bluetoothSource = IOBluetoothSource()
+        bluetoothAccess = SystemBluetoothAccess()
+        openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
     }
 
     // MARK: - Lifecycle
@@ -1342,6 +1374,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.showPowerPeek(event)
         }
         self.power = power
+
+        // Bluetooth alerts (2026-10-24). Built from the two seams above and
+        // started by the switchboard's `.bluetooth` leg, never here:
+        // building it registers nothing with IOBluetooth and asks nothing of
+        // macOS, so the wiring stays testable and a launch with the module
+        // off never touches Bluetooth. A second `install` stops the one it
+        // replaces, so two can never both be registered.
+        bluetooth?.stop()
+        let bluetooth = BluetoothController(source: bluetoothSource, access: bluetoothAccess)
+        bluetooth.onEvent = { [weak self] event in
+            self?.showBluetoothPeek(event)
+        }
+        bluetooth.onAccessChange = { [weak self] access in
+            self?.state.bluetoothAccess = access
+        }
+        self.bluetooth = bluetooth
+        state.onRefreshBluetoothAccess = { [weak self] in self?.bluetooth?.refreshAccess() }
+        state.onOpenBluetoothSettings = { [weak self] in self?.openBluetoothSettings() }
+
         // `hasBattery` is deliberately NOT set here. It was, and the line was
         // dead: `PowerObserver.hasBattery` is false until `start()` assigns
         // it, and `start()` runs after `install(metrics:)`. The flag has one
@@ -1932,6 +1983,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         presentPeek()
     }
 
+    /// A Bluetooth device into the peek slot, by `showPowerPeek`'s rule:
+    /// recorded, then the arbiter is asked. Power, a finished timer and a
+    /// drag all outrank it, and that is the arbiter's call alone.
+    func showBluetoothPeek(_ event: BluetoothAudioEvent) {
+        arbiter.recordBluetooth(event, now: now())
+        presentPeek()
+    }
+
     /// The only path to a `.peek` state.
     ///
     /// `.open` and `.receiving` are deliberate user states -- a hover dwell
@@ -1991,11 +2050,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     static func reevaluationDelay(
         for content: PeekContent,
         power: Duration,
-        timerDone: Duration
+        timerDone: Duration,
+        bluetooth: Duration = AppDelegate.defaultBluetoothTTLDelay
     ) -> Duration {
         switch content {
         case .power:     return power
         case .timerDone: return timerDone
+        case .bluetooth: return bluetooth
         // `.nowPlaying` and `.dragTarget` have no expiry of their own —
         // they end when the track stops or the drag does. The delay is
         // irrelevant for them; `reevaluatePeek` does not reschedule.
@@ -2008,7 +2069,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let delay = Self.reevaluationDelay(
             for: content,
             power: powerTTLDelay,
-            timerDone: timerDoneTTLDelay
+            timerDone: timerDoneTTLDelay,
+            bluetooth: bluetoothTTLDelay
         )
 
         peekTTLTask?.cancel()
@@ -2043,7 +2105,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // content reached here simply stays until its own source
             // changes.
             switch content {
-            case .power, .timerDone: schedulePeekReevaluation(for: content)
+            case .power, .timerDone, .bluetooth: schedulePeekReevaluation(for: content)
             case .nowPlaying, .dragTarget: break
             }
         } else {

@@ -68,6 +68,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.captureIndicator, for: .captureIndicator)
         setEnabled(preferences.calendar, for: .calendar)
         setEnabled(preferences.colorPicker, for: .colorPicker)
+        setEnabled(preferences.bluetooth, for: .bluetooth)
     }
 
     /// Stops everything, regardless of preference.
@@ -80,6 +81,7 @@ final class ModuleSwitchboard {
         delegate.media?.setEnabled(false)
         delegate.media?.stop()
         delegate.power?.stop()
+        delegate.bluetooth?.stop()
         delegate.timer?.cancel()
         delegate.capture?.stop()
         // Synchronous, and it waits for a clip in progress to be closed: a
@@ -139,6 +141,9 @@ final class ModuleSwitchboard {
         delegate.media?.setActivity(next)
         delegate.timer?.setActive(next == .active)
         delegate.power?.setActivity(next)
+        // Power's shape: peeks suppressed, notifications kept, so the set of
+        // connected devices is still right on unlock.
+        delegate.bluetooth?.setActivity(next)
         // Fanned out regardless of the module's preference, like the timer:
         // the controller holds its own enabled flag, and `CameraRunReason`
         // composes the two -- locking stops the preview, never a recording.
@@ -289,6 +294,15 @@ final class ModuleSwitchboard {
             // spelling here would mean two things to keep true, and mutation
             // showed it made the controller's own clearing untestable.
             delegate.capture?.setEnabled(enabled)
+
+        case .bluetooth:
+            // On is what asks macOS for Bluetooth, and only if it has never
+            // been asked; off unregisters every IOBluetooth notification.
+            // The controller owns that decision (`BluetoothRunState`); this
+            // leg states the preference and withdraws a peek already in the
+            // slot, the way `.power` does.
+            delegate.bluetooth?.setEnabled(enabled)
+            if !enabled { delegate.arbiter.clearBluetooth() }
 
         case .hotkey:
             // Stopping means UNREGISTERING, not ignoring the callback. A

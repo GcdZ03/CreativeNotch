@@ -24,8 +24,9 @@ struct PreferencesStoreTests {
             #expect(loaded[module] == module.shippedDefault, "\(module) came up wrong on a fresh domain")
         }
         #expect(loaded == Preferences.shipped)
-        // The one module that ships off, read through the real path.
+        // The modules that ship off, read through the real path.
         #expect(loaded.calendar == false)
+        #expect(loaded.bluetooth == false)
     }
 
     /// Switched on once, the calendar stays on: an off-by-default module
@@ -92,6 +93,21 @@ struct PreferencesStoreTests {
 
         #expect(PreferencesStore(defaults: defaults).load().timer == true)
         #expect(defaults.object(forKey: PreferenceKeys.enabled(.timer)) as? String == "yes")
+    }
+
+    /// The off-by-default module is read through the same resolver with its
+    /// own shipped default: absent or mistyped stays off, a stored `true`
+    /// turns it on. Load it with the generic `true` default and this fails.
+    @Test func bluetoothStaysOffUntilSwitchedOn() {
+        let defaults = makeIsolatedDefaults()
+        let store = PreferencesStore(defaults: defaults)
+        #expect(store.load().bluetooth == false)
+
+        defaults.set("yes", forKey: PreferenceKeys.enabled(.bluetooth))
+        #expect(store.load().bluetooth == false)
+
+        store.setEnabled(true, for: .bluetooth)
+        #expect(store.load().bluetooth == true)
     }
 
     // MARK: - Timer notice and clipboard exclusions (2026-10-24)

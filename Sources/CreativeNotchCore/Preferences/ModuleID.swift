@@ -21,25 +21,30 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case hotkey
     case camera
     case captureIndicator = "capture-indicator"
+    /// AirPods and other audio Bluetooth devices connecting (2026-10-24).
+    case bluetooth
     case calendar
     case colorPicker = "color-picker"
 
     /// What an absent key means for this module.
     ///
-    /// On for every module but one. **The calendar ships off** because it is
-    /// the first module that cannot work without asking for something: its
-    /// glance needs the Calendars and Reminders grants, and a permission
-    /// prompt belongs to the moment someone switches the feature on, never to
-    /// a launch, and never to a feature nobody chose. Every other module
-    /// either needs no grant or, like the camera, asks only when its tab is
-    /// opened -- and costs nothing at rest.
+    /// On for every module but two. **The calendar and Bluetooth alerts ship
+    /// off** because neither can work without asking for something: the
+    /// calendar's glance needs the Calendars and Reminders grants, and
+    /// Bluetooth alerts need Bluetooth access. A permission prompt belongs to
+    /// the moment someone switches the feature on, never to a launch, and
+    /// never to a feature nobody chose (see Permissions in
+    /// `ARCHITECTURE.md`). Every other module either needs no grant or, like
+    /// the camera, asks only when its tab is opened -- and costs nothing at
+    /// rest.
     ///
     /// Read by `PreferencesStore.load` through `resolveEnabled`'s
-    /// `shippedDefault`, so "absent" is still decided in one function.
+    /// `shippedDefault`, so "absent" is still decided in one function -- and
+    /// a mistyped value reads as off too.
     public var shippedDefault: Bool {
         switch self {
-        case .calendar: return false
-        default:        return true
+        case .bluetooth, .calendar: return false
+        default:                    return true
         }
     }
 }
