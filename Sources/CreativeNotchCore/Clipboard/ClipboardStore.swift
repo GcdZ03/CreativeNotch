@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// The clipboard history: fifty entries, newest first, in memory only.
+/// The clipboard history: fifty entries by default (25 to 100, chosen in
+/// Settings), newest first, in memory only.
 ///
 /// There is no `load`, no directory, and no file handle in this type.
 /// "Cleared on quit" is not a feature implemented here — it is what
@@ -15,12 +16,17 @@ import Observation
 @Observable
 public final class ClipboardStore {
 
-    public static let capacity = 50
+    /// What a fresh install gets: `Limits`' default, spelled once there.
+    public static let defaultCapacity = Limits.defaultClipboardCapacity
+
+    /// How many entries the ring holds. Chosen in Settings (2026-10-24);
+    /// never below one, or recording would forget what was just copied.
+    public private(set) var capacity: Int
 
     /// The ceiling on everything the ring holds, together.
     ///
     /// A count cap alone bounds this at `capacity × maxImageBytes` — half
-    /// a gigabyte, resident for the life of the process. That is a real
+    /// a gigabyte at the default size, a whole one at the largest, resident for the life of the process. That is a real
     /// number rather than a pathological one: an uncompressed retina
     /// screenshot is tens of megabytes, and this app is aimed at people
     /// who copy them all day.
@@ -38,7 +44,20 @@ public final class ClipboardStore {
         entries.reduce(0) { $0 + $1.content.byteCount }
     }
 
-    public init() {}
+    public init(capacity: Int = ClipboardStore.defaultCapacity) {
+        self.capacity = max(1, capacity)
+    }
+
+    /// Applies a new history size from Settings, at once (2026-10-24).
+    ///
+    /// Shrinking forgets the oldest straight away, through the same eviction
+    /// a copy runs, rather than leaving the ring over size until the next
+    /// copy happens to trim it. The byte budget is not a setting and is
+    /// unchanged: it is what bounds memory whatever the count.
+    public func setCapacity(_ capacity: Int) {
+        self.capacity = max(1, capacity)
+        evictBeyondLimits()
+    }
 
     /// Records `content`, returning the entry it became — or `nil` if the
     /// ring refused it.
@@ -88,8 +107,8 @@ public final class ClipboardStore {
         entries.removeAll { $0.id == id }
     }
 
-    /// Eviction happens only after an insert, never on a timer: a ring can
-    /// only grow when something is added to it.
+    /// Eviction happens only after an insert or a smaller size, never on a
+    /// timer: a ring can only grow when something is added to it.
     ///
     /// Two limits, both oldest-first. The count cap is what the spec
     /// describes; the byte budget is what actually bounds memory, since
@@ -101,7 +120,7 @@ public final class ClipboardStore {
     /// `maxTotalBytes` some day would turn `record` into a no-op that
     /// silently discarded exactly what the user had just copied.
     private func evictBeyondLimits() {
-        while entries.count > Self.capacity {
+        while entries.count > capacity {
             entries.removeLast()
         }
         while entries.count > 1, totalBytes > Self.maxTotalBytes {

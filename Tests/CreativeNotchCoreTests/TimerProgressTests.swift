@@ -44,4 +44,17 @@ struct PowerGaugeToneTests {
     @Test func theThresholdIsTheArmingModulesTopThreshold() {
         #expect(PowerGaugeTone.lowThreshold == LowBatteryArming.thresholds.max())
     }
+
+    /// Colour is not the only signal (Differentiate Without Color). The
+    /// charging bolt is shown always, as the menu bar's own battery does;
+    /// the low mark only under the setting, where yellow alone is not
+    /// enough. Normal carries no glyph either way.
+    @Test func eachToneHasItsNonColourCue() {
+        #expect(PowerGaugeTone.charging.glyph(differentiateWithoutColor: false) == "bolt.fill")
+        #expect(PowerGaugeTone.charging.glyph(differentiateWithoutColor: true) == "bolt.fill")
+        #expect(PowerGaugeTone.low.glyph(differentiateWithoutColor: false) == nil)
+        #expect(PowerGaugeTone.low.glyph(differentiateWithoutColor: true) == "exclamationmark")
+        #expect(PowerGaugeTone.normal.glyph(differentiateWithoutColor: false) == nil)
+        #expect(PowerGaugeTone.normal.glyph(differentiateWithoutColor: true) == nil)
+    }
 }

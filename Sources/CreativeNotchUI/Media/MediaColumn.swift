@@ -31,13 +31,13 @@ struct MediaColumn: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(snapshot?.title ?? "Nothing playing")
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(snapshot == nil ? 0.5 : 0.95))
+                    .foregroundStyle(.ink(snapshot == nil ? 0.5 : 0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if let snapshot, !snapshot.artist.isEmpty {
                     Text(snapshot.artist)
                         .font(.system(size: 12, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.ink(0.55))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -75,7 +75,7 @@ struct MediaColumn: View {
         }
         .clipped()
         .overlay(alignment: .trailing) {
-            Rectangle().fill(.white.opacity(0.08)).frame(width: 1)
+            Rectangle().fill(.hairline(0.08)).frame(width: 1)
         }
         .task(id: artwork) {
             tint = artwork.flatMap(ArtworkTint.color(for:))
@@ -101,10 +101,10 @@ struct MediaColumn: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Rectangle().fill(.white.opacity(0.08))
+                    Rectangle().fill(.hairline(0.08))
                     Image(systemName: "music.note")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.ink(0.5))
                 }
             }
         }
@@ -112,7 +112,7 @@ struct MediaColumn: View {
         .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(.hairline(0.12), lineWidth: 1)
         }
         .nowPlayingCover(in: coverNamespace)
     }

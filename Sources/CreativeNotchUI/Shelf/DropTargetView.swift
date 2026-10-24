@@ -6,6 +6,9 @@ import CreativeNotchCore
 /// empty shelf is an explanation, the receiving state is an invitation.
 struct DropTargetView: View {
     var prominent = false
+    /// The shelf's expiry, for the dimmer target's promise. Only the empty
+    /// shelf states it, so the receiving target leaves it at the default.
+    var maxAge: TimeInterval? = ShelfStore.defaultMaxAge
 
     var body: some View {
         VStack(spacing: 6) {
@@ -14,21 +17,21 @@ struct DropTargetView: View {
             Text(prominent ? "Drop to stash on the shelf" : "Drop files on the notch to stash them")
                 .font(.system(size: prominent ? 14 : 12, weight: .medium, design: .rounded))
             if !prominent {
-                Text("Kept \(Self.retentionDays) days · drag them out anywhere")
+                Text(Self.retentionLine(maxAge: maxAge))
                     .font(.system(size: 11, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(.ink(0.4))
             }
         }
         .multilineTextAlignment(.center)
-        .foregroundStyle(.white.opacity(prominent ? 1 : 0.6))
+        .foregroundStyle(.ink(prominent ? 1 : 0.6))
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background {
             ZStack {
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.white.opacity(prominent ? 0.05 : 0))
+                    .fill(.hairline(prominent ? 0.05 : 0))
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
                     .strokeBorder(
-                        .white.opacity(prominent ? 0.7 : 0.28),
+                        .hairline(prominent ? 0.7 : 0.28),
                         style: StrokeStyle(lineWidth: 1.5, dash: [6, 5])
                     )
             }
@@ -36,6 +39,12 @@ struct DropTargetView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// `ShelfStore.maxAge` in days, not a literal 7.
-    static var retentionDays: Int { Int(ShelfStore.maxAge / 86_400) }
+    /// The store's `maxAge` in days, not a literal 7 — and, now the expiry is
+    /// chosen in Settings (2026-10-24), no promise of an expiry at all when
+    /// it is never. Static so the sentence is checked without rendering.
+    static func retentionLine(maxAge: TimeInterval?) -> String {
+        guard let maxAge else { return "Kept until you remove them · drag them out anywhere" }
+        let days = Int((maxAge / 86_400).rounded())
+        return "Kept \(days) \(days == 1 ? "day" : "days") · drag them out anywhere"
+    }
 }

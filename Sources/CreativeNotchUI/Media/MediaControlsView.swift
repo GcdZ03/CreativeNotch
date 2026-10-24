@@ -56,7 +56,7 @@ struct MediaControlsView: View {
                         .frame(width: isToggle ? 40 : 32, height: 28)
                         .background {
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white.opacity(isToggle ? 0.16 : 0.08))
+                                .fill(.hairline(isToggle ? 0.16 : 0.08))
                         }
                         .contentShape(.rect)
                         .contentTransition(.symbolEffect(.replace))

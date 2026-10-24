@@ -43,6 +43,9 @@ enum NotchedDelegate {
     /// - `performHaptic` is silenced too, for the same reason — though the
     ///   real one is already inert outside the packaged app
     ///   (`HardwareIsolationTests`).
+    /// - `announce` is silenced: with VoiceOver on, every power, timer or
+    ///   now-playing peek a test shows would otherwise be read out mid-run.
+    ///   `PeekAnnouncementWiringTests` replaces it with a recorder.
     ///
     /// `countdown` is applied *before* `install`, which seeds the accepted
     /// region from `visibleRect()` directly — that is how a test reaches
@@ -54,8 +57,9 @@ enum NotchedDelegate {
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchNotched-\(UUID().uuidString)")
-        delegate.playChime = {}
+        delegate.playChime = { _ in }
         delegate.performHaptic = {}
+        delegate.announce = { _ in }
         // Far from any test panel, so the real pointer never decides a test.
         delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }
         delegate.state.countdown = countdown

@@ -9,7 +9,7 @@ import Observation
 ///
 /// `@MainActor` because every caller is: the drop target, the view, and the
 /// menu bar item. File I/O on the main actor is acceptable at this scale —
-/// twenty items, and disk is touched only on add or remove.
+/// fifty items at most, and disk is touched only on add or remove.
 ///
 /// The known cost is `add(.file)`: a same-volume copy is an APFS clone and
 /// instant, but a multi-gigabyte drop from another volume holds the main
@@ -33,8 +33,19 @@ import Observation
 @Observable
 public final class ShelfStore {
 
-    public static let capacity = 20
-    public static let maxAge: TimeInterval = 7 * 24 * 3600
+    /// What a fresh install gets: `Limits`' defaults, spelled once there.
+    public static let defaultCapacity = Limits.defaultShelfCapacity
+    public static let defaultMaxAge: TimeInterval = Limits.defaultShelfExpiry.maxAge!
+
+    /// How many items the shelf holds before the oldest is evicted. Chosen in
+    /// Settings (2026-10-24); never below one, or eviction would take the
+    /// item an add just made.
+    public private(set) var capacity: Int
+
+    /// How old an item may get before the purge trashes it, or `nil` for
+    /// never — which switches the purge off rather than setting a very
+    /// large age.
+    public private(set) var maxAge: TimeInterval?
 
     /// Newest first.
     public private(set) var items: [ShelfItem] = []
@@ -42,9 +53,19 @@ public final class ShelfStore {
     private let directory: URL
     private let fileManager: FileManager
 
-    public init(directory: URL, fileManager: FileManager = .default) throws {
+    /// The limits are taken here, not read later, so the app can hand over
+    /// the saved ones before its launch purge runs: a purge against the
+    /// default age would trash files a "30 days" shelf was promised to keep.
+    public init(
+        directory: URL,
+        fileManager: FileManager = .default,
+        capacity: Int = ShelfStore.defaultCapacity,
+        maxAge: TimeInterval? = ShelfStore.defaultMaxAge
+    ) throws {
         self.directory = directory
         self.fileManager = fileManager
+        self.capacity = max(1, capacity)
+        self.maxAge = maxAge
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         items = Self.load(from: directory, fileManager: fileManager)
     }
@@ -54,7 +75,7 @@ public final class ShelfStore {
     /// The directory is the source of truth: there is no sidecar index to
     /// fall out of step with it, and a file removed from underneath us
     /// simply stops appearing. `addedAt` comes from the file's creation
-    /// date, which is what the 7-day purge measures against -- and which
+    /// date, which is what the age purge measures against -- and which
     /// `add` stamps with the drop time, because a copy otherwise keeps the
     /// *source's* creation date.
     private static func load(from directory: URL, fileManager: FileManager) -> [ShelfItem] {
@@ -248,12 +269,30 @@ public final class ShelfStore {
         return ShelfRestoration(restored: restored, skipped: skipped)
     }
 
+    /// Applies new limits from Settings, at once (2026-10-24).
+    ///
+    /// Through the same eviction and purge an add runs, so a lowered limit
+    /// follows every rule a full shelf does: oldest first, an item leaves the
+    /// list only once its file is in the Trash, and one that will not go is
+    /// skipped for the next oldest. Nothing is spared — there is no item just
+    /// added to protect.
+    ///
+    /// Never throws, for the reason `housekeep` does not: the new limits are
+    /// in force either way, and whatever could not be trashed stays listed to
+    /// be tried again after the next add.
+    public func setLimits(capacity: Int, maxAge: TimeInterval?, now: Date) {
+        self.capacity = max(1, capacity)
+        self.maxAge = maxAge
+        evictBeyondCapacity(sparing: nil)
+        _ = try? purge(now: now)
+    }
+
     /// Drops items whose file no longer exists, returning what went.
     ///
     /// A file can be moved or deleted from underneath the shelf -- in
     /// Finder, or a referenced capture tidied out of `~/Pictures` -- and
     /// nothing watches the disk for that, by design. Called when the shelf
-    /// is shown instead: one `fileExists` per item, at most twenty, at the
+    /// is shown instead: one `fileExists` per item, at most fifty, at the
     /// moment a stale tile would be seen. Nothing is trashed; there is
     /// nothing left to trash.
     @discardableResult
@@ -265,7 +304,8 @@ public final class ShelfStore {
         return missing
     }
 
-    /// Removes anything older than `maxAge`, returning what went.
+    /// Removes anything older than `maxAge`, returning what went — nothing at
+    /// all when `maxAge` is `nil`.
     ///
     /// Called on launch and after each add — never on a timer. A shelf can
     /// only grow when something is added to it, so nothing needs to watch
@@ -278,7 +318,8 @@ public final class ShelfStore {
     /// Every expired item is attempted; the first failure is rethrown.
     @discardableResult
     public func purge(now: Date) throws -> [ShelfItem] {
-        let expired = items.filter { now.timeIntervalSince($0.addedAt) > Self.maxAge }
+        guard let maxAge else { return [] }
+        let expired = items.filter { now.timeIntervalSince($0.addedAt) > maxAge }
         guard !expired.isEmpty else { return [] }
 
         var removed: [ShelfItem] = []
@@ -331,8 +372,8 @@ public final class ShelfStore {
     /// Trashes the oldest items until the shelf is back at capacity.
     ///
     /// An item leaves the list only after its file is gone, like every other
-    /// removal: a list that dropped it would show twenty while the directory
-    /// holds twenty-one, and the next launch would reload them all. One that
+    /// removal: a list that dropped it would show the capacity while the directory
+    /// holds one more, and the next launch would reload them all. One that
     /// cannot be trashed is skipped for the next oldest, so a single stuck
     /// file does not stall eviction and let the shelf grow without limit; the
     /// shelf stays over capacity only by the number of stuck files.
@@ -341,7 +382,7 @@ public final class ShelfStore {
     /// dropped, because older ones would not go, would refuse the drop in
     /// all but name.
     private func evictBeyondCapacity(sparing spared: UUID?) {
-        for candidate in items.reversed() where items.count > Self.capacity {
+        for candidate in items.reversed() where items.count > capacity {
             guard candidate.id != spared else { continue }
             do {
                 try trash(candidate)

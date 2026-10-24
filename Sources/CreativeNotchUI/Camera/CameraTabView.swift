@@ -48,10 +48,10 @@ struct CameraTabView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(.ink(0.92))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
-                    .background(Capsule().fill(.white.opacity(0.16)))
+                    .background(Capsule().fill(.hairline(0.16)))
                 }
             case .unavailable:
                 message("No camera found", detail: "This Mac has no built-in camera.")
@@ -78,10 +78,10 @@ struct CameraTabView: View {
         VStack(spacing: 6) {
             Text(title)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(.ink(0.92))
             Text(detail)
                 .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(.ink(0.55))
                 .multilineTextAlignment(.center)
         }
         .padding()
@@ -95,7 +95,7 @@ struct CameraTabView: View {
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
                         .font(.title3)
-                        .foregroundStyle(.white.opacity(0.8))
+                        .foregroundStyle(.ink(0.8))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Close camera")

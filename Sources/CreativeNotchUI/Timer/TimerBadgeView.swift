@@ -16,6 +16,18 @@ import CreativeNotchCore
 struct TimerBadgeView: View {
     let text: String
     let isPaused: Bool
+    /// The seconds `text` was formatted from, for VoiceOver's words —
+    /// `25m` read aloud is "25 m". Optional only so the rendering tests can
+    /// still draw a literal string such as `TimerDisplay.widestText`; the
+    /// one production call site always passes it.
+    var remaining: TimeInterval? = nil
+
+    /// What VoiceOver reads: the time in words, at the digits' own
+    /// granularity (`TimerSpokenText`), and whether it is paused.
+    var accessibilityText: String {
+        if let remaining { return TimerSpokenText.remaining(remaining, isPaused: isPaused) }
+        return isPaused ? "Timer paused, \(text) remaining" : "\(text) remaining"
+    }
 
     var body: some View {
         Text(text)
@@ -29,7 +41,6 @@ struct TimerBadgeView: View {
             .foregroundStyle(.white.opacity(isPaused ? 0.4 : 0.95))
             .lineLimit(1)
             .fixedSize()
-            .accessibilityLabel(isPaused ? "Timer paused, \(text) remaining"
-                                         : "\(text) remaining")
+            .accessibilityLabel(accessibilityText)
     }
 }

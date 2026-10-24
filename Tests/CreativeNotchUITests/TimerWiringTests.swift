@@ -228,7 +228,7 @@ struct TimerWiringTests {
     @Test func finishingPlaysTheChimeExactlyOnce() throws {
         let delegate = NotchedDelegate.make()
         var chimes = 0
-        delegate.playChime = { chimes += 1 }
+        delegate.playChime = { _ in chimes += 1 }
 
         delegate.timerDidFinish(try #require(
             Countdown(duration: 60, startingAt: Date().addingTimeInterval(-60))

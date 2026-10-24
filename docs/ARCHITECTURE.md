@@ -341,6 +341,16 @@ orders out; leaving puts it back. Only that display counts, and anything
 unreadable leaves the notch showing. It runs only when the fixed Space
 exists, since without it the omission above already does the job.
 
+**Which display.** "Show on" (`DisplayChoice`, Core) picks the screen from a
+list of `ScreenDescriptor`s — id, `CGDisplayIsBuiltin`, whether it is
+`NSScreen.main` — read fresh each time it is asked. Following the focused
+window (the default) asks on launch, on every `didActivateApplication` and on
+every `didChangeScreenParameters`; pinned to the built-in display it asks on
+everything but activation, falling back to the main screen when there is no
+built-in one (clamshell). Changing the setting repositions at once. All of it
+rides the two observers that already existed. Moving to another display goes
+through `reposition`, which re-checks full screen there.
+
 ## Motion and input
 
 Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
@@ -354,6 +364,18 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   hover growth goes, and the bars stand still. The root view only ever takes
   motion away from what it inherits — setting it outright once overrode a
   test's "still" and made two renders differ.
+- **Increase Contrast and Differentiate Without Color.** The panel's
+  hierarchy is white at different opacities, so every dimmed white is drawn
+  as `.ink(x)` (text, glyphs) or `.hairline(x)` (borders, faint fills) —
+  `NotchInk`, a `ShapeStyle` that reads `colorSchemeContrast` where it is
+  drawn and asks `ContrastOpacity` (Core) for the value. Standard contrast
+  returns `x` untouched; increased lifts it onto `floor...1` (text 0.7,
+  hairline 0.25), keeping the order and leaving 0 at 0. No new observer:
+  SwiftUI re-resolves the style when the setting changes. A new dimmed
+  white in the panel should use these, not `.white.opacity`. State never
+  rests on colour or dimming alone: `PowerGaugeTone.glyph` adds a bolt while
+  charging (always) and a mark when low (under the setting), and
+  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
@@ -460,8 +482,9 @@ in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
 `CreativeNotchUI`.
 
 **Removal is always `FileManager.trashItem`.** `removeItem` must not appear in
-this module. Eviction at the 20-item cap and the 7-day purge are automatic and
-silent; a file dropped here whose original was later deleted has no other copy,
+this module. Eviction at the item cap and the age purge — 20 items and 7 days
+by default, chosen in Settings as 10/20/50 and 1/7/30 days or never — are
+automatic and silent; a file dropped here whose original was later deleted has no other copy,
 so deleting outright would destroy it without the user ever deciding to.
 
 **The directory is the source of truth.** There is no sidecar index to fall out
@@ -482,7 +505,10 @@ directory, and dropping its tile would only hide it until the next launch
 reloaded it. The upkeep after an add never fails the add — the new item is
 already copied and listed — and eviction skips a file it cannot trash for the
 next oldest, so one stuck file neither refuses every later drop nor lets the
-shelf grow past twenty plus the stuck ones.
+shelf grow past its capacity plus the stuck ones. Lowering a limit in Settings
+runs the same eviction and purge at once (`setLimits`), sparing nothing since
+nothing was just added; "never" switches the purge off rather than setting a
+very large age.
 
 **Clear can be undone for six seconds.** `clear()` returns a
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
@@ -539,7 +565,9 @@ The poller is therefore designed around minimising what that costs:
   screenshot is judged at the size the ring will actually hold rather than
   being dropped for exceeding the cap at its raw size.
 
-Fifty entries, in memory only, gone on quit. File URLs are left to the shelf.
+Fifty entries by default (25 or 100 in Settings; shrinking forgets the oldest
+at once), in memory only, gone on quit. The byte budget is not a setting. File
+URLs are left to the shelf.
 
 ## Media
 
@@ -886,6 +914,27 @@ case does not migrate a preference — it abandons it, and because absent
 resolves ON the symptom is the module coming back with nothing failing. They
 are pinned by literal.
 
+### The limits follow the same rule, and apply live
+
+The numbers the modules used to hard-code — shelf capacity (10/20/50) and
+expiry (1/7/30 days or never), clipboard history size (25/50/100), the timer's
+three presets (1–99 minutes, the bound `Countdown` itself enforces) and its
+chime (a built-in `NSSound` or none) — are one `Limits` value in Core. Every
+default is the old constant, so an empty domain behaves exactly as before.
+
+They are read through pure resolvers on `Limits` with `resolveEnabled`'s
+policy: absent, wrongly typed or off-menu reads as the default and is not
+rewritten, and a `String` is never parsed. `Limits` also normalises itself on
+every write, so a preset typed as 500 in Settings is stored and shown as 99.
+
+A change goes through `AppState.onSetLimits` → `AppDelegate.applyLimits`, which
+saves and applies in one call: the live `ShelfStore` evicts and purges at once
+by its usual trash-before-drop rules, the clipboard ring trims its oldest
+entries, and the timer tab draws its presets from `AppState`. Nothing waits for
+a relaunch, and nothing is scheduled — each store acts once, on the change. A
+newly chosen chime is previewed through the same `playChime` seam the finish
+uses, which is what keeps the test suite silent.
+
 ### The first thing that ever turned a tab off
 
 `hasBattery` only ever turned a tab **on**. Preferences can turn one off while
@@ -1134,7 +1183,7 @@ view would mirror the preview and nothing else.
 They go to `~/Pictures/CreativeNotch/`, and the shelf shows them as
 **references it does not own**.
 
-The shelf enforces its retention — 7 days, 20 items — by moving files to the
+The shelf enforces its retention — 7 days and 20 items by default — by moving files to the
 Trash. Correct for a copy of something dragged in from where it still exists;
 catastrophic for the only copy of a photograph somebody just took. `ShelfItem`
 therefore carries `isOwned`, and `trash` is a no-op for anything the shelf does

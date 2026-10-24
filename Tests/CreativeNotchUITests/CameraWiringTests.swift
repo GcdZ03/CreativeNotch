@@ -22,7 +22,7 @@ struct CameraWiringTests {
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchCameraWiring-\(UUID().uuidString)")
-        delegate.playChime = {}
+        delegate.playChime = { _ in }
         delegate.install(metrics: NotchedDelegate.metrics)
         // Nothing here may reach real hardware or start a real subsystem.
         delegate.capture?.observer.readCurrentUse = { .none }

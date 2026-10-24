@@ -28,14 +28,13 @@ import CreativeNotchCore
 struct TimerTabView: View {
     let countdown: Countdown?
     let now: Date
+    /// Three, in minutes, each already within `Limits.presetRange` — chosen
+    /// in Settings (2026-10-24), 5 / 10 / 25 until then.
+    var presets: [Int] = Limits.defaultTimerPresets
     var onStart: (TimeInterval) -> Void
     var onPause: () -> Void
     var onResume: () -> Void
     var onCancel: () -> Void
-
-    /// 5 / 10 / 25. The last is a pomodoro; the first two cover the
-    /// kitchen-timer cases without opening the custom field.
-    private static let presets: [Int] = [5, 10, 25]
 
     @State private var customMinutes: Int = 15
 
@@ -53,10 +52,42 @@ struct TimerTabView: View {
         TimerProgress.fraction(countdown, at: now)
     }
 
+    /// The digits dim while paused. Unchanged from when dimming was the
+    /// whole signal.
+    static func digitsOpacity(isPaused: Bool) -> Double {
+        isPaused ? 0.45 : 0.95
+    }
+
+    /// The caption is quieter than the digits while running (the 0.55 of
+    /// the digits' white it always had, so the running look is unchanged)
+    /// and *louder* than them while paused. It used to inherit the digits'
+    /// dimming, which would have drawn "paused" at a quarter white — the
+    /// one word that says what dimming cannot, made the hardest to read.
+    static func captionOpacity(isPaused: Bool) -> Double {
+        isPaused ? 0.75 : digitsOpacity(isPaused: false) * 0.55
+    }
+
+    /// What VoiceOver reads for the countdown: the time left in words and
+    /// the bar as a percentage, from the same `now` both are drawn from.
+    ///
+    /// It changes only when the view redraws, which is when the digits
+    /// change — once a minute above a minute — so VoiceOver is never handed
+    /// a value more often than the screen is, and reads the current one
+    /// whenever the cursor lands on it.
+    static func accessibilityValue(_ countdown: Countdown, at now: Date) -> String {
+        TimerSpokenText.value(
+            remaining: countdown.remaining(at: now),
+            isPaused: countdown.isPaused,
+            fraction: trackFraction(countdown, at: now)
+        )
+    }
+
     private var idle: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
-                ForEach(Self.presets, id: \.self) { minutes in
+                // By position, not by value: two presets set to the same
+                // number are still two buttons.
+                ForEach(Array(presets.enumerated()), id: \.offset) { _, minutes in
                     Button("\(minutes) min") { onStart(TimeInterval(minutes) * 60) }
                         .buttonStyle(NotchButtonStyle(.quiet))
                 }
@@ -127,24 +158,33 @@ struct TimerTabView: View {
                     .font(.system(size: 44, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .rollingDigits(remaining, countsDown: true)
-                Text("left")
+                    // Dimming says paused at a glance, as it does in the ear.
+                    .foregroundStyle(.ink(Self.digitsOpacity(isPaused: countdown.isPaused)))
+                // The word says it outright, for anyone two greys do not
+                // separate — see `TimerDisplay.caption`.
+                Text(TimerDisplay.caption(isPaused: countdown.isPaused))
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .opacity(0.55)
+                    .foregroundStyle(.ink(Self.captionOpacity(isPaused: countdown.isPaused)))
             }
-            // Dimming is the paused signal, as it is in the ear.
-            .foregroundStyle(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+            // One element, "Timer", whose value is the digits, "left" and
+            // the bar below said as a sentence — `25m` read aloud is "25 m",
+            // and dimming is invisible to VoiceOver.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Timer")
+            .accessibilityValue(Self.accessibilityValue(countdown, at: now))
 
             // Redraws exactly when the digits do: same `now`, no clock of
             // its own.
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.14))
+                    Capsule().fill(.hairline(0.14))
                     Capsule()
-                        .fill(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+                        .fill(.ink(countdown.isPaused ? 0.45 : 0.95))
                         .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
                 }
             }
             .frame(width: 220, height: 4)
+            // Spoken as part of the countdown's value, so not a second stop.
             .accessibilityHidden(true)
 
             HStack(spacing: 8) {

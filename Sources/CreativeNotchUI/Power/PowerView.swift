@@ -17,6 +17,15 @@ import CreativeNotchCore
 struct PowerView: View {
 
     let snapshot: PowerSnapshot?
+    @Environment(\.accessibilityDifferentiateWithoutColor) private var differentiateWithoutColor
+
+    /// The glyph centred on the gauge, so its state is not carried by the
+    /// fill's colour alone. The same Core rule as the header's cell, so the
+    /// two cannot disagree about whether a low battery is marked.
+    static func glyph(for snapshot: PowerSnapshot, differentiateWithoutColor: Bool) -> String? {
+        PowerGaugeTone.tone(level: snapshot.level, isCharging: snapshot.isCharging)
+            .glyph(differentiateWithoutColor: differentiateWithoutColor)
+    }
 
     /// The gauge's fill, from Core's rule. Static so the mapping is testable
     /// without rendering.
@@ -47,19 +56,19 @@ struct PowerView: View {
                             isCharged: snapshot.isCharged
                         ))
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.ink(0.55))
                     }
 
                     HStack(spacing: 8) {
                         Text("Low Power Mode")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.ink(0.6))
                         Text(snapshot.isLowPowerMode ? "On" : "Off")
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(.ink(0.85))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Capsule().fill(.white.opacity(0.10)))
+                            .background(Capsule().fill(.hairline(0.10)))
                     }
                 }
             }
@@ -72,26 +81,39 @@ struct PowerView: View {
             // with no battery, so this is never a permanent state.
             Text("Reading power state…")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.ink(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    /// An 88×44 cell: outline, terminal nub, fill proportional to level.
+    /// An 88×44 cell: outline, terminal nub, fill proportional to level,
+    /// and the state glyph centred on it.
+    ///
+    /// The glyph is white with a dark halo because it can land on either a
+    /// green or yellow fill or the black inside an emptier cell, and must
+    /// read on all three.
     private func gauge(_ s: PowerSnapshot) -> some View {
         let level = CGFloat(min(100, max(0, s.level))) / 100
         return ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(.white.opacity(0.6), lineWidth: 2.5)
+                .strokeBorder(.ink(0.6), lineWidth: 2.5)
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Self.fill(for: s))
                 .frame(width: max(6, (88 - 12) * level))
                 .padding(6)
         }
         .frame(width: 88, height: 44)
+        .overlay {
+            if let glyph = Self.glyph(for: s, differentiateWithoutColor: differentiateWithoutColor) {
+                Image(systemName: glyph)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.6), radius: 1.5)
+            }
+        }
         .overlay(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(.white.opacity(0.6))
+                .fill(.ink(0.6))
                 .frame(width: 5, height: 16)
                 .offset(x: 8)
         }

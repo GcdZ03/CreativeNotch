@@ -82,6 +82,26 @@ public final class AppState {
     @ObservationIgnored
     public var onSetHoverBehaviour: ((HoverBehaviour) -> Void)?
 
+    /// Which display the notch lives on (2026-10-24). Applied by
+    /// `onSetDisplayChoice`; read by the activation and screen-change paths
+    /// each time they fire, so a change needs nothing re-registered.
+    public internal(set) var displayChoice: DisplayChoice = .default
+
+    /// Saves the choice, applies it and moves the panel in one call, so
+    /// Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
+
+    /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
+    /// Applied by `onSetLimits`; the timer tab draws its presets from here.
+    public internal(set) var limits = Limits()
+
+    /// Saves and applies new limits in one call — to the stores as well as
+    /// here — for the reason `onSetHoverBehaviour` does both. Wired by
+    /// `AppDelegate`.
+    @ObservationIgnored
+    public var onSetLimits: ((Limits) -> Void)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -820,7 +840,7 @@ public struct NotchRootView: View {
             // glance.
             .overlay {
                 if app.state.presentation == .expanded {
-                    backgroundShape.strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                    backgroundShape.strokeBorder(.hairline(0.08), lineWidth: 1)
                 }
             }
             .overlay {
@@ -856,7 +876,8 @@ public struct NotchRootView: View {
                         if let countdown = app.countdown {
                             TimerBadgeView(
                                 text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
-                                isPaused: countdown.isPaused
+                                isPaused: countdown.isPaused,
+                                remaining: countdown.remaining(at: now)
                             )
                             .frame(
                                 maxWidth: .infinity,
@@ -874,7 +895,8 @@ public struct NotchRootView: View {
                             NowPlayingBadgeView(
                                 artwork: app.nowPlayingArtwork,
                                 aspect: app.nowPlayingArtworkAspect,
-                                coverNamespace: sharedCover
+                                coverNamespace: sharedCover,
+                                track: app.nowPlaying
                             )
                             EqualizerBarsView(
                                 isPlaying: true,
@@ -1002,7 +1024,7 @@ public struct NotchRootView: View {
                 default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(.ink(0.9))
                 } }
                 // Every state's content blurs in as the shape grows and
                 // fades fast as it shrinks (spec 2026-10-15). Replaces the
@@ -1063,7 +1085,7 @@ public struct NotchRootView: View {
         case .shelf:
             if let shelf = app.shelf {
                 ModulePane(
-                    title: "Shelf",
+                    title: tab.title,
                     count: Self.shelfCount(shelf.items.count),
                     actions: Self.shelfActions(for: shelf, app: app)
                 ) {
@@ -1079,9 +1101,9 @@ public struct NotchRootView: View {
         case .clipboard:
             if let clipboard = app.clipboard {
                 ModulePane(
-                    title: "Clipboard",
+                    title: tab.title,
                     count: clipboard.entries.isEmpty
-                        ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
+                        ? nil : "\(clipboard.entries.count) of \(clipboard.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
                     ClipboardView(
@@ -1099,10 +1121,11 @@ public struct NotchRootView: View {
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.
-            ModulePane(title: "Timer", count: app.countdown.map(Self.durationLabel)) {
+            ModulePane(title: tab.title, count: app.countdown.map(Self.durationLabel)) {
                 TimerTabView(
                     countdown: app.countdown,
                     now: now,
+                    presets: Self.timerPresets(app),
                     onStart: { app.onStartTimer?($0) },
                     onPause: { app.onPauseTimer?() },
                     onResume: { app.onResumeTimer?() },
@@ -1111,10 +1134,17 @@ public struct NotchRootView: View {
             }
 
         case .power:
-            ModulePane(title: "Battery") {
+            ModulePane(title: tab.title) {
                 PowerView(snapshot: app.power)
             }
         }
+    }
+
+    /// The timer tab's presets: the ones chosen in Settings, read from
+    /// `AppState` so a change draws on the next frame. Static so a test can
+    /// check where the tab gets them without rendering it.
+    static func timerPresets(_ app: AppState) -> [Int] {
+        app.limits.timerPresets
     }
 
     /// The shelf's title-row verbs: "AirDrop All" then "Clear", or none

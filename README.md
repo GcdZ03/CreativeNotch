@@ -65,7 +65,7 @@ command. It is not sold, and it is not on the App Store.
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
 | ✅ Hover to peek, click to open — or, in Settings, open on hover with a delay | Built |
-| ✅ Follows the focused screen | Built |
+| ✅ Follows the focused screen — or, in Settings, stays on the built-in display | Built |
 | ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
@@ -96,7 +96,7 @@ so their contents read together instead of being split by it. Notchless Macs
 get a single centred pill instead; there is no housing to work around.
 
 Clipboard history is the second, and the only one that genuinely polls. Fifty
-entries of text and images, in memory only and gone on quit, with the
+entries of text and images (25 or 100 if you prefer, in Settings), in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
 content is read. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
@@ -267,7 +267,7 @@ it back.
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
-| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all |
+| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -279,11 +279,11 @@ it back.
 | Click anywhere outside | Closes it |
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
-| Switch to the Timer tab | Presets, or type your own up to 99 minutes |
+| Switch to the Timer tab | Presets (5, 10 and 25 minutes until you change them in Settings), or type your own up to 99 minutes |
 | Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
-| Pause it | The countdown dims, and stops redrawing entirely |
-| Let it finish | The notch peeks and chimes once, and stays until you click it |
+| Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
+| Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
@@ -291,9 +291,27 @@ A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
 would rather hovering opened the panel itself, Settings → Hover → **Open on
 hover** does that after a delay you choose (0.2–1.0 s) — straight to the
-panel, which has the progress bar and the music controls. With **Reduce Motion**
+panel, which has the progress bar and the music controls.
+
+Settings also holds the numbers the modules used to fix, under each module's
+switch: how many items the shelf holds (10, 20 or 50) and how long it keeps
+them (1, 7 or 30 days, or never), how many things clipboard history remembers
+(25, 50 or 100), the timer's three preset buttons (1–99 minutes each) and its
+chime, which plays once when you pick it. Changes apply at once — lowering a
+shelf limit moves the files that no longer fit to the Trash, oldest first, and
+a smaller clipboard forgets its oldest entries. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
-still.
+still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
+drawn brighter (no secondary text below 70% white); the default look is
+unchanged. The battery shows a bolt while charging, and with **Differentiate
+Without Color** on, a "!" when low as well as the yellow.
+
+With **VoiceOver** on, each peek is announced as it appears — the charger or
+Low Power Mode change with the battery level, a finished timer, and the track
+when the music player drops down or the song changes under it (never a pause
+or a seek). The timer's countdown reads as words with its progress ("8 minutes
+remaining, 25% done"), at the same granularity as the digits, and every badge
+beside the notch says what it shows.
 
 The keys work once the panel has the keyboard: when you opened it by clicking
 the notch or with the global shortcut, or after clicking inside it. A panel
@@ -303,6 +321,12 @@ its minutes field has to be typable.
 
 The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
+
+With more than one display, the notch follows the display with the focused
+window, moving whenever you switch to an app on another one. To keep it in one
+place, Settings → Display → **Show on** → **Built-in display** pins it to the
+laptop screen; with the lid closed, or on a Mac without one, it uses the main
+display instead. Connecting or disconnecting a display moves it at once.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 
@@ -448,7 +472,8 @@ for media metadata, which supersedes the metadata half of that document's
 section 5.4 — the transport half shipped unchanged.
 
 The clipboard is the only subsystem that genuinely polls, and the reason
-`SystemActivity` exists: a 50-entry in-memory ring, cleared on quit, with
+`SystemActivity` exists: a 50-entry in-memory ring by default (25 or 100 in
+Settings), cleared on quit, with
 `ConcealedType` / `TransientType` / `AutoGeneratedType` skipped before any
 content is read. Text and images only — file URLs are left to the shelf.
 Images are transcoded to PNG at capture, so an uncompressed retina

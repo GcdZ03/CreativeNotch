@@ -62,7 +62,37 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// finish path would otherwise make the machine audibly chime, and the
     /// suite must stay silent. The default *is* the real chime, so
     /// production wiring is this line and nothing else.
-    var playChime: () -> Void = TimerChime.play
+    ///
+    /// Takes the sound to play (2026-10-24), so the same seam carries both
+    /// the finish alert and Settings' preview, and a test can see which
+    /// sound was asked for without hearing it.
+    var playChime: (ChimeSound) -> Void = TimerChime.play
+
+    /// Speaks a peek to VoiceOver, behind an injection point like
+    /// `playChime`, so a test can count what would be said.
+    ///
+    /// Gated on VoiceOver being on. An announcement with no screen reader
+    /// listening is harmless, but `isVoiceOverEnabled` is a cached property
+    /// AppKit keeps current by notification — reading it costs nothing —
+    /// and skipping the post keeps an accessibility message from being
+    /// built and sent on every peek for the people who will never hear it.
+    ///
+    /// AppKit's announcement rather than SwiftUI's
+    /// `AccessibilityNotification.Announcement` (which `ClipboardRow` posts
+    /// from inside a view): this file is AppKit-only, and the announcement
+    /// has to name an element — `NSApp`, since a peek can appear while the
+    /// panel is not key and no window of this agent app is focused.
+    var announce: (String) -> Void = { text in
+        guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: text,
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
+    }
 
     /// Whether MediaRemote is loadable, behind a seam.
     ///
@@ -198,6 +228,35 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// no undo is on offer, so nothing is scheduled while the shelf is idle.
     private(set) var shelfUndoTask: Task<Void, Never>?
 
+    /// Saves and applies new limits from Settings (2026-10-24) — the one path
+    /// `AppState.onSetLimits` takes, so nothing can be persisted without
+    /// being applied or applied without being persisted.
+    ///
+    /// Applied to the live stores, not left for a relaunch: a lowered shelf
+    /// capacity or expiry trashes what no longer fits straight away, by the
+    /// rules an add already follows, and a smaller clipboard forgets its
+    /// oldest entries. The timer's presets need nothing here — the tab draws
+    /// them from `AppState`.
+    ///
+    /// A newly chosen chime is played once, through the same `playChime`
+    /// seam the finish uses, so the menu can be auditioned without running a
+    /// timer to the end — and so no test hears it. "None" has nothing to
+    /// preview.
+    func applyLimits(_ limits: Limits) {
+        let previous = state.limits
+        preferencesStore.saveLimits(limits)
+        state.limits = limits
+        shelf?.setLimits(
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge,
+            now: Date(timeIntervalSince1970: now())
+        )
+        clipboard?.store.setCapacity(limits.clipboardCapacity)
+        if limits.chime != previous.chime, limits.chime != .none {
+            playChime(limits.chime)
+        }
+    }
+
     /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
     ///
     /// The one path both the pane's Clear and the menu bar's Clear Shelf
@@ -323,9 +382,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         // With no screen at all, the screen-parameter observer builds the
-        // panel when one appears (`screenParametersDidChange`).
-        if let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens) {
-            showPanel(on: screen.metrics)
+        // panel when one appears (`screenParametersDidChange`). The choice is
+        // read before `install` exists to load it, because it decides which
+        // screen `install` is handed.
+        state.displayChoice = PreferencesStore(defaults: preferencesDefaults).displayChoice
+        if let metrics = screenMetrics(state.displayChoice) {
+            showPanel(on: metrics)
         }
 
         let menuBar = MenuBarController(
@@ -350,15 +412,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startSubsystems()
     }
 
-    /// The screen to build the panel on at launch.
+    /// The metrics of the screen "Show on" picks, or `nil` with no screen.
     ///
-    /// `NSScreen.main` is the screen holding the key window, and an accessory
-    /// app launching may have none — so the panel was never built, for the
-    /// whole session, while every subsystem started anyway. Any screen will
-    /// do: the panel follows the main one from the first screen change.
-    /// Generic so a test can answer it without a real display.
-    nonisolated static func launchScreen<S>(main: S?, all: [S]) -> S? {
-        main ?? all.first
+    /// The launch, a screen change, an activation and the preference itself
+    /// all ask here, so the choice is made in one place. `NSScreen.main` is
+    /// the screen holding the key window, and an accessory app launching may
+    /// have none -- the panel was once never built, for the whole session --
+    /// so the rule falls back to any screen (`DisplayChoice.screen(in:)`).
+    /// Injected so a test can answer it without a real display.
+    var screenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
+        NSScreen.chosen(by: choice)?.metrics
+    }
+
+    /// The metrics of the screen an app activation moves the panel to, or
+    /// `nil` to leave it where it is (`DisplayChoice.screenOnActivation`).
+    /// Separate from `screenMetrics` because an activation with no main
+    /// screen is no news about focus and must not fall back to the first
+    /// screen the way the launch does. Injected for the same reason.
+    var activationScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
+        NSScreen.chosenOnActivation(by: choice)?.metrics
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
@@ -641,7 +713,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onTrigger = { [weak self] in self?.toggleFromHotKey() }
         self.hotkey = hotkey
 
-        shelf = try? ShelfStore(directory: shelfDirectory)
+        // The limits chosen in Settings (2026-10-24), loaded before the
+        // stores are built so the launch purge runs against the chosen age:
+        // purging against the default would trash files a "30 days" shelf
+        // was promised to keep.
+        let limits = preferencesStore.loadLimits()
+        state.limits = limits
+
+        shelf = try? ShelfStore(
+            directory: shelfDirectory,
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge
+        )
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
 
@@ -650,7 +733,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // the shelf is. Starting the poller stays in
         // `applicationDidFinishLaunching` — building a panel must not
         // install a timer.
-        let clipboardStore = ClipboardStore()
+        let clipboardStore = ClipboardStore(capacity: limits.clipboardCapacity)
         let clipboard = ClipboardController(store: clipboardStore)
         state.clipboard = clipboardStore
         state.onCopyClipboard = { [weak clipboard] entry in clipboard?.copy(entry) }
@@ -673,6 +756,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             hoverStore.save(behaviour)
             self?.state.hoverBehaviour = behaviour
         }
+
+        // Show on (2026-10-24). Loaded like the hover behaviour, and applied
+        // at once: waiting for the next activation would never come when
+        // pinned, which is the point of pinning.
+        state.displayChoice = preferencesStore.displayChoice
+        state.onSetDisplayChoice = { [weak self] choice in
+            self?.setDisplayChoice(choice)
+        }
+
+        state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
@@ -979,17 +1072,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // switched-off module, swallowing the peeks behind it. And it would
         // be unclearable: `dismissTimerDone()`'s only caller sits behind a
         // transition to `.open`, and there is no tab left to reach.
+        let completion = TimerCompletion(duration: countdown.duration, lateness: max(0, lateness))
         if state.preferences.timer {
-            arbiter.recordTimerFinished(
-                TimerCompletion(duration: countdown.duration, lateness: max(0, lateness)),
-                now: self.now()
-            )
+            arbiter.recordTimerFinished(completion, now: self.now())
         }
-        playChime()
+        playChime(state.limits.chime)
         // The existing peek path, not a second one: it already declines to
         // interrupt `.open` and `.receiving`, and it is what makes the
         // arbiter — rather than this caller — decide what is shown.
         presentPeek()
+        // When no peek carries it -- the panel is open, the module is off, a
+        // drag holds the slot -- VoiceOver is told here instead. With the
+        // chime set to None nothing else would say the timer finished. A
+        // shown peek was already announced by `applyPeek`, so not twice.
+        if case .peek(.timerDone(completion)) = state.state { return }
+        announce(TimerSpokenText.completion(completion))
     }
 
     /// Moves the accepted region toward the drawn one.
@@ -1341,8 +1438,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard let content = arbiter.content(now: now) else { return }
-        state.transition(to: .peek(content))
+        applyPeek(content)
         schedulePeekReevaluation(for: content)
+    }
+
+    /// Puts `content` in the peek slot and tells VoiceOver, if it is news.
+    ///
+    /// Both paths into `.peek` — a new peek and a re-check of the showing
+    /// one — come through here, so neither can show a peek without it being
+    /// heard. Whether it is news is `PeekAnnouncement`'s call: a re-check
+    /// re-applies the same peek, and the now-playing peek is re-applied on
+    /// every pause and seek, and none of that is spoken.
+    private func applyPeek(_ content: PeekContent) {
+        let previous: PeekContent?
+        if case .peek(let showing) = state.state { previous = showing } else { previous = nil }
+        state.transition(to: .peek(content))
+        if let text = PeekAnnouncement.announcement(showing: content, replacing: previous) {
+            announce(text)
+        }
     }
 
     /// Re-reads the arbiter once the showing content's TTL is expected to
@@ -1410,7 +1523,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let content = arbiter.content(
             now: self.now(), replacing: showing, pointerInside: state.isHovering
         ) {
-            state.transition(to: .peek(content))
+            applyPeek(content)
             // Something transient may still be live underneath the one that
             // just lapsed — a power peek recorded while a finished timer held
             // the slot is revealed when that one goes. Without this the
@@ -1661,10 +1774,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self,
-                  let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens)
-            else { return }
-            MainActor.assumeIsolated { self.screenParametersDidChange(metrics: screen.metrics) }
+            MainActor.assumeIsolated { self?.screenParametersDidChange() }
         }, NotificationCenter.default))
 
         observers.append((NSWorkspace.shared.notificationCenter.addObserver(
@@ -1678,11 +1788,37 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let pid = app?.processIdentifier {
                     self.applicationDidActivate(pid: pid)
                 }
-                if let screen = NSScreen.main {
-                    _ = self.reposition(metrics: screen.metrics)
-                }
+                self.activeApplicationDidChange()
             }
         }, NSWorkspace.shared.notificationCenter))
+    }
+
+    /// Another app came forward, so the focused window may be on another
+    /// display. Following focus, the panel goes with it; pinned, it stays
+    /// and the screen list is not even read -- an app switch is not a
+    /// reason to look.
+    func activeApplicationDidChange() {
+        guard state.displayChoice.followsActivation,
+              let metrics = activationScreenMetrics(state.displayChoice)
+        else { return }
+        reposition(metrics: metrics)
+    }
+
+    /// A display was connected, disconnected or rearranged: place the panel
+    /// on whatever the choice picks from the screens there are now.
+    func screenParametersDidChange() {
+        guard let metrics = screenMetrics(state.displayChoice) else { return }
+        screenParametersDidChange(metrics: metrics)
+    }
+
+    /// Saves and applies a new "Show on", then places the panel by it at
+    /// once. `reposition` re-checks full screen when the panel moves, which
+    /// is the only time the display it is on can have changed.
+    func setDisplayChoice(_ choice: DisplayChoice) {
+        preferencesStore.setDisplayChoice(choice)
+        state.displayChoice = choice
+        guard panel != nil, let metrics = screenMetrics(choice) else { return }
+        reposition(metrics: metrics)
     }
 
     /// The display arrangement changed. Internal so a test can drive it

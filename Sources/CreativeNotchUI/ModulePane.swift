@@ -19,11 +19,11 @@ struct ModulePane<Content: View>: View {
             HStack(alignment: .firstTextBaseline) {
                 Text(title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(.ink(0.92))
                 if let count {
                     Text(count)
                         .font(.system(size: 13, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(.ink(0.45))
                 }
                 Spacer(minLength: 8)
                 ForEach(Array(actions.enumerated()), id: \.offset) { _, action in

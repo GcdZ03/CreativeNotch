@@ -1,6 +1,6 @@
 import Foundation
 
-/// Reads and writes the module toggles.
+/// Reads and writes the module toggles, and the adjustable limits.
 ///
 /// Takes an injectable suite, so tests run against an isolated store rather
 /// than the developer's real `com.gcdz.creativenotch` domain.
@@ -41,6 +41,15 @@ public final class PreferencesStore {
         )
     }
 
+    /// Which display the notch lives on. Read on every call, never cached.
+    public var displayChoice: DisplayChoice {
+        PreferenceKeys.resolveDisplayChoice(defaults.object(forKey: PreferenceKeys.showOn))
+    }
+
+    public func setDisplayChoice(_ choice: DisplayChoice) {
+        defaults.set(choice.rawValue, forKey: PreferenceKeys.showOn)
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {
@@ -49,5 +58,35 @@ public final class PreferencesStore {
         } else {
             defaults.removeObject(forKey: PreferenceKeys.welcomeSeen)
         }
+    }
+
+    /// The adjustable limits (2026-10-24). Every key read through the
+    /// resolvers on `Limits`, so a missing or hand-mangled value reads as the
+    /// old hard-coded number and is left in place for `defaults read`.
+    public func loadLimits() -> Limits {
+        Limits(
+            shelfCapacity: Limits.resolveChoice(
+                defaults.object(forKey: PreferenceKeys.shelfCapacity),
+                among: Limits.shelfCapacityChoices, default: Limits.defaultShelfCapacity
+            ),
+            shelfExpiry: Limits.resolveExpiry(defaults.object(forKey: PreferenceKeys.shelfExpiryDays)),
+            clipboardCapacity: Limits.resolveChoice(
+                defaults.object(forKey: PreferenceKeys.clipboardCapacity),
+                among: Limits.clipboardCapacityChoices, default: Limits.defaultClipboardCapacity
+            ),
+            timerPresets: Limits.resolvePresets(defaults.object(forKey: PreferenceKeys.timerPresets)),
+            chime: Limits.resolveChime(defaults.object(forKey: PreferenceKeys.timerChime))
+        )
+    }
+
+    /// Writes every limit, not only the one that changed: they arrive as one
+    /// value, and a partial write is a second way for the domain and the app
+    /// to disagree.
+    public func saveLimits(_ limits: Limits) {
+        defaults.set(limits.shelfCapacity, forKey: PreferenceKeys.shelfCapacity)
+        defaults.set(limits.shelfExpiry.rawValue, forKey: PreferenceKeys.shelfExpiryDays)
+        defaults.set(limits.clipboardCapacity, forKey: PreferenceKeys.clipboardCapacity)
+        defaults.set(limits.timerPresets, forKey: PreferenceKeys.timerPresets)
+        defaults.set(limits.chime.rawValue, forKey: PreferenceKeys.timerChime)
     }
 }
