@@ -17,9 +17,10 @@ public final class NotchPanel: NSPanel {
     /// keeps its menu bar. What it does lose is its insertion point, for as
     /// long as the panel holds focus.
     ///
-    /// So this is `true` for two things only: the timer's custom-minutes
-    /// field, and keyboard control (Esc, ⌘1…⌘N) of a panel somebody opened
-    /// on purpose. `AppDelegate` makes the panel key on the timer tab and on
+    /// So this is `true` for three things only: the timer's custom-minutes
+    /// field, the clipboard's search field, and keyboard
+    /// control (Esc, ⌘1…⌘N) of a panel somebody opened on purpose.
+    /// `AppDelegate` makes the panel key on the timer tab and on
     /// an explicit open — the notch tap, the shortcut — never on a hover-open
     /// or a peek, and hands focus straight back on close. See
     /// `syncKeyWindow` and `PanelFocus`.
@@ -37,7 +38,8 @@ public final class NotchPanel: NSPanel {
     ///
     /// Handled here, in the window, rather than with SwiftUI's
     /// `.onKeyPress`, because those need a focused view and the open panel
-    /// mostly has none: the shelf and the clipboard are click-only. Every
+    /// mostly has none: the shelf is click-only, and the clipboard's search
+    /// field is often not the one focused. Every
     /// key the panel receives passes through the window whatever has focus.
     /// And it costs nothing at idle — keys only arrive while the panel is
     /// key, so there is no monitor to install or remove.
@@ -77,7 +79,39 @@ public final class NotchPanel: NSPanel {
     public override func performKeyEquivalent(with event: NSEvent) -> Bool {
         let key = Self.panelKey(keyCode: event.keyCode, modifiers: event.modifierFlags)
         if case .commandDigit = key, handle(key) { return true }
+        if firstResponder is NSText,
+           let action = Self.editingAction(
+               characters: event.charactersIgnoringModifiers, modifiers: event.modifierFlags),
+           NSApp.sendAction(action, to: nil, from: self) {
+            return true
+        }
         return super.performKeyEquivalent(with: event)
+    }
+
+    /// ⌘X, ⌘C, ⌘V, ⌘A and ⌘Z for a field being edited in the panel — the
+    /// clipboard search above all, where pasting a word is the obvious way
+    /// to look for it.
+    ///
+    /// An `.accessory` app has no main menu, and those chords are menu key
+    /// equivalents everywhere else: without this they reach the field
+    /// editor as nothing at all. By character rather than key code, unlike
+    /// ⌘1…⌘N, because that is how the system's own Edit menu matches them —
+    /// ⌘V is the key labelled V on Dvorak as on QWERTY. Only while a field
+    /// editor is first responder, so the chords mean nothing anywhere else
+    /// in the panel.
+    static func editingAction(characters: String?, modifiers: NSEvent.ModifierFlags) -> Selector? {
+        let chord = modifiers
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
+        guard chord == .command, let character = characters?.lowercased() else { return nil }
+        switch character {
+        case "x": return #selector(NSText.cut(_:))
+        case "c": return #selector(NSText.copy(_:))
+        case "v": return #selector(NSText.paste(_:))
+        case "a": return #selector(NSText.selectAll(_:))
+        case "z": return Selector(("undo:"))
+        default:  return nil
+        }
     }
 
     /// Esc with nothing focused: the key-down falls through the responder

@@ -10,6 +10,12 @@ import Observation
 /// promise, and `ClipboardStoreTests.theStoreNeverTouchesTheFileSystem`
 /// pins it by reading this file.
 ///
+/// Pinned entries are in memory only too (2026-10-24). A pin is a way to
+/// keep something to hand for the session, not a vault: writing pins down
+/// would put whatever the person copied — often something private — on disk,
+/// and break the promise above for the one kind of entry most likely to
+/// matter. Quitting forgets pins with everything else.
+///
 /// `@MainActor` because every caller is: the poller, the view, and the
 /// menu bar item.
 @MainActor
@@ -37,11 +43,44 @@ public final class ClipboardStore {
     /// compresses to nothing at all.
     public static let maxTotalBytes = 100_000_000
 
-    /// Newest first.
+    /// How many entries may be pinned at once.
+    ///
+    /// Pins are exempt from both limits below, so without a ceiling of their
+    /// own they would be a way round them: a hundred pinned screenshots is a
+    /// gigabyte nobody can evict. Ten is a handful to keep at hand, and bounds
+    /// what pins alone can hold at `maxPinned × maxImageBytes`, the same
+    /// order as the byte budget.
+    nonisolated public static let maxPinned = 10
+
+    /// The pins, the most recently pinned first, then everything else, newest
+    /// first. One array in display order rather than two, so the view, the
+    /// search and the menu bar all read the same list.
     public private(set) var entries: [ClipboardEntry] = []
 
     public var totalBytes: Int {
         entries.reduce(0) { $0 + $1.content.byteCount }
+    }
+
+    public var pinnedCount: Int {
+        entries.reduce(0) { $0 + ($1.isPinned ? 1 : 0) }
+    }
+
+    /// Whether another entry may be pinned. The row's Pin is disabled when
+    /// not, rather than refusing after the click.
+    public var canPin: Bool { pinnedCount < Self.maxPinned }
+
+    /// What Clear would take: everything but the pins. The menu bar's "Clear
+    /// Clipboard (n)" and the pane's Clear read this, so neither offers to
+    /// clear a history that holds only pins.
+    public var clearableCount: Int { entries.count - pinnedCount }
+
+    /// How a pin request went. `limitReached` is the only one the person is
+    /// told about; the other two are a stale menu racing the poller.
+    public enum PinResult: Equatable, Sendable {
+        case pinned
+        case alreadyPinned
+        case limitReached
+        case unknown
     }
 
     public init(capacity: Int = ClipboardStore.defaultCapacity) {
@@ -80,20 +119,69 @@ public final class ClipboardStore {
         // so it can judge an image at the size it will be stored at.
         guard ClipboardLimits.accepts(content) else { return nil }
 
+        // A promoted pin goes to the top of the pins, and stays pinned:
+        // copying a pin back out is the commonest thing done to one, and
+        // must not quietly unpin it. Anything else goes to the top of the
+        // rest, just under the pins.
         if let index = entries.firstIndex(where: { $0.content == content }) {
             var promoted = entries.remove(at: index)
             promoted.addedAt = now
-            entries.insert(promoted, at: 0)
+            entries.insert(promoted, at: promoted.isPinned ? 0 : pinnedCount)
             return promoted
         }
 
         let entry = ClipboardEntry(id: UUID(), content: content, addedAt: now)
-        entries.insert(entry, at: 0)
+        entries.insert(entry, at: pinnedCount)
         evictBeyondLimits()
         return entry
     }
 
+    /// Pins an entry: it moves to the very top and stays there, through the
+    /// ring's limits and a Clear, until it is unpinned or removed.
+    @discardableResult
+    public func pin(_ id: UUID) -> PinResult {
+        guard let index = entries.firstIndex(where: { $0.id == id }) else { return .unknown }
+        guard !entries[index].isPinned else { return .alreadyPinned }
+        guard canPin else { return .limitReached }
+        var pinned = entries.remove(at: index)
+        pinned.isPinned = true
+        entries.insert(pinned, at: 0)
+        return .pinned
+    }
+
+    /// Unpins an entry, returning it to where its time puts it among the
+    /// rest — the unpinned part of the list always reads newest first, so a
+    /// row does not land somewhere its timestamp contradicts.
+    ///
+    /// It does not evict. The ring may be over size for a moment if pins had
+    /// been holding it there; the next copy trims it, as a smaller history
+    /// size does, and an unpin that made something vanish would be a worse
+    /// surprise than a list one longer than its size until then.
+    public func unpin(_ id: UUID) {
+        guard let index = entries.firstIndex(where: { $0.id == id }),
+              entries[index].isPinned else { return }
+        var unpinned = entries.remove(at: index)
+        unpinned.isPinned = false
+        let insertAt = entries.indices.first {
+            !entries[$0].isPinned && entries[$0].addedAt <= unpinned.addedAt
+        } ?? entries.endIndex
+        entries.insert(unpinned, at: insertAt)
+    }
+
+    /// Clears the history and keeps the pins.
+    ///
+    /// Not a question, and not everything: a pin is the person saying "keep
+    /// this", and Clear is them sweeping away what they did not say that
+    /// about. Asking each time would put a dialog behind the menu bar item,
+    /// which has nowhere to show one, and taking the pins would make pinning
+    /// promise less than it says. Unpin, or a row's Remove, is how a pin goes.
     public func clear() {
+        entries.removeAll { !$0.isPinned }
+    }
+
+    /// Forgets everything, pins included — for switching the module off,
+    /// where off means the app holds nothing.
+    public func removeAll() {
         entries.removeAll()
     }
 
@@ -114,16 +202,23 @@ public final class ClipboardStore {
     /// describes; the byte budget is what actually bounds memory, since
     /// fifty entries of wildly different sizes is not a fixed cost.
     ///
-    /// The `count > 1` guard means the entry just recorded is never the
-    /// one evicted. It is unreachable while the per-entry cap is far below
-    /// the budget — but without it, raising `maxImageBytes` past
-    /// `maxTotalBytes` some day would turn `record` into a no-op that
-    /// silently discarded exactly what the user had just copied.
+    /// Pins count towards both limits but are never what either evicts:
+    /// the oldest *unpinned* entry goes instead — always the last element,
+    /// since the pins sit at the front. Pinned bytes counting is what keeps
+    /// the budget a bound on memory rather than on unpinned memory.
+    ///
+    /// The guard that one unpinned entry is always left means the entry
+    /// just recorded is never the one evicted, even with every other slot
+    /// pinned. It is also unreachable from the byte limit while the
+    /// per-entry cap is far below the budget — but without it, raising
+    /// `maxImageBytes` past `maxTotalBytes` some day would turn `record`
+    /// into a no-op that silently discarded exactly what the user had just
+    /// copied.
     private func evictBeyondLimits() {
-        while entries.count > capacity {
+        while entries.count > capacity, clearableCount > 1 {
             entries.removeLast()
         }
-        while entries.count > 1, totalBytes > Self.maxTotalBytes {
+        while clearableCount > 1, totalBytes > Self.maxTotalBytes {
             entries.removeLast()
         }
     }

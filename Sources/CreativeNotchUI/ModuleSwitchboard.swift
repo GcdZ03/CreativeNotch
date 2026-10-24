@@ -164,7 +164,10 @@ final class ModuleSwitchboard {
                 // resident for the session and reappear the moment the
                 // switch goes back on. Here rather than in `stop()`, which
                 // quitting also calls and where it would be redundant.
-                delegate.clipboard?.store.clear()
+                // `removeAll`, not `clear`: Clear keeps pins, and off keeps
+                // nothing — pins included.
+                delegate.clipboard?.store.removeAll()
+                delegate.state.clipboardQuery = ""
             }
 
         case .mediaMetadata:

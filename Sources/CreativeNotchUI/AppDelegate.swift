@@ -389,6 +389,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// nothing.
     var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
 
+    /// How many clipboard entries the menu bar's Clear Clipboard counts.
+    ///
+    /// What Clear would take — pins stay — for the reason `menuShelfCount`
+    /// leaves out copies in progress: a history of pins alone would
+    /// otherwise offer a Clear that does nothing.
+    var menuClipboardCount: Int { clipboard?.store.clearableCount ?? 0 }
+
+    /// A row's Pin or Unpin, whichever the entry is not. An id the poller
+    /// has evicted since the menu was built is a no-op in the store; the
+    /// limit is a disabled menu item before it is ever a refusal here.
+    private func togglePin(_ id: UUID) {
+        guard let store = clipboard?.store,
+              let entry = store.entries.first(where: { $0.id == id }) else { return }
+        if entry.isPinned { store.unpin(id) } else { store.pin(id) }
+    }
+
     /// A dropped file's background copy failed after the drop was accepted.
     ///
     /// Logged, announced to VoiceOver, and said under the shelf. The
@@ -574,7 +590,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             onClearShelf: { [weak self] in self?.clearShelf() },
             shelfCount: { [weak self] in self?.menuShelfCount ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
-            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
+            clipboardCount: { [weak self] in self?.menuClipboardCount ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
             canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false },
             onShowWelcome: { [weak self] in self?.showWelcomeAgain() }
@@ -1034,6 +1050,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
+        state.onTogglePinClipboardEntry = { [weak self] id in self?.togglePin(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
         state.onOpenSettings = { [weak self] in
             self?.openSettingsFromPanel(highlighting: nil)
@@ -1959,12 +1976,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
-        guard let action = PanelKeyboard.action(for: key, in: state.state, visible: visible) else {
+        guard let action = PanelKeyboard.action(
+            for: key, in: state.state, visible: visible,
+            clipboardQuery: state.clipboardQuery,
+            clipboardIsEmpty: state.clipboard?.entries.isEmpty ?? true
+        ) else {
             return false
         }
         switch action {
         case .close:            state.transition(to: .closed)
         case .select(let tab):  state.transition(to: .open(tab))
+        case .clearSearch:      state.clipboardQuery = ""
         }
         return true
     }

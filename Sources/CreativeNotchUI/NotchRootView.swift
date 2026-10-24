@@ -250,6 +250,23 @@ public final class AppState {
     @ObservationIgnored
     public var onRemoveClipboardEntry: ((UUID) -> Void)?
 
+    /// A row's Pin or Unpin, by id, like `onRemoveClipboardEntry`.
+    @ObservationIgnored
+    public var onTogglePinClipboardEntry: ((UUID) -> Void)?
+
+    /// What is typed in the clipboard pane's search field (2026-10-24).
+    ///
+    /// Here rather than in the view's `@State` because Esc has to see it:
+    /// `AppDelegate.handlePanelKey` asks `PanelKeyboard` whether Esc clears
+    /// the search or closes the panel, and a value private to a view is one
+    /// the key path cannot read. Observed — the pane filters by it.
+    ///
+    /// It lasts for one look at the history: a tab switch keeps it, and
+    /// leaving `.open` empties it (`transition(to:)`), so the next open shows
+    /// the whole list rather than a filter nobody remembers typing. Never
+    /// written down, like the history it searches.
+    public var clipboardQuery: String = ""
+
     /// The header's gear. Closes the panel, then opens Settings — Settings
     /// is an activating window, and the panel should not sit open under it.
     @ObservationIgnored
@@ -532,6 +549,7 @@ public final class AppState {
             if case .open = state {} else { openReason = reason }
         } else {
             openReason = nil
+            if !clipboardQuery.isEmpty { clipboardQuery = "" }
         }
         // One peek replacing another is a swap, not a collapse, even when the
         // new one is smaller — a battery peek giving way to a drag target.
@@ -1200,14 +1218,18 @@ public struct NotchRootView: View {
             if let clipboard = app.clipboard {
                 ModulePane(
                     title: tab.title,
-                    count: clipboard.entries.isEmpty
-                        ? nil : "\(clipboard.entries.count) of \(clipboard.capacity)",
-                    actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
+                    count: Self.clipboardCount(for: clipboard, query: app.clipboardQuery),
+                    actions: Self.clipboardActions(for: clipboard, app: app)
                 ) {
                     ClipboardView(
                         store: clipboard,
                         now: now,
+                        query: Binding(
+                            get: { app.clipboardQuery },
+                            set: { app.clipboardQuery = $0 }
+                        ),
                         onCopy: { app.onCopyClipboard?($0) },
+                        onTogglePin: { app.onTogglePinClipboardEntry?($0) },
                         onRemove: { app.onRemoveClipboardEntry?($0) }
                     )
                 }
@@ -1273,6 +1295,28 @@ public struct NotchRootView: View {
             actions.append(("Clear", { app.onClearShelf?() }))
         }
         return actions
+    }
+
+    /// The clipboard's title-row verb: "Clear", while there is something for
+    /// it to take. Pins stay through a Clear (`ClipboardStore.clear`), so a
+    /// history of pins alone offers none — a button that changed nothing
+    /// would read as broken.
+    static func clipboardActions(
+        for clipboard: ClipboardStore, app: AppState
+    ) -> [(label: String, perform: () -> Void)] {
+        clipboard.clearableCount == 0 ? [] : [("Clear", { app.onClearClipboard?() })]
+    }
+
+    /// "12 of 50" — the history against its size — or, while a search is
+    /// typed, "3 of 12": what the search kept of what there is. Without the
+    /// second form an empty filtered list reads as an empty history.
+    static func clipboardCount(for clipboard: ClipboardStore, query: String) -> String? {
+        guard !clipboard.entries.isEmpty else { return nil }
+        guard ClipboardSearch.isActive(query) else {
+            return "\(clipboard.entries.count) of \(clipboard.capacity)"
+        }
+        let kept = ClipboardSearch.filter(clipboard.entries, query: query).count
+        return "\(kept) of \(clipboard.entries.count)"
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.
