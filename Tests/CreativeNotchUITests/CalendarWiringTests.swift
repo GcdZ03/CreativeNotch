@@ -36,7 +36,8 @@ struct CalendarWiringTests {
         delegate.calendar?.sleep = { _ in
             // A stream nothing ever yields to: iterating it suspends until
             // the task is cancelled, then ends. No timer is involved.
-            for await _ in AsyncStream<Never> { _ in } {}
+            let neverYields = AsyncStream<Never> { _ in }
+            for await _ in neverYields {}
         }
         return (delegate, source)
     }
