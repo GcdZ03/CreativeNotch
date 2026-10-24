@@ -343,13 +343,22 @@ exists, since without it the omission above already does the job.
 
 **Which display.** "Show on" (`DisplayChoice`, Core) picks the screen from a
 list of `ScreenDescriptor`s — id, `CGDisplayIsBuiltin`, whether it is
-`NSScreen.main` — read fresh each time it is asked. Following the focused
+`NSScreen.main`, the persistent UUID from `CGDisplayCreateUUIDFromDisplayID`
+and `localizedName` — read fresh each time it is asked. Following the focused
 window (the default) asks on launch, on every `didActivateApplication` and on
 every `didChangeScreenParameters`; pinned to the built-in display it asks on
 everything but activation, falling back to the main screen when there is no
-built-in one (clamshell). Changing the setting repositions at once. All of it
-rides the two observers that already existed. Moving to another display goes
-through `reposition`, which re-checks full screen there.
+built-in one (clamshell). Pinned to a specific display it is stored as
+`display:<UUID>:<name>` — the UUID because display ids are not stable across
+reconnections, the name only so Settings can label it while unplugged — and
+it falls back to the built-in, then main, then first screen while that
+display is absent. Nothing remembers the fallback: plugging the display back
+in posts `didChangeScreenParameters`, the rule is asked again and finds it.
+The Settings menu's per-display entries come from `AppState.connectedDisplays`,
+re-read when Settings is shown and on that same notification, never polled.
+Changing the setting repositions at once. All of it rides the two observers
+that already existed. Moving to another display goes through `reposition`,
+which re-checks full screen there.
 
 ## Motion and input
 
