@@ -95,6 +95,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 | ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
 | ✅ **Ready for translation** — every word on screen and every VoiceOver label in one String Catalog; English only so far | Done |
+| ✅ **In-app updates** — Check for Updates in the menu bar; Settings says when a new release is out and installs it in place, checksum and signature verified, without re-running the installer | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -213,8 +214,9 @@ curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/i
 ```
 
 One line: it installs to `/Applications`, then opens the app. There is no
-Dock icon — look at the notch and the menu bar. Run the same line again to
-update; it checks the installed version and exits early if you are current.
+Dock icon — look at the notch and the menu bar. To update, use the app's own
+updater (see [Updating](#updating)), or run the same line again; it checks the
+installed version and exits early if you are current.
 If the install fails — the wrong macOS, an Intel Mac — the `&&` means nothing
 is opened.
 
@@ -265,6 +267,40 @@ open dist/CreativeNotch.app
 Needs the Xcode Command Line Tools; a full Xcode install is not required, and
 there is no `.xcodeproj`. A locally built app is never quarantined, so it runs
 immediately.
+
+### Updating
+
+CreativeNotch looks for a new release on GitHub when it opens, when you come
+back to your Mac (a wake or an unlock) and when you open Settings — the last
+two at most once a day — and never on a timer. When one is out, the menu bar
+shows **Update to v…** and Settings → Updates says "Version … is available",
+with **Update Now** and a link to the release notes. **Check for Updates…** in
+the menu bar asks straight away, whatever the setting.
+
+**Update Now** does what the installer does, from inside the app: it downloads
+the release's `.tar.gz` and its `.sha256`, refuses an archive whose checksum
+does not match, unpacks it, checks the app's code signature and that it is the
+version the release says, then swaps it in place of the running copy and
+relaunches. The old copy is moved aside first and put back if anything fails,
+so a failed update leaves the version you had. Settings shows each step and,
+if it stops, why.
+
+Three things it will not do:
+
+- **Ask for your password.** If the folder the app is in needs an
+  administrator to change, Settings says so and shows the install command to
+  paste into Terminal instead — which asks for `sudo` only if it must.
+- **Replace a build you made yourself.** A copy running from anywhere but
+  `/Applications` or `~/Applications` — `dist/` after `./Scripts/bundle.sh` —
+  is told about updates and says it will not install them.
+- **Check in the background.** Switch off Settings → Updates →
+  **Automatically check for updates** and nothing is asked until you choose
+  Check for Updates….
+
+Because the app is **ad-hoc signed**, each release has a new code identity,
+so macOS may ask again for permissions you had granted — the camera, most
+visibly — after an update, whether it came from the app or from the
+installer. Re-running the installer line above always works too.
 
 ### Permissions
 
@@ -411,7 +447,9 @@ it back.
 | Download something in Safari | A ring right of the notch fills with the download's progress; with several at once it shows their combined progress and how many |
 | Hover the ring | A row drops below the notch: the file's name (or "3 downloads"), a bar and the percentage |
 | A download finishes | "Downloaded *name*" drops below the notch for five seconds, also spoken by VoiceOver; click it to show the file in Finder |
-| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
+| Menu bar icon | Settings…, Check for Updates… (and Update to v…, once a newer release is out), Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
+| Menu bar → **Check for Updates…** | Asks GitHub now and opens Settings on Updates with the answer: up to date, a new version with **Update Now** and **Release Notes**, or "Couldn't check for updates" if you are offline |
+| Settings → Updates → **Update Now** | Downloads, verifies and installs the new release in place of this copy, showing "Downloading…", "Verifying…", "Installing…", then relaunches; if any step fails it says why and keeps the version you have |
 | Settings → Layout → **Panel width** | Compact, Default or Wide; the open panel resizes at once, still centred on the notch |
 | Settings → Layout → **Corners** | Tight, Default or Round bottom corners on the open panel; the closed notch keeps the camera housing's curve |
 | Settings → Layout → **Tabs** → **Right** | Swaps the ears: the tabs move right of the camera, the eyedropper, the battery and the gear left |

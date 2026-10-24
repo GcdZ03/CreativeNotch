@@ -15,7 +15,9 @@ looking at it?"
 **Currently allowed:** `NSTrackingArea` (costs nothing when the cursor is
 elsewhere), `NotificationCenter` and `NSWorkspace` observers, an
 `NSMenuDelegate` refresh on menu open, and scroll events AppKit already
-delivers to the panel's own view (the trackpad swipes).
+delivers to the panel's own view (the trackpad swipes). The update check
+rides moments that already happen — launch, a wake, Settings opening — and
+has no schedule of its own (see "Updates").
 
 **Animation follows the same rule.** One-shot animations on a state change
 are fine. A loop is not, with one named exception — the music peek's
@@ -2143,6 +2145,128 @@ only by `configureForRealLaunch()`, so the suite never shows a loupe or
 overwrites the developer's clipboard. A second global shortcut for the
 dropper was left out: `HotKeyController` owns exactly one registration and
 one settings row, and doubling it is a change to that module, not this one.
+
+## Updates
+
+The in-app updater (2026-10-24): "Check for Updates…" in the menu bar, an
+"Update to v…" item once a newer release is out, and Settings → Updates with
+the running version, a status line, **Update Now** and the release notes.
+`UpdateController` (UI) owns it; every judgement is Core's, with fixed dates
+in the tests and no clock.
+
+### When it asks, and why there is no timer
+
+GitHub's `releases/latest` — the endpoint `Scripts/install.sh` asks — is
+fetched at four moments, each one the app is already awake for:
+
+| Trigger | Throttle |
+| --- | --- |
+| Launch, after `startSubsystems()` (`checkForUpdatesAtLaunch`) | none: once per process |
+| `SystemActivity` back to `.active` — wake, unlock, session switched back | once per 24 h |
+| Settings shown (`PreferencesController.show`) | once per 24 h |
+| "Check for Updates…" / "Check Now" | none, and past the toggle |
+
+`UpdateCheckPolicy.shouldCheck` is the whole decision: trigger, last answered
+check, the "Automatically check for updates" switch (`updates.automatic`,
+absent means on) and now. A daily poller would be the obvious design and is
+exactly what the one rule forbids; it would also wake a sleeping-display Mac
+to ask a question nobody is there to hear the answer to. The wake trigger is
+the activity gate's *seventh* consumer, and joins it in a fourth way: not
+suspended or withheld, but prompted — and it does so from the same
+`activity.onChange` closure, so there is still one observer. It is not on
+`ModuleSwitchboard`, because the updater is not a module: between checks it
+runs nothing, so there is nothing for a switch to stop.
+
+The relative time in "Up to date — checked 2 hours ago" is computed when
+Settings draws and is not refreshed: refreshing it would take a timer, and
+opening Settings a day later checks again anyway.
+
+### What it sends and remembers
+
+A `User-Agent` (`CreativeNotch/<version>`), GitHub's API version, and
+`If-None-Match` with the last `ETag` — so an unchanged release is a 304,
+which GitHub does not count against the 60-an-hour unauthenticated limit.
+A 304 has no body, so the release it means is cached beside the ETag
+(`updates.release`, JSON) and the ETag is sent only with it
+(`UpdateRecord.conditionalETag`). `URLSession` runs without a cache for the
+same reason: `URLCache` answers a conditional request itself and turns the
+304 back into a 200.
+
+`updates.lastCheck` is the last check that got an *answer*. Offline, a 403
+with no requests remaining, a 429 or a body that is not a release change
+nothing, so the next wake tries again rather than waiting a day. Those
+failures are silent for the three automatic triggers — the status falls back
+to what the record says — and only a manual check says "Couldn't check for
+updates", in the status line, with no alert.
+
+Versions are compared as numbers (`SemanticVersion`: 0.13.0 > 0.12.10 >
+0.12.9), never as text. A tag that is not one to three numbers, a leading
+"v" allowed, is "no update". Only assets named for the tag
+(`CreativeNotch-<tag>.tar.gz` and its `.sha256`, as `release.yml` names them)
+are taken, and only over HTTPS.
+
+### Update Now, and why it is `install.sh` again
+
+`UpdateInstaller` repeats the installer's steps with its safety, which
+`Scripts/tests/install-test.sh` covers, and adds the two checks a script
+cannot easily make:
+
+1. Download the archive and its `.sha256` into a fresh temporary folder
+   (`URLSession` download tasks, off the main actor).
+2. The SHA-256 (CryptoKit, a megabyte at a time) against the `.sha256` —
+   before the archive is unpacked at all.
+3. `/usr/bin/tar -xzf` into the same folder; `codesign --verify --deep
+   --strict` on the app; its `CFBundleShortVersionString` against the tag.
+4. The swap at `Bundle.main.bundleURL`: the new copy is staged beside it
+   (`.CreativeNotch.app.incoming.<pid>`), the running copy moved aside
+   (`.CreativeNotch.app.previous.<pid>`, `install.sh`'s name), the staged copy
+   moved in. A failure moves the old copy back; a failure to do *that* says
+   where it is. The backup is removed on success and `xattr -dr
+   com.apple.quarantine` run on the new copy. Staging is the one step the
+   script lacks: the temporary folder may be on another volume, where a move
+   is a copy that can fail halfway; staged beside the bundle, the two moves
+   that matter are renames.
+5. Relaunch: a detached `/bin/sh` that sleeps a second, waits (at most ten
+   more) for this pid to exit, then `open`s the bundle — waiting because
+   `open` on a bundle identifier that is still running activates the old
+   copy instead of launching the new one — then `NSApp.terminate`.
+
+The temporary folder is removed however the call ends, so a failure at any
+step leaves nothing half-installed. Settings shows "Downloading…",
+"Verifying…", "Installing…" and any failure's reason (`UpdateInstallFailure`).
+
+**No `sudo`.** If the bundle or its folder is not writable
+(`UpdateInstallEligibility.needsAdmin`) Settings shows the README's one-line
+install command, selectable and with a Copy button. An app that asks for an
+administrator password to replace itself is the shape of malware, and the
+installer already knows how to ask properly. **A dev build never replaces
+itself**: a bundle not directly inside `/Applications` or `~/Applications` —
+`LaunchAtLoginEligibility`'s whitelist, for its reasons — hears about updates
+and says it will not install them.
+
+**Everything external is a seam** (`UpdateEnvironment`): the fetcher, the
+downloader, the tool runner, the file moves, the relaunch, `NSApp.terminate`,
+opening the release page and the pasteboard. Every `AppDelegate()` starts
+with `.sandboxed`: an inert fetcher, an installer that installs nothing, and
+a bundle path in its own temporary folder that is in no install folder — so
+an install forced past the button is refused as a dev build. Only
+`configureForRealLaunch()` hands in `.system()`. The installer's tests run
+the real pipeline against a fake bundle in a temporary folder, with the real
+`tar` in one of them; none fetches, signs, relaunches or goes near
+`/Applications`.
+
+### Nothing in the notch
+
+There is no badge, peek or dot for an available update. The notch is for
+what is happening now, and the peek arbiter for things worth interrupting a
+glance for; an update is neither urgent nor about the moment, and a cue that
+stays until acted on would be the one permanent mark on a notch that
+otherwise vanishes into the housing. The menu bar item and Settings are
+enough, and cost the arbiter nothing.
+
+Ad-hoc signing still applies: every release has a new code identity, so
+macOS may ask again for permissions after an update — the camera's
+re-prompt, see `ROADMAP.md` — whichever way it was installed.
 
 ## Deliberately absent
 
