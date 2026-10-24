@@ -301,7 +301,10 @@ only while it is key, so `NotchPanel` handles them itself (`keyDown`,
 `PanelKey` to `AppDelegate.handlePanelKey`, which asks `PanelKeyboard` (Core)
 what it means and makes the same `transition(to:)` a click would. ⌘N counts
 the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
-a gap in the numbering. Neither key does anything unless the state is `.open`
+a gap in the numbering. With a search typed on the clipboard tab, Esc clears
+the search first and only the next press closes — `PanelKeyboard` decides that
+from `AppState.clipboardQuery`, so it is tested in Core like the rest. Neither
+key does anything unless the state is `.open`
 — Esc never tears down a drop target mid-drag.
 
 ### Who gets the keyboard
@@ -651,6 +654,37 @@ The poller is therefore designed around minimising what that costs:
 Fifty entries by default (25 or 100 in Settings; shrinking forgets the oldest
 at once), in memory only, gone on quit. The byte budget is not a setting. File
 URLs are left to the shelf.
+
+### Search and pins cost nothing at rest
+
+Neither adds a subsystem. The search is a filter over `entries`
+(`ClipboardSearch`, Core) evaluated when the pane redraws — because the query
+or the ring changed — and never otherwise: no index, no debounce timer, since a
+hundred entries is not a search problem. It matches every word of the query,
+ignoring case and diacritics, against the whole entry rather than the
+80-character row preview. The query lives in `AppState.clipboardQuery`, not in
+the view, because Esc has to read it (below); it survives a tab switch and is
+emptied when the panel leaves `.open`, so a reopen never shows a stale filter.
+
+The field never asks for focus. On a hover-open the panel is not key
+(`PanelFocus`), so the field cannot steal keystrokes; a click in it makes the
+panel key the way any click does. An `.accessory` app has no Edit menu, so
+`NotchPanel.performKeyEquivalent` maps ⌘X/C/V/A/Z to the field editor while one
+is first responder — otherwise pasting into the search would do nothing.
+
+**Pins** are a flag on `ClipboardEntry`, kept at the front of `entries`, so
+the view, the search and the menu bar read one list in display order. They
+count towards the history size and the byte budget but are never what either
+evicts — the oldest *unpinned* entry goes instead, and one unpinned entry (the
+one just copied) always survives. Because that exemption would otherwise be a
+way round both limits, pins have their own ceiling, `maxPinned` = 10, which
+bounds them at 100 MB of images. **Clear keeps pins** without asking: a pin is
+the person saying "keep this", the menu bar's Clear has nowhere to show a
+question, and Unpin or Remove is how a pin goes; the title row and the menu bar
+count only what Clear would take. **Switching the module off forgets pins**
+(`removeAll`), because off means the app holds nothing. Pins are never written
+to disk, for the reason nothing else here is: they are the entries most likely
+to matter, which makes them the worst ones to leave behind in a file.
 
 ## Media
 

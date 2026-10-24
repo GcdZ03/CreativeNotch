@@ -70,6 +70,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
+| ✅ **Clipboard search and pins** — filter the history as you type; pin up to ten entries to the top | Done |
 | ✅ **Media metadata** — now-playing title, artist, artwork, playback position, and an ambient badge | Done |
 | ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
@@ -101,6 +102,16 @@ entries of text and images (25 or 100 if you prefer, in Settings), in memory onl
 pasteboard types password managers use to opt out honoured before any
 content is read. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
+
+A search field at the top of the pane filters the history as you type,
+ignoring case and accents ("cafe" finds "Café"), and up to ten entries can
+be pinned to the top, where they stay through the history's size limit and
+through Clear. Pins are kept in memory like everything else, so they are gone
+on quit too.
+
+<p align="center">
+  <img src="docs/assets/features/clipboard-search-pin-pinned.png" width="620" alt="The clipboard tab: a search field under the title row, two pinned entries with pin glyphs at the top of the list, then the latest copies">
+</p>
 
 Media controls are the fourth: play/pause, next and previous, sent through
 the private MediaRemote framework to whatever application holds the media
@@ -211,7 +222,7 @@ immediately.
 **Nothing is asked for at launch, and one module asks later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
-drag events, clipboard history needs no permission, and the global shortcut
+drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
 is registered with the window server rather than a monitor. Eight of the nine
 modules work with nothing granted.
 
@@ -262,14 +273,15 @@ it back.
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
-| Press Esc | Closes the panel |
+| Press Esc | Closes the panel — or, with a clipboard search typed, clears the search first |
 | Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
-| Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
+| Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied; pinned entries sit above the rest |
+| Type in the clipboard's search field | Narrows the list to entries containing every word you type, ignoring case and accents; the title row counts what is kept, and closing the panel clears the search. The field takes the keyboard only when you click it, or when you opened the panel by clicking the notch or with the shortcut — never on a hover-open |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
-| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
+| Right-click a clipboard entry | Copy; Pin, to keep it at the top (up to ten), or Unpin; or Remove to forget just that one. Clear in the title row forgets everything but the pins. VoiceOver offers Pin and Remove as actions on the row, whose press is Copy, and reads a pinned row as "Pinned" |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -287,7 +299,7 @@ it back.
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
+| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
