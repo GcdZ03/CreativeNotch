@@ -31,4 +31,23 @@ public final class PreferencesStore {
     public func setEnabled(_ enabled: Bool, for module: ModuleID) {
         defaults.set(enabled, forKey: PreferenceKeys.enabled(module))
     }
+
+    /// Whether the welcome card has been dismissed. Read through
+    /// `resolveEnabled` like every other flag, so a hand-typed string reads as
+    /// not seen and is left in place.
+    public var hasSeenWelcome: Bool {
+        PreferenceKeys.resolveEnabled(
+            defaults.object(forKey: PreferenceKeys.welcomeSeen), shippedDefault: false
+        )
+    }
+
+    /// `false` removes the key rather than writing `false`, so "Show Welcome
+    /// Again" leaves the domain reading exactly like a fresh install's.
+    public func setHasSeenWelcome(_ seen: Bool) {
+        if seen {
+            defaults.set(true, forKey: PreferenceKeys.welcomeSeen)
+        } else {
+            defaults.removeObject(forKey: PreferenceKeys.welcomeSeen)
+        }
+    }
 }

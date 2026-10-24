@@ -261,6 +261,30 @@ The monitor's lifetime is driven from `onTransition` rather than from call
 sites, so there is no path that opens the panel without arming it, or closes
 it and leaves a monitor running.
 
+**Esc** is a fourth way out, and needs no monitor at all: keys reach the panel
+only while it is key, so `NotchPanel` handles them itself (`keyDown`,
+`cancelOperation`, `performKeyEquivalent` for ⌘1…⌘N) and hands a decoded
+`PanelKey` to `AppDelegate.handlePanelKey`, which asks `PanelKeyboard` (Core)
+what it means and makes the same `transition(to:)` a click would. ⌘N counts
+the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
+a gap in the numbering. Neither key does anything unless the state is `.open`
+— Esc never tears down a drop target mid-drag.
+
+### Who gets the keyboard
+
+Becoming key costs the frontmost app its insertion point, so the panel takes
+it only when the person asked for the panel. `AppState.openReason` records
+why the panel opened — set by `transition(to:openedBy:)` on the change into
+`.open`, kept across a tab switch, cleared on leaving — and `PanelFocus`
+(Core) decides: the notch tap and the global shortcut are explicit and take
+key; hover-open, a swipe and a drop are ambient and do not, except on the
+timer tab, whose minutes field needs the keyboard however it was reached.
+**Hover-open must never steal keystrokes**: a pointer crossing the notch is not
+someone who has stopped typing. `openPanel(openedBy:)` takes the reason with
+no default, so a new route has to choose; a bare `transition(to:)` defaults to
+`.unspecified`, the ambient answer. Focus is still given back only once the
+panel leaves `.open` (`syncKeyWindow`), never on a tab switch.
+
 ### Peek arbitration
 
 One slot, four competitors. `PeekArbiter` resolves them: **drag > finished
@@ -399,6 +423,16 @@ Anything reintroducing a permission should reintroduce the onboarding
 explanation with it — a prompt with no stated reason is worse than the
 feature is worth.
 
+What came back instead is smaller: a one-time welcome card inside the open
+panel (`WelcomeCardView`), which asks for nothing and only says what the
+notch does. It shows only on an asked-for open (tap, shortcut, or the menu's
+"Show Welcome Again") and never on the camera tab, whose capture session it
+would hide; leaving the panel or switching tab dismisses it, a drag arriving
+does not. Its show and dismiss rules are `WelcomeCard` in Core, its flag
+is `welcome.seen` in the preferences domain — deliberately not the legacy
+`hasCompletedOnboarding` — and it costs nothing once dismissed: no observer,
+no timer, just a `Bool` the panel's body reads.
+
 The app is not sandboxed. A private framework and a `perl` subprocess make
 sandboxing impractical, and there is no App Store target.
 
@@ -441,6 +475,24 @@ the shelf is shown (one `fileExists` per item), not by watching the disk.
 
 **Purging runs on launch and after each add, never on a timer.** A shelf can
 only grow when something is added to it.
+
+**An item leaves the list only once its file is in the Trash.** Remove, clear,
+purge and eviction all follow it: a file whose trash failed is still in the
+directory, and dropping its tile would only hide it until the next launch
+reloaded it. The upkeep after an add never fails the add — the new item is
+already copied and listed — and eviction skips a file it cannot trash for the
+next oldest, so one stuck file neither refuses every later drop nor lets the
+shelf grow past twenty plus the stuck ones.
+
+**Clear can be undone for six seconds.** `clear()` returns a
+`ShelfClearance` — each item and the URL `trashItem` reported for its file —
+and `restore(_:)` moves the files back out of the Trash with their original
+identity and drop time (a move keeps the creation date). Anything that cannot
+come back, because it was emptied from the Trash, is skipped and reported,
+and the rest still return. The record lives in `AppDelegate`, not the store,
+because how long the offer lasts is a UI decision; it is withdrawn by a
+one-shot `Task`, scheduled only by a clear, so nothing is pending while the
+shelf is idle.
 
 ### The drop region follows the drawn shape
 

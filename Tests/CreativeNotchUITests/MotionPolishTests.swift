@@ -164,6 +164,30 @@ struct ShelfAirDropAllTests {
         #expect(sent == [store.items.map(\.url)])
     }
 
+    /// After a clear the empty shelf offers only Undo, in the title row
+    /// where Clear just was.
+    @Test func aJustClearedShelfOffersUndo() throws {
+        let app = AppState()
+        app.canUndoShelfClear = true
+        var undone = 0
+        app.onUndoClearShelf = { undone += 1 }
+
+        let actions = NotchRootView.shelfActions(for: try shelf(items: 0), app: app)
+        #expect(actions.map(\.label) == ["Undo"])
+
+        actions.first?.perform()
+        #expect(undone == 1)
+    }
+
+    /// Something dropped during the window: Undo sits beside Clear, and
+    /// Clear stays at the edge.
+    @Test func undoSitsBeforeClearWhenTheShelfHasItems() throws {
+        let app = AppState()
+        app.canUndoShelfClear = true
+        let actions = NotchRootView.shelfActions(for: try shelf(items: 1), app: app)
+        #expect(actions.map(\.label) == ["AirDrop All", "Undo", "Clear"])
+    }
+
     @Test func clearStillClears() throws {
         let app = AppState()
         var cleared = 0

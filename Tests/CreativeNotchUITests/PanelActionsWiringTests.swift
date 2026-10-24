@@ -25,7 +25,7 @@ struct PanelActionsWiringTests {
             .appendingPathComponent("CreativeNotchPanelActions-\(UUID().uuidString)")
         delegate.install(metrics: Self.notched)
         // Never the real Settings window from a test.
-        delegate.presentPreferences = {}
+        delegate.presentPreferences = { _ in }
         return delegate
     }
 
@@ -48,6 +48,67 @@ struct PanelActionsWiringTests {
         d.state.onClearShelf?()
 
         #expect(shelf.items.isEmpty)
+    }
+
+    /// Clear moves real files to the Trash, so it is offered back for a
+    /// few seconds: Undo restores them, and the offer goes once used.
+    @Test func clearShelfCanBeUndone() throws {
+        let d = makeDelegate()
+        let shelf = try #require(d.shelf)
+        let item = try shelf.add(.text("keep me"), now: Date())
+        #expect(d.state.canUndoShelfClear == false)
+
+        d.state.onClearShelf?()
+        #expect(shelf.items.isEmpty)
+        #expect(d.state.canUndoShelfClear)
+
+        d.state.onUndoClearShelf?()
+
+        #expect(shelf.items.map(\.id) == [item.id])
+        #expect(try String(contentsOf: item.url, encoding: .utf8) == "keep me")
+        #expect(d.state.canUndoShelfClear == false)
+    }
+
+    /// The menu bar's Clear Shelf is the same verb, so it is undoable too.
+    @Test func theMenuBarsClearIsTheUndoableOne() throws {
+        let d = makeDelegate()
+        let shelf = try #require(d.shelf)
+        try shelf.add(.text("x"), now: Date())
+
+        d.clearShelf()
+
+        #expect(shelf.items.isEmpty)
+        #expect(d.state.canUndoShelfClear)
+    }
+
+    /// The offer is a one-shot that lapses on its own -- nothing repeats,
+    /// and nothing is left scheduled once it has.
+    @Test func theUndoOfferLapses() async throws {
+        let d = makeDelegate()
+        d.shelfUndoWindow = .milliseconds(20)
+        let shelf = try #require(d.shelf)
+        try shelf.add(.text("x"), now: Date())
+
+        d.state.onClearShelf?()
+        #expect(d.state.canUndoShelfClear)
+
+        // Awaited rather than slept past: under a parallel suite the main
+        // actor can be busy for longer than any fixed margin.
+        let offer = try #require(d.shelfUndoTask)
+        await offer.value
+
+        #expect(d.state.canUndoShelfClear == false)
+        #expect(d.shelfUndoTask == nil)
+        d.state.onUndoClearShelf?()
+        #expect(shelf.items.isEmpty, "an undo that had lapsed still restored")
+    }
+
+    /// Clearing an empty shelf takes nothing, so offers nothing back.
+    @Test func clearingAnEmptyShelfOffersNoUndo() {
+        let d = makeDelegate()
+        d.state.onClearShelf?()
+        #expect(d.state.canUndoShelfClear == false)
+        #expect(d.shelfUndoTask == nil)
     }
 
     @Test func removeShelfItemRemovesJustThatOne() throws {
@@ -81,7 +142,7 @@ struct PanelActionsWiringTests {
     @Test func openSettingsClosesThePanelFirst() {
         let d = makeDelegate()
         var presented = 0
-        d.presentPreferences = { presented += 1 }
+        d.presentPreferences = { _ in presented += 1 }
         d.state.transition(to: .open(.shelf))
 
         d.state.onOpenSettings?()

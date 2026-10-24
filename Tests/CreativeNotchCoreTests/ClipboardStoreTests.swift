@@ -275,6 +275,42 @@ struct ClipboardStoreTests {
         #expect(store.entries.map(\.content) == [.text("A")])
     }
 
+    // MARK: - Removing one entry
+
+    @Test func removingAnEntryDropsJustThatOne() throws {
+        let store = ClipboardStore()
+        store.record(.text("A"), now: date(0))
+        let b = try #require(store.record(.text("B"), now: date(1)))
+        store.record(.text("C"), now: date(2))
+
+        store.remove(b.id)
+
+        #expect(store.entries.map(\.content) == [.text("C"), .text("A")])
+    }
+
+    /// The row's context menu holds an id from the last redraw; the poller
+    /// can have evicted that entry since. A stale id is a no-op, not a trap.
+    @Test func removingAnUnknownIdIsHarmless() {
+        let store = ClipboardStore()
+        store.record(.text("A"), now: date(0))
+
+        store.remove(UUID())
+
+        #expect(store.entries.map(\.content) == [.text("A")])
+    }
+
+    /// A deleted value copied again is a new entry, not a promotion of
+    /// something that is no longer there.
+    @Test func aRemovedValueIsRecordedAfresh() throws {
+        let store = ClipboardStore()
+        let first = try #require(store.record(.text("A"), now: date(0)))
+        store.remove(first.id)
+        let again = try #require(store.record(.text("A"), now: date(1)))
+
+        #expect(again.id != first.id)
+        #expect(store.entries.map(\.id) == [again.id])
+    }
+
     // MARK: - The in-memory guarantee
 
     /// The strongest claim in `SECURITY.md` is that captured content never

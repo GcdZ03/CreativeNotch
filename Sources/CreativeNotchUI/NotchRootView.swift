@@ -35,6 +35,21 @@ public final class AppState {
     /// `anchor` spells out `CreativeNotchCore.Anchor`.
     public private(set) var lastOpenTab: CreativeNotchCore.Tab = .shelf
 
+    /// Why the panel is open, or `nil` when it is not.
+    ///
+    /// Written by `transition(to:openedBy:)` alongside `state`, so the two
+    /// cannot disagree: recorded on the change *into* `.open`, kept across a
+    /// tab switch (still the same open), cleared the moment the panel leaves.
+    /// A later hover-open therefore cannot inherit an earlier tap's right to
+    /// the keyboard. Read by `AppDelegate.syncKeyWindow` through
+    /// `PanelFocus`, from inside the funnel's own notification.
+    ///
+    /// Also decides whether the welcome card shows (`showsWelcome`).
+    /// `@ObservationIgnored` all the same: an open's reason changing only
+    /// ever coincides with `state` changing, which already redraws.
+    @ObservationIgnored
+    public private(set) var openReason: PanelOpenReason?
+
     /// Whether the last state change grew the panel, so the view can pick
     /// a bouncy spring for growing and a snappy one for shrinking (spec
     /// 2026-10-15). Set by `transition(to:)` alongside `state`, so the two
@@ -97,9 +112,9 @@ public final class AppState {
     /// A closure rather than a `ClipboardController` reference, so the
     /// view layer never gains a way to start or stop the poller.
     @ObservationIgnored
-    public var onPasteClipboard: ((ClipboardEntry) -> Void)?
+    public var onCopyClipboard: ((ClipboardEntry) -> Void)?
 
-    /// The pane's title-row verbs. Closures, like `onPasteClipboard`, so the
+    /// The pane's title-row verbs. Closures, like `onCopyClipboard`, so the
     /// view gets a verb and never a store or a controller. Wired in
     /// `AppDelegate.install(metrics:)` to the same `clear()` the menu bar
     /// calls — `ShelfStore.clear()` moves real files to the Trash, which is
@@ -110,28 +125,83 @@ public final class AppState {
     @ObservationIgnored
     public var onRemoveShelfItem: ((UUID) -> Void)?
 
+    /// Whether the last Clear can still be undone, which puts "Undo" in the
+    /// shelf's title row. Observable, unlike the verbs: the offer lapses on
+    /// its own after a few seconds, and the button has to go with it.
+    /// Set by `AppDelegate`, which holds what the clear took.
+    public internal(set) var canUndoShelfClear = false
+
+    /// Puts back what the last Clear moved to the Trash. Wired, like
+    /// `onClearShelf`, to the delegate that holds the record.
+    @ObservationIgnored
+    public var onUndoClearShelf: (() -> Void)?
+
     /// Sends shelf files over AirDrop. A verb, like the others, so the view
     /// never holds a sharing service (spec 2026-10-17).
     @ObservationIgnored
     public var onAirDropShelfItems: (([URL]) -> Void)?
 
+    /// Shows a shelf file selected in Finder, from a tile's context menu or
+    /// accessibility actions. A verb, like AirDrop, so the view never
+    /// reaches for `NSWorkspace`.
+    @ObservationIgnored
+    public var onRevealShelfItem: ((URL) -> Void)?
+
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
+
+    /// A row's Delete: forgets one entry, by id, like `onRemoveShelfItem`.
+    @ObservationIgnored
+    public var onRemoveClipboardEntry: ((UUID) -> Void)?
 
     /// The header's gear. Closes the panel, then opens Settings — Settings
     /// is an activating window, and the panel should not sit open under it.
     @ObservationIgnored
     public var onOpenSettings: (() -> Void)?
 
-    /// The notch tap's way into the panel: the delegate's `openPanel()`,
-    /// which picks a visible tab or declines when there is none.
+    /// Whether the first-run welcome card has been dismissed (2026-10-24).
+    ///
+    /// Defaults to `true`, the opposite of a fresh install, so a bare
+    /// `AppState` — every rendering test's — draws the panel it always drew.
+    /// `AppDelegate.install(metrics:)` loads the real value from the store.
+    /// Observed: `body` reads it, and a dismissal must take the card away.
+    public internal(set) var welcomeSeen: Bool = true
+
+    /// Persists the flag. A closure, like the pane verbs, so the view never
+    /// holds a store. `false` is "Show Welcome Again".
+    @ObservationIgnored
+    public var onPersistWelcomeSeen: ((Bool) -> Void)?
+
+    /// The card's "Set Shortcut…": dismisses it, closes the panel and opens
+    /// Settings on the shortcut row. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onWelcomeSetShortcut: (() -> Void)?
+
+    /// Whether the card is on screen right now. `WelcomeCard.isShown`, read
+    /// in one place so the view and the tests ask the same question.
+    public var showsWelcome: Bool {
+        WelcomeCard.isShown(seen: welcomeSeen, in: state, openedBy: openReason)
+    }
+
+    /// The one writer of `welcomeSeen` after install: applies and persists
+    /// in the same call, for the reason `onSetHoverBehaviour` does both.
+    public func setWelcomeSeen(_ seen: Bool) {
+        guard seen != welcomeSeen else { return }
+        welcomeSeen = seen
+        onPersistWelcomeSeen?(seen)
+    }
+
+    /// The notch tap's way into the panel: the delegate's
+    /// `openPanel(openedBy: .tap)`, which picks a visible tab or declines when
+    /// there is none. Only the tap calls it, which is what lets the delegate
+    /// record the open as explicit and give it the keyboard.
     @ObservationIgnored
     public var onOpenPanel: (() -> Void)?
 
     /// How the media buttons reach `MediaRemoteBridge`.
     ///
     /// A closure rather than calling the bridge from the view, for the
-    /// same reason `onPasteClipboard` is one: it keeps a real transport
+    /// same reason `onCopyClipboard` is one: it keeps a real transport
     /// command — which changes playback on the machine — out of anything
     /// a test constructs.
     @ObservationIgnored
@@ -349,15 +419,31 @@ public final class AppState {
     /// redundant assignment would force a redraw for no visible difference.
     /// The derived rects are functions of the state, so skipping the
     /// callback for an unchanged state cannot leave them stale.
-    public func transition(to next: NotchState) {
+    ///
+    /// `reason` says who asked, and counts only on the change into `.open`
+    /// from somewhere else: a tab switch keeps the open's original reason.
+    /// It defaults to `.unspecified` — ambient, never key — so a route that
+    /// forgets to say is the safe one, not the one that steals keystrokes.
+    public func transition(to next: NotchState, openedBy reason: PanelOpenReason = .unspecified) {
         guard next != state else { return }
-        if case .open(let tab) = next { lastOpenTab = tab }
+        // Leaving a panel that showed the welcome card, or switching its tab,
+        // counts as reading it (`WelcomeCard.isDismissed`). Decided from the
+        // state and reason being left, so it is computed before either moves.
+        let dismissesWelcome = WelcomeCard.isDismissed(
+            seen: welcomeSeen, from: state, openedBy: openReason, to: next)
+        if case .open(let tab) = next {
+            lastOpenTab = tab
+            if case .open = state {} else { openReason = reason }
+        } else {
+            openReason = nil
+        }
         // One peek replacing another is a swap, not a collapse, even when the
         // new one is smaller — a battery peek giving way to a drag target.
         lastChangeGrew = next.presentation.rank >= state.presentation.rank
             || (next.presentation.isPeek && state.presentation.isPeek)
         state = next
         notify(.state(next))
+        if dismissesWelcome { setWelcomeSeen(true) }
     }
 
     /// Corrects which tab a later reopen would target, without moving the
@@ -827,21 +913,44 @@ public struct NotchRootView: View {
                             onSelect: { app.transition(to: .open($0)) },
                             onSettings: { app.onOpenSettings?() }
                         )
-                        HStack(spacing: 0) {
-                            if layout.mediaColumnWidth > 0 {
-                                MediaColumn(
-                                    snapshot: app.nowPlaying,
-                                    artwork: app.nowPlayingArtwork,
-                                    showsControls: app.showsMediaControls,
-                                    coverNamespace: sharedCover,
-                                    onSeek: app.onSeek
-                                ) { app.onMediaCommand?($0) }
+                        // The first-run card stacks over the body, under the
+                        // live header (`WelcomeCardView`). A `ZStack` rather
+                        // than an overlay: an overlay is offered the body's
+                        // size, and a body that hugs its content — an empty
+                        // shelf — would squeeze the card into a column.
+                        ZStack {
+                            HStack(spacing: 0) {
+                                if layout.mediaColumnWidth > 0 {
+                                    MediaColumn(
+                                        snapshot: app.nowPlaying,
+                                        artwork: app.nowPlayingArtwork,
+                                        showsControls: app.showsMediaControls,
+                                        coverNamespace: sharedCover,
+                                        onSeek: app.onSeek
+                                    ) { app.onMediaCommand?($0) }
+                                }
+                                // `at: now` keeps the pane on the single instant
+                                // `body` already bound.
+                                openContent(for: tab, at: now)
+                                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
-                            // `at: now` keeps the pane on the single instant
-                            // `body` already bound.
-                            openContent(for: tab, at: now)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            // Read from `showsWelcome`, the one question the
+                            // tests ask too.
+                            if app.showsWelcome {
+                                WelcomeCardView(
+                                    onSetShortcut: { app.onWelcomeSetShortcut?() },
+                                    onDismiss: { app.setWelcomeSeen(true) }
+                                )
+                                .transition(NotchMotion.content(reduceMotion: reduceMotion))
+                            }
                         }
+                        // A one-shot on the button press, the snappy spring
+                        // the panel shrinks with — or a short ease under
+                        // Reduce Motion.
+                        .animation(
+                            NotchMotion.animation(growing: false, reduceMotion: reduceMotion),
+                            value: app.welcomeSeen
+                        )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
 
@@ -921,7 +1030,11 @@ public struct NotchRootView: View {
         case .open:
             app.transition(to: .closed)
         default:
-            if let open = app.onOpenPanel { open() } else { app.transition(to: .open(app.lastOpenTab)) }
+            if let open = app.onOpenPanel {
+                open()
+            } else {
+                app.transition(to: .open(app.lastOpenTab), openedBy: .tap)
+            }
         }
     }
 
@@ -957,7 +1070,8 @@ public struct NotchRootView: View {
                     ShelfView(
                         store: shelf,
                         onRemove: { app.onRemoveShelfItem?($0) },
-                        onAirDrop: { app.onAirDropShelfItems?([$0]) }
+                        onAirDrop: { app.onAirDropShelfItems?([$0]) },
+                        onReveal: { app.onRevealShelfItem?($0) }
                     )
                 }
             }
@@ -970,15 +1084,18 @@ public struct NotchRootView: View {
                         ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
-                    ClipboardView(store: clipboard, now: now) { entry in
-                        app.onPasteClipboard?(entry)
-                    }
+                    ClipboardView(
+                        store: clipboard,
+                        now: now,
+                        onCopy: { app.onCopyClipboard?($0) },
+                        onRemove: { app.onRemoveClipboardEntry?($0) }
+                    )
                 }
             }
 
         case .timer:
             // Through `AppState`, never to a controller this view holds —
-            // the same routing `onPasteClipboard` and `onMediaCommand`
+            // the same routing `onCopyClipboard` and `onMediaCommand`
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.
@@ -1001,20 +1118,29 @@ public struct NotchRootView: View {
     }
 
     /// The shelf's title-row verbs: "AirDrop All" then "Clear", or none
-    /// when it is empty.
+    /// when it is empty -- with "Undo" before Clear for the few seconds a
+    /// clear can still be taken back.
     ///
     /// AirDrop All hands every file to AirDrop in one go — one picker, not
     /// one per file — through the same `onAirDropShelfItems` verb the
     /// tiles use. Clear stays last, at the edge, where the destructive verb
-    /// already was.
+    /// already was. Undo lands where Clear was a moment ago on the shelf it
+    /// just emptied, so the hand that cleared can take it back without
+    /// moving.
     static func shelfActions(
         for shelf: ShelfStore, app: AppState
     ) -> [(label: String, perform: () -> Void)] {
-        guard !shelf.items.isEmpty else { return [] }
-        return [
-            ("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }),
-            ("Clear", { app.onClearShelf?() }),
-        ]
+        var actions: [(label: String, perform: () -> Void)] = []
+        if !shelf.items.isEmpty {
+            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }))
+        }
+        if app.canUndoShelfClear {
+            actions.append(("Undo", { app.onUndoClearShelf?() }))
+        }
+        if !shelf.items.isEmpty {
+            actions.append(("Clear", { app.onClearShelf?() }))
+        }
+        return actions
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.

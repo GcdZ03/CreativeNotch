@@ -116,7 +116,7 @@ struct FullScreenWatcherTests {
 
         #expect(d.state.state == .closed)
         #expect(installs == 0)
-        #expect(d.openPanel() == false)
+        #expect(d.openPanel(openedBy: .hotKey) == false)
 
         // And back on a desktop it opens again.
         d.applyFullScreen(false)

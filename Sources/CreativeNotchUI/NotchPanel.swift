@@ -1,4 +1,5 @@
 import AppKit
+import CreativeNotchCore
 
 /// A non-activating, borderless panel pinned above the menu bar.
 ///
@@ -16,15 +17,87 @@ public final class NotchPanel: NSPanel {
     /// keeps its menu bar. What it does lose is its insertion point, for as
     /// long as the panel holds focus.
     ///
-    /// So this is `true` only because one control needs it — the timer's
-    /// custom-minutes field. `AppDelegate` makes the panel key only while
-    /// that tab is open and hands focus straight back on close; every other
-    /// presentation still never touches it. See `syncKeyWindow`.
+    /// So this is `true` for two things only: the timer's custom-minutes
+    /// field, and keyboard control (Esc, ⌘1…⌘N) of a panel somebody opened
+    /// on purpose. `AppDelegate` makes the panel key on the timer tab and on
+    /// an explicit open — the notch tap, the shortcut — never on a hover-open
+    /// or a peek, and hands focus straight back on close. See
+    /// `syncKeyWindow` and `PanelFocus`.
     ///
     /// `canBecomeMain` stays `false`: main is for a document window that
     /// owns the app's menus, which this is not.
     public override var canBecomeKey: Bool { true }
     public override var canBecomeMain: Bool { false }
+
+    // MARK: - Keys
+
+    /// Where a decoded key goes; returns whether it was used. Set by
+    /// `AppDelegate.install`, which routes it through the state funnel —
+    /// the panel decodes, it never decides (`PanelKeyboard`).
+    ///
+    /// Handled here, in the window, rather than with SwiftUI's
+    /// `.onKeyPress`, because those need a focused view and the open panel
+    /// mostly has none: the shelf and the clipboard are click-only. Every
+    /// key the panel receives passes through the window whatever has focus.
+    /// And it costs nothing at idle — keys only arrive while the panel is
+    /// key, so there is no monitor to install or remove.
+    public var onPanelKey: ((PanelKey) -> Bool)?
+
+    /// The number row's key codes for 1…9, in order.
+    ///
+    /// By key code, not by character, for the reason the global shortcut
+    /// stores one: ⌘2 means the second key of the number row on every
+    /// layout. On AZERTY the unshifted character there is "é".
+    private static let digitKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
+
+    private static let escapeKeyCode: UInt16 = 53
+
+    /// The key an event stands for, or `nil` when it is not one of ours.
+    ///
+    /// Digits count only with exactly ⌘ held: a plain digit is typing — the
+    /// timer's minutes field — and ⌘⇧2 or ⌥⌘2 belong to somebody else.
+    /// Caps Lock, the numeric-pad and function flags are states of the
+    /// keyboard rather than parts of a chord, so they are ignored.
+    public static func panelKey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> PanelKey? {
+        let chord = modifiers
+            .intersection(.deviceIndependentFlagsMask)
+            .subtracting([.capsLock, .numericPad, .function])
+        if keyCode == escapeKeyCode, chord.isEmpty { return .escape }
+        guard chord == .command, let index = digitKeyCodes.firstIndex(of: keyCode) else { return nil }
+        return .commandDigit(index + 1)
+    }
+
+    private func handle(_ key: PanelKey?) -> Bool {
+        guard let key, let onPanelKey else { return false }
+        return onPanelKey(key)
+    }
+
+    /// ⌘1…⌘N. AppKit offers ⌘-chords to the key window as key equivalents
+    /// before any view sees them, so a focused text field cannot eat one.
+    public override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let key = Self.panelKey(keyCode: event.keyCode, modifiers: event.modifierFlags)
+        if case .commandDigit = key, handle(key) { return true }
+        return super.performKeyEquivalent(with: event)
+    }
+
+    /// Esc with nothing focused: the key-down falls through the responder
+    /// chain to the window.
+    public override func keyDown(with event: NSEvent) {
+        if Self.panelKey(keyCode: event.keyCode, modifiers: event.modifierFlags) == .escape,
+           handle(.escape) {
+            return
+        }
+        super.keyDown(with: event)
+    }
+
+    /// Esc while a text field is editing: the field editor turns it into
+    /// `cancelOperation(_:)` and sends it up the chain, so it arrives here
+    /// rather than as a key-down. Both routes are one callback, and only one
+    /// of them fires for a single press.
+    public override func cancelOperation(_ sender: Any?) {
+        if handle(.escape) { return }
+        super.cancelOperation(sender)
+    }
 
     public init(contentRect: NSRect) {
         super.init(

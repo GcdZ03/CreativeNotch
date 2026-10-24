@@ -164,11 +164,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// one must not be enough to do that. See `LaunchAtLoginController`.
     private(set) lazy var launchAtLogin = LaunchAtLoginController()
 
-    /// Test seam for the header's gear: what `onOpenSettings` presents after
-    /// closing the panel. `nil` means the real window via `showPreferences()`.
-    /// Exists so a wiring test can prove the panel closes without putting a
-    /// Settings window on screen.
-    var presentPreferences: (() -> Void)?
+    /// Test seam for the header's gear and the welcome card's "Set
+    /// Shortcut…": what they present after closing the panel, with the
+    /// section to highlight. `nil` means the real window via
+    /// `showPreferences(highlighting:)`. Exists so a wiring test can prove the
+    /// panel closes without putting a Settings window on screen.
+    var presentPreferences: ((PreferencesSection?) -> Void)?
 
     // MARK: - Shelf
 
@@ -178,6 +179,78 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         .appendingPathComponent("CreativeNotch/Shelf")
 
     private(set) var shelf: ShelfStore?
+
+    /// How long "Undo" stays on offer after the shelf is cleared.
+    ///
+    /// Long enough to notice a mistake and reach the button, short enough
+    /// that the offer does not outlive the user's memory of what it undoes.
+    static let defaultShelfUndoWindow: Duration = .seconds(6)
+
+    /// Overridable so a test can watch the offer lapse without waiting six
+    /// seconds, the same reason `growthDelay` is.
+    var shelfUndoWindow: Duration = AppDelegate.defaultShelfUndoWindow
+
+    /// What the last clear took, while it can still be undone.
+    private var pendingShelfClearance: ShelfClearance?
+
+    /// The one-shot that withdraws the offer. Not a repeating timer: it is
+    /// scheduled only by a clear, sleeps once, and is gone. `nil` whenever
+    /// no undo is on offer, so nothing is scheduled while the shelf is idle.
+    private(set) var shelfUndoTask: Task<Void, Never>?
+
+    /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
+    ///
+    /// The one path both the pane's Clear and the menu bar's Clear Shelf
+    /// take, so either can be undone from the pane. Clear moves real files
+    /// to the Trash; before the undo, getting one back meant finding it in
+    /// Finder. A clear that fails partway still offers back what it did
+    /// take. A new clear replaces the previous offer rather than merging
+    /// with it: Undo undoes the clear just made.
+    func clearShelf() {
+        guard let shelf else { return }
+        let clearance: ShelfClearance
+        do {
+            clearance = try shelf.clear()
+        } catch let partial as ShelfStore.PartialClear {
+            NSLog("CreativeNotch: shelf could not trash every item: \(partial.underlying)")
+            clearance = partial.clearance
+        } catch {
+            return
+        }
+        guard !clearance.isEmpty else { return }
+        offerShelfUndo(clearance)
+    }
+
+    /// Puts back what the last clear took, if the offer has not lapsed.
+    /// Items that cannot come back -- emptied from the Trash in the
+    /// meantime -- are skipped by the store; the rest still return.
+    func undoClearShelf() {
+        guard let clearance = pendingShelfClearance else { return }
+        withdrawShelfUndo()
+        guard let restoration = shelf?.restore(clearance) else { return }
+        if !restoration.skipped.isEmpty {
+            NSLog("CreativeNotch: could not restore \(restoration.skipped.count) shelf item(s)")
+        }
+    }
+
+    private func offerShelfUndo(_ clearance: ShelfClearance) {
+        shelfUndoTask?.cancel()
+        pendingShelfClearance = clearance
+        state.canUndoShelfClear = true
+        shelfUndoTask = Task { @MainActor [weak self] in
+            guard let window = self?.shelfUndoWindow else { return }
+            try? await Task.sleep(for: window)
+            guard !Task.isCancelled else { return }
+            self?.withdrawShelfUndo()
+        }
+    }
+
+    private func withdrawShelfUndo() {
+        shelfUndoTask?.cancel()
+        shelfUndoTask = nil
+        pendingShelfClearance = nil
+        state.canUndoShelfClear = false
+    }
 
     // MARK: - Dismissal
 
@@ -257,10 +330,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
-            onClearShelf: { [weak self] in try? self?.shelf?.clear() },
+            onClearShelf: { [weak self] in self?.clearShelf() },
             shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
-            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 }
+            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
+            onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
+            canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false },
+            onShowWelcome: { [weak self] in self?.showWelcomeAgain() }
         )
         menuBar.install()
         self.menuBar = menuBar
@@ -393,7 +469,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transition(to: .closed)
             return
         }
-        openPanel()
+        openPanel(openedBy: .hotKey)
     }
 
     /// Opens the panel on the last tab, or the first visible one if that tab
@@ -405,17 +481,28 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Also `false` while the panel is hidden for a full-screen app: there
     /// is no window on screen to open.
+    ///
+    /// `reason` is required, not defaulted, so every route has to say whether
+    /// it was asked for. The answer decides whether the open takes the
+    /// keyboard (`PanelFocus`), and a default would quietly decide it for a
+    /// route added later.
+    ///
+    /// `avoided` is a tab to open on only when it is the sole visible one —
+    /// "Show Welcome Again" passes `.camera`, where the card never shows.
     @discardableResult
-    func openPanel() -> Bool {
+    func openPanel(openedBy reason: PanelOpenReason, avoiding avoided: CreativeNotchCore.Tab? = nil) -> Bool {
         guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
         guard !visible.isEmpty else { return false }
-        state.transition(to: .open(visible.contains(state.lastOpenTab)
+        let preferred = visible.filter { $0 != avoided }
+        let pool = preferred.isEmpty ? visible : preferred
+        state.transition(to: .open(pool.contains(state.lastOpenTab)
                                   ? state.lastOpenTab
-                                  : visible[0]))
+                                  : pool[0]),
+                         openedBy: reason)
         return true
     }
 
@@ -425,6 +512,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// not build a window, and because the fourteen suites that call `install`
     /// have no use for one.
     public func showPreferences() {
+        showPreferences(highlighting: nil)
+    }
+
+    /// The same, scrolled to `section` with its rows briefly highlighted —
+    /// how the welcome card's "Set Shortcut…" lands on the recorder.
+    func showPreferences(highlighting section: PreferencesSection?) {
         if preferences == nil {
             preferences = PreferencesController(
                 switchboard: switchboard,
@@ -432,7 +525,30 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 launchAtLogin: launchAtLogin
             )
         }
-        preferences?.show()
+        preferences?.show(highlighting: section)
+    }
+
+    /// The menu's "Show Welcome Again": clears the flag and opens the panel,
+    /// so the card is there to read rather than waiting for the next open.
+    /// Through `openPanel(openedBy:)`, so it declines like every other opener
+    /// when no tab is visible — the flag stays cleared for when one is. A
+    /// menu click is asked for, so it opens as `.tap` does and takes the
+    /// keyboard: Esc dismisses the card like any explicit open.
+    ///
+    /// Not onto the camera tab, where the card never shows
+    /// (`WelcomeCard.isShown`): opening there would start the camera and show
+    /// no welcome. Only when the camera is the one tab left does it open
+    /// there, card-less, with the flag still cleared.
+    func showWelcomeAgain() {
+        state.setWelcomeSeen(false)
+        openPanel(openedBy: .tap, avoiding: .camera)
+    }
+
+    /// Closes the panel, then opens Settings. Settings is an activating
+    /// window, and the panel should not sit open under it.
+    private func openSettingsFromPanel(highlighting section: PreferencesSection?) {
+        state.transition(to: .closed)
+        if let presentPreferences { presentPreferences(section) } else { showPreferences(highlighting: section) }
     }
 
     // MARK: - Installation
@@ -448,6 +564,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             .size
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
+        panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
         host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
@@ -536,15 +653,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let clipboardStore = ClipboardStore()
         let clipboard = ClipboardController(store: clipboardStore)
         state.clipboard = clipboardStore
-        state.onPasteClipboard = { [weak clipboard] entry in clipboard?.paste(entry) }
+        state.onCopyClipboard = { [weak clipboard] entry in clipboard?.copy(entry) }
         self.clipboard = clipboard
 
         // The pane's title-row verbs reach the verbs that already exist —
         // the same `clear()` the menu bar items call. Read through `self`
         // rather than captured, so a shelf rebuilt later is the one cleared.
-        state.onClearShelf = { [weak self] in try? self?.shelf?.clear() }
+        state.onClearShelf = { [weak self] in self?.clearShelf() }
+        state.onUndoClearShelf = { [weak self] in self?.undoClearShelf() }
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
+        state.onRevealShelfItem = { url in NSWorkspace.shared.activateFileViewerSelecting([url]) }
 
         // Open on hover (2026-10-17). Loaded here, saved and applied together
         // by the verb, like the shortcut's store.
@@ -555,11 +674,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.hoverBehaviour = behaviour
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
-        state.onOpenPanel = { [weak self] in self?.openPanel() }
+        state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
+        state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
         state.onOpenSettings = { [weak self] in
-            guard let self else { return }
-            self.state.transition(to: .closed)
-            if let presentPreferences { presentPreferences() } else { self.showPreferences() }
+            self?.openSettingsFromPanel(highlighting: nil)
+        }
+
+        // The welcome card (2026-10-24). Loaded, not cached, like the hover
+        // behaviour above: a relaunch reads the flag back from the domain.
+        state.welcomeSeen = preferencesStore.hasSeenWelcome
+        state.onPersistWelcomeSeen = { [weak self] seen in
+            self?.preferencesStore.setHasSeenWelcome(seen)
+        }
+        state.onWelcomeSetShortcut = { [weak self] in
+            self?.state.setWelcomeSeen(true)
+            self?.openSettingsFromPanel(highlighting: .shortcut)
         }
 
         // Spec section 4.7: the sleep/lock gate is enforced once, here, and
@@ -588,7 +717,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `[weak self]` matters: `media` holds this closure, and the work
         // it does reaches back through `self` for the artwork — a strong
         // capture would be a controller keeping its owner alive, the same
-        // reason `onPasteClipboard` above captures its controller weakly.
+        // reason `onCopyClipboard` above captures its controller weakly.
         // The body is a method rather than a closure so a test can drive
         // the real publish path without a running helper.
         media.onChange = { [weak self] snapshot in
@@ -616,7 +745,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         // The tab's four verbs, routed through `AppState` in the style of
-        // `onPasteClipboard` and `onMediaCommand`. `[weak timer]` rather
+        // `onCopyClipboard` and `onMediaCommand`. `[weak timer]` rather
         // than `[weak self]`: `AppState` outlives nothing here, but the
         // closures are held by the state which the delegate owns, and the
         // delegate owns the controller — capturing it strongly would close
@@ -703,7 +832,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.state.transition(to: .closed)
                 return false
             }
-            self.state.transition(to: .open(.shelf))
+            self.state.transition(to: .open(.shelf), openedBy: .drop)
             return true
         }
         container.addSubview(host)
@@ -1138,7 +1267,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .none:
             break
         case .open:
-            openPanel()
+            openPanel(openedBy: .swipe)
         case .close:
             state.transition(to: .closed)
         case .nextTrack, .previousTrack:
@@ -1159,7 +1288,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if state.hoverBehaviour.opensOnHover {
             switch state.state {
             case .closed, .peek:
-                if openPanel() { return }
+                if openPanel(openedBy: .hover) { return }
             case .open, .receiving:
                 return
             }
@@ -1336,12 +1465,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// change routes through `AppState.transition(to:)`, so there is no
     /// path that can open the panel without arming this, or close it and
     /// leave a monitor running.
-    /// Takes keyboard focus only for the one tab that accepts typing.
+    /// Takes keyboard focus for an open somebody asked for, and for the one
+    /// tab that accepts typing.
     ///
     /// The panel *can* become key (see `NotchPanel`), but it should not do
     /// so casually: while it holds focus, whatever you were writing in
-    /// loses its insertion point. Peeks are ambient and frequent, and the
-    /// shelf and clipboard tabs are click-only, so none of them touch it.
+    /// loses its insertion point. Peeks are ambient and frequent, so none of
+    /// them touch it. An open earns it by being explicit — the notch tap or
+    /// the global shortcut, the two routes where the person has turned to
+    /// the panel and Esc and ⌘1…⌘N are what they will reach for next. A
+    /// hover-open never does: a pointer crossing the notch is not someone who
+    /// has stopped typing (`PanelOpenReason`).
     ///
     /// Giving focus back is `relinquishKey`, not `resignKey()`. AppKit sends
     /// `resignKey` as a notification and documents that it must never be
@@ -1352,15 +1486,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// being frontmost (the panel is non-activating), and tracking that
     /// ourselves would be a second derivation of state it already owns.
     ///
-    /// Deliberately keyed on the *tab*, not on `.open`. Making every open
-    /// steal the cursor would be a regression for the three surfaces that
-    /// never needed it.
+    /// Deliberately keyed on the tab and the *reason*, not on `.open`.
+    /// Making every open steal the cursor would be a regression for the
+    /// hover-open that never asked for it.
     /// Pure, so the rule is testable without a window server — `makeKey`
-    /// on an offscreen panel in a headless suite proves nothing.
-    static func shouldTakeKey(for state: NotchState) -> Bool {
-        if case .open(.timer) = state { return true }
-        return false
+    /// on an offscreen panel in a headless suite proves nothing. The rule
+    /// itself is `PanelFocus`, in Core; this is the delegate's name for it.
+    static func shouldTakeKey(for state: NotchState, openedBy reason: PanelOpenReason?) -> Bool {
+        PanelFocus.shouldTakeKey(for: state, openedBy: reason)
     }
+
+    /// Takes keyboard focus. `nil` means the real thing, `makeKey()`; a test
+    /// hands in a counter, like `relinquishKey`, because a headless suite
+    /// cannot make an offscreen panel key and so could not tell a hover-open
+    /// that took focus from one that did not.
+    var takeKey: (() -> Void)?
 
     /// Whether the panel holds keyboard focus. Injected because a headless
     /// suite cannot make an offscreen panel key, so the give-back path would
@@ -1381,8 +1521,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// close that follows gives focus back.
     func syncKeyWindow(for newState: NotchState) {
         guard let panel else { return }
-        if Self.shouldTakeKey(for: newState) {
-            panel.makeKey()
+        if Self.shouldTakeKey(for: newState, openedBy: state.openReason) {
+            if let takeKey { takeKey() } else { panel.makeKey() }
         } else if case .open = newState {
             return
         } else if panelIsKey(panel) {
@@ -1407,6 +1547,33 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         guard wasVisible, !isHiddenForFullScreen else { return }
         panel.orderFrontRegardless()
         if fixedSpace != nil { hostPanelInFixedSpace() }
+    }
+
+    /// What a key the panel received does, through the funnel.
+    ///
+    /// Keys arrive only while the panel is key, which `syncKeyWindow` grants
+    /// to an explicit open (or the timer tab, or a click in the panel) — so
+    /// nothing here needs a monitor, global or local. Esc is the same
+    /// `.closed` transition every other dismissal makes; ⌘N is the same
+    /// `.open(tab)` the tab bar's buttons make, numbered over the tabs the
+    /// bar actually draws.
+    ///
+    /// Returns whether the key was used. A declined key — ⌘9 with three
+    /// tabs, anything while not open — goes back to AppKit to pass on.
+    @discardableResult
+    func handlePanelKey(_ key: PanelKey) -> Bool {
+        let visible = TabVisibility.visible(
+            enabled: state.preferences,
+            hasBattery: state.hasBattery
+        )
+        guard let action = PanelKeyboard.action(for: key, in: state.state, visible: visible) else {
+            return false
+        }
+        switch action {
+        case .close:            state.transition(to: .closed)
+        case .select(let tab):  state.transition(to: .open(tab))
+        }
+        return true
     }
 
     private func syncDismissAffordances(for newState: NotchState) {

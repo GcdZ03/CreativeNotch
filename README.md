@@ -240,6 +240,13 @@ directory in place; delete it too if you want the stashed files gone.
 ## Usage
 
 Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
+The first time you open the panel, a short welcome card covers it: the four
+gestures below that matter most, a **Set Shortcut…** button that opens Settings
+on the global shortcut (none is set until you pick one), and **Got it**. It
+shows once, on the first open you ask for (a click or the shortcut, not a
+hover, swipe or drop, and never over the camera) — closing the panel or trying
+a tab counts as reading it — and **Show Welcome Again** in the menu bar brings
+it back.
 
 | Action | Result |
 |---|---|
@@ -253,9 +260,14 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
+| Press Esc | Closes the panel |
+| Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
+| Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
+| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
-| Click a clipboard entry | Puts it back on the clipboard, ready to paste |
+| Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
+| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -273,7 +285,7 @@ Launch the app. It has no Dock icon — it lives in the notch and the menu bar.
 | Pause it | The countdown dims, and stops redrawing entirely |
 | Let it finish | The notch peeks and chimes once, and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Settings…, Clear Shelf, Clear Clipboard, Quit |
+| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
@@ -282,6 +294,12 @@ hover** does that after a delay you choose (0.2–1.0 s) — straight to the
 panel, which has the progress bar and the music controls. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
+
+The keys work once the panel has the keyboard: when you opened it by clicking
+the notch or with the global shortcut, or after clicking inside it. A panel
+that opened on hover does not take the keyboard by itself, so whatever you were
+typing in keeps your keystrokes — the Timer tab is the one exception, because
+its minutes field has to be typable.
 
 The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.

@@ -16,7 +16,7 @@ import CreativeNotchUI
 /// "never takes the frontmost app's *activation*", and that is
 /// `.nonactivatingPanel`'s job. Becoming key costs the frontmost app its
 /// insertion point and nothing else, and `AppDelegate.syncKeyWindow` spends
-/// even that on one tab only.
+/// even that only on the timer tab and on an explicit open (`PanelFocus`).
 @MainActor
 struct NotchPanelTests {
 

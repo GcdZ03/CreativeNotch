@@ -18,6 +18,14 @@ public enum PreferenceKeys {
         "module.\(module.rawValue).enabled"
     }
 
+    /// Whether the first-run welcome card has been dismissed (2026-10-24).
+    ///
+    /// A new key rather than the legacy `hasCompletedOnboarding`: someone who
+    /// finished that window long ago has never seen this card, and reusing
+    /// the key would hide it from exactly the people most likely to have
+    /// forgotten what the notch does. Absent means not yet seen.
+    public static let welcomeSeen = "welcome.seen"
+
     /// What a raw defaults value means.
     ///
     /// This is the whole compatibility surface, which is why it is a pure

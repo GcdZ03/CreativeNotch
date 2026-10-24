@@ -31,10 +31,27 @@ struct ClipboardWiringTests {
         #expect(makeDelegate().state.clipboard != nil)
     }
 
-    /// The view asks for a paste through this closure. Left unset, every
-    /// click in the clipboard list would silently do nothing.
-    @Test func installingWiresThePasteHandler() {
-        #expect(makeDelegate().state.onPasteClipboard != nil)
+    /// The view asks for a copy-back through this closure. Left unset,
+    /// every click in the clipboard list would silently do nothing.
+    @Test func installingWiresTheCopyHandler() {
+        #expect(makeDelegate().state.onCopyClipboard != nil)
+    }
+
+    @Test func installingWiresTheRemoveHandler() {
+        #expect(makeDelegate().state.onRemoveClipboardEntry != nil)
+    }
+
+    /// The row's Delete reaches the ring the pane shows, and takes only
+    /// the entry it was asked to.
+    @Test func removeClipboardEntryRemovesJustThatOne() throws {
+        let d = makeDelegate()
+        let store = try #require(d.state.clipboard)
+        let a = try #require(store.record(.text("A"), now: Date(timeIntervalSince1970: 0)))
+        store.record(.text("B"), now: Date(timeIntervalSince1970: 1))
+
+        d.state.onRemoveClipboardEntry?(a.id)
+
+        #expect(store.entries.map(\.content) == [.text("B")])
     }
 
     // MARK: - Menu bar
