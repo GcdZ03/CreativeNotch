@@ -117,7 +117,13 @@ JSON beside an existing one such as `"%lld items"`.
    under each string's `"localizations"` in the JSON.
 2. Translate every string, including each plural's forms for that language
    (Xcode lists the categories the language needs — Russian has four).
-3. Add the same language to `Resources/InfoPlist.xcstrings`.
+3. Add the same language to `Resources/InfoPlist.xcstrings` (at least the
+   camera prompt). This is what switches the app's language, not a side
+   step: macOS chooses a nested bundle's language — and the strings live in
+   one — only from the languages the main app bundle has `.lproj` folders
+   for, and the main bundle's folders are compiled from this catalog. A
+   language in `Localizable.xcstrings` alone ships and is never shown.
+   `LocalizationTests` and `bundle.sh` both fail if you skip this.
 4. Run `swift test`, then `./Scripts/bundle.sh` and check
    `dist/CreativeNotch.app/Contents/Resources/CreativeNotch_CreativeNotchCore.bundle/<code>.lproj`
    exists. The `StringCatalogCompiler` plugin finds the language in the

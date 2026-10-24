@@ -50,6 +50,16 @@ cp -R "$STRINGS_BUNDLE" "$APP/Contents/Resources/"
 # not from Core's bundle, so its catalog is compiled straight into them.
 xcrun xcstringstool compile "$ROOT/Resources/InfoPlist.xcstrings" \
   --output-directory "$APP/Contents/Resources" >/dev/null
+# macOS chooses the nested bundle's language from the languages the *main*
+# bundle has .lproj folders for. A language only in Localizable.xcstrings
+# would ship and never be used, so refuse to build it.
+for LPROJ in "$APP/Contents/Resources/CreativeNotch_CreativeNotchCore.bundle"/*.lproj; do
+  if [ ! -d "$APP/Contents/Resources/$(basename "$LPROJ")" ]; then
+    echo "$(basename "$LPROJ" .lproj) is in Localizable.xcstrings but not Resources/InfoPlist.xcstrings;" >&2
+    echo "macOS would never choose it. Add it there too (CONTRIBUTING.md)." >&2
+    exit 1
+  fi
+done
 
 # One version string, not two. Info.plist carries a placeholder and the
 # real value comes from CoreInfo -- they used to be maintained by hand in

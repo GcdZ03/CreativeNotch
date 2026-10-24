@@ -479,7 +479,11 @@ changes catalogs. Core's words (`PowerLabel`, `TimerSpokenText`,
 `ShelfLimitRemoval`) are localized where they are built, which keeps them
 testable: the tests that pin the English are the same ones that would see a
 missing entry. The app ships English only; adding a language is adding
-entries (CONTRIBUTING.md has the steps).
+entries (CONTRIBUTING.md has the steps) — to this catalog *and* to
+`Resources/InfoPlist.xcstrings`. macOS picks a nested bundle's language only
+from the languages the main app bundle has `.lproj` folders for, and the main
+bundle's only folders are compiled from the Info.plist catalog; a language
+missing there ships and is never shown. A test and `bundle.sh` both check it.
 
 ### SwiftPM ships a String Catalog it cannot read
 

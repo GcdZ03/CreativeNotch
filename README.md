@@ -364,8 +364,10 @@ Every user-facing string goes through one String Catalog,
 `Sources/CreativeNotchCore/Localizable.xcstrings`, as
 `String(localized: "…", bundle: .creativeNotch)` or
 `Text("…", bundle: .creativeNotch)`; a test fails on a literal that skips it.
-The app ships in English only. Adding a language is adding entries to the
-catalog — see [`CONTRIBUTING.md`](CONTRIBUTING.md#strings-and-translations).
+The app ships in English only. Adding a language is adding entries to that
+catalog and to `Resources/InfoPlist.xcstrings` — macOS only chooses languages
+the main app bundle has — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md#strings-and-translations).
 
 Xcode opens `Package.swift` directly — there is no project file to maintain.
 

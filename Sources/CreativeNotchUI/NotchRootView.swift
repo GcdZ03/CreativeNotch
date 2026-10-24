@@ -1244,8 +1244,13 @@ public struct NotchRootView: View {
         String(localized: "\(Int(countdown.duration / 60)) min", bundle: .creativeNotch, comment: "Minutes, abbreviated: 25 min")
     }
 
-    private var label: String {
-        switch app.state {
+    private var label: String { Self.label(for: app.state) }
+
+    /// The title row's text. An open tab reads its `Tab.title`, the same
+    /// word as its tab bar tooltip and pane ("Battery", where it once read
+    /// the raw value, "Power").
+    static func label(for state: NotchState) -> String {
+        switch state {
         case .closed:          return ""
         case .peek:            return "CreativeNotch"
         case .open(let tab):   return tab.title

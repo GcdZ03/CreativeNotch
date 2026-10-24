@@ -659,9 +659,12 @@ struct HoverRow: View {
     }
 
     /// The delay beside its slider: "0.5 s". The number is formatted for the
-    /// region, the unit comes from the catalog.
-    static func delayLabel(_ seconds: TimeInterval) -> String {
-        let number = seconds.formatted(.number.precision(.fractionLength(1)))
+    /// region, the unit comes from the catalog. That is a deliberate change
+    /// from the old `String(format: "%.1f s")`, which printed "0.5 s" even
+    /// where every other number on the Mac reads "0,5"; in a point-decimal
+    /// region the text is unchanged.
+    static func delayLabel(_ seconds: TimeInterval, locale: Locale = .autoupdatingCurrent) -> String {
+        let number = seconds.formatted(.number.precision(.fractionLength(1)).locale(locale))
         return String(localized: "\(number) s", bundle: .creativeNotch, comment: "Hover delay in seconds")
     }
 

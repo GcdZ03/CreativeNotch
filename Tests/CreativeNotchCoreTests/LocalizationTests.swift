@@ -122,6 +122,36 @@ struct LocalizationTests {
         }
     }
 
+    /// macOS picks a nested bundle's language from the languages the *main*
+    /// app bundle has `.lproj` folders for — and the main bundle's only
+    /// `.lproj` folders are the ones `bundle.sh` compiles from
+    /// `Resources/InfoPlist.xcstrings`. A language added to
+    /// `Localizable.xcstrings` alone is compiled, shipped, and never chosen:
+    /// the app stays English even with `-AppleLanguages (fr)`, and nothing
+    /// else fails. So every language in the strings catalog must be in the
+    /// Info.plist catalog too.
+    @Test func everyLanguageIsAlsoInTheInfoPlistCatalog() throws {
+        let strings = Self.languages(in: try Self.catalogRoot())
+        let infoPlist = Self.languages(in: try Self.infoPlistCatalogRoot())
+        #expect(strings.contains("en"))
+        let missing = strings.subtracting(infoPlist).sorted()
+        #expect(missing.isEmpty, "in Localizable.xcstrings but not Resources/InfoPlist.xcstrings, so macOS would never choose them: \(missing)")
+    }
+
+    /// The helper behind the check above sees a language that only some
+    /// entries have, including one that has only plural variations.
+    @Test func languagesAreReadFromEveryEntry() {
+        let catalog: [String: Any] = [
+            "sourceLanguage": "en",
+            "strings": [
+                "Hello": ["localizations": ["en": [:], "fr": [:]]],
+                "%lld items": ["localizations": ["de": ["variations": ["plural": [:]]]]],
+                "Untranslated": [:],
+            ],
+        ]
+        #expect(Self.languages(in: catalog) == ["en", "fr", "de"])
+    }
+
     // MARK: - The source scans
 
     /// Every literal handed to `String(localized:)` or `Text(_:bundle:)` is
@@ -253,6 +283,22 @@ struct LocalizationTests {
         let strings = try #require(try catalogRoot()["strings"] as? [String: [String: Any]])
         #expect(!strings.isEmpty)
         return strings
+    }
+
+    private static func infoPlistCatalogRoot() throws -> [String: Any] {
+        let url = repoRoot.appendingPathComponent("Resources/InfoPlist.xcstrings")
+        let data = try Data(contentsOf: url)
+        return try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    /// The source language plus every language any entry has a value for.
+    static func languages(in catalog: [String: Any]) -> Set<String> {
+        var languages: Set<String> = []
+        if let source = catalog["sourceLanguage"] as? String { languages.insert(source) }
+        for entry in (catalog["strings"] as? [String: [String: Any]] ?? [:]).values {
+            languages.formUnion((entry["localizations"] as? [String: Any] ?? [:]).keys)
+        }
+        return languages
     }
 
     private static func english(_ entry: [String: Any]) -> [String: Any]? {
