@@ -75,6 +75,22 @@ struct SandboxedSeamsTests {
         #expect(delegate.timerNotices is SystemTimerNotices)
     }
 
+    /// Opening a shelf file and previewing it reach other apps and put a
+    /// window on screen: a bare delegate's do neither, and only the real
+    /// launch hands in `NSWorkspace` and Quick Look. Asserted as values --
+    /// nothing is opened or previewed.
+    @Test func aFreshDelegateNeitherOpensNorPreviewsShelfFiles() {
+        let delegate = AppDelegate()
+        #expect(delegate.shelfOpener.isSystem == false)
+        #expect(delegate.shelfPreview.isSystem == false)
+        #expect(delegate.shelfOpener.open(URL(fileURLWithPath: "/tmp/never-opened.txt")) == false)
+
+        delegate.configureForRealLaunch()
+        #expect(delegate.shelfOpener.isSystem)
+        #expect(delegate.shelfPreview.isSystem)
+        #expect(delegate.shelfPreview is ShelfQuickLook)
+    }
+
     @Test func onlyTheSystemTrashSaysItIs() {
         #expect(ShelfTrash.system.isSystem)
         #expect(ShelfTrash.folder(FileManager.default.temporaryDirectory).isSystem == false)

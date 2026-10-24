@@ -310,9 +310,13 @@ what it means and makes the same `transition(to:)` a click would. ⌘N counts
 the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
 a gap in the numbering. With a search typed on the clipboard tab, Esc clears
 the search first and only the next press closes — `PanelKeyboard` decides that
-from `AppState.clipboardQuery`, so it is tested in Core like the rest. Neither
-key does anything unless the state is `.open`
-— Esc never tears down a drop target mid-drag.
+from `AppState.clipboardQuery`, so it is tested in Core like the rest. No key
+does anything unless the state is `.open`
+— Esc never tears down a drop target mid-drag. Space and ← → are decoded the
+same way and answered only on the shelf tab (Quick Look and the selection,
+below); anywhere else they are passed on, and a text field that is editing —
+the timer's minutes, the clipboard search — consumes them before the window
+sees them.
 
 ### Who gets the keyboard
 
@@ -634,6 +638,52 @@ the shelf is idle. A second clear while the offer stands is merged into it
 every batch. **Restoring never evicts.** The restored files are the oldest on
 the shelf, so the eviction an add runs would trash exactly what was asked
 back; the shelf may sit over its capacity until the next add enforces it.
+
+### Quick Look and Open
+
+A click on a tile selects it (`AppState.shelfSelection`, drawn as a ring), a
+double-click opens it with its default app, and Space previews the selection
+in the system's `QLPreviewPanel` — also reachable as Open and Quick Look in
+the tile's menu and VoiceOver actions. Which verbs a tile offers, in what
+order, and what a preview pages through are pure Core (`ShelfTileVerb`,
+`ShelfPreview`, `ShelfSelection`): the preview is handed **every ready item**,
+starting at the chosen one, so Quick Look's own arrows walk the shelf; a file
+still copying in is never selected, previewed or opened.
+
+**Nothing runs until asked.** No panel is created to answer whether one is
+up (`sharedPreviewPanelExists()` first), and the one observer — the preview's
+`willClose` — is added on the first preview, never before. Its controller is
+found two ways, because the notch panel is non-activating — through the key
+window's responder chain (`NotchPanel.acceptsPreviewPanelControl`), and
+handed over directly before the preview is ordered front, since on a
+hover-open the notch panel is not key and once the preview is key the chain
+it walks is its own. The preview outlives the notch panel closing behind it
+— the pointer leaving for the preview starts the usual grace — and our own
+app activating is already ignored by the dismissal path. Space reaches the
+panel only while it is key, so after a hover-open it goes to the app
+underneath: a click in the panel makes it key first.
+
+**The preview takes the keyboard without activating the app.**
+CreativeNotch is never the active app, and `QLPreviewPanel` is an ordinary
+panel, which cannot become key in an app that is not active: ordered front
+with `makeKeyAndOrderFront`, it left no window of ours key, and the next
+Space typed into whatever was frontmost. `ShelfQuickLook.prepare` gives it
+the notch panel's own `.nonactivatingPanel` style, so it becomes key while
+the other app stays in front, and its own Space, Esc and arrows work as in
+Finder. When it closes, nothing would be key again — so the `willClose`
+observer hands the keyboard back to the notch panel, if it is still open
+(`AppDelegate.shelfPreviewDidClose`), and Space there previews again. Paging
+in the preview moves the preview, not the selection ring. None of this is
+visible to a headless suite; the opt-in live suite (`ShelfQuickLookLive`,
+see DEVELOPMENT.md) drives it against the window server.
+
+Both are seams on `AppDelegate`, sandboxed by default like the Trash:
+`shelfOpener` is `.inert` and `shelfPreview` an `InertShelfPreview` until
+`configureForRealLaunch()` hands in `NSWorkspace.open` and `ShelfQuickLook`,
+so no test can launch an app or put a preview on screen
+(`SandboxedSeamsTests`). Switching the shelf off closes a preview of its
+files and forgets the selection. No permission: both are the system's own
+viewers, reading files the shelf already holds.
 
 ### The drop region follows the drawn shape
 

@@ -83,6 +83,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Music and battery peeks** — a mini player and a status row that drop below the notch | Done |
 | ✅ **Trackpad swipes** — down to open, following the fingers; up to close; sideways to skip | Done |
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
+| ✅ **Shelf Quick Look and Open** — Space previews a tile, a double-click opens it | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
 | ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
@@ -225,8 +226,10 @@ immediately.
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
-is registered with the window server rather than a monitor. Eight of the nine
-modules work with nothing granted.
+is registered with the window server rather than a monitor. Quick Look and
+Open on the shelf use the system's own viewers on files the shelf already
+holds, so they ask for nothing either. Eight of the nine modules work with
+nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
 time the camera tab actually runs — not at launch, and never if you do not
@@ -287,7 +290,11 @@ it back.
 | Press Esc | Closes the panel — or, with a clipboard search typed, clears the search first |
 | Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
-| Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
+| Right-click a shelf item | Open, Quick Look, Show in Finder, AirDrop, Remove; VoiceOver offers the same five as actions on the tile, which it reads by file name. A file still copying in offers none |
+| Click a shelf item | Selects it: a ring round the tile, and "Space to Quick Look · double-click to open" under the shelf |
+| Press Space on the shelf | Quick Look previews the selected file (or the first, if none is selected) and takes the keyboard, as in Finder: ← → page through the shelf's files, Space or Esc closes it, and the keyboard goes back to the panel. Works while the panel has the keyboard — after a click in it, or opened by a click on the notch or the shortcut, never on a hover-open |
+| Press ← or → on the shelf | Moves the selection, stopping at either end |
+| Double-click a shelf item | Opens it in its default app, as in Finder |
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back. Clearing again inside those six seconds adds to the same Undo, which brings back everything cleared; restored files are kept even if the shelf goes over its limit until the next drop, and any that could not come back (emptied from the Trash meanwhile) are reported under the shelf as "Couldn't restore N items", also spoken by VoiceOver |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied; pinned entries sit above the rest |
 | Type in the clipboard's search field | Narrows the list to entries containing every word you type, ignoring case and accents; the title row counts what is kept, and closing the panel clears the search. The field takes the keyboard only when you click it, or when you opened the panel by clicking the notch or with the shortcut — never on a hover-open |

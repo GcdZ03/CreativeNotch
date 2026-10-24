@@ -287,6 +287,12 @@ final class ModuleSwitchboard {
             // and its idle cost is genuinely zero. Disabling hides the tab and
             // refuses drops — the drop closures read `state.preferences`.
             delegate.state.shelf = enabled ? delegate.shelf : nil
+            // The one thing it can leave on screen: a Quick Look of its
+            // files. A switched-off shelf must not keep previewing them.
+            if !enabled {
+                delegate.shelfPreview.close()
+                delegate.state.shelfSelection = nil
+            }
         }
 
         retargetTabsIfNeeded()

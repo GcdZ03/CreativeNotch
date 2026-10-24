@@ -1,4 +1,5 @@
 import AppKit
+import QuickLookUI
 import CreativeNotchCore
 
 /// A non-activating, borderless panel pinned above the menu bar.
@@ -53,18 +54,36 @@ public final class NotchPanel: NSPanel {
     private static let digitKeyCodes: [UInt16] = [18, 19, 20, 21, 23, 22, 26, 28, 25]
 
     private static let escapeKeyCode: UInt16 = 53
+    private static let spaceKeyCode: UInt16 = 49
+    private static let leftArrowKeyCode: UInt16 = 123
+    private static let rightArrowKeyCode: UInt16 = 124
 
     /// The key an event stands for, or `nil` when it is not one of ours.
     ///
     /// Digits count only with exactly ⌘ held: a plain digit is typing — the
     /// timer's minutes field — and ⌘⇧2 or ⌥⌘2 belong to somebody else.
-    /// Caps Lock, the numeric-pad and function flags are states of the
-    /// keyboard rather than parts of a chord, so they are ignored.
+    /// Only ⇧ ⌃ ⌥ ⌘ make a chord. Caps Lock, the numeric-pad and function
+    /// flags are states of the keyboard rather than parts of one — the
+    /// arrow keys always arrive with the last two set — and so is any bit
+    /// AppKit has no name for: a synthesized key event (an automation tool,
+    /// the live Quick Look suite) arrives carrying bit 29, which a mask
+    /// that only *subtracted* the known states read as a modifier held,
+    /// so Space and the arrows silently stopped being ours.
+    ///
+    /// Space and ← → count only bare: ⌘Space is Spotlight's and ⌥← a word
+    /// jump. Whether they *do* anything is `PanelKeyboard`'s call — only on
+    /// the shelf tab.
     public static func panelKey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> PanelKey? {
-        let chord = modifiers
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting([.capsLock, .numericPad, .function])
-        if keyCode == escapeKeyCode, chord.isEmpty { return .escape }
+        let chord = modifiers.intersection([.shift, .control, .option, .command])
+        if chord.isEmpty {
+            switch keyCode {
+            case escapeKeyCode:     return .escape
+            case spaceKeyCode:      return .space
+            case leftArrowKeyCode:  return .arrowLeft
+            case rightArrowKeyCode: return .arrowRight
+            default:                break
+            }
+        }
         guard chord == .command, let index = digitKeyCodes.firstIndex(of: keyCode) else { return nil }
         return .commandDigit(index + 1)
     }
@@ -114,12 +133,19 @@ public final class NotchPanel: NSPanel {
         }
     }
 
-    /// Esc with nothing focused: the key-down falls through the responder
-    /// chain to the window.
+    /// Esc, Space and the arrows with nothing focused: the key-down falls
+    /// through the responder chain to the window. A focused text field —
+    /// the timer's minutes — consumes Space and the arrows itself, so they
+    /// never reach here while someone is typing.
     public override func keyDown(with event: NSEvent) {
-        if Self.panelKey(keyCode: event.keyCode, modifiers: event.modifierFlags) == .escape,
-           handle(.escape) {
-            return
+        // ⌘N was offered as a key equivalent already; declined there, it is
+        // declined here too.
+        let key = Self.panelKey(keyCode: event.keyCode, modifiers: event.modifierFlags)
+        switch key {
+        case .escape?, .space?, .arrowLeft?, .arrowRight?:
+            if handle(key) { return }
+        case .commandDigit?, nil:
+            break
         }
         super.keyDown(with: event)
     }
@@ -131,6 +157,33 @@ public final class NotchPanel: NSPanel {
     public override func cancelOperation(_ sender: Any?) {
         if handle(.escape) { return }
         super.cancelOperation(sender)
+    }
+
+    // MARK: - Quick Look
+
+    /// The shelf's Quick Look controller, set by `AppDelegate.install` when
+    /// the real one is in use. Weak: the delegate owns it.
+    weak var quickLook: ShelfQuickLook?
+
+    /// `QLPreviewPanel` walks the key window's responder chain for a
+    /// controller; the panel is where that walk starts while it is key, so
+    /// this is where the shelf answers. See `ShelfQuickLook` for why the
+    /// controller is also handed over directly.
+    ///
+    /// Quick Look calls these on the main thread; the informal protocol
+    /// they come from predates the annotation that would say so.
+    public override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+        MainActor.assumeIsolated { quickLook?.request != nil }
+    }
+
+    public override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        guard let panel else { return }
+        MainActor.assumeIsolated { quickLook?.attach(to: panel) }
+    }
+
+    public override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+        guard let panel else { return }
+        MainActor.assumeIsolated { quickLook?.detach(from: panel) }
     }
 
     public init(contentRect: NSRect) {
