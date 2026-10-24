@@ -263,7 +263,7 @@ struct TextSizeRenderingTests {
             "CaptureBadgeView.swift", "TimerBadgeView.swift", "NowPlayingBadgeView.swift",
             "NowPlayingView.swift", "PowerPeekView.swift", "TimerDonePeekView.swift",
             "BluetoothPeekView.swift", "DownloadsBadgeView.swift", "DownloadPeekView.swift",
-            "PreferencesWindow.swift", "LayoutRows.swift", "NotchTypeStyle.swift",
+            "PreferencesWindow.swift", "LayoutRows.swift", "UpdatesSection.swift", "NotchTypeStyle.swift",
             // Only the peek's fallback label, which no state reaches.
             "NotchRootView.swift",
         ]
@@ -294,7 +294,9 @@ struct TextSizeRenderingTests {
             .deletingLastPathComponent()
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/CreativeNotchUI")
-        let settings: Set<String> = ["PreferencesWindow.swift", "HotKeyRecorder.swift", "LayoutRows.swift"]
+        let settings: Set<String> = [
+            "PreferencesWindow.swift", "HotKeyRecorder.swift", "LayoutRows.swift", "UpdatesSection.swift",
+        ]
         let styles = ["largeTitle", "title", "title2", "title3", "headline", "subheadline",
                       "body", "callout", "footnote", "caption", "caption2"]
         let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))

@@ -274,6 +274,17 @@ struct LocalizationTests {
         #"hsl(\(hue), \(saturation)%, \(lightness)%)"#,
         "Color(red: %.3f, green: %.3f, blue: %.3f)",
         "SwiftUI",
+        // The updater (2026-10-24): HTTP header names and the user agent
+        // GitHub reads, the app bundle's file name, the installer command
+        // shown to be pasted into Terminal, and the relaunch helper's shell
+        // script — protocol and code, the same in every language.
+        "User-Agent", "Accept", "If-None-Match", #"CreativeNotch/\(version)"#,
+        "CreativeNotch.app", #"CreativeNotch-\(tag).tar.gz"#,
+        "curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash",
+        #"sleep 1; i=0; while kill -0 $1 2>/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; exec \"$2\" \"$0\""#,
+        // The repository every release link must belong to
+        // (`UpdateEndpoint.repository`, 2026-10-25): a URL path, not text.
+        "GcdZ03/CreativeNotch",
     ]
 
     // MARK: - Helpers

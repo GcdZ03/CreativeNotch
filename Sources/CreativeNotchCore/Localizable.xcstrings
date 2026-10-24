@@ -746,6 +746,16 @@
         }
       }
     },
+    "Automatically check for updates" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatically check for updates"
+          }
+        }
+      }
+    },
     "Back" : {
       "localizations" : {
         "en" : {
@@ -993,6 +1003,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Charging"
+          }
+        }
+      }
+    },
+    "Check Now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check Now"
+          }
+        }
+      }
+    },
+    "Check for Updates…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check for Updates…"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Checking…"
           }
         }
       }
@@ -1268,6 +1308,36 @@
         }
       }
     },
+    "Couldn't check for updates" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check for updates"
+          }
+        }
+      }
+    },
+    "Couldn't check for updates. Check your connection and try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check for updates. Check your connection and try again."
+          }
+        }
+      }
+    },
+    "Couldn't check for updates: GitHub asked to wait. Try again later." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't check for updates: GitHub asked to wait. Try again later."
+          }
+        }
+      }
+    },
     "Couldn't restore %lld items" : {
       "localizations" : {
         "en" : {
@@ -1286,6 +1356,26 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "Couldn't update: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't update: %@"
+          }
+        }
+      }
+    },
+    "CreativeNotch %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch %@"
           }
         }
       }
@@ -1336,6 +1426,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CreativeNotch could not listen for shortcuts. Restarting the app usually fixes this."
+          }
+        }
+      }
+    },
+    "CreativeNotch looks for a new release when it opens, when you come back to your Mac and when you open Settings — the last two at most once a day — and never on a timer. Update Now downloads the release, checks its checksum, signature and version, and replaces this copy; if anything fails, the current copy stays. Each release is signed ad hoc, so macOS may ask again for permissions you had already granted." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch looks for a new release when it opens, when you come back to your Mac and when you open Settings — the last two at most once a day — and never on a timer. Update Now downloads the release, checks its checksum, signature and version, and replaces this copy; if anything fails, the current copy stays. Each release is signed ad hoc, so macOS may ask again for permissions you had already granted."
           }
         }
       }
@@ -1438,6 +1538,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Downloading %@"
+          }
+        }
+      }
+    },
+    "Downloading…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading…"
           }
         }
       }
@@ -1761,6 +1871,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "In the notch"
+          }
+        }
+      }
+    },
+    "Installing…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installing…"
           }
         }
       }
@@ -2139,6 +2259,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Not charging"
+          }
+        }
+      }
+    },
+    "Not checked yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not checked yet"
           }
         }
       }
@@ -2797,6 +2927,16 @@
         }
       }
     },
+    "Release Notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release Notes"
+          }
+        }
+      }
+    },
     "Remembers" : {
       "comment" : "Clipboard capacity",
       "localizations" : {
@@ -2876,6 +3016,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Rest on the notch to peek at what’s playing or what just changed."
+          }
+        }
+      }
+    },
+    "Restarting…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restarting…"
           }
         }
       }
@@ -3243,6 +3393,76 @@
         }
       }
     },
+    "The download couldn't be unpacked." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download couldn't be unpacked."
+          }
+        }
+      }
+    },
+    "The download didn't finish. Check your connection and try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download didn't finish. Check your connection and try again."
+          }
+        }
+      }
+    },
+    "The download doesn't contain the app." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download doesn't contain the app."
+          }
+        }
+      }
+    },
+    "The download doesn't match the release's checksum, so it wasn't installed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The download doesn't match the release's checksum, so it wasn't installed."
+          }
+        }
+      }
+    },
+    "The downloaded app doesn't say which version it is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded app doesn't say which version it is."
+          }
+        }
+      }
+    },
+    "The downloaded app is version %@, not the release's." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded app is version %@, not the release's."
+          }
+        }
+      }
+    },
+    "The downloaded app's signature didn't verify, so it wasn't installed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The downloaded app's signature didn't verify, so it wasn't installed."
+          }
+        }
+      }
+    },
     "The last things you copied, in memory only." : {
       "localizations" : {
         "en" : {
@@ -3259,6 +3479,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The level beside the settings gear."
+          }
+        }
+      }
+    },
+    "The new copy couldn't be put in place, and the previous one couldn't be moved back. It is at %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new copy couldn't be put in place, and the previous one couldn't be moved back. It is at %@."
+          }
+        }
+      }
+    },
+    "The new copy couldn't be put in place. The current one is untouched." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new copy couldn't be put in place. The current one is untouched."
           }
         }
       }
@@ -3289,6 +3529,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The progress ring beside the closed notch."
+          }
+        }
+      }
+    },
+    "The release's checksum couldn't be read, so the download wasn't trusted." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The release's checksum couldn't be read, so the download wasn't trusted."
           }
         }
       }
@@ -3349,6 +3599,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "This Mac has no built-in camera."
+          }
+        }
+      }
+    },
+    "This copy runs from %@, so it checks for updates but won't install them itself." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy runs from %@, so it checks for updates but won't install them itself."
+          }
+        }
+      }
+    },
+    "This copy runs from %@, so it won't replace itself. To install the update, run:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This copy runs from %@, so it won't replace itself. To install the update, run:"
+          }
+        }
+      }
+    },
+    "This release has no download attached." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This release has no download attached."
           }
         }
       }
@@ -3494,12 +3774,83 @@
         }
       }
     },
+    "Up to date — checked %@" : {
+      "comment" : "When the last check ran: \"5 minutes ago\", \"yesterday\"",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to date — checked %@"
+          }
+        }
+      }
+    },
     "Up to three countdowns in the ear of the notch, and a stopwatch." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Up to three countdowns in the ear of the notch, and a stopwatch."
+          }
+        }
+      }
+    },
+    "Update Now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update Now"
+          }
+        }
+      }
+    },
+    "Update to v%@…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Update to v%@…"
+          }
+        }
+      }
+    },
+    "Updates" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updates"
+          }
+        }
+      }
+    },
+    "Updating needs an administrator to change %@, and CreativeNotch won't ask for your password. To install the update, run this in Terminal:" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Updating needs an administrator to change %@, and CreativeNotch won't ask for your password. To install the update, run this in Terminal:"
+          }
+        }
+      }
+    },
+    "Verifying…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verifying…"
+          }
+        }
+      }
+    },
+    "Version %@ is available" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Version %@ is available"
           }
         }
       }

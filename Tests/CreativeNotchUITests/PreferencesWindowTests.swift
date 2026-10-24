@@ -90,9 +90,10 @@ struct PreferencesWindowTests {
     }
 
     /// A grouped form with an empty group is a heading over nothing, and a
-    /// row without a symbol is a blank tile.
+    /// row without a symbol is a blank tile. Updates is drawn with the
+    /// app-wide sections and has no module rows by design.
     @Test func everySectionIsNonEmptyAndEveryRowHasASymbol() {
-        for section in PreferencesSection.allCases {
+        for section in PreferencesSection.moduleGroups {
             #expect(PreferencesView.rows.contains { $0.section == section }, "\(section) has no rows")
         }
         #expect(PreferencesView.rows.allSatisfy { !$0.symbolName.isEmpty })

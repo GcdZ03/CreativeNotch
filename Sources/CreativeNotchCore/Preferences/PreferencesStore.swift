@@ -130,6 +130,39 @@ public final class PreferencesStore {
         defaults.set(ids, forKey: PreferenceKeys.clipboardExcludedApps)
     }
 
+    /// Whether the updater checks without being asked (2026-10-24). Absent
+    /// means on. Read on every call, never cached.
+    public var checksForUpdatesAutomatically: Bool {
+        PreferenceKeys.resolveEnabled(defaults.object(forKey: PreferenceKeys.updatesAutomatic))
+    }
+
+    public func setChecksForUpdatesAutomatically(_ enabled: Bool) {
+        defaults.set(enabled, forKey: PreferenceKeys.updatesAutomatic)
+    }
+
+    /// What the updater remembers: the last answered check, its ETag and
+    /// the release it described. Read through `UpdateRecord.resolve`, so a
+    /// hand-mangled value reads as absent and is left in place.
+    public func loadUpdateRecord() -> UpdateRecord {
+        UpdateRecord.resolve(
+            lastCheck: defaults.object(forKey: PreferenceKeys.updatesLastCheck),
+            etag: defaults.object(forKey: PreferenceKeys.updatesETag),
+            release: defaults.object(forKey: PreferenceKeys.updatesRelease)
+        )
+    }
+
+    /// Writes all three together, for `saveLimits`'s reason; an absent
+    /// field removes its key rather than writing a blank.
+    public func saveUpdateRecord(_ record: UpdateRecord) {
+        set(record.lastCheck?.timeIntervalSince1970, forKey: PreferenceKeys.updatesLastCheck)
+        set(record.etag, forKey: PreferenceKeys.updatesETag)
+        set(record.release.flatMap { try? JSONEncoder().encode($0) }, forKey: PreferenceKeys.updatesRelease)
+    }
+
+    private func set(_ value: Any?, forKey key: String) {
+        if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {

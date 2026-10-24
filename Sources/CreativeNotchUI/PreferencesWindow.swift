@@ -34,14 +34,29 @@ final class PreferencesController {
     /// pinned to a path of its choosing.
     let launchAtLogin: LaunchAtLoginController
 
+    /// The updater (2026-10-24), handed in for `launchAtLogin`'s reason: the
+    /// window, the menu bar and the activity hook must agree about one.
+    let updates: UpdateController
+
+    /// What a controller built without one shows: an updater that asks
+    /// nobody and can install nothing, over a domain of its own.
+    static func detachedUpdates() -> UpdateController {
+        UpdateController(
+            environment: .sandboxed(in: FileManager.default.temporaryDirectory),
+            defaults: UserDefaults(suiteName: "com.gcdz.creativenotch.sandbox.settings-updates") ?? .standard
+        )
+    }
+
     init(
         switchboard: ModuleSwitchboard,
         state: AppState,
-        launchAtLogin: LaunchAtLoginController
+        launchAtLogin: LaunchAtLoginController,
+        updates: UpdateController? = nil
     ) {
         self.switchboard = switchboard
         self.state = state
         self.launchAtLogin = launchAtLogin
+        self.updates = updates ?? Self.detachedUpdates()
         // Taking the instance as a parameter rather than `[weak self]`, which
         // would capture `self` before every stored property has a value --
         // the same reason the other window controllers do it this way.
@@ -55,11 +70,13 @@ final class PreferencesController {
         switchboard: ModuleSwitchboard,
         state: AppState,
         launchAtLogin: LaunchAtLoginController,
+        updates: UpdateController? = nil,
         presenter: @escaping (PreferencesController) -> Void
     ) {
         self.switchboard = switchboard
         self.state = state
         self.launchAtLogin = launchAtLogin
+        self.updates = updates ?? Self.detachedUpdates()
         self.presenter = presenter
     }
 
@@ -117,6 +134,10 @@ final class PreferencesController {
         // here to see whether it took. Reads nothing unless the module is on
         // and was refused.
         state.onRecheckDownloadsAccess?()
+        // Opening Settings is a moment someone is looking at the version, so
+        // it is one the updater may look too — at most once a day, and not
+        // at all with automatic checks off.
+        updates.check(.settingsOpened)
         presenter(self)
     }
 
@@ -462,6 +483,14 @@ final class PreferencesHighlight {
 /// there for anyone who reads to the end of a group.
 enum PreferencesSection: CaseIterable {
     case notch, music, camera, shortcut
+    /// The updater's section (2026-10-24): about the app, not a module, so
+    /// it has no rows in `PreferencesView.rows` and is drawn with the
+    /// app-wide sections. A case here only so "Check for Updates…" can land
+    /// on it through the same highlight as "Set Shortcut…".
+    case updates
+
+    /// The sections that hold module rows, in the order they are drawn.
+    static let moduleGroups: [PreferencesSection] = [.notch, .music, .camera, .shortcut]
 
     var title: String {
         switch self {
@@ -469,6 +498,7 @@ enum PreferencesSection: CaseIterable {
         case .music:    return String(localized: "Music", bundle: .creativeNotch)
         case .camera:   return String(localized: "Camera and privacy", bundle: .creativeNotch)
         case .shortcut: return String(localized: "Shortcut", bundle: .creativeNotch)
+        case .updates:  return String(localized: "Updates", bundle: .creativeNotch)
         }
     }
 
@@ -482,6 +512,8 @@ enum PreferencesSection: CaseIterable {
             return String(localized: "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing.", bundle: .creativeNotch)
         case .shortcut:
             return String(localized: "No shortcut is set until you choose one. Any default would risk colliding with a launcher you already use.", bundle: .creativeNotch)
+        case .updates:
+            return String(localized: "CreativeNotch looks for a new release when it opens, when you come back to your Mac and when you open Settings \u{2014} the last two at most once a day \u{2014} and never on a timer. Update Now downloads the release, checks its checksum, signature and version, and replaces this copy; if anything fails, the current copy stays. Each release is signed ad hoc, so macOS may ask again for permissions you had already granted.", bundle: .creativeNotch)
         }
     }
 }
@@ -628,7 +660,7 @@ struct PreferencesView: View {
         Form {
             if only == nil { appSections }
 
-            ForEach(PreferencesSection.allCases.filter { section in
+            ForEach(PreferencesSection.moduleGroups.filter { section in
                 Self.rows.contains { $0.section == section && only?.contains($0.module) != false }
             }, id: \.self) { section in
                 Section {
@@ -666,6 +698,9 @@ struct PreferencesView: View {
         } footer: {
             Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.", bundle: .creativeNotch)
         }
+
+        UpdatesSection(controller: controller.updates, highlighted: controller.highlight.section == .updates)
+            .id(PreferencesSection.updates)
 
         Section {
             HoverRow(controller: controller)
