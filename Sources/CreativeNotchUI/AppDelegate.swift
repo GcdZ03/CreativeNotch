@@ -992,6 +992,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // the window is built: built at the default and grown afterwards, the
         // first frame would be the wrong size.
         state.textSize = PreferencesStore(defaults: preferencesDefaults).textSize
+        // The layout options (2026-10-24) likewise: the width decides the
+        // window's size, and the badges the closed shape the accepted region
+        // is seeded from below.
+        state.layoutOptions = PreferencesStore(defaults: preferencesDefaults).loadLayout()
         let size = panelFrame(on: metrics).size
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -1137,6 +1141,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Text size (2026-10-24). Loaded at the top of `install`, which sized
         // the window by it; applied at once, like "Show on".
         state.onSetTextSize = { [weak self] size in self?.setTextSize(size) }
+
+        // Layout (2026-10-24). Loaded at the top of `install` with the text
+        // size; applied at once, like it.
+        state.onSetLayoutOptions = { [weak self] options in self?.setLayoutOptions(options) }
 
         // The timer's notification switch and clipboard history's excluded
         // apps (2026-10-24). Loaded like the hover behaviour, saved and
@@ -1439,6 +1447,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             nowPlaying: state.nowPlaying,
             isRecording: state.isRecordingClip,
             capture: state.captureUse,
+            hiding: state.layoutOptions.hiddenBadges,
             at: Date()
         )
     }
@@ -1851,7 +1860,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // battery reads as absent at launch and present a moment later would
         // otherwise
         // never show the tab.
+        let gainedTab = !state.hasBattery
         state.hasBattery = true
+        // The Battery tab just appeared, which a Compact panel makes room
+        // for (`tabsDidChange`). Once per process: it is never cleared.
+        if gainedTab { tabsDidChange() }
     }
 
     /// A power event into the peek slot.
@@ -2361,14 +2374,51 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         reposition(metrics: metrics)
     }
 
-    /// The window frame for `metrics` at the current text size. Every place
-    /// the panel is sized asks here, so a screen change, an activation and
-    /// the launch cannot disagree with the setting about how large it is.
+    /// Saves and applies new layout options, then re-places the panel at
+    /// once (2026-10-24).
+    ///
+    /// Two things follow a change, and both are needed. A new width is a new
+    /// frame, so it goes through `reposition` like a new text size; that is
+    /// a no-op for every other option, because the funnel drops an equal
+    /// geometry. A badge shown or hidden changes the *closed* shape without
+    /// changing state or geometry, so neither funnel event fires and the
+    /// accepted region has to be re-synced here -- the reason
+    /// `countdownDidChange` gives for its own call. The corners, the tab
+    /// side and the battery are drawn only, and the view reads them on its
+    /// next draw.
+    func setLayoutOptions(_ options: LayoutOptions) {
+        preferencesStore.saveLayout(options)
+        state.layoutOptions = options
+        if panel != nil, let metrics = screenMetrics(state.displayChoice) {
+            reposition(metrics: metrics)
+        }
+        syncTrackingRect()
+    }
+
+    /// The header's tabs changed: a module with a tab was switched on or off,
+    /// or the Battery tab arrived with the first power snapshot.
+    ///
+    /// Only Compact's width depends on the tabs (`NotchGeometry.panelFrame`),
+    /// so only Compact re-places the panel. Default and Wide never move for a
+    /// module toggle, which also keeps every toggle path that runs at launch
+    /// and in the test suites from asking the real screens where to go.
+    func tabsDidChange() {
+        guard state.layoutOptions.width == .compact,
+              panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
+        reposition(metrics: metrics)
+    }
+
+    /// The window frame for `metrics` at the current text size and layout.
+    /// Every place the panel is sized asks here, so a screen change, an
+    /// activation and the launch cannot disagree with the settings about how
+    /// large it is.
     private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
         NotchGeometry.panelFrame(
             for: anchor ?? NotchGeometry.anchor(for: metrics),
             in: metrics,
-            textScale: state.textSize.scale
+            textScale: state.textSize.scale,
+            width: state.layoutOptions.width,
+            tabCount: TabVisibility.visible(enabled: state.preferences, hasBattery: state.hasBattery).count
         )
     }
 

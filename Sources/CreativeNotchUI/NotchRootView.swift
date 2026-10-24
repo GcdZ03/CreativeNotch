@@ -99,7 +99,10 @@ public final class AppState {
 
     /// The scale the open panel actually draws at: `textSize.scale`, brought
     /// down to what the panel's frame holds on a screen too small for the
-    /// full factor (`NotchGeometry.fittedTextScale`).
+    /// full factor (`NotchGeometry.fittedTextScale`), fitted against the
+    /// nominal width the frame was built from ("Panel width",
+    /// `NotchGeometry.nominalPanelWidth`) -- the default's would read a
+    /// Compact frame as too small and shrink its text.
     ///
     /// Read from the frame rather than stored beside it, so the two cannot
     /// disagree: `panelFrame` was built from the same fitted scale, and the
@@ -108,13 +111,30 @@ public final class AppState {
     /// setting is used as it is.
     public var textScale: CGFloat {
         guard !panelFrame.isEmpty else { return textSize.scale }
-        return NotchGeometry.fittedTextScale(textSize.scale, within: panelFrame.size)
+        let nominalWidth = NotchGeometry.nominalPanelWidth(
+            for: anchor,
+            width: layoutOptions.width,
+            tabCount: TabVisibility.visible(enabled: preferences, hasBattery: hasBattery).count
+        )
+        return NotchGeometry.fittedTextScale(textSize.scale, within: panelFrame.size, nominalWidth: nominalWidth)
     }
 
     /// Saves the size, applies it and resizes the panel in one call, so
     /// Settings cannot do one without the others. Wired by `AppDelegate`.
     @ObservationIgnored
     public var onSetTextSize: ((TextSize) -> Void)?
+
+    /// The panel's width, corners, tab side, header battery and closed-notch
+    /// badges (2026-10-24). Applied by `onSetLayoutOptions`, which also
+    /// resizes the panel for a new width and re-syncs the accepted region for
+    /// a badge shown or hidden; the view reads it on every draw, so a change
+    /// needs nothing re-registered.
+    public internal(set) var layoutOptions: LayoutOptions = .default
+
+    /// Saves the options, applies them and re-places the panel in one call,
+    /// so Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetLayoutOptions: ((LayoutOptions) -> Void)?
 
     /// The displays connected when last asked, for the "Show on" menu's
     /// per-display entries. Refreshed by `onRefreshDisplays` when Settings is
@@ -836,6 +856,7 @@ public struct NotchRootView: View {
             nowPlaying: app.nowPlaying,
             isRecording: app.isRecordingClip,
             capture: app.captureUse,
+            hiding: app.layoutOptions.hiddenBadges,
             at: now
         )
     }
@@ -1007,7 +1028,8 @@ public struct NotchRootView: View {
     private var backgroundShape: UnevenRoundedRectangle {
         let r = NotchShape.cornerRadii(
             presentation: app.state.presentation,
-            anchor: app.anchor
+            anchor: app.anchor,
+            corners: app.layoutOptions.corners
         )
         return UnevenRoundedRectangle(
             topLeadingRadius: r.topLeading,
@@ -1117,7 +1139,8 @@ public struct NotchRootView: View {
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
                         showsMedia: tab != .camera && app.showsMediaControls,
-                        textScale: app.textScale
+                        textScale: app.textScale,
+                        tabsSide: app.layoutOptions.tabsSide
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -1126,6 +1149,7 @@ public struct NotchRootView: View {
                             enabled: app.preferences,
                             hasBattery: app.hasBattery,
                             power: app.power,
+                            showsBattery: app.layoutOptions.showsBattery,
                             onSelect: { app.transition(to: .open($0)) },
                             onSettings: { app.onOpenSettings?() },
                             colorPicker: Self.colorPickerHeader(for: app)

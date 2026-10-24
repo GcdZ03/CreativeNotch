@@ -59,6 +59,43 @@ public final class PreferencesStore {
         defaults.set(size.rawValue, forKey: PreferenceKeys.textSize)
     }
 
+    /// The layout options (2026-10-24). Read on every call, never cached;
+    /// every key through a resolver, so a missing or hand-mangled value reads
+    /// as the default and is left in place for `defaults read`.
+    public func loadLayout() -> LayoutOptions {
+        LayoutOptions(
+            width: PreferenceKeys.resolveChoice(
+                defaults.object(forKey: PreferenceKeys.layoutWidth), default: PanelWidth.default
+            ),
+            corners: PreferenceKeys.resolveChoice(
+                defaults.object(forKey: PreferenceKeys.layoutCorners), default: PanelCorners.default
+            ),
+            tabsSide: PreferenceKeys.resolveChoice(
+                defaults.object(forKey: PreferenceKeys.layoutTabsSide), default: EarSide.default
+            ),
+            showsBattery: PreferenceKeys.resolveEnabled(
+                defaults.object(forKey: PreferenceKeys.layoutShowsBattery)
+            ),
+            showsNowPlayingBadge: PreferenceKeys.resolveEnabled(
+                defaults.object(forKey: PreferenceKeys.layoutShowsNowPlayingBadge)
+            ),
+            showsTimerBadge: PreferenceKeys.resolveEnabled(
+                defaults.object(forKey: PreferenceKeys.layoutShowsTimerBadge)
+            )
+        )
+    }
+
+    /// Writes every option, not only the one that changed, for the reason
+    /// `saveLimits` does.
+    public func saveLayout(_ layout: LayoutOptions) {
+        defaults.set(layout.width.rawValue, forKey: PreferenceKeys.layoutWidth)
+        defaults.set(layout.corners.rawValue, forKey: PreferenceKeys.layoutCorners)
+        defaults.set(layout.tabsSide.rawValue, forKey: PreferenceKeys.layoutTabsSide)
+        defaults.set(layout.showsBattery, forKey: PreferenceKeys.layoutShowsBattery)
+        defaults.set(layout.showsNowPlayingBadge, forKey: PreferenceKeys.layoutShowsNowPlayingBadge)
+        defaults.set(layout.showsTimerBadge, forKey: PreferenceKeys.layoutShowsTimerBadge)
+    }
+
     /// How a picked colour is copied. Read on every call, never cached.
     public var colorFormat: ColorFormat {
         PreferenceKeys.resolveColorFormat(defaults.object(forKey: PreferenceKeys.colorFormat))

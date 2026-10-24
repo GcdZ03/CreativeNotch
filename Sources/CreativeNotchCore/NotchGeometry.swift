@@ -151,13 +151,36 @@ public enum NotchGeometry {
     /// the same `NotchType.length`. On a screen too small for that, the
     /// factor comes down to the largest the screen holds
     /// (`fittedTextScale`), both sides together -- never below
-    /// `expandedSize`, which is what the panel has always been, whatever
-    /// the screen, and the clamp below keeps it on screen as before.
+    /// `expandedSize` (or Compact's own, narrower width), which is what the
+    /// panel has always been, whatever the screen, and the clamp below keeps
+    /// it on screen as before.
+    ///
+    /// `width` is "Panel width" (2026-10-24): it sets the nominal width the
+    /// text size then grows (`nominalPanelWidth`), and leaves the height
+    /// alone. At `.standard` it is `expandedSize.width`, so the default frame
+    /// is the frame from before the setting, exactly. The fit is computed on
+    /// that nominal width, not the default's: Wide at Larger on a screen
+    /// that holds Default at Larger may come down a step, and Compact may
+    /// keep a factor Default could not.
+    ///
+    /// `tabCount` is how many tabs the header shows (`TabVisibility`), and
+    /// only Compact reads it (`nominalPanelWidth`). Defaulted to every tab,
+    /// the widest Compact can need.
     public static func panelFrame(
-        for anchor: Anchor, in m: ScreenMetrics, textScale: CGFloat = 1
+        for anchor: Anchor,
+        in m: ScreenMetrics,
+        textScale: CGFloat = 1,
+        width option: PanelWidth = .standard,
+        tabCount: Int = Tab.allCases.count
     ) -> CGRect {
-        let scale = fittedTextScale(textScale, within: m.frame.size)
-        let width = max(expandedSize.width, NotchType.length(expandedSize.width, scale: scale), anchor.rect.width)
+        let nominalWidth = nominalPanelWidth(for: anchor, width: option, tabCount: tabCount)
+        let scale = fittedTextScale(textScale, within: m.frame.size, nominalWidth: nominalWidth)
+        // The floor is the default width or less: Wide is a preference that
+        // a small screen may refuse, but no option makes the panel narrower
+        // on a small screen than it has always been there.
+        let floor = min(nominalWidth, expandedSize.width)
+        let grownWidth = min(NotchType.length(nominalWidth, scale: scale), m.frame.width)
+        let width = max(floor, grownWidth, anchor.rect.width)
         let height = max(expandedSize.height, NotchType.length(expandedSize.height, scale: scale))
         let unclampedX = anchor.rect.midX - width / 2
         // The right bound can fall left of the left bound on a screen
@@ -168,6 +191,32 @@ public enum NotchGeometry {
         let rightBound = max(m.frame.minX, m.frame.maxX - width)
         let x = min(max(unclampedX, m.frame.minX), rightBound)
         return CGRect(x: x, y: anchor.rect.maxY - height, width: width, height: height)
+    }
+
+    /// The width `panelFrame` grows with the text for `option`, before the
+    /// screen has a say.
+    ///
+    /// Beside a real notch the housing takes the middle of the header, and
+    /// Compact goes no narrower than leaves each ear room for `tabCount` tabs
+    /// (`PanelLayout.tabEarWidth`) or for the status items -- dropper,
+    /// battery and gear (`PanelLayout.statusEarWidth`) -- whichever is
+    /// wider. The ears are equal because the panel is centred on the notch,
+    /// and either one may hold either. Default and Wide are fixed widths that hold every tab
+    /// on every notch Apple ships, so they never depend on it, and a module
+    /// switched on or off never resizes them.
+    ///
+    /// Public so `AppState.textScale` can fit against the same width the
+    /// frame was built from.
+    public static func nominalPanelWidth(
+        for anchor: Anchor, width option: PanelWidth, tabCount: Int = Tab.allCases.count
+    ) -> CGFloat {
+        switch option {
+        case .compact:
+            let ears = 2 * max(PanelLayout.tabEarWidth(tabCount: tabCount), PanelLayout.statusEarWidth())
+            return max(option.nominalWidth, (anchor.isNotch ? anchor.rect.width : 0) + ears)
+        case .standard, .wide:
+            return option.nominalWidth
+        }
     }
 
     /// The text scale the open panel actually draws at: `requested`, or on
@@ -188,9 +237,14 @@ public enum NotchGeometry {
     /// same scale back. That lets a view read the scale from the panel's
     /// frame (`AppState.textScale`) and agree with the frame exactly,
     /// without the screen's metrics being threaded through to it.
-    public static func fittedTextScale(_ requested: CGFloat, within size: CGSize) -> CGFloat {
+    ///
+    /// `nominalWidth` is the width the scale grows (`nominalPanelWidth`,
+    /// "Panel width"); defaulted to the default panel's.
+    public static func fittedTextScale(
+        _ requested: CGFloat, within size: CGSize, nominalWidth: CGFloat = expandedSize.width
+    ) -> CGFloat {
         func fits(_ scale: CGFloat) -> Bool {
-            NotchType.length(expandedSize.width, scale: scale) <= size.width
+            NotchType.length(nominalWidth, scale: scale) <= size.width
                 && NotchType.length(expandedSize.height, scale: scale) <= size.height
         }
         guard requested.isFinite, requested > 1 else { return 1 }
@@ -202,7 +256,7 @@ public enum NotchGeometry {
         // that does not actually fit.
         let bound = min(
             requested,
-            (size.width + 0.5) / expandedSize.width,
+            (size.width + 0.5) / nominalWidth,
             (size.height + 0.5) / expandedSize.height
         )
         guard bound.isFinite, bound > 1 else { return 1 }

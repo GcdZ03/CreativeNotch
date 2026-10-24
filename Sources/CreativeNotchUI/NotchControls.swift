@@ -1,4 +1,5 @@
 import SwiftUI
+import CreativeNotchCore
 
 /// The panel's one button: a capsule, white on black (spec §5.10).
 ///
@@ -159,7 +160,7 @@ struct NotchIconButtonStyle: ButtonStyle {
         configuration.label
             .notchFont(13, weight: .medium)
             .foregroundStyle(.ink(selected ? 0.95 : 0.55))
-            .notchFrame(width: 34, height: 24)
+            .notchFrame(width: PanelLayout.tabButtonWidth, height: 24)
             .background {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(.hairline(selected ? 0.14 : (configuration.isPressed ? 0.10 : 0)))

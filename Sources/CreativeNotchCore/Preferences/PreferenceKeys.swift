@@ -55,6 +55,34 @@ public enum PreferenceKeys {
         return size
     }
 
+    // The layout options (2026-10-24), read by `PreferencesStore.loadLayout`.
+    // Absent means the default, the look from before the setting.
+
+    /// A `PanelWidth` raw value.
+    public static let layoutWidth = "layout.width"
+    /// A `PanelCorners` raw value.
+    public static let layoutCorners = "layout.corners"
+    /// An `EarSide` raw value: which ear holds the tabs.
+    public static let layoutTabsSide = "layout.tabsSide"
+    /// A boolean: the battery cell in the header.
+    public static let layoutShowsBattery = "layout.showsBattery"
+    /// A boolean: the now-playing badge beside the closed notch.
+    public static let layoutShowsNowPlayingBadge = "layout.badge.nowPlaying"
+    /// A boolean: the countdown badge beside the closed notch.
+    public static let layoutShowsTimerBadge = "layout.badge.timer"
+
+    /// What a raw value for one of the layout menus means, by the policy
+    /// `resolveTextSize` follows: anything that names no choice reads as
+    /// `fallback` and is left in place.
+    public static func resolveChoice<Choice: RawRepresentable>(
+        _ raw: Any?, default fallback: Choice
+    ) -> Choice where Choice.RawValue == String {
+        guard let string = raw as? String, let choice = Choice(rawValue: string) else {
+            return fallback
+        }
+        return choice
+    }
+
     // The adjustable limits (2026-10-24), read by `PreferencesStore.loadLimits`
     // through the resolvers on `Limits`. Subsystem-first, like the module
     // toggles, so `defaults read` groups each with its module.

@@ -141,6 +141,15 @@ final class PreferencesController {
         state.onSetTextSize?(size)
     }
 
+    /// Layout (2026-10-24). Written through `AppState`'s verb, which saves,
+    /// applies and re-places the panel together, and read back from what
+    /// applied -- the whole value each time, like `limits`.
+    var layoutOptions: LayoutOptions { state.layoutOptions }
+
+    func setLayoutOptions(_ options: LayoutOptions) {
+        state.onSetLayoutOptions?(options)
+    }
+
     /// Copy as (2026-10-24). Written through `AppState`'s verb, which saves
     /// and applies together, and read back from what applied.
     var colorFormat: ColorFormat { state.colorFormat }
@@ -603,6 +612,14 @@ struct PreferencesView: View {
             Text("Display")
         } footer: {
             Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
+        }
+
+        Section {
+            LayoutRows(controller: controller)
+        } header: {
+            Text("Layout")
+        } footer: {
+            Text("Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below.")
         }
     }
 

@@ -87,6 +87,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Shelf Quick Look and Open** — Space previews a tile, a double-click opens it | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Size and layout** — panel width, corners, which ear holds the tabs, the header's battery and the notch's badges | Done |
 | ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
 | ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
@@ -300,7 +301,7 @@ it back.
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
 | Drop a large file | Its tile appears at once, dimmed under a spinner, while it copies in the background; it can be dragged out once the spinner goes. A file that is missing or bigger than the free space is refused at the drop; one whose copy fails later disappears with "Couldn't add …" under the shelf for a few seconds, also spoken by VoiceOver |
 | Drag an item out of the shelf | Copies it wherever you drop it |
-| Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
+| Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear (Settings → Layout swaps them) |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
 | Press Esc | Closes the panel — or, with a clipboard search typed, clears the search first |
@@ -339,11 +340,16 @@ it back.
 | Run several | The tab lists them, each with its own pause and cancel; the notch shows whichever finishes first, and each one peeks and chimes when it finishes |
 | Switch to **Stopwatch** in the timer tab's title row | Start, then Lap and Pause while it runs, Reset and Resume while it is paused; the latest three laps show under the digits |
 | Close the panel with the stopwatch running | It keeps counting — it is a start time, not a ticking clock — and nothing redraws until you look again |
-| Click the eyedropper in the right ear | The panel closes and the system loupe follows the pointer; click anywhere on any screen to copy that colour, or press Esc to cancel. Either way the panel comes back on the same tab |
+| Click the eyedropper in the right ear (the left, with the tabs on the right) | The panel closes and the system loupe follows the pointer; click anywhere on any screen to copy that colour, or press Esc to cancel. Either way the panel comes back on the same tab |
 | Pick a colour | It is on the clipboard as hex (`#3A7BD5`), or as RGB, HSL or a SwiftUI `Color(…)` — Settings → Colour picker → **Copy as**. A strip along the bottom of the panel shows the swatch and the value until you close the panel or press its ×; VoiceOver says the colour's name and value |
 | Click a swatch in the strip | Copies that colour again, in the current format; the strip keeps your last five picks, in memory only |
 | Right-click the eyedropper | The same recent colours, as a menu, without picking a new one |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
+| Settings → Layout → **Panel width** | Compact, Default or Wide; the open panel resizes at once, still centred on the notch |
+| Settings → Layout → **Corners** | Tight, Default or Round bottom corners on the open panel; the closed notch keeps the camera housing's curve |
+| Settings → Layout → **Tabs** → **Right** | Swaps the ears: the tabs move right of the camera, the eyedropper, the battery and the gear left |
+| Settings → Layout → **Battery in the header** off | Drops the level from beside the gear; the Battery tab and the charger glance stay |
+| Settings → Layout → **Now-playing badge** / **Timer badge** off | Keeps that badge from beside the closed notch; a finished timer still chimes and drops its glance |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
@@ -374,6 +380,26 @@ comes down to the largest size the screen holds rather than being cut off. It
 applies at once. macOS's own Text Size setting covers only Apple's apps, so this one is
 separate. The closed notch's badges and the glances that drop from it keep
 their size: they have to fit beside the camera housing and the menu bar.
+
+Settings → **Layout** tunes the panel itself, and every option applies at once
+and costs nothing while you are not looking at it. **Panel width** is Compact
+(560pt), Default (620pt, the panel as it always was) or Wide (720pt), each
+grown by the text size and kept on the screen. Beside a real notch, Compact
+goes no narrower than leaves room for every tab you have, and for the
+eyedropper, battery and gear, on either side of the camera — 602pt on a 14"
+MacBook Pro with all five tabs, 560pt with four.
+**Corners** rounds the open panel's bottom corners tighter or rounder; **Tabs**
+puts the tab icons right of the camera instead of left, and the eyedropper,
+battery and gear left of it; and the battery in the
+header, the now-playing badge and the timer badge can each be switched off.
+The recording dot and the camera and microphone indicator cannot be hidden
+here: the first explains a camera left recording, and the second has its own
+switch under Camera.
+
+<p align="center">
+  <img src="docs/assets/features/notch-layout-compact.png" width="450" alt="The open panel at Compact width under a 14-inch notch: five tab icons in the left ear, the eyedropper, battery and gear in the right, a music column and a running timer">
+  <img src="docs/assets/features/notch-layout-tabs-right.png" width="450" alt="The open panel with the tabs moved to the right ear and the gear, battery and eyedropper on the left">
+</p>
 
 With **VoiceOver** on, each peek is announced as it appears — the charger or
 Low Power Mode change with the battery level, a finished timer, and the track
