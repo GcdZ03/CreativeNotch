@@ -267,7 +267,7 @@ it back.
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
-| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all |
+| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -294,6 +294,13 @@ hover** does that after a delay you choose (0.2–1.0 s) — straight to the
 panel, which has the progress bar and the music controls. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still.
+
+With **VoiceOver** on, each peek is announced as it appears — the charger or
+Low Power Mode change with the battery level, a finished timer, and the track
+when the music player drops down or the song changes under it (never a pause
+or a seek). The timer's countdown reads as words with its progress ("8 minutes
+remaining, 25% done"), at the same granularity as the digits, and every badge
+beside the notch says what it shows.
 
 The keys work once the panel has the keyboard: when you opened it by clicking
 the notch or with the global shortcut, or after clicking inside it. A panel
