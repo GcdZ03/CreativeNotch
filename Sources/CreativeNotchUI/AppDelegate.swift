@@ -94,6 +94,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Where a finished timer's notification goes (2026-10-24), when the
+    /// notch is hidden and cannot show the peek.
+    ///
+    /// Sandboxed by default like `shelfDirectory`: a fresh delegate records
+    /// into `SilentTimerNotices` and reaches no notification center, so no
+    /// test can post a real banner or raise a permission prompt. Only
+    /// `configureForRealLaunch()` installs `SystemTimerNotices`.
+    var timerNotices: any TimerNoticeCenter = SilentTimerNotices()
+
     /// Whether MediaRemote is loadable, behind a seam.
     ///
     /// In the shape of `playChime` and `now`, and for a sharper reason than
@@ -541,6 +550,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        timerNotices = SystemTimerNotices()
     }
 
     // MARK: - Lifecycle
@@ -655,11 +665,34 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// are deliberately not among them: they are the publish and finish paths
     /// of a countdown that is allowed to outlive the toggle.
     func wireTimerActions() {
-        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
+        state.onStartTimer = { [weak self, weak timer] duration in
+            timer?.start(duration: duration)
+            self?.prepareTimerNotices()
+        }
         state.onPauseTimer = { [weak timer] in timer?.pause() }
         state.onResumeTimer = { [weak timer] in timer?.resume() }
         state.onCancelTimer = { [weak timer] in timer?.cancel() }
     }
+
+    /// A countdown just started: the moment to ask for notification
+    /// permission, if the setting wants it and macOS has never been asked.
+    /// The seam decides "never asked"; see `TimerDoneNotice
+    /// .shouldRequestAuthorization` for why here and not at launch or at the
+    /// finish.
+    private func prepareTimerNotices() {
+        guard state.timerNotifyWhenHidden else { return }
+        timerNotices.prepare()
+    }
+
+    /// Reads what macOS allows the timer's notification into `AppState`, for
+    /// the line under the Settings switch. Asked when Settings is shown.
+    func refreshTimerNoticeAuthorization() async {
+        state.timerNoticeAuthorization = await timerNotices.authorization()
+    }
+
+    /// Whether a peek put in the slot now would be seen: there is a panel,
+    /// and it is not ordered out for a full-screen app.
+    var isNotchOnScreen: Bool { panel != nil && !isHiddenForFullScreen }
 
     /// Tells the camera whether its tab is on screen.
     ///
@@ -969,6 +1002,31 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Text size (2026-10-24). Loaded at the top of `install`, which sized
         // the window by it; applied at once, like "Show on".
         state.onSetTextSize = { [weak self] size in self?.setTextSize(size) }
+
+        // The timer's notification switch and clipboard history's excluded
+        // apps (2026-10-24). Loaded like the hover behaviour, saved and
+        // applied together by the verb. Neither has anything to restart:
+        // both are read at the moment they matter -- a timer finishing, a
+        // copy detected -- so a change applies to the next one.
+        state.timerNotifyWhenHidden = preferencesStore.timerNotifyWhenHidden
+        state.onSetTimerNotifyWhenHidden = { [weak self] enabled in
+            guard let self else { return }
+            self.preferencesStore.setTimerNotifyWhenHidden(enabled)
+            self.state.timerNotifyWhenHidden = enabled
+            // Switched on mid-countdown: ask now, while the user is at the
+            // desktop, rather than leave the finish with no permission.
+            if enabled, self.state.countdown != nil { self.timerNotices.prepare() }
+        }
+        state.onRefreshTimerNotices = { [weak self] in
+            Task { @MainActor [weak self] in await self?.refreshTimerNoticeAuthorization() }
+        }
+        state.clipboardExcludedApps = preferencesStore.clipboardExcludedApps
+        state.onSetClipboardExcludedApps = { [weak self] ids in
+            guard let self else { return }
+            self.preferencesStore.setClipboardExcludedApps(ids)
+            self.state.clipboardExcludedApps = ids
+        }
+        clipboard.poller.excludedApps = { [weak self] in self?.state.clipboardExcludedApps ?? [] }
 
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onPreviewLimits = { [weak self] limits in
@@ -1296,6 +1354,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // interrupt `.open` and `.receiving`, and it is what makes the
         // arbiter — rather than this caller — decide what is shown.
         presentPeek()
+        // Behind a full-screen app the peek above lands in an ordered-out
+        // window. A notification is the one alert that shows there; it is
+        // added to the chime and the announcement, never in place of them,
+        // so a denied permission leaves exactly what there was before.
+        if TimerDoneNotice.shouldPost(notchOnScreen: isNotchOnScreen, enabled: state.timerNotifyWhenHidden) {
+            timerNotices.post(TimerDoneNotice(completion: completion))
+        }
         // When no peek carries it -- the panel is open, the module is off, a
         // drag holds the slot -- VoiceOver is told here instead. With the
         // chime set to None nothing else would say the timer finished. A

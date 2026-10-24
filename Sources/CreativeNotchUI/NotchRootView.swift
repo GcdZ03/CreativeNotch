@@ -142,6 +142,34 @@ public final class AppState {
     @ObservationIgnored
     public var onPreviewLimits: ((Limits) -> ShelfLimitRemoval)?
 
+    /// Whether a timer finishing behind a full-screen app also posts a
+    /// notification (2026-10-24). Applied by `onSetTimerNotifyWhenHidden`;
+    /// read by `AppDelegate.timerDidFinish` at the moment it fires.
+    public internal(set) var timerNotifyWhenHidden = true
+
+    /// Saves and applies the switch in one call, for the reason
+    /// `onSetHoverBehaviour` does both. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTimerNotifyWhenHidden: ((Bool) -> Void)?
+
+    /// What macOS allows the timer's notification, as last asked. Read when
+    /// Settings is shown (`onRefreshTimerNotices`), never polled, so the line
+    /// under the switch can say when notifications are off.
+    public internal(set) var timerNoticeAuthorization: TimerNoticeAuthorization = .allowed
+
+    /// Re-reads `timerNoticeAuthorization`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshTimerNotices: (() -> Void)?
+
+    /// Bundle identifiers whose copies clipboard history ignores
+    /// (2026-10-24). Applied by `onSetClipboardExcludedApps`; the poller asks
+    /// for it at each detected change, so an edit applies to the next copy.
+    public internal(set) var clipboardExcludedApps: [String] = []
+
+    /// Saves and applies the list in one call. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetClipboardExcludedApps: (([String]) -> Void)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
