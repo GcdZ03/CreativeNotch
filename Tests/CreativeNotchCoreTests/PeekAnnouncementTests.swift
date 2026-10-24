@@ -54,8 +54,20 @@ struct PeekAnnouncementTests {
                 == "10-minute timer finished")
         #expect(PeekAnnouncement.announcement(showing: .power(.unplugged(level: 50)), replacing: nil)
                 == "On Battery, 50%")
-        #expect(PeekAnnouncement.announcement(showing: .nowPlaying(song), replacing: nil)
-                == "Now playing: Blue in Green by Miles Davis")
+    }
+
+    /// The now-playing peek only ever appears because the pointer rested on
+    /// the notch (`PeekArbiter` returns it only while the pointer is inside),
+    /// so its appearing is the user's own gesture answering back -- the
+    /// drop target's reason for silence. Spoken, it was read out at high
+    /// priority on every rest, cutting off whatever VoiceOver was reading.
+    @Test func theNowPlayingPeekAppearingIsSilent() {
+        #expect(PeekAnnouncement.announcement(showing: .nowPlaying(song), replacing: nil) == nil)
+        #expect(PeekAnnouncement.announcement(showing: .nowPlaying(song), replacing: .power(.pluggedIn(level: 40)))
+                == nil)
+        #expect(PeekAnnouncement.announcement(
+            showing: .nowPlaying(song), replacing: .timerDone(.init(duration: 300, lateness: 0))
+        ) == nil)
     }
 
     /// A re-check that finds the same peek still live re-applies it; that is
@@ -72,8 +84,7 @@ struct PeekAnnouncementTests {
         let power = PeekContent.power(.pluggedIn(level: 40))
         #expect(PeekAnnouncement.announcement(showing: done, replacing: power) == "5-minute timer finished")
         #expect(PeekAnnouncement.announcement(showing: power, replacing: done) == "Plugged In, 40%")
-        #expect(PeekAnnouncement.announcement(showing: .nowPlaying(song), replacing: power)
-                == "Now playing: Blue in Green by Miles Davis")
+        #expect(PeekAnnouncement.announcement(showing: power, replacing: .nowPlaying(song)) == "Plugged In, 40%")
     }
 
     /// Pause, play and seek all republish the snapshot into a showing peek.

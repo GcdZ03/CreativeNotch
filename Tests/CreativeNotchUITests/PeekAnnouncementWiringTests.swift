@@ -54,9 +54,9 @@ struct PeekAnnouncementWiringTests {
         #expect(spoken().isEmpty)
     }
 
-    /// Hovered open, the peek is announced once; the pause that follows
-    /// re-applies it through the re-check, silently; the next track is
-    /// spoken.
+    /// Hovered open, the peek is silent -- the hover asked for it; the pause
+    /// that follows re-applies it through the re-check, silently; the next
+    /// track, which nobody asked for, is spoken.
     @Test func theNowPlayingPeekIsAnnouncedWhenShownAndOnANewTrackOnly() {
         let (delegate, spoken) = makeDelegate()
         delegate.nowPlayingDidChange(song)
@@ -72,10 +72,22 @@ struct PeekAnnouncementWiringTests {
         let next = TrackSnapshot(title: "So What", artist: "Miles Davis", isPlaying: true)
         delegate.nowPlayingDidChange(next)
 
-        #expect(spoken() == [
-            "Now playing: Blue in Green by Miles Davis",
-            "Now playing: So What by Miles Davis",
-        ])
+        #expect(spoken() == ["Now playing: So What by Miles Davis"])
+    }
+
+    /// Resting on the notch again after it collapsed is another hover, not
+    /// news: the same track is not read out on every rest.
+    @Test func hoveringTheSameTrackAgainIsSilent() {
+        let (delegate, spoken) = makeDelegate()
+        delegate.nowPlayingDidChange(song)
+        for _ in 0..<2 {
+            delegate.state.isHovering = true
+            delegate.hoverView?.onDwell()
+            #expect(delegate.state.state == .peek(.nowPlaying(song)))
+            delegate.state.isHovering = false
+            delegate.state.transition(to: .closed)
+        }
+        #expect(spoken().isEmpty)
     }
 
     /// The re-check that reveals a power peek under a lapsing timer is a

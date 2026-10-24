@@ -50,9 +50,15 @@ public enum PeekAnnouncement {
     /// Silence is the default for re-application, and that matters most for
     /// now-playing. Every pause, play and seek republishes the snapshot, and
     /// the peek on screen is re-applied each time; an announcement for each
-    /// would bury the ones that matter. So a now-playing peek is spoken when
-    /// it appears and when the *track* changes under it — title or artist —
-    /// and never for the rest of the snapshot.
+    /// would bury the ones that matter. So a now-playing peek is spoken only
+    /// when the *track* changes under it — title or artist — and never for
+    /// the rest of the snapshot.
+    ///
+    /// Nor is it spoken when it appears. `PeekArbiter` shows it only while
+    /// the pointer is over the notch, so its appearing is the user's own
+    /// hover answering back — the drop target's reason for silence — and an
+    /// announcement there was read out, at high priority, on every rest of
+    /// the pointer. Its words still serve as the view's accessibility label.
     ///
     /// The transients are spoken whenever they differ from what was showing:
     /// a re-check that finds the same power peek still live is not news, a
@@ -60,9 +66,10 @@ public enum PeekAnnouncement {
     /// when the timer's lapses.
     public static func announcement(showing content: PeekContent, replacing previous: PeekContent?) -> String? {
         guard content != previous else { return nil }
-        if case .nowPlaying(let next) = content, case .nowPlaying(let shown)? = previous,
-           next.title == shown.title, next.artist == shown.artist {
-            return nil
+        if case .nowPlaying(let next) = content {
+            guard case .nowPlaying(let shown)? = previous,
+                  next.title != shown.title || next.artist != shown.artist
+            else { return nil }
         }
         return text(for: content)
     }
