@@ -1063,7 +1063,7 @@ public struct NotchRootView: View {
         case .shelf:
             if let shelf = app.shelf {
                 ModulePane(
-                    title: "Shelf",
+                    title: tab.title,
                     count: Self.shelfCount(shelf.items.count),
                     actions: Self.shelfActions(for: shelf, app: app)
                 ) {
@@ -1079,7 +1079,7 @@ public struct NotchRootView: View {
         case .clipboard:
             if let clipboard = app.clipboard {
                 ModulePane(
-                    title: "Clipboard",
+                    title: tab.title,
                     count: clipboard.entries.isEmpty
                         ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
@@ -1099,7 +1099,7 @@ public struct NotchRootView: View {
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.
-            ModulePane(title: "Timer", count: app.countdown.map(Self.durationLabel)) {
+            ModulePane(title: tab.title, count: app.countdown.map(Self.durationLabel)) {
                 TimerTabView(
                     countdown: app.countdown,
                     now: now,
@@ -1111,7 +1111,7 @@ public struct NotchRootView: View {
             }
 
         case .power:
-            ModulePane(title: "Battery") {
+            ModulePane(title: tab.title) {
                 PowerView(snapshot: app.power)
             }
         }
