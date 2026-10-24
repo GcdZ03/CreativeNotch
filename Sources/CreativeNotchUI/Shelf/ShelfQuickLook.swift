@@ -13,6 +13,10 @@ protocol ShelfPreviewing: AnyObject {
     var isSystem: Bool { get }
     func show(_ request: ShelfPreviewRequest)
     func close()
+    /// Called once the preview has closed itself — Quick Look's own Space,
+    /// Esc or close button — so the keyboard it held can be handed back.
+    /// Not called for `close()`: whoever asked already knows.
+    var onClose: (@MainActor () -> Void)? { get set }
 }
 
 /// A bare delegate's preview: shows nothing. Only `configureForRealLaunch()`
@@ -21,6 +25,7 @@ protocol ShelfPreviewing: AnyObject {
 final class InertShelfPreview: ShelfPreviewing {
     var isVisible: Bool { false }
     var isSystem: Bool { false }
+    var onClose: (@MainActor () -> Void)?
     func show(_ request: ShelfPreviewRequest) {}
     func close() {}
 }
@@ -65,13 +70,18 @@ struct ShelfOpener {
 /// it walks is its own — so the controller is also handed over before the
 /// panel is ordered front, and the walk finding it again is harmless.
 ///
-/// The request holds every ready shelf item, so Quick Look's own arrows and
-/// arrow keys page along the shelf; a file still copying in is not in it.
+/// **The preview takes the keyboard** (`prepare`), so it answers its own
+/// keys as in Finder. The request holds every ready shelf item, so Quick
+/// Look's arrows and arrow keys page along the shelf; a file still copying
+/// in is not in it. Paging moves the preview, not the shelf's selection
+/// ring, which stays on the tile the preview was opened from.
 @MainActor
 final class ShelfQuickLook: NSObject, ShelfPreviewing {
     private(set) var request: ShelfPreviewRequest?
 
     var isSystem: Bool { true }
+
+    var onClose: (@MainActor () -> Void)?
 
     var isVisible: Bool {
         QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible
@@ -86,14 +96,69 @@ final class ShelfQuickLook: NSObject, ShelfPreviewing {
     func show(_ request: ShelfPreviewRequest) {
         load(request)
         guard let panel = QLPreviewPanel.shared() else { return }
+        observeClosing(of: panel)
         attach(to: panel)
         panel.reloadData()
         panel.currentPreviewItemIndex = request.index
         if !panel.isVisible {
-            // Above the notch panel's own level, or a preview opened from it
-            // would draw underneath the panel that asked for it.
-            panel.level = max(panel.level, NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2))
+            Self.prepare(panel)
             panel.makeKeyAndOrderFront(nil)
+        }
+    }
+
+    /// The level a preview needs: above the notch panel's own, or a preview
+    /// opened from it would draw underneath the panel that asked for it.
+    static let previewLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue + 2)
+
+    /// Readies Quick Look's panel to take the keyboard from an app that is
+    /// never frontmost (2026-10-24).
+    ///
+    /// CreativeNotch is an accessory app whose key window, the notch panel,
+    /// is non-activating: it holds the keyboard while another app stays
+    /// frontmost. `QLPreviewPanel` is an ordinary panel, and an ordinary
+    /// panel cannot become key in an app that is not active — so
+    /// `makeKeyAndOrderFront` used to leave *no* window of ours key, the
+    /// notch panel having resigned, and the next Space typed a space into
+    /// whatever document was frontmost. Made non-activating too, the
+    /// preview becomes key the way the notch panel does: Quick Look's own
+    /// Space and Esc close it, its arrows page the shelf, and on closing the
+    /// keyboard is handed back to the notch panel (`observeClosing`), so
+    /// Space there previews again.
+    /// Checked against the window server with the opt-in live suite
+    /// (`ShelfQuickLookLive`); a headless suite cannot see key focus.
+    ///
+    /// Takes any `NSPanel` so the settings are testable without asking for
+    /// the shared preview panel.
+    static func prepare(_ panel: NSPanel) {
+        panel.level = max(panel.level, previewLevel)
+        panel.styleMask.insert(.nonactivatingPanel)
+    }
+
+    /// Quick Look closing on its own Space, Esc or close button. The
+    /// keyboard it held does not fall back to the notch panel by itself — in
+    /// an app that is never active nothing is key afterwards, and the next
+    /// Space would go to the frontmost app — so `onClose` hands it back.
+    ///
+    /// A notification rather than the panel's window delegate: Quick Look
+    /// ends the controller's tenure (`endPreviewPanelControl`, which clears
+    /// the delegate) before the window closes, so a delegate never hears it.
+    /// Observed from the first `show` on, never before, so a shelf nobody
+    /// previews has no observer; one observer for the app's life, as the
+    /// shared panel is.
+    private var closeObserver: NSObjectProtocol?
+
+    private func observeClosing(of panel: QLPreviewPanel) {
+        guard closeObserver == nil else { return }
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: panel, queue: nil
+        ) { [weak self] _ in
+            // On the next turn of the run loop, once the panel is really
+            // gone: made key now, the notch panel would lose it again to the
+            // window closing. In the common modes, so it runs even while
+            // a menu or a drag is tracking.
+            RunLoop.main.perform(inModes: [.common]) {
+                MainActor.assumeIsolated { self?.onClose?() }
+            }
         }
     }
 

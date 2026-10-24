@@ -242,7 +242,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Previews shelf files. Sandboxed by default like `shelfOpener`; only
     /// `configureForRealLaunch()` hands in Quick Look, so no test can put a
     /// preview panel on screen.
-    var shelfPreview: ShelfPreviewing = InertShelfPreview()
+    var shelfPreview: ShelfPreviewing = InertShelfPreview() {
+        didSet { shelfPreview.onClose = { [weak self] in self?.shelfPreviewDidClose() } }
+    }
 
     /// How long "Couldn't add …" stays under the shelf after a background
     /// copy fails. Long enough to read a file name; it is a report, not an
@@ -1918,18 +1920,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    /// Space: closes the preview if it is up, as in Finder, else previews
-    /// the selection.
+    /// Space on the shelf tab: previews the selection. Once the preview is
+    /// up it has the keyboard (`ShelfQuickLook.prepare`) and closes itself
+    /// on Space, as in Finder, so this sees Space with a preview up only if
+    /// someone clicked back into the panel first — and then closes it.
+    ///
+    /// Always consumed, even with nothing to show: a declined key goes on to
+    /// `NSWindow.keyDown`, which beeps, and Space on the shelf tab is never
+    /// anybody else's.
     private func toggleShelfQuickLook() -> Bool {
         if shelfPreview.isVisible {
             shelfPreview.close()
-            return true
+        } else {
+            quickLookShelfItem(state.shelfSelection)
         }
-        return quickLookShelfItem(state.shelfSelection)
+        return true
     }
 
-    /// ← →. A preview that is up follows the selection — though once Quick
-    /// Look has the keyboard, its own arrows page it and these never fire.
+    /// ← →, while the panel has the keyboard. A preview that is up follows
+    /// the selection — reached only after a click back into the panel,
+    /// since while the preview is key its own arrows page it instead.
     private func moveShelfSelection(by step: Int) -> Bool {
         guard let next = ShelfSelection.moved(from: state.shelfSelection, by: step, in: visibleShelfItems) else {
             return false
@@ -1937,6 +1947,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.shelfSelection = next
         if shelfPreview.isVisible { quickLookShelfItem(next) }
         return true
+    }
+
+    /// Quick Look closed itself, taking the keyboard with it: hands it back
+    /// to the notch panel while the panel is still open, so Space previews
+    /// again and Esc closes the panel. A panel that has closed meanwhile —
+    /// the pointer left it for the preview — is left closed and unkeyed.
+    func shelfPreviewDidClose() {
+        guard case .open = state.state, let panel else { return }
+        if let takeKey { takeKey() } else { panel.makeKey() }
     }
 
     /// Hands the file to its default app — a tile's double-click or Open.

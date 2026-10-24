@@ -209,36 +209,6 @@ private struct ShelfItemView: View {
                         .controlSize(.small)
                         .frame(width: size.width, height: size.height)
                 }
-
-                if hovering && !item.isPending {
-                    Button(action: onRemove) {
-                        Image(systemName: "xmark")
-                            .notchFont(8, weight: .bold)
-                            .foregroundStyle(.white)
-                            .notchFrame(width: 16, height: 16)
-                            .background(Circle().fill(Color(white: 0.22)))
-                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: 5, y: -5)
-                    .accessibilityLabel("Remove \(item.displayName)")
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if hovering && !item.isPending {
-                    Button(action: onAirDrop) {
-                        Image(systemName: "dot.radiowaves.left.and.right")
-                            .notchFont(9, weight: .bold)
-                            .foregroundStyle(.white)
-                            .notchFrame(width: 18, height: 18)
-                            .background(Circle().fill(Color.accentColor.opacity(0.9)))
-                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: 5, y: 5)
-                    .help("AirDrop")
-                    .accessibilityLabel("AirDrop \(item.displayName)")
-                }
             }
             .frame(width: size.width, height: size.height)
 
@@ -249,8 +219,6 @@ private struct ShelfItemView: View {
                 .truncationMode(.middle)
                 .frame(width: size.width + 8)
         }
-        // A tracking area inside the panel, alive only while the tile is.
-        .onHover { hovering = $0 }
         // Finder's pair: a click selects, a double-click opens. The click is
         // simultaneous rather than exclusive so selecting is immediate
         // instead of waiting out the double-click interval, and both pass a
@@ -264,6 +232,14 @@ private struct ShelfItemView: View {
             guard !item.isPending else { return }
             onSelect()
         })
+        // The hover buttons sit in an overlay laid on *after* the gestures,
+        // not inside the view that carries them: a simultaneous gesture
+        // fires alongside any button beneath it, so a click on Remove or
+        // AirDrop would also have selected the tile it was taking away.
+        .overlay(alignment: .top) { hoverButtons }
+        // A tracking area inside the panel, alive only while the tile is —
+        // outside the overlay, so the pointer on a button is still hovering.
+        .onHover { hovering = $0 }
         // One element, not a picture, a caption and two buttons that come
         // and go with the pointer: the hover buttons' verbs are its actions.
         .accessibilityElement(children: .ignore)
@@ -285,6 +261,44 @@ private struct ShelfItemView: View {
             // Nothing to preview until the copy lands; the icon stands in.
             guard !item.isPending else { return }
             image = await ShelfThumbnails.shared.thumbnail(for: item, size: size)
+        }
+    }
+
+    /// Remove at the tile's top-right corner and AirDrop at its bottom-right,
+    /// over the thumbnail's square, while the pointer is on a ready tile.
+    /// The clear square is not hit-testable, so a click anywhere else on the
+    /// tile falls through to the tile's own gestures.
+    @ViewBuilder private var hoverButtons: some View {
+        if hovering && !item.isPending {
+            Color.clear
+                .frame(width: size.width, height: size.height)
+                .overlay(alignment: .topTrailing) {
+                    Button(action: onRemove) {
+                        Image(systemName: "xmark")
+                            .notchFont(8, weight: .bold)
+                            .foregroundStyle(.white)
+                            .notchFrame(width: 16, height: 16)
+                            .background(Circle().fill(Color(white: 0.22)))
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 5, y: -5)
+                    .accessibilityLabel("Remove \(item.displayName)")
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Button(action: onAirDrop) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .notchFont(9, weight: .bold)
+                            .foregroundStyle(.white)
+                            .notchFrame(width: 18, height: 18)
+                            .background(Circle().fill(Color.accentColor.opacity(0.9)))
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 5, y: 5)
+                    .help("AirDrop")
+                    .accessibilityLabel("AirDrop \(item.displayName)")
+                }
         }
     }
 }

@@ -23,8 +23,11 @@ struct ShelfQuickLookTests {
         var closes = 0
         var isVisible = false
         let isSystem = false
+        var onClose: (@MainActor () -> Void)?
         func show(_ request: ShelfPreviewRequest) { shown.append(request); isVisible = true }
         func close() { closes += 1; isVisible = false }
+        /// Quick Look closing on its own Space or Esc.
+        func closeItself() { isVisible = false; onClose?() }
     }
 
     private struct Setup {
@@ -96,7 +99,9 @@ struct ShelfQuickLookTests {
         #expect(s.delegate.state.shelfSelection == first.id)
     }
 
-    /// Space toggles, as it does in Finder.
+    /// Space toggles. In the real app the open preview has the keyboard and
+    /// closes itself on Space; this is the panel's half, for when someone
+    /// clicked back into it with the preview up.
     @Test func spaceAgainClosesThePreview() throws {
         let s = try makeSetup()
         try addTwo(s.shelf)
@@ -109,12 +114,22 @@ struct ShelfQuickLookTests {
         #expect(s.preview.shown.count == 1)
     }
 
-    /// An empty shelf has nothing to show; the key goes back to AppKit.
-    @Test func spaceOnAnEmptyShelfIsPassedOn() throws {
+    /// An empty shelf has nothing to show, but Space is still consumed:
+    /// passed on, it reaches `NSWindow.keyDown`, which beeps.
+    @Test func spaceOnAnEmptyShelfShowsNothingButIsConsumed() throws {
         let s = try makeSetup()
         s.delegate.state.transition(to: .open(.shelf))
-        #expect(!s.delegate.handlePanelKey(.space))
+        #expect(s.delegate.handlePanelKey(.space))
         #expect(s.preview.shown.isEmpty)
+    }
+
+    /// The same through the installed panel's callback, which is what
+    /// decides whether `NotchPanel.keyDown` stops or calls `super`.
+    @Test func spaceOnAnEmptyShelfStopsAtThePanel() throws {
+        let s = try makeSetup()
+        s.delegate.state.transition(to: .open(.shelf))
+        let onPanelKey = try #require(s.delegate.panel?.onPanelKey)
+        #expect(onPanelKey(.space))
     }
 
     @Test func spaceOffTheShelfTabIsPassedOn() throws {
@@ -123,6 +138,42 @@ struct ShelfQuickLookTests {
         s.delegate.state.transition(to: .open(.clipboard))
         #expect(!s.delegate.handlePanelKey(.space))
         #expect(s.preview.shown.isEmpty)
+    }
+
+    // MARK: - The keyboard, handed back
+
+    /// Quick Look takes the keyboard when it opens. Closing itself, it
+    /// hands it back to the open notch panel, or nothing would be key and
+    /// the next Space would type into the frontmost app.
+    @Test func thePreviewClosingItselfGivesTheOpenPanelTheKeyboardBack() throws {
+        let s = try makeSetup()
+        try addTwo(s.shelf)
+        var keyed = 0
+        s.delegate.takeKey = { keyed += 1 }
+        s.delegate.state.transition(to: .open(.shelf))
+        s.delegate.handlePanelKey(.space)
+        keyed = 0
+
+        s.preview.closeItself()
+
+        #expect(keyed == 1)
+    }
+
+    /// The control: a panel that closed while the preview was up — the
+    /// pointer left it — does not take the keyboard from the app in front.
+    @Test func aClosedPanelIsNotKeyedWhenThePreviewCloses() throws {
+        let s = try makeSetup()
+        try addTwo(s.shelf)
+        var keyed = 0
+        s.delegate.takeKey = { keyed += 1 }
+        s.delegate.state.transition(to: .open(.shelf))
+        s.delegate.handlePanelKey(.space)
+        s.delegate.state.transition(to: .closed)
+        keyed = 0
+
+        s.preview.closeItself()
+
+        #expect(keyed == 0)
     }
 
     // MARK: - Arrows
@@ -143,8 +194,9 @@ struct ShelfQuickLookTests {
         #expect(s.preview.shown.isEmpty)
     }
 
-    /// While the preview is up and the panel still has the keys, the preview
-    /// follows the selection.
+    /// While the preview is up and the panel has the keys back — after a
+    /// click in it, since the preview takes them when it opens — the
+    /// preview follows the selection.
     @Test func movingTheSelectionWhilePreviewingShowsTheNewTile() throws {
         let s = try makeSetup()
         try addTwo(s.shelf)
@@ -282,6 +334,27 @@ struct ShelfQuickLookTests {
         let item = try #require(quickLook.previewPanel(nil, previewItemAt: 1))
         #expect(item.previewItemURL == urls[1])
         #expect(quickLook.previewPanel(nil, previewItemAt: 5) == nil)
+    }
+
+    /// Quick Look's panel is readied to take the keyboard without
+    /// activating the app — the notch panel's own trick — and to draw above
+    /// the notch panel. Checked on a plain panel: asking for the shared
+    /// preview panel here would create one. That the window server then
+    /// really routes keys to it is the live suite's (`ShelfQuickLookLive`).
+    @Test func thePreviewPanelIsMadeNonActivatingAndAboveTheNotch() {
+        let panel = NSPanel(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        ShelfQuickLook.prepare(panel)
+        #expect(panel.styleMask.contains(.nonactivatingPanel))
+        #expect(panel.level.rawValue >= NSWindow.Level.statusBar.rawValue + 2)
+        #expect(panel.level.rawValue > NotchPanel(contentRect: .zero).level.rawValue)
+    }
+
+    /// A panel already higher is not lowered.
+    @Test func preparingNeverLowersThePreview() {
+        let panel = NSPanel(contentRect: .zero, styleMask: [.titled], backing: .buffered, defer: true)
+        panel.level = .screenSaver
+        ShelfQuickLook.prepare(panel)
+        #expect(panel.level == .screenSaver)
     }
 
     /// A fresh `ShelfQuickLook` asks nothing of Quick Look: reading whether

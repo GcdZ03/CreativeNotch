@@ -60,17 +60,19 @@ public final class NotchPanel: NSPanel {
     ///
     /// Digits count only with exactly ⌘ held: a plain digit is typing — the
     /// timer's minutes field — and ⌘⇧2 or ⌥⌘2 belong to somebody else.
-    /// Caps Lock, the numeric-pad and function flags are states of the
-    /// keyboard rather than parts of a chord, so they are ignored — the
-    /// arrow keys always arrive with the last two set.
+    /// Only ⇧ ⌃ ⌥ ⌘ make a chord. Caps Lock, the numeric-pad and function
+    /// flags are states of the keyboard rather than parts of one — the
+    /// arrow keys always arrive with the last two set — and so is any bit
+    /// AppKit has no name for: a synthesized key event (an automation tool,
+    /// the live Quick Look suite) arrives carrying bit 29, which a mask
+    /// that only *subtracted* the known states read as a modifier held,
+    /// so Space and the arrows silently stopped being ours.
     ///
     /// Space and ← → count only bare: ⌘Space is Spotlight's and ⌥← a word
     /// jump. Whether they *do* anything is `PanelKeyboard`'s call — only on
     /// the shelf tab.
     public static func panelKey(keyCode: UInt16, modifiers: NSEvent.ModifierFlags) -> PanelKey? {
-        let chord = modifiers
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting([.capsLock, .numericPad, .function])
+        let chord = modifiers.intersection([.shift, .control, .option, .command])
         if chord.isEmpty {
             switch keyCode {
             case escapeKeyCode:     return .escape

@@ -245,6 +245,15 @@ struct NotchPanelKeyTests {
         #expect(NotchPanel.panelKey(keyCode: 124, modifiers: [.numericPad, .function]) == .arrowRight)
     }
 
+    /// A flag AppKit has no name for — bit 29, which a synthesized key
+    /// event carries — is no more a chord than Caps Lock.
+    @Test func anUnnamedFlagIsNotAChord() {
+        let unnamed = NSEvent.ModifierFlags(rawValue: 1 << 29)
+        #expect(NotchPanel.panelKey(keyCode: 49, modifiers: unnamed) == .space)
+        #expect(NotchPanel.panelKey(keyCode: 53, modifiers: unnamed) == .escape)
+        #expect(NotchPanel.panelKey(keyCode: 19, modifiers: [.command, unnamed]) == .commandDigit(2))
+    }
+
     /// ⌘Space is Spotlight's, ⌥← is a word jump: neither is ours.
     @Test func chordedSpaceAndArrowsAreNotOurs() {
         #expect(NotchPanel.panelKey(keyCode: 49, modifiers: .command) == nil)
