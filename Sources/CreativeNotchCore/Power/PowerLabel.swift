@@ -28,9 +28,11 @@ public enum PowerLabel {
         isCharging: Bool,
         isCharged: Bool
     ) -> String {
-        guard source == .wall else { return "On battery" }
-        if isCharging { return "Charging" }
-        return isCharged ? "Fully charged" : "Not charging"
+        guard source == .wall else { return String(localized: "On battery", bundle: .creativeNotch) }
+        if isCharging { return String(localized: "Charging", bundle: .creativeNotch) }
+        return isCharged
+            ? String(localized: "Fully charged", bundle: .creativeNotch)
+            : String(localized: "Not charging", bundle: .creativeNotch)
     }
 
     /// The battery peek's words (2026-10-17), naming the event that fired.
@@ -41,10 +43,13 @@ public enum PowerLabel {
     /// charging is named.
     public static func peekTitle(for event: PowerEvent) -> String {
         switch event {
-        case .pluggedIn:                 return "Plugged In"
-        case .unplugged:                 return "On Battery"
-        case .lowBattery:                return "Low Battery"
-        case .lowPowerMode(let enabled): return enabled ? "Low Power Mode On" : "Low Power Mode Off"
+        case .pluggedIn:  return String(localized: "Plugged In", bundle: .creativeNotch)
+        case .unplugged:  return String(localized: "On Battery", bundle: .creativeNotch)
+        case .lowBattery: return String(localized: "Low Battery", bundle: .creativeNotch)
+        case .lowPowerMode(let enabled):
+            return enabled
+                ? String(localized: "Low Power Mode On", bundle: .creativeNotch)
+                : String(localized: "Low Power Mode Off", bundle: .creativeNotch)
         }
     }
 
@@ -59,7 +64,7 @@ public enum PowerLabel {
         let title = peekTitle(for: event)
         switch event {
         case .pluggedIn(let level), .unplugged(let level), .lowBattery(_, let level):
-            return "\(title), \(level)%"
+            return String(localized: "\(title), \(level)%", bundle: .creativeNotch, comment: "Battery peek, spoken: the title, then the level")
         case .lowPowerMode:
             return title
         }

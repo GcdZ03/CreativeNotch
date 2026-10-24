@@ -54,7 +54,7 @@ public enum KeyCodeDisplay {
     /// Space is the sharp one: it translates to " ", which in a settings row
     /// is indistinguishable from a missing key.
     static let namedKeys: [UInt32: String] = [
-        UInt32(kVK_Space): "Space",
+        UInt32(kVK_Space): String(localized: "Space", bundle: .creativeNotch, comment: "The space bar, in a keyboard shortcut"),
         UInt32(kVK_Return): "\u{21A9}",
         UInt32(kVK_Tab): "\u{21E5}",
         UInt32(kVK_Escape): "\u{238B}",

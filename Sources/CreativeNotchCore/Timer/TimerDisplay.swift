@@ -31,7 +31,7 @@ public enum TimerDisplay {
         let seconds = Int(ceil(max(0, remaining)))
         if seconds >= 60 {
             // Integer ceiling division.
-            return "\((seconds + 59) / 60)m"
+            return String(localized: "\((seconds + 59) / 60)m", bundle: .creativeNotch, comment: "Minutes left, abbreviated to fit the notch")
         }
         return String(format: "0:%02d", seconds)
     }
@@ -48,7 +48,9 @@ public enum TimerDisplay {
     /// word, so it draws a pause glyph ahead of its digits instead (see
     /// `TimerBadgeView`).
     public static func caption(isPaused: Bool) -> String {
-        isPaused ? "paused" : "left"
+        isPaused
+            ? String(localized: "paused", bundle: .creativeNotch, comment: "Beside the timer digits: 12m paused")
+            : String(localized: "left", bundle: .creativeNotch, comment: "Beside the timer digits: 12m left")
     }
 
     /// How long until `text` returns something different, or `nil` when the

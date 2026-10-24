@@ -1,0 +1,3930 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "%@ %@ ago" : {
+      "comment" : "25-minute timer finished, 3 minutes ago",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ %2$@ ago"
+          }
+        }
+      }
+    },
+    "%@ (not connected)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ (not connected)"
+          }
+        }
+      }
+    },
+    "%@ at %@" : {
+      "comment" : "Capture file name: date, then time",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ at %2$@"
+          }
+        }
+      }
+    },
+    "%@ connected" : {
+      "comment" : "A Bluetooth device arrived: AirPods Pro connected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ connected"
+          }
+        }
+      }
+    },
+    "%@ disconnected" : {
+      "comment" : "A Bluetooth device left: AirPods Pro disconnected",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ disconnected"
+          }
+        }
+      }
+    },
+    "%@ image" : {
+      "comment" : "A copied image: PNG image",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ image"
+          }
+        }
+      }
+    },
+    "%@ of %@" : {
+      "comment" : "Playback position: 1:02 of 3:45",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ of %2$@"
+          }
+        }
+      }
+    },
+    "%@ remaining" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ remaining"
+          }
+        }
+      }
+    },
+    "%@ remaining, %lld%% done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ remaining, %2$lld%% done"
+          }
+        }
+      }
+    },
+    "%@ s" : {
+      "comment" : "Hover delay in seconds",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ s"
+          }
+        }
+      }
+    },
+    "%@ to %@" : {
+      "comment" : "A time range, spoken: 10:30 to 11:00",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ to %2$@"
+          }
+        }
+      }
+    },
+    "%@ · finished %@ ago" : {
+      "comment" : "Timer peek: 25m · finished 3m ago",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ · finished %2$@ ago"
+          }
+        }
+      }
+    },
+    "%@ — %@" : {
+      "comment" : "A colour format's name, then a sample of it: Hex — #3A7BD5\nTrack title — artist",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ — %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@" : {
+      "comment" : "A colour's name, then its value as copied: blue, #3A7BD5",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@"
+          }
+        }
+      }
+    },
+    "%@, %@, %@ calendar" : {
+      "comment" : "Event title, when it is, and which calendar it is on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$@, %3$@ calendar"
+          }
+        }
+      }
+    },
+    "%@, %lld percent" : {
+      "comment" : "What is downloading, then how far along: Downloading report.pdf, 42 percent",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld percent"
+          }
+        }
+      }
+    },
+    "%@, %lld%%" : {
+      "comment" : "Battery peek, spoken: the title, then the level",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@, %2$lld%%"
+          }
+        }
+      }
+    },
+    "%@, copying" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@, copying"
+          }
+        }
+      }
+    },
+    "%@–%@" : {
+      "comment" : "A time range: 10:30–11:00",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@–%2$@"
+          }
+        }
+      }
+    },
+    "%lld days" : {
+      "comment" : "Shelf expiry choice",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld day"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld days"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld downloads" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld download"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld downloads"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld hours" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld hour"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld hours"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld items" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld laps" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld lap"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld laps"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld linked items also leave the shelf, but their files stay where they are." : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld linked item also leaves the shelf, but its file stays where it is."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld linked items also leave the shelf, but their files stay where they are."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld min" : {
+      "comment" : "Minutes, abbreviated: 25 min",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld min"
+          }
+        }
+      }
+    },
+    "%lld minutes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld of %lld" : {
+      "comment" : "Clipboard title row while searching: matches of entries\nClipboard title row: entries of capacity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld of %2$lld"
+          }
+        }
+      }
+    },
+    "%lld reminders due today" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld reminder due today"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld reminders due today"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld reminders due · %lld overdue" : {
+      "comment" : "Reminders due in all, of which some are overdue: 3 reminders due · 1 overdue",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$#@reminders@ · %2$lld overdue"
+          },
+          "substitutions" : {
+            "reminders" : {
+              "argNum" : 1,
+              "formatSpecifier" : "lld",
+              "variations" : {
+                "plural" : {
+                  "one" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg reminder due"
+                    }
+                  },
+                  "other" : {
+                    "stringUnit" : {
+                      "state" : "translated",
+                      "value" : "%arg reminders due"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld reminders overdue" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld reminder overdue"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld reminders overdue"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld running" : {
+      "comment" : "Timer title row: how many countdowns are running",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld running"
+          }
+        }
+      }
+    },
+    "%lld seconds" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld second"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld seconds"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld%%" : {
+      "comment" : "Battery level\nDownload progress",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld%%"
+          }
+        }
+      }
+    },
+    "%lld-minute timer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-minute timer"
+          }
+        }
+      }
+    },
+    "%lld-minute timer finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-minute timer finished"
+          }
+        }
+      }
+    },
+    "%lld-second timer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-second timer"
+          }
+        }
+      }
+    },
+    "%lld-second timer finished" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld-second timer finished"
+          }
+        }
+      }
+    },
+    "%lldh" : {
+      "comment" : "Hours, abbreviated",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldh"
+          }
+        }
+      }
+    },
+    "%lldm" : {
+      "comment" : "Minutes left, abbreviated to fit the notch",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lldm"
+          }
+        }
+      }
+    },
+    "%lld–%lld minutes each" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$lld–%2$lld minutes each"
+          }
+        }
+      }
+    },
+    "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
+          }
+        }
+      }
+    },
+    "A glance when AirPods, headphones or a speaker connect or disconnect. Needs Bluetooth access." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A glance when AirPods, headphones or a speaker connect or disconnect. Needs Bluetooth access."
+          }
+        }
+      }
+    },
+    "A mirror under the lens, with a shutter and a record button." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A mirror under the lens, with a shutter and a record button."
+          }
+        }
+      }
+    },
+    "A profile or Screen Time manages it on this Mac." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A profile or Screen Time manages it on this Mac."
+          }
+        }
+      }
+    },
+    "Add" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add"
+          }
+        }
+      }
+    },
+    "Add App…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add App…"
+          }
+        }
+      }
+    },
+    "Add a modifier such as ⌘ or ⌥. On its own, that key would be taken away from every app." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add a modifier such as ⌘ or ⌥. On its own, that key would be taken away from every app."
+          }
+        }
+      }
+    },
+    "Add an app to ignore" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add an app to ignore"
+          }
+        }
+      }
+    },
+    "Add ⌘, ⌥ or ⌃. Shift alone is too close to ordinary typing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add ⌘, ⌥ or ⌃. Shift alone is too close to ordinary typing."
+          }
+        }
+      }
+    },
+    "AirDrop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AirDrop"
+          }
+        }
+      }
+    },
+    "AirDrop %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AirDrop %@"
+          }
+        }
+      }
+    },
+    "AirDrop All" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AirDrop All"
+          }
+        }
+      }
+    },
+    "All day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All day"
+          }
+        }
+      }
+    },
+    "Allow Access…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow Access…"
+          }
+        }
+      }
+    },
+    "Another app has claimed this combination exclusively. Choose a different one." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Another app has claimed this combination exclusively. Choose a different one."
+          }
+        }
+      }
+    },
+    "Artwork and bars beside the closed notch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Artwork and bars beside the closed notch."
+          }
+        }
+      }
+    },
+    "Audio device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio device"
+          }
+        }
+      }
+    },
+    "Back" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back"
+          }
+        }
+      }
+    },
+    "Battery" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery"
+          }
+        }
+      }
+    },
+    "Battery %lld percent" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery %lld percent"
+          }
+        }
+      }
+    },
+    "Battery %lld percent, charging" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery %lld percent, charging"
+          }
+        }
+      }
+    },
+    "Battery %lld percent, low" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery %lld percent, low"
+          }
+        }
+      }
+    },
+    "Battery and power" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery and power"
+          }
+        }
+      }
+    },
+    "Battery in the header" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Battery in the header"
+          }
+        }
+      }
+    },
+    "Bluetooth access is off for CreativeNotch, so no alerts can show. Allow it in System Settings › Privacy & Security › Bluetooth." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth access is off for CreativeNotch, so no alerts can show. Allow it in System Settings › Privacy & Security › Bluetooth."
+          }
+        }
+      }
+    },
+    "Bluetooth alerts" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bluetooth alerts"
+          }
+        }
+      }
+    },
+    "Built-in display" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built-in display"
+          }
+        }
+      }
+    },
+    "Calendar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar"
+          }
+        }
+      }
+    },
+    "Calendar access is off in System Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar access is off in System Settings"
+          }
+        }
+      }
+    },
+    "Calendar access is restricted" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar access is restricted"
+          }
+        }
+      }
+    },
+    "Calendar and reminders" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendar and reminders"
+          }
+        }
+      }
+    },
+    "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security."
+          }
+        }
+      }
+    },
+    "Calendars and Reminders access is restricted on this Mac by a profile or Screen Time, so the glance has nothing to show." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Calendars and Reminders access is restricted on this Mac by a profile or Screen Time, so the glance has nothing to show."
+          }
+        }
+      }
+    },
+    "Camera" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera"
+          }
+        }
+      }
+    },
+    "Camera and microphone indicator" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera and microphone indicator"
+          }
+        }
+      }
+    },
+    "Camera and privacy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera and privacy"
+          }
+        }
+      }
+    },
+    "Camera in use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera in use"
+          }
+        }
+      }
+    },
+    "Camera recording" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Camera recording"
+          }
+        }
+      }
+    },
+    "Cancel" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel"
+          }
+        }
+      }
+    },
+    "Cancel %@" : {
+      "comment" : "Cancel 25-minute timer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cancel %@"
+          }
+        }
+      }
+    },
+    "Car audio" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Car audio"
+          }
+        }
+      }
+    },
+    "Charging" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Charging"
+          }
+        }
+      }
+    },
+    "Chime" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chime"
+          }
+        }
+      }
+    },
+    "Clear" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear"
+          }
+        }
+      }
+    },
+    "Clear Clipboard (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Clipboard (%lld)"
+          }
+        }
+      }
+    },
+    "Clear Shelf (%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear Shelf (%lld)"
+          }
+        }
+      }
+    },
+    "Clear search" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clear search"
+          }
+        }
+      }
+    },
+    "Click it, or swipe down with two fingers, to open this panel." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click it, or swipe down with two fingers, to open this panel."
+          }
+        }
+      }
+    },
+    "Clip" : {
+      "comment" : "Capture file name prefix",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clip"
+          }
+        }
+      }
+    },
+    "Clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard"
+          }
+        }
+      }
+    },
+    "Clipboard history" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard history"
+          }
+        }
+      }
+    },
+    "Clipboard is empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clipboard is empty"
+          }
+        }
+      }
+    },
+    "Close camera" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Close camera"
+          }
+        }
+      }
+    },
+    "Colour picker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Colour picker"
+          }
+        }
+      }
+    },
+    "Compact" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact"
+          }
+        }
+      }
+    },
+    "Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. With the calendar on, six tabs need more than Default's width there, so Default widens to fit them. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compact goes no narrower than leaves room for every tab, and for the eyedropper, battery and gear, beside the camera. With the calendar on, six tabs need more than Default's width there, so Default widens to fit them. Hiding a badge only clears it from beside the closed notch: the timer still chimes and shows when it ends. The recording dot always shows; the camera and microphone indicator has its own switch below."
+          }
+        }
+      }
+    },
+    "Confirmed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Confirmed"
+          }
+        }
+      }
+    },
+    "Connected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connected"
+          }
+        }
+      }
+    },
+    "Copied" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied"
+          }
+        }
+      }
+    },
+    "Copied %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied %@"
+          }
+        }
+      }
+    },
+    "Copied ✓" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copied ✓"
+          }
+        }
+      }
+    },
+    "Copies it again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies it again."
+          }
+        }
+      }
+    },
+    "Copies made in these apps will not be added to clipboard history." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copies made in these apps will not be added to clipboard history."
+          }
+        }
+      }
+    },
+    "Copy" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy"
+          }
+        }
+      }
+    },
+    "Copy %@, added %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy %1$@, added %2$@"
+          }
+        }
+      }
+    },
+    "Copy Again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy Again"
+          }
+        }
+      }
+    },
+    "Copy as" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy as"
+          }
+        }
+      }
+    },
+    "Corners" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Corners"
+          }
+        }
+      }
+    },
+    "Couldn't add %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couldn't add %@"
+          }
+        }
+      }
+    },
+    "Couldn't restore %lld items" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't restore %lld item"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Couldn't restore %lld items"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "CreativeNotch Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch Settings"
+          }
+        }
+      }
+    },
+    "CreativeNotch already uses this shortcut." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch already uses this shortcut."
+          }
+        }
+      }
+    },
+    "CreativeNotch can't read your Downloads folder, so it can't see downloads. Allow it in System Settings › Privacy & Security › Files & Folders, then reopen Settings or switch this off and on." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch can't read your Downloads folder, so it can't see downloads. Allow it in System Settings › Privacy & Security › Files & Folders, then reopen Settings or switch this off and on."
+          }
+        }
+      }
+    },
+    "CreativeNotch can't read your calendars" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch can't read your calendars"
+          }
+        }
+      }
+    },
+    "CreativeNotch could not listen for shortcuts. Restarting the app usually fixes this." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch could not listen for shortcuts. Restarting the app usually fixes this."
+          }
+        }
+      }
+    },
+    "CreativeNotch needs camera access" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch needs camera access"
+          }
+        }
+      }
+    },
+    "Default" : {
+      "comment" : "Text size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        }
+      }
+    },
+    "Delay" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delay"
+          }
+        }
+      }
+    },
+    "Disconnected" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disconnected"
+          }
+        }
+      }
+    },
+    "Display" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display"
+          }
+        }
+      }
+    },
+    "Display with the focused window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Display with the focused window"
+          }
+        }
+      }
+    },
+    "Download" : {
+      "comment" : "The name of a download whose file has no name",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download"
+          }
+        }
+      }
+    },
+    "Downloaded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded"
+          }
+        }
+      }
+    },
+    "Downloaded %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloaded %@"
+          }
+        }
+      }
+    },
+    "Downloading %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloading %@"
+          }
+        }
+      }
+    },
+    "Downloads" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads"
+          }
+        }
+      }
+    },
+    "Downloads badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Downloads badge"
+          }
+        }
+      }
+    },
+    "Drag files onto the notch to keep them on the shelf." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag files onto the notch to keep them on the shelf."
+          }
+        }
+      }
+    },
+    "Drag files onto the notch to stash them. Off hides the tab; it does not save battery." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag files onto the notch to stash them. Off hides the tab; it does not save battery."
+          }
+        }
+      }
+    },
+    "Drop files on the notch to stash them" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop files on the notch to stash them"
+          }
+        }
+      }
+    },
+    "Drop here" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop here"
+          }
+        }
+      }
+    },
+    "Drop to stash on the shelf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop to stash on the shelf"
+          }
+        }
+      }
+    },
+    "Dropped Image" : {
+      "comment" : "File name for a dropped image, before its extension",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropped Image"
+          }
+        }
+      }
+    },
+    "Dropped Text" : {
+      "comment" : "File name for dropped text, before .txt",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dropped Text"
+          }
+        }
+      }
+    },
+    "Every app uses this shortcut. Choose a different one." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every app uses this shortcut. Choose a different one."
+          }
+        }
+      }
+    },
+    "External display" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "External display"
+          }
+        }
+      }
+    },
+    "File shelf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "File shelf"
+          }
+        }
+      }
+    },
+    "Fully charged" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fully charged"
+          }
+        }
+      }
+    },
+    "Global shortcut" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Global shortcut"
+          }
+        }
+      }
+    },
+    "Got it" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Got it"
+          }
+        }
+      }
+    },
+    "Grant it in System Settings › Privacy & Security › Camera." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grant it in System Settings › Privacy & Security › Camera."
+          }
+        }
+      }
+    },
+    "HSL" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "HSL"
+          }
+        }
+      }
+    },
+    "Headphones" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Headphones"
+          }
+        }
+      }
+    },
+    "Headset" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Headset"
+          }
+        }
+      }
+    },
+    "Hex" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hex"
+          }
+        }
+      }
+    },
+    "Hide" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide"
+          }
+        }
+      }
+    },
+    "Hide colour" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide colour"
+          }
+        }
+      }
+    },
+    "Hides this welcome. Show it again from the menu bar icon." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hides this welcome. Show it again from the menu bar icon."
+          }
+        }
+      }
+    },
+    "Holds" : {
+      "comment" : "Shelf capacity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Holds"
+          }
+        }
+      }
+    },
+    "Hover" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hover"
+          }
+        }
+      }
+    },
+    "How large the open panel's text is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How large the open panel's text is."
+          }
+        }
+      }
+    },
+    "How round the open panel's corners are." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How round the open panel's corners are."
+          }
+        }
+      }
+    },
+    "How wide the open panel is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How wide the open panel is."
+          }
+        }
+      }
+    },
+    "Ignore" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore"
+          }
+        }
+      }
+    },
+    "Ignore Copies From" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore Copies From"
+          }
+        }
+      }
+    },
+    "Ignore copies from" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore copies from"
+          }
+        }
+      }
+    },
+    "In the notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In the notch"
+          }
+        }
+      }
+    },
+    "It is older than the shelf will now keep files." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "It is older than the shelf will now keep files."
+          }
+        }
+      }
+    },
+    "Its file stays where it is." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Its file stays where it is."
+          }
+        }
+      }
+    },
+    "Keeps files for" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keeps files for"
+          }
+        }
+      }
+    },
+    "Kept %lld days · drag them out anywhere" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Kept %lld day · drag them out anywhere"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Kept %lld days · drag them out anywhere"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Kept until you remove them · drag them out anywhere" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kept until you remove them · drag them out anywhere"
+          }
+        }
+      }
+    },
+    "Lap" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lap"
+          }
+        }
+      }
+    },
+    "Lap %lld" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lap %lld"
+          }
+        }
+      }
+    },
+    "Large" : {
+      "comment" : "Text size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Large"
+          }
+        }
+      }
+    },
+    "Larger" : {
+      "comment" : "Text size",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Larger"
+          }
+        }
+      }
+    },
+    "Layout" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Layout"
+          }
+        }
+      }
+    },
+    "Left" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Left"
+          }
+        }
+      }
+    },
+    "Level, charging state and Low Power Mode. Costs almost nothing either way." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Level, charging state and Low Power Mode. Costs almost nothing either way."
+          }
+        }
+      }
+    },
+    "Longer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Longer"
+          }
+        }
+      }
+    },
+    "Low Battery" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low Battery"
+          }
+        }
+      }
+    },
+    "Low Power Mode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low Power Mode"
+          }
+        }
+      }
+    },
+    "Low Power Mode Off" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low Power Mode Off"
+          }
+        }
+      }
+    },
+    "Low Power Mode On" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Low Power Mode On"
+          }
+        }
+      }
+    },
+    "Media controls" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media controls"
+          }
+        }
+      }
+    },
+    "Microphone and camera in use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone and camera in use"
+          }
+        }
+      }
+    },
+    "Microphone in use" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Microphone in use"
+          }
+        }
+      }
+    },
+    "Minutes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minutes"
+          }
+        }
+      }
+    },
+    "Mode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mode"
+          }
+        }
+      }
+    },
+    "Move %lld files from the shelf to the Trash?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Move %lld file from the shelf to the Trash?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Move %lld files from the shelf to the Trash?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Move to Trash" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move to Trash"
+          }
+        }
+      }
+    },
+    "Music" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Music"
+          }
+        }
+      }
+    },
+    "Never" : {
+      "comment" : "Shelf expiry: files are kept until removed",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Never"
+          }
+        }
+      }
+    },
+    "New Event" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "New Event"
+          }
+        }
+      }
+    },
+    "Next track" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Next track"
+          }
+        }
+      }
+    },
+    "No apps. Everything you copy is remembered, except entries password managers mark as concealed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No apps. Everything you copy is remembered, except entries password managers mark as concealed."
+          }
+        }
+      }
+    },
+    "No camera found" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No camera found"
+          }
+        }
+      }
+    },
+    "No matches for “%@”" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No matches for “%@”"
+          }
+        }
+      }
+    },
+    "No reminders due today" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No reminders due today"
+          }
+        }
+      }
+    },
+    "No shortcut is set until you choose one. Any default would risk colliding with a launcher you already use." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No shortcut is set until you choose one. Any default would risk colliding with a launcher you already use."
+          }
+        }
+      }
+    },
+    "None" : {
+      "comment" : "Timer chime: no sound",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "None"
+          }
+        }
+      }
+    },
+    "Not charging" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not charging"
+          }
+        }
+      }
+    },
+    "Nothing copied yet" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing copied yet"
+          }
+        }
+      }
+    },
+    "Nothing else today or tomorrow" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing else today or tomorrow"
+          }
+        }
+      }
+    },
+    "Nothing playing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nothing playing"
+          }
+        }
+      }
+    },
+    "Notifications are off for CreativeNotch in System Settings, so a timer that finishes behind a full-screen app will only chime." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notifications are off for CreativeNotch in System Settings, so a timer that finishes behind a full-screen app will only chime."
+          }
+        }
+      }
+    },
+    "Notify when hidden by a full-screen app" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notify when hidden by a full-screen app"
+          }
+        }
+      }
+    },
+    "Now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now"
+          }
+        }
+      }
+    },
+    "Now playing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now playing"
+          }
+        }
+      }
+    },
+    "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
+          }
+        }
+      }
+    },
+    "Now playing: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now playing: %@"
+          }
+        }
+      }
+    },
+    "Now playing: %@ by %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now playing: %1$@ by %2$@"
+          }
+        }
+      }
+    },
+    "Now, until %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now, until %@"
+          }
+        }
+      }
+    },
+    "Now-playing badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Now-playing badge"
+          }
+        }
+      }
+    },
+    "Off" : {
+      "comment" : "Low Power Mode is off",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off"
+          }
+        }
+      }
+    },
+    "Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly."
+          }
+        }
+      }
+    },
+    "On" : {
+      "comment" : "Low Power Mode is on",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On"
+          }
+        }
+      }
+    },
+    "On Battery" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On Battery"
+          }
+        }
+      }
+    },
+    "On battery" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On battery"
+          }
+        }
+      }
+    },
+    "Only an installed copy can do this. This one is running from %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only an installed copy can do this. This one is running from %@."
+          }
+        }
+      }
+    },
+    "Open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open"
+          }
+        }
+      }
+    },
+    "Open Bluetooth Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Bluetooth Settings"
+          }
+        }
+      }
+    },
+    "Open Calendar" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Calendar"
+          }
+        }
+      }
+    },
+    "Open Login Items" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Login Items"
+          }
+        }
+      }
+    },
+    "Open Notification Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Notification Settings"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Privacy Settings"
+          }
+        }
+      }
+    },
+    "Open Privacy Settings…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Privacy Settings…"
+          }
+        }
+      }
+    },
+    "Open System Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open System Settings"
+          }
+        }
+      }
+    },
+    "Open at login" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open at login"
+          }
+        }
+      }
+    },
+    "Open on hover" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open on hover"
+          }
+        }
+      }
+    },
+    "Open the notch from anywhere." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the notch from anywhere."
+          }
+        }
+      }
+    },
+    "Open the panel by resting the pointer on the notch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the panel by resting the pointer on the notch."
+          }
+        }
+      }
+    },
+    "Opens CreativeNotch when you log in." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens CreativeNotch when you log in."
+          }
+        }
+      }
+    },
+    "Opens Settings at the global shortcut. No shortcut is set until you choose one." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Opens Settings at the global shortcut. No shortcut is set until you choose one."
+          }
+        }
+      }
+    },
+    "Panel width" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Panel width"
+          }
+        }
+      }
+    },
+    "Pause" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause"
+          }
+        }
+      }
+    },
+    "Pause %@" : {
+      "comment" : "Pause 25-minute timer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pause %@"
+          }
+        }
+      }
+    },
+    "Paused, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused, %@"
+          }
+        }
+      }
+    },
+    "Paused, %@ remaining, %lld%% done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paused, %1$@ remaining, %2$lld%% done"
+          }
+        }
+      }
+    },
+    "Photo" : {
+      "comment" : "Capture file name prefix",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Photo"
+          }
+        }
+      }
+    },
+    "Pick a colour" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a colour"
+          }
+        }
+      }
+    },
+    "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a colour from anywhere on screen and copy it. Needs no permission; nothing runs until you click the dropper."
+          }
+        }
+      }
+    },
+    "Pick a colour from the screen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pick a colour from the screen"
+          }
+        }
+      }
+    },
+    "Picked colour" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Picked colour"
+          }
+        }
+      }
+    },
+    "Pin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pin"
+          }
+        }
+      }
+    },
+    "Pin (%lld already pinned)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pin (%lld already pinned)"
+          }
+        }
+      }
+    },
+    "Pinned" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned"
+          }
+        }
+      }
+    },
+    "Pinned, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinned, %@"
+          }
+        }
+      }
+    },
+    "Play" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play"
+          }
+        }
+      }
+    },
+    "Play or pause" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play or pause"
+          }
+        }
+      }
+    },
+    "Play, pause and skip. Off hides the buttons; the framework stays mapped until the next launch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Play, pause and skip. Off hides the buttons; the framework stays mapped until the next launch."
+          }
+        }
+      }
+    },
+    "Playback position" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback position"
+          }
+        }
+      }
+    },
+    "Plugged In" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plugged In"
+          }
+        }
+      }
+    },
+    "Preset %lld, in minutes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preset %lld, in minutes"
+          }
+        }
+      }
+    },
+    "Presets" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Presets"
+          }
+        }
+      }
+    },
+    "Press a key…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press a key…"
+          }
+        }
+      }
+    },
+    "Press it now to confirm" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Press it now to confirm"
+          }
+        }
+      }
+    },
+    "Previous track" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Previous track"
+          }
+        }
+      }
+    },
+    "Progress of Safari and other downloads, beside the closed notch. Asks to read your Downloads folder." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress of Safari and other downloads, beside the closed notch. Asks to read your Downloads folder."
+          }
+        }
+      }
+    },
+    "Quick Look" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quick Look"
+          }
+        }
+      }
+    },
+    "Quit CreativeNotch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Quit CreativeNotch"
+          }
+        }
+      }
+    },
+    "RGB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "RGB"
+          }
+        }
+      }
+    },
+    "Reading power state…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading power state…"
+          }
+        }
+      }
+    },
+    "Reading your calendar…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading your calendar…"
+          }
+        }
+      }
+    },
+    "Recent colours" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recent colours"
+          }
+        }
+      }
+    },
+    "Record a clip" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record a clip"
+          }
+        }
+      }
+    },
+    "Record…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Record…"
+          }
+        }
+      }
+    },
+    "Remembers" : {
+      "comment" : "Clipboard capacity",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remembers"
+          }
+        }
+      }
+    },
+    "Reminders access is off in System Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reminders access is off in System Settings"
+          }
+        }
+      }
+    },
+    "Remove" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove"
+          }
+        }
+      }
+    },
+    "Remove %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Remove %@"
+          }
+        }
+      }
+    },
+    "Remove %lld items from the shelf?" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld item from the shelf?"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Remove %lld items from the shelf?"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "Reset" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reset"
+          }
+        }
+      }
+    },
+    "Rest on the notch to peek at what’s playing or what just changed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rest on the notch to peek at what’s playing or what just changed."
+          }
+        }
+      }
+    },
+    "Resume" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume"
+          }
+        }
+      }
+    },
+    "Resume %@" : {
+      "comment" : "Resume 25-minute timer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Resume %@"
+          }
+        }
+      }
+    },
+    "Right" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right"
+          }
+        }
+      }
+    },
+    "Round" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Round"
+          }
+        }
+      }
+    },
+    "Search clipboard" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search clipboard"
+          }
+        }
+      }
+    },
+    "See what's next" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See what's next"
+          }
+        }
+      }
+    },
+    "Set Shortcut…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set Shortcut…"
+          }
+        }
+      }
+    },
+    "Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings"
+          }
+        }
+      }
+    },
+    "Settings…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Settings…"
+          }
+        }
+      }
+    },
+    "Shelf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shelf"
+          }
+        }
+      }
+    },
+    "Shelf is empty" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shelf is empty"
+          }
+        }
+      }
+    },
+    "Shortcut" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shortcut"
+          }
+        }
+      }
+    },
+    "Shorter" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shorter"
+          }
+        }
+      }
+    },
+    "Show Calendar…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Calendar…"
+          }
+        }
+      }
+    },
+    "Show Reminders…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Reminders…"
+          }
+        }
+      }
+    },
+    "Show Welcome Again" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Welcome Again"
+          }
+        }
+      }
+    },
+    "Show in Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show in Finder"
+          }
+        }
+      }
+    },
+    "Show on" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show on"
+          }
+        }
+      }
+    },
+    "Shows in the notch when another app is using the camera or the microphone." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows in the notch when another app is using the camera or the microphone."
+          }
+        }
+      }
+    },
+    "Shows the file in Finder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shows the file in Finder"
+          }
+        }
+      }
+    },
+    "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files."
+          }
+        }
+      }
+    },
+    "Space" : {
+      "comment" : "The space bar, in a keyboard shortcut",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space"
+          }
+        }
+      }
+    },
+    "Space to Quick Look · double-click to open" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space to Quick Look · double-click to open"
+          }
+        }
+      }
+    },
+    "Speaker" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Speaker"
+          }
+        }
+      }
+    },
+    "Start" : {
+      "comment" : "Start the timer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Start"
+          }
+        }
+      }
+    },
+    "Startup" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Startup"
+          }
+        }
+      }
+    },
+    "Stop ignoring %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop ignoring %@"
+          }
+        }
+      }
+    },
+    "Stop recording" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stop recording"
+          }
+        }
+      }
+    },
+    "Stopwatch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopwatch"
+          }
+        }
+      }
+    },
+    "Stopwatch, %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stopwatch, %@"
+          }
+        }
+      }
+    },
+    "Tabs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs"
+          }
+        }
+      }
+    },
+    "Tabs are the icons up top. Swipe up on them to close." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tabs are the icons up top. Swipe up on them to close."
+          }
+        }
+      }
+    },
+    "Take a photo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Take a photo"
+          }
+        }
+      }
+    },
+    "Text size" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text size"
+          }
+        }
+      }
+    },
+    "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing."
+          }
+        }
+      }
+    },
+    "The countdown beside the closed notch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The countdown beside the closed notch."
+          }
+        }
+      }
+    },
+    "The last things you copied, in memory only." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The last things you copied, in memory only."
+          }
+        }
+      }
+    },
+    "The level beside the settings gear." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The level beside the settings gear."
+          }
+        }
+      }
+    },
+    "The new limit is lower than what the shelf holds now." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The new limit is lower than what the shelf holds now."
+          }
+        }
+      }
+    },
+    "The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification."
+          }
+        }
+      }
+    },
+    "The progress ring beside the closed notch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The progress ring beside the closed notch."
+          }
+        }
+      }
+    },
+    "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening."
+          }
+        }
+      }
+    },
+    "The system refused this combination." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The system refused this combination."
+          }
+        }
+      }
+    },
+    "Their files stay where they are." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Their files stay where they are."
+          }
+        }
+      }
+    },
+    "Then click anywhere on screen to copy that colour as %@. Escape cancels." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Then click anywhere on screen to copy that colour as %@. Escape cancels."
+          }
+        }
+      }
+    },
+    "They are older than the shelf will now keep files." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "They are older than the shelf will now keep files."
+          }
+        }
+      }
+    },
+    "This Mac has no built-in camera." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This Mac has no built-in camera."
+          }
+        }
+      }
+    },
+    "Tight" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tight"
+          }
+        }
+      }
+    },
+    "Timer" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer"
+          }
+        }
+      }
+    },
+    "Timer badge" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer badge"
+          }
+        }
+      }
+    },
+    "Timer done" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer done"
+          }
+        }
+      }
+    },
+    "Timer paused, %@ remaining" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer paused, %@ remaining"
+          }
+        }
+      }
+    },
+    "Timer · %@" : {
+      "comment" : "Finished-timer peek without a notch: Timer · 25m",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer · %@"
+          }
+        }
+      }
+    },
+    "Title, artist and artwork, in the panel and beside the closed notch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Title, artist and artwork, in the panel and beside the closed notch."
+          }
+        }
+      }
+    },
+    "Tomorrow %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tomorrow %@"
+          }
+        }
+      }
+    },
+    "Tomorrow, all day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tomorrow, all day"
+          }
+        }
+      }
+    },
+    "Turn on Calendars and Reminders for CreativeNotch in Privacy & Security." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn on Calendars and Reminders for CreativeNotch in Privacy & Security."
+          }
+        }
+      }
+    },
+    "Undo" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo"
+          }
+        }
+      }
+    },
+    "Undo Clear Shelf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Undo Clear Shelf"
+          }
+        }
+      }
+    },
+    "Unpin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpin"
+          }
+        }
+      }
+    },
+    "Unpinned" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unpinned"
+          }
+        }
+      }
+    },
+    "Up to three countdowns in the ear of the notch, and a stopwatch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Up to three countdowns in the ear of the notch, and a stopwatch."
+          }
+        }
+      }
+    },
+    "Welcome to CreativeNotch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Welcome to CreativeNotch"
+          }
+        }
+      }
+    },
+    "Which display the notch lives on." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which display the notch lives on."
+          }
+        }
+      }
+    },
+    "Which side of the camera the tabs sit on." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Which side of the camera the tabs sit on."
+          }
+        }
+      }
+    },
+    "Wide" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wide"
+          }
+        }
+      }
+    },
+    "With None, a timer that finishes while the panel is open shows no peek and makes no sound." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With None, a timer that finishes while the panel is open shows no peek and makes no sound."
+          }
+        }
+      }
+    },
+    "With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing."
+          }
+        }
+      }
+    },
+    "Your next events and today's reminders, as the last tab. Asks for Calendars and Reminders access when you switch it on." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your next events and today's reminders, as the last tab. Asks for Calendars and Reminders access when you switch it on."
+          }
+        }
+      }
+    },
+    "Your next events and today's reminders, read on this Mac and kept nowhere else." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your next events and today's reminders, read on this Mac and kept nowhere else."
+          }
+        }
+      }
+    },
+    "a SwiftUI colour" : {
+      "comment" : "Copy that colour as a SwiftUI colour",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "a SwiftUI colour"
+          }
+        }
+      }
+    },
+    "all day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "all day"
+          }
+        }
+      }
+    },
+    "black" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "black"
+          }
+        }
+      }
+    },
+    "blue" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "blue"
+          }
+        }
+      }
+    },
+    "cyan" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cyan"
+          }
+        }
+      }
+    },
+    "dark %@" : {
+      "comment" : "A dark shade of a colour: dark blue",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dark %@"
+          }
+        }
+      }
+    },
+    "empty" : {
+      "comment" : "Shelf title row count when nothing is on it",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "empty"
+          }
+        }
+      }
+    },
+    "green" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "green"
+          }
+        }
+      }
+    },
+    "grey" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "grey"
+          }
+        }
+      }
+    },
+    "hex" : {
+      "comment" : "Copy that colour as hex",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hex"
+          }
+        }
+      }
+    },
+    "in %lld min" : {
+      "comment" : "Minutes until an event starts, abbreviated: in 15 min",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in %lld min"
+          }
+        }
+      }
+    },
+    "in %lld minutes" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "in %lld minute"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "in %lld minutes"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "left" : {
+      "comment" : "Beside the timer digits: 12m left",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "left"
+          }
+        }
+      }
+    },
+    "light %@" : {
+      "comment" : "A light shade of a colour: light blue",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "light %@"
+          }
+        }
+      }
+    },
+    "macOS already uses this shortcut, so it would never reach CreativeNotch." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS already uses this shortcut, so it would never reach CreativeNotch."
+          }
+        }
+      }
+    },
+    "macOS asks whether CreativeNotch may notify you the first time you start a timer." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS asks whether CreativeNotch may notify you the first time you start a timer."
+          }
+        }
+      }
+    },
+    "macOS is holding this until you allow it in System Settings › General › Login Items." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS is holding this until you allow it in System Settings › General › Login Items."
+          }
+        }
+      }
+    },
+    "macOS owns this setting, so it is read back from the system rather than remembered here — turning it off in System Settings turns it off here too." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS owns this setting, so it is read back from the system rather than remembered here — turning it off in System Settings turns it off here too."
+          }
+        }
+      }
+    },
+    "macOS refused this combination. Try adding another modifier." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "macOS refused this combination. Try adding another modifier."
+          }
+        }
+      }
+    },
+    "min" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "min"
+          }
+        }
+      }
+    },
+    "now" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "now"
+          }
+        }
+      }
+    },
+    "now, until %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "now, until %@"
+          }
+        }
+      }
+    },
+    "orange" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "orange"
+          }
+        }
+      }
+    },
+    "paused" : {
+      "comment" : "Beside the timer digits: 12m paused",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "paused"
+          }
+        }
+      }
+    },
+    "pink" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pink"
+          }
+        }
+      }
+    },
+    "purple" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "purple"
+          }
+        }
+      }
+    },
+    "red" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "red"
+          }
+        }
+      }
+    },
+    "tomorrow at %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tomorrow at %@"
+          }
+        }
+      }
+    },
+    "tomorrow, all day" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tomorrow, all day"
+          }
+        }
+      }
+    },
+    "white" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "white"
+          }
+        }
+      }
+    },
+    "yellow" : {
+      "comment" : "A colour name, spoken",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "yellow"
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

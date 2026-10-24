@@ -19,9 +19,9 @@ struct CaptureBadgeView: View {
     /// is.
     static func accessibilityText(for use: CaptureUse) -> String {
         switch (use.microphone, use.camera) {
-        case (true, true):  return "Microphone and camera in use"
-        case (true, false): return "Microphone in use"
-        case (false, true): return "Camera in use"
+        case (true, true):  return String(localized: "Microphone and camera in use", bundle: .creativeNotch)
+        case (true, false): return String(localized: "Microphone in use", bundle: .creativeNotch)
+        case (false, true): return String(localized: "Camera in use", bundle: .creativeNotch)
         case (false, false): return ""
         }
     }

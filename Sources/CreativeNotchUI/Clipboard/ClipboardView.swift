@@ -15,7 +15,7 @@ enum ClipboardPreview {
     static func text(for content: ClipboardContent) -> String {
         switch content {
         case .image(_, let ext):
-            return "\(ext.uppercased()) image"
+            return String(localized: "\(ext.uppercased()) image", bundle: .creativeNotch, comment: "A copied image: PNG image")
 
         case .text(let string):
             // Collapsed, not just trimmed: a copied code block rendered
@@ -50,37 +50,37 @@ enum ClipboardRowModel {
     /// What VoiceOver hears when a row is clicked. The row's label does
     /// not change under the VoiceOver cursor, so without this a VoiceOver
     /// user gets no sign the click did anything.
-    static let copiedAnnouncement = "Copied"
+    static let copiedAnnouncement = String(localized: "Copied", bundle: .creativeNotch)
 
     /// A clock time at rest, the verb on hover, and the confirmation after
     /// a click. The confirmation wins over hover: the pointer is still on
     /// the row it clicked, and "Copy" there would read as nothing having
     /// happened.
     static func trailingText(time: String, hovering: Bool, copied: Bool) -> String {
-        if copied { return "Copied ✓" }
-        return hovering ? "Copy" : time
+        if copied { return String(localized: "Copied ✓", bundle: .creativeNotch) }
+        return hovering ? String(localized: "Copy", bundle: .creativeNotch) : time
     }
 
     /// "Pinned" leads, so VoiceOver says it before the content: the pins
     /// are the top of the list, and a VoiceOver user should hear where the
     /// pins end as a sighted one sees the glyph stop.
     static func accessibilityLabel(entry: ClipboardEntry, time: String) -> String {
-        let label = "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)"
-        return entry.isPinned ? "Pinned, \(label)" : label
+        let label = String(localized: "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)", bundle: .creativeNotch)
+        return entry.isPinned ? String(localized: "Pinned, \(label)", bundle: .creativeNotch) : label
     }
 
     /// What VoiceOver hears after Pin or Unpin. The row moves when pinned —
     /// to the top — so the VoiceOver cursor is left on whatever slid into
     /// its place, and without this nothing would say the action worked.
     static func pinAnnouncement(pinned: Bool) -> String {
-        pinned ? "Pinned" : "Unpinned"
+        pinned ? String(localized: "Pinned", bundle: .creativeNotch) : String(localized: "Unpinned", bundle: .creativeNotch)
     }
 
     /// The pane's line when a search keeps nothing. It repeats the query, so
     /// the reason the list is empty is on screen rather than in the field
     /// above, where a typo is easy to miss.
     static func noMatchesText(query: String) -> String {
-        "No matches for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”"
+        String(localized: "No matches for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”", bundle: .creativeNotch)
     }
 
     /// One verb a row offers beyond hover.
@@ -117,17 +117,19 @@ enum ClipboardRowModel {
         onRemove: @escaping () -> Void
     ) -> [RowAction] {
         let pin: RowAction = isPinned
-            ? RowAction(label: "Unpin", symbolName: "pin.slash",
+            ? RowAction(label: String(localized: "Unpin", bundle: .creativeNotch), symbolName: "pin.slash",
                         isDestructive: false, isDefault: false, perform: onTogglePin)
-            : RowAction(label: canPin ? "Pin" : "Pin (\(ClipboardStore.maxPinned) already pinned)",
+            : RowAction(label: canPin
+                            ? String(localized: "Pin", bundle: .creativeNotch)
+                            : String(localized: "Pin (\(ClipboardStore.maxPinned) already pinned)", bundle: .creativeNotch),
                         symbolName: "pin",
                         isDestructive: false, isDefault: false, isEnabled: canPin,
                         perform: onTogglePin)
         return [
-            RowAction(label: "Copy", symbolName: "doc.on.doc",
+            RowAction(label: String(localized: "Copy", bundle: .creativeNotch), symbolName: "doc.on.doc",
                       isDestructive: false, isDefault: true, perform: onCopy),
             pin,
-            RowAction(label: "Remove", symbolName: "xmark",
+            RowAction(label: String(localized: "Remove", bundle: .creativeNotch), symbolName: "xmark",
                       isDestructive: true, isDefault: false, perform: onRemove),
         ]
     }
@@ -161,10 +163,10 @@ struct ClipboardView: View {
 
     var body: some View {
         if store.entries.isEmpty {
-            placeholder(symbol: "doc.on.clipboard", text: "Nothing copied yet")
+            placeholder(symbol: "doc.on.clipboard", text: String(localized: "Nothing copied yet", bundle: .creativeNotch))
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                NotchSearchField(prompt: "Search clipboard", text: query)
+                NotchSearchField(prompt: String(localized: "Search clipboard", bundle: .creativeNotch), text: query)
 
                 let shown = ClipboardSearch.filter(store.entries, query: query.wrappedValue)
                 if shown.isEmpty {

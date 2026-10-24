@@ -17,7 +17,9 @@ public enum TimerCompletionText {
         guard completion.lateness >= latenessFloor else { return duration }
 
         let minutes = Int(completion.lateness / 60)
-        let ago = minutes >= 60 ? "\(minutes / 60)h" : "\(minutes)m"
-        return "\(duration) · finished \(ago) ago"
+        let ago = minutes >= 60
+            ? String(localized: "\(minutes / 60)h", bundle: .creativeNotch, comment: "Hours, abbreviated")
+            : String(localized: "\(minutes)m", bundle: .creativeNotch, comment: "Minutes left, abbreviated to fit the notch")
+        return String(localized: "\(duration) · finished \(ago) ago", bundle: .creativeNotch, comment: "Timer peek: 25m · finished 3m ago")
     }
 }

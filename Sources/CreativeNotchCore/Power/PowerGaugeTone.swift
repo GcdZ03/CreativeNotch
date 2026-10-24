@@ -43,11 +43,12 @@ public enum PowerGaugeTone: Equatable, Sendable {
     /// Decided here, beside `tone`, so the spoken word and the colour cannot
     /// disagree about what low is.
     public static func spokenLabel(level: Int, isCharging: Bool) -> String {
-        let base = "Battery \(level) percent"
+        // Whole sentences, not a base plus a suffix, so a translator can
+        // place the tone word where the language wants it.
         switch tone(level: level, isCharging: isCharging) {
-        case .charging: return base + ", charging"
-        case .low:      return base + ", low"
-        case .normal:   return base
+        case .charging: return String(localized: "Battery \(level) percent, charging", bundle: .creativeNotch)
+        case .low:      return String(localized: "Battery \(level) percent, low", bundle: .creativeNotch)
+        case .normal:   return String(localized: "Battery \(level) percent", bundle: .creativeNotch)
         }
     }
 }

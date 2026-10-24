@@ -122,9 +122,11 @@ public enum StopwatchDisplay {
         let whole = max(0, Int(elapsed.rounded(.down)))
         let h = whole / 3600, m = whole / 60 % 60, s = whole % 60
         var parts: [String] = []
-        if h > 0 { parts.append(plural(h, "hour")) }
-        if m > 0 { parts.append(plural(m, "minute")) }
-        if s > 0 || parts.isEmpty { parts.append(plural(s, "second")) }
+        // Each unit is a catalog plural, so "1 minute" and "2 minutes" are
+        // the language's own forms rather than an appended "s".
+        if h > 0 { parts.append(String(localized: "\(h) hours", bundle: .creativeNotch)) }
+        if m > 0 { parts.append(String(localized: "\(m) minutes", bundle: .creativeNotch)) }
+        if s > 0 || parts.isEmpty { parts.append(String(localized: "\(s) seconds", bundle: .creativeNotch)) }
         return parts.joined(separator: " ")
     }
 
@@ -142,7 +144,4 @@ public enum StopwatchDisplay {
         }
     }
 
-    private static func plural(_ count: Int, _ unit: String) -> String {
-        "\(count) \(unit)\(count == 1 ? "" : "s")"
-    }
 }

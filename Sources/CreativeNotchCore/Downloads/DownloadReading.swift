@@ -98,9 +98,10 @@ public enum DownloadName {
     /// The name the file will have, which is the one worth showing. "Download"
     /// for a publisher that named no file.
     public static func displayName(for url: URL?) -> String {
-        guard let url else { return "Download" }
+        let fallback = String(localized: "Download", bundle: .creativeNotch, comment: "The name of a download whose file has no name")
+        guard let url else { return fallback }
         let name = finalURL(for: url).lastPathComponent
-        return name.isEmpty ? "Download" : name
+        return name.isEmpty ? fallback : name
     }
 
     /// Whether a published progress is a download rather than, say, Finder

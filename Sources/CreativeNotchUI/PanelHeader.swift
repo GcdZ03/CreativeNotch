@@ -63,8 +63,8 @@ struct PanelHeader: View {
             Image(systemName: "gearshape")
         }
         .buttonStyle(NotchIconButtonStyle())
-        .help("Settings")
-        .accessibilityLabel("Settings")
+        .help(String(localized: "Settings", bundle: .creativeNotch))
+        .accessibilityLabel(String(localized: "Settings", bundle: .creativeNotch))
     }
 
     /// One ear's contents, inset from the panel's outer edge.
@@ -141,7 +141,7 @@ struct BatteryCell: View {
                     .notchFont(9, weight: .bold)
                     .foregroundStyle(.ink(0.7))
             }
-            Text("\(level)%")
+            Text(String(localized: "\(level)%", bundle: .creativeNotch, comment: "Battery level"))
                 .notchFont(11, weight: .medium, design: .rounded)
                 .monospacedDigit()
                 .rollingDigits(level)

@@ -96,18 +96,20 @@ public enum BluetoothAudioKind: CaseIterable, Equatable, Sendable {
         }
     }
 
-    /// What to call a device that has no name of its own.
+    /// What to call a device that has no name of its own. Apple's product
+    /// names stay as they are in every language; the generic kinds are
+    /// translated.
     public var noun: String {
         switch self {
         case .airPods:    return "AirPods"
         case .airPodsPro: return "AirPods Pro"
         case .airPodsMax: return "AirPods Max"
         case .beats:      return "Beats"
-        case .headphones: return "Headphones"
-        case .headset:    return "Headset"
-        case .speaker:    return "Speaker"
-        case .car:        return "Car audio"
-        case .audio:      return "Audio device"
+        case .headphones: return String(localized: "Headphones", bundle: .creativeNotch)
+        case .headset:    return String(localized: "Headset", bundle: .creativeNotch)
+        case .speaker:    return String(localized: "Speaker", bundle: .creativeNotch)
+        case .car:        return String(localized: "Car audio", bundle: .creativeNotch)
+        case .audio:      return String(localized: "Audio device", bundle: .creativeNotch)
         }
     }
 }
@@ -141,12 +143,17 @@ public enum BluetoothLabel {
     }
 
     public static func status(for event: BluetoothAudioEvent) -> String {
-        event.connected ? "Connected" : "Disconnected"
+        event.connected
+            ? String(localized: "Connected", bundle: .creativeNotch)
+            : String(localized: "Disconnected", bundle: .creativeNotch)
     }
 
     /// What VoiceOver says, and the peek's accessibility label.
     public static func spoken(for event: BluetoothAudioEvent) -> String {
-        "\(title(for: event)) \(event.connected ? "connected" : "disconnected")"
+        let title = title(for: event)
+        return event.connected
+            ? String(localized: "\(title) connected", bundle: .creativeNotch, comment: "A Bluetooth device arrived: AirPods Pro connected")
+            : String(localized: "\(title) disconnected", bundle: .creativeNotch, comment: "A Bluetooth device left: AirPods Pro disconnected")
     }
 }
 

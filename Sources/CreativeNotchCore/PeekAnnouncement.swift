@@ -46,8 +46,10 @@ public enum PeekAnnouncement {
     /// that have no artist — podcasts and voice memos, as `NowPlayingLabel`
     /// notes.
     public static func nowPlaying(_ track: TrackSnapshot) -> String {
-        guard !track.artist.isEmpty else { return "Now playing: \(track.title)" }
-        return "Now playing: \(track.title) by \(track.artist)"
+        guard !track.artist.isEmpty else {
+            return String(localized: "Now playing: \(track.title)", bundle: .creativeNotch)
+        }
+        return String(localized: "Now playing: \(track.title) by \(track.artist)", bundle: .creativeNotch)
     }
 
     /// Whether moving the peek slot from `previous` to `content` is news,

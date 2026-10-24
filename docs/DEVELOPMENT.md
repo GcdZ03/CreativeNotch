@@ -142,8 +142,14 @@ Sources/
                               into this app -- see ARCHITECTURE.md on why a
                               subprocess exists at all.
   CreativeNotch/              18-line executable.
+  CreativeNotchCore/Localizable.xcstrings
+                              every user-facing string, Core's and the UI's.
+Plugins/
+  StringCatalogCompiler/      compiles the catalog for `swift build`, which
+                              otherwise ships it raw and unreadable.
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
+  InfoPlist.xcstrings         the permission prompts, translatable.
 Tests/
   CreativeNotchCoreTests/     the pure logic, headless and fast
   CreativeNotchUITests/       the views, the delegate and the wiring
@@ -153,6 +159,7 @@ Scripts/
   setup-signing.sh     one-time stable signing identity
   install.sh           the public curl installer
   verify-login-item.sh the one check that needs a human -- see below
+  sync-strings.sh      bring the string catalog up to date with the code
 ```
 
 New code belongs in `CreativeNotchCore` unless it genuinely needs AppKit or

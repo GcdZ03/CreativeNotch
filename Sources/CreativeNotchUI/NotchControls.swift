@@ -123,7 +123,8 @@ struct NotchSearchField: View {
                 .foregroundStyle(.ink(0.45))
                 .accessibilityHidden(true)
 
-            TextField("", text: $text, prompt: Text(prompt).foregroundStyle(.ink(0.4)))
+            // `String()`, not `""`: an untitled field, not a catalog key.
+            TextField(String(), text: $text, prompt: Text(prompt).foregroundStyle(.ink(0.4)))
                 .textFieldStyle(.plain)
                 .notchFont(12, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.9))
@@ -136,7 +137,7 @@ struct NotchSearchField: View {
                         .foregroundStyle(.ink(0.45))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Clear search")
+                .accessibilityLabel(String(localized: "Clear search", bundle: .creativeNotch))
             }
         }
         .padding(.horizontal, 8)
@@ -183,7 +184,7 @@ struct NotchSegmentedControl<Value: Hashable>: View {
     let options: [(value: Value, title: String)]
     let selection: Value
     let onSelect: (Value) -> Void
-    var accessibilityLabel: String = "Mode"
+    var accessibilityLabel: String = String(localized: "Mode", bundle: .creativeNotch)
 
     var body: some View {
         HStack(spacing: 2) {

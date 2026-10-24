@@ -14,7 +14,7 @@ struct DropTargetView: View {
         VStack(spacing: 6) {
             Image(systemName: "arrow.down.doc")
                 .notchFont(prominent ? 28 : 22, weight: .medium)
-            Text(prominent ? "Drop to stash on the shelf" : "Drop files on the notch to stash them")
+            Text(prominent ? String(localized: "Drop to stash on the shelf", bundle: .creativeNotch) : String(localized: "Drop files on the notch to stash them", bundle: .creativeNotch))
                 .notchFont(prominent ? 14 : 12, weight: .medium, design: .rounded)
             if !prominent {
                 Text(Self.retentionLine(maxAge: maxAge))
@@ -43,8 +43,8 @@ struct DropTargetView: View {
     /// chosen in Settings (2026-10-24), no promise of an expiry at all when
     /// it is never. Static so the sentence is checked without rendering.
     static func retentionLine(maxAge: TimeInterval?) -> String {
-        guard let maxAge else { return "Kept until you remove them · drag them out anywhere" }
+        guard let maxAge else { return String(localized: "Kept until you remove them · drag them out anywhere", bundle: .creativeNotch) }
         let days = Int((maxAge / 86_400).rounded())
-        return "Kept \(days) \(days == 1 ? "day" : "days") · drag them out anywhere"
+        return String(localized: "Kept \(days) days · drag them out anywhere", bundle: .creativeNotch)
     }
 }

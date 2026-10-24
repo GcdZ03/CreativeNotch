@@ -82,7 +82,7 @@ struct ShelfView: View {
     /// What VoiceOver reads for a tile: the file's name, as shown under it,
     /// and that it is still copying while it is.
     static func tileAccessibilityLabel(for item: ShelfItem) -> String {
-        item.isPending ? "\(item.displayName), copying" : item.displayName
+        item.isPending ? String(localized: "\(item.displayName), copying", bundle: .creativeNotch) : item.displayName
     }
 
     /// Whether `item` is drawn selected: the selection names it and it can
@@ -283,7 +283,7 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: -5)
-                    .accessibilityLabel("Remove \(item.displayName)")
+                    .accessibilityLabel(String(localized: "Remove \(item.displayName)", bundle: .creativeNotch))
                 }
                 .overlay(alignment: .bottomTrailing) {
                     Button(action: onAirDrop) {
@@ -296,8 +296,8 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: 5)
-                    .help("AirDrop")
-                    .accessibilityLabel("AirDrop \(item.displayName)")
+                    .help(String(localized: "AirDrop", bundle: .creativeNotch))
+                    .accessibilityLabel(String(localized: "AirDrop \(item.displayName)", bundle: .creativeNotch))
                 }
         }
     }

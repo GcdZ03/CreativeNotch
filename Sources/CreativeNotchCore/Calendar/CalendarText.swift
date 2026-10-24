@@ -17,22 +17,25 @@ public enum CalendarText {
     public static func when(_ event: CalendarEvent, now: Date, calendar: Calendar, locale: Locale) -> String {
         let isTomorrow = startsTomorrow(event, now: now, calendar: calendar)
         if event.isAllDay {
-            return isTomorrow ? "Tomorrow, all day" : "All day"
+            return isTomorrow
+                ? String(localized: "Tomorrow, all day", bundle: .creativeNotch)
+                : String(localized: "All day", bundle: .creativeNotch)
         }
         if event.start <= now {
             return sameDay(event, calendar: calendar)
-                ? "Now, until \(time(event.end, calendar: calendar, locale: locale))"
-                : "Now"
+                ? String(localized: "Now, until \(time(event.end, calendar: calendar, locale: locale))", bundle: .creativeNotch)
+                : String(localized: "Now", bundle: .creativeNotch)
         }
         if isTomorrow {
-            return "Tomorrow \(time(event.start, calendar: calendar, locale: locale))"
+            return String(localized: "Tomorrow \(time(event.start, calendar: calendar, locale: locale))", bundle: .creativeNotch)
         }
         if let minutes = minutesUntil(event, now: now) {
-            return "in \(minutes) min"
+            return String(localized: "in \(minutes) min", bundle: .creativeNotch, comment: "Minutes until an event starts, abbreviated: in 15 min")
         }
         let start = time(event.start, calendar: calendar, locale: locale)
         guard sameDay(event, calendar: calendar) else { return start }
-        return "\(start)\u{2013}\(time(event.end, calendar: calendar, locale: locale))"
+        let end = time(event.end, calendar: calendar, locale: locale)
+        return String(localized: "\(start)\u{2013}\(end)", bundle: .creativeNotch, comment: "A time range: 10:30–11:00")
     }
 
     /// The row as VoiceOver reads it: title, when, and which calendar --
@@ -41,39 +44,44 @@ public enum CalendarText {
         let when: String
         let isTomorrow = startsTomorrow(event, now: now, calendar: calendar)
         if event.isAllDay {
-            when = isTomorrow ? "tomorrow, all day" : "all day"
+            when = isTomorrow
+                ? String(localized: "tomorrow, all day", bundle: .creativeNotch)
+                : String(localized: "all day", bundle: .creativeNotch)
         } else if event.start <= now {
             when = sameDay(event, calendar: calendar)
-                ? "now, until \(time(event.end, calendar: calendar, locale: locale))"
-                : "now"
+                ? String(localized: "now, until \(time(event.end, calendar: calendar, locale: locale))", bundle: .creativeNotch)
+                : String(localized: "now", bundle: .creativeNotch)
         } else if isTomorrow {
-            when = "tomorrow at \(time(event.start, calendar: calendar, locale: locale))"
+            when = String(localized: "tomorrow at \(time(event.start, calendar: calendar, locale: locale))", bundle: .creativeNotch)
         } else if let minutes = minutesUntil(event, now: now) {
-            when = minutes == 1 ? "in 1 minute" : "in \(minutes) minutes"
+            when = String(localized: "in \(minutes) minutes", bundle: .creativeNotch)
         } else if sameDay(event, calendar: calendar) {
-            when = "\(time(event.start, calendar: calendar, locale: locale)) to \(time(event.end, calendar: calendar, locale: locale))"
+            let start = time(event.start, calendar: calendar, locale: locale)
+            let end = time(event.end, calendar: calendar, locale: locale)
+            when = String(localized: "\(start) to \(end)", bundle: .creativeNotch, comment: "A time range, spoken: 10:30 to 11:00")
         } else {
             when = time(event.start, calendar: calendar, locale: locale)
         }
-        return "\(title(of: event)), \(when), \(event.calendarTitle) calendar"
+        return String(localized: "\(title(of: event)), \(when), \(event.calendarTitle) calendar", bundle: .creativeNotch,
+                      comment: "Event title, when it is, and which calendar it is on")
     }
 
     /// The line under the rows. The overdue figure is part of the total, so
     /// "3 reminders due · 1 overdue" is three reminders, not four.
     public static func reminders(_ tally: ReminderTally) -> String {
         let total = tally.total
-        let noun = total == 1 ? "reminder" : "reminders"
-        if total == 0 { return "No reminders due today" }
-        if tally.overdue == 0 { return "\(total) \(noun) due today" }
-        if tally.dueToday == 0 { return "\(total) \(noun) overdue" }
-        return "\(total) \(noun) due \u{00B7} \(tally.overdue) overdue"
+        if total == 0 { return String(localized: "No reminders due today", bundle: .creativeNotch) }
+        if tally.overdue == 0 { return String(localized: "\(total) reminders due today", bundle: .creativeNotch) }
+        if tally.dueToday == 0 { return String(localized: "\(total) reminders overdue", bundle: .creativeNotch) }
+        return String(localized: "\(total) reminders due \u{00B7} \(tally.overdue) overdue", bundle: .creativeNotch,
+                      comment: "Reminders due in all, of which some are overdue: 3 reminders due · 1 overdue")
     }
 
     /// The row's title. Calendar names an untitled event "New Event", so the
     /// glance does too rather than drawing an empty row.
     public static func title(of event: CalendarEvent) -> String {
         let trimmed = event.title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "New Event" : trimmed
+        return trimmed.isEmpty ? String(localized: "New Event", bundle: .creativeNotch) : trimmed
     }
 
     /// Today, for the pane's title row: "Wed 21 Oct" in British English,

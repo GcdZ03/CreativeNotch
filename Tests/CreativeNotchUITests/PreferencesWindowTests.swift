@@ -248,7 +248,7 @@ struct PreferencesWindowTests {
 
         #expect(text.contains("LaunchAtLoginRow(controller: controller.launchAtLogin)"),
                 "the Settings form no longer contains the launch-at-login row")
-        #expect(text.contains("Text(\"Startup\")"))
+        #expect(text.contains("Text(\"Startup\", bundle: .creativeNotch)"))
     }
 
     // MARK: - Reaching it

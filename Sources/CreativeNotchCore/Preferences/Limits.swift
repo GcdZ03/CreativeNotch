@@ -21,10 +21,9 @@ public enum ShelfExpiry: Int, CaseIterable, Sendable {
 
     public var label: String {
         switch self {
-        case .oneDay:     return "1 day"
-        case .sevenDays:  return "7 days"
-        case .thirtyDays: return "30 days"
-        case .never:      return "Never"
+        case .never: return String(localized: "Never", bundle: .creativeNotch, comment: "Shelf expiry: files are kept until removed")
+        case .oneDay, .sevenDays, .thirtyDays:
+            return String(localized: "\(rawValue) days", bundle: .creativeNotch, comment: "Shelf expiry choice")
         }
     }
 }

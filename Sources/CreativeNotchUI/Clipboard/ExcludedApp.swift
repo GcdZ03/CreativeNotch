@@ -37,9 +37,9 @@ struct ExcludedApp: Identifiable, Equatable {
     @MainActor
     static func chooseWithOpenPanel() -> [String] {
         let panel = NSOpenPanel()
-        panel.title = "Ignore Copies From"
-        panel.prompt = "Ignore"
-        panel.message = "Copies made in these apps will not be added to clipboard history."
+        panel.title = String(localized: "Ignore Copies From", bundle: .creativeNotch)
+        panel.prompt = String(localized: "Ignore", bundle: .creativeNotch)
+        panel.message = String(localized: "Copies made in these apps will not be added to clipboard history.", bundle: .creativeNotch)
         panel.allowedContentTypes = [.application]
         panel.allowsMultipleSelection = true
         panel.canChooseDirectories = false

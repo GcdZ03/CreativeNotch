@@ -37,7 +37,7 @@ struct CalendarView: View {
         case nil:
             // Reachable only for the instant between the module switching on
             // and its first status read.
-            Text("Reading your calendar…")
+            Text("Reading your calendar…", bundle: .creativeNotch)
                 .notchFont(12, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -45,24 +45,24 @@ struct CalendarView: View {
         case .needsAccess:
             message(
                 symbol: "calendar",
-                title: "See what's next",
-                detail: "Your next events and today's reminders, read on this Mac and kept nowhere else.",
-                button: ("Allow Access\u{2026}", onRequestAccess)
+                title: String(localized: "See what's next", bundle: .creativeNotch),
+                detail: String(localized: "Your next events and today's reminders, read on this Mac and kept nowhere else.", bundle: .creativeNotch),
+                button: (String(localized: "Allow Access\u{2026}", bundle: .creativeNotch), onRequestAccess)
             )
 
         case .denied:
             message(
                 symbol: "calendar.badge.exclamationmark",
-                title: "CreativeNotch can't read your calendars",
-                detail: "Turn on Calendars and Reminders for CreativeNotch in Privacy & Security.",
-                button: ("Open Privacy Settings", onOpenPrivacySettings)
+                title: String(localized: "CreativeNotch can't read your calendars", bundle: .creativeNotch),
+                detail: String(localized: "Turn on Calendars and Reminders for CreativeNotch in Privacy & Security.", bundle: .creativeNotch),
+                button: (String(localized: "Open Privacy Settings", bundle: .creativeNotch), onOpenPrivacySettings)
             )
 
         case .restricted:
             message(
                 symbol: "lock",
-                title: "Calendar access is restricted",
-                detail: "A profile or Screen Time manages it on this Mac.",
+                title: String(localized: "Calendar access is restricted", bundle: .creativeNotch),
+                detail: String(localized: "A profile or Screen Time manages it on this Mac.", bundle: .creativeNotch),
                 button: nil
             )
 
@@ -82,7 +82,7 @@ struct CalendarView: View {
                 if rows.isEmpty {
                     // Inset like a row's contents, so it lines up with the
                     // reminder line under it.
-                    quietLine(symbol: "calendar", text: "Nothing else today or tomorrow")
+                    quietLine(symbol: "calendar", text: String(localized: "Nothing else today or tomorrow", bundle: .creativeNotch))
                         .padding(.leading, 8)
                 } else {
                     VStack(alignment: .leading, spacing: 3) {
@@ -92,7 +92,11 @@ struct CalendarView: View {
                     }
                 }
             } else {
-                accessLine(for: snapshot.eventsAccess, noun: "Calendar")
+                accessLine(
+                    for: snapshot.eventsAccess,
+                    button: String(localized: "Show Calendar\u{2026}", bundle: .creativeNotch),
+                    refused: String(localized: "Calendar access is off in System Settings", bundle: .creativeNotch)
+                )
                     .padding(.leading, 8)
             }
 
@@ -107,7 +111,11 @@ struct CalendarView: View {
                 )
                 .padding(.leading, 8)
             } else {
-                accessLine(for: snapshot.remindersAccess, noun: "Reminders")
+                accessLine(
+                    for: snapshot.remindersAccess,
+                    button: String(localized: "Show Reminders\u{2026}", bundle: .creativeNotch),
+                    refused: String(localized: "Reminders access is off in System Settings", bundle: .creativeNotch)
+                )
                     .padding(.leading, 8)
             }
         }
@@ -115,14 +123,16 @@ struct CalendarView: View {
     }
 
     /// The line for a grant the glance lacks while it has the other: a button
-    /// while macOS can still ask, a sentence once it has been refused.
+    /// while macOS can still ask, a sentence once it has been refused. Both
+    /// are whole sentences from the caller rather than one built around a
+    /// noun, so a translator can inflect each.
     @ViewBuilder
-    private func accessLine(for access: CalendarAccess, noun: String) -> some View {
+    private func accessLine(for access: CalendarAccess, button: String, refused: String) -> some View {
         if access.isRequestable {
-            Button("Show \(noun)\u{2026}", action: onRequestAccess)
+            Button(button, action: onRequestAccess)
                 .buttonStyle(NotchButtonStyle(.quiet, compact: true))
         } else {
-            quietLine(symbol: "lock", text: "\(noun) access is off in System Settings")
+            quietLine(symbol: "lock", text: refused)
         }
     }
 

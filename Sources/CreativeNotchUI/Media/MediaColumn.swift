@@ -34,7 +34,7 @@ struct MediaColumn: View {
             cover
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(snapshot?.title ?? "Nothing playing")
+                Text(snapshot?.title ?? String(localized: "Nothing playing", bundle: .creativeNotch))
                     .notchFont(14, weight: .semibold, design: .rounded)
                     .foregroundStyle(.ink(snapshot == nil ? 0.5 : 0.95))
                     .lineLimit(1)
@@ -87,7 +87,7 @@ struct MediaColumn: View {
             tint = artwork.flatMap(ArtworkTint.color(for:))
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(snapshot.map(NowPlayingLabel.text(for:)) ?? "Nothing playing")
+        .accessibilityLabel(snapshot.map(NowPlayingLabel.text(for:)) ?? String(localized: "Nothing playing", bundle: .creativeNotch))
     }
 
     /// The play state the transport toggle shows, or `nil` with no track.

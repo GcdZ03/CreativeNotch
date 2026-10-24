@@ -38,7 +38,7 @@ public struct TimerDoneNotice: Equatable, Sendable {
     /// ago"), not the peek's compact "25m": a banner is read as a sentence,
     /// away from the notch that gives "25m" its meaning.
     public init(completion: TimerCompletion) {
-        title = "Timer done"
+        title = String(localized: "Timer done", bundle: .creativeNotch)
         body = TimerSpokenText.completion(completion)
     }
 
@@ -72,9 +72,9 @@ public struct TimerDoneNotice: Equatable, Sendable {
         case .allowed:
             return nil
         case .notDetermined:
-            return "macOS asks whether CreativeNotch may notify you the first time you start a timer."
+            return String(localized: "macOS asks whether CreativeNotch may notify you the first time you start a timer.", bundle: .creativeNotch)
         case .denied:
-            return "Notifications are off for CreativeNotch in System Settings, so a timer that finishes behind a full-screen app will only chime."
+            return String(localized: "Notifications are off for CreativeNotch in System Settings, so a timer that finishes behind a full-screen app will only chime.", bundle: .creativeNotch)
         }
     }
 }

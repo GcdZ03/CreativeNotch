@@ -94,6 +94,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 | ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
+| ✅ **Ready for translation** — every word on screen and every VoiceOver label in one String Catalog; English only so far | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -317,6 +318,10 @@ announces it, exactly as before; Settings says notifications are off and links
 to System Settings → Notifications. Sounds are not requested: the app plays its
 own chime.
 
+The wording of every permission prompt above is in
+`Resources/InfoPlist.xcstrings`, so it is translated with everything else;
+that adds no permission.
+
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
 went with it — so unlike before, starting the app grants nothing and asks
@@ -506,9 +511,19 @@ Quit from the menu bar item, or `pkill -f CreativeNotch`.
 ## Development
 
 ```bash
-swift test           # 1000+ tests, ~3s, no window server needed
-./Scripts/dev.sh     # stop, rebuild, sign, relaunch
+swift test                 # 1000+ tests, ~3s, no window server needed
+./Scripts/dev.sh           # stop, rebuild, sign, relaunch
+./Scripts/sync-strings.sh  # after changing any user-facing string
 ```
+
+Every user-facing string goes through one String Catalog,
+`Sources/CreativeNotchCore/Localizable.xcstrings`, as
+`String(localized: "…", bundle: .creativeNotch)` or
+`Text("…", bundle: .creativeNotch)`; a test fails on a literal that skips it.
+The app ships in English only. Adding a language is adding entries to that
+catalog and to `Resources/InfoPlist.xcstrings` — macOS only chooses languages
+the main app bundle has — see
+[`CONTRIBUTING.md`](CONTRIBUTING.md#strings-and-translations).
 
 Xcode opens `Package.swift` directly — there is no project file to maintain.
 
@@ -532,6 +547,8 @@ Sources/
   CreativeNotchUI/     AppKit + SwiftUI — panel, hosting view, hover tracker,
                        menu bar, app delegate.
   CreativeNotch/       18-line executable. Constructs the delegate and runs.
+Plugins/
+  StringCatalogCompiler/  compiles Localizable.xcstrings for swift build
 Tests/
   CreativeNotchCoreTests/   the pure logic, headless and fast
   CreativeNotchUITests/     the views, the delegate and the wiring

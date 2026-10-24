@@ -109,7 +109,7 @@ struct TimerTabView: View {
                 // By position, not by value: two presets set to the same
                 // number are still two buttons.
                 ForEach(Array(presets.enumerated()), id: \.offset) { _, minutes in
-                    Button("\(minutes) min") { onStart(TimeInterval(minutes) * 60) }
+                    Button(String(localized: "\(minutes) min", bundle: .creativeNotch, comment: "Minutes, abbreviated: 25 min")) { onStart(TimeInterval(minutes) * 60) }
                         .buttonStyle(NotchButtonStyle(.quiet))
                 }
             }
@@ -127,10 +127,11 @@ struct TimerTabView: View {
                 // which would reject it and leave Start silently doing
                 // nothing — a dead button being the worst of the options.
                 if fieldsAsText {
-                    NotchFieldStyle.staticText("\(customMinutes)")
+                    NotchFieldStyle.staticText(String(customMinutes))
                         .notchFrame(width: 52)
                 } else {
-                    TextField("", value: $customMinutes, format: .number)
+                    // `String()`, not `""`: an untitled field, not a catalog key.
+                    TextField(String(), value: $customMinutes, format: .number)
                         .textFieldStyle(NotchFieldStyle())
                         .notchFrame(width: 52)
                         .onSubmit { start() }
@@ -140,14 +141,14 @@ struct TimerTabView: View {
                                 max(TimerStepper.minimum, typed)
                             )
                         }
-                        .accessibilityLabel("Minutes")
+                        .accessibilityLabel(String(localized: "Minutes", bundle: .creativeNotch))
                 }
 
                 stepButton("plus", disabled: customMinutes == TimerStepper.maximum) {
                     customMinutes = TimerStepper.increment(customMinutes)
                 }
 
-                Button("Start", action: start)
+                Button(String(localized: "Start", bundle: .creativeNotch, comment: "Start the timer"), action: start)
                     .buttonStyle(NotchButtonStyle(.prominent))
                     .padding(.leading, 6)
             }
@@ -173,7 +174,7 @@ struct TimerTabView: View {
         }
         .buttonStyle(NotchButtonStyle(.quiet))
         .disabled(disabled)
-        .accessibilityLabel(symbol == "plus" ? "Longer" : "Shorter")
+        .accessibilityLabel(symbol == "plus" ? String(localized: "Longer", bundle: .creativeNotch) : String(localized: "Shorter", bundle: .creativeNotch))
     }
 
     private func running(_ timer: RunningTimer) -> some View {
@@ -198,7 +199,7 @@ struct TimerTabView: View {
             // the bar below said as a sentence — `25m` read aloud is "25 m",
             // and dimming is invisible to VoiceOver.
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Timer")
+            .accessibilityLabel(String(localized: "Timer", bundle: .creativeNotch))
             .accessibilityValue(Self.accessibilityValue(countdown, at: now))
 
             // Redraws exactly when the digits do: same `now`, no clock of
@@ -208,11 +209,11 @@ struct TimerTabView: View {
 
             HStack(spacing: 8) {
                 if countdown.isPaused {
-                    Button("Resume") { onResume(timer.id) }.buttonStyle(NotchButtonStyle(.prominent))
+                    Button(String(localized: "Resume", bundle: .creativeNotch)) { onResume(timer.id) }.buttonStyle(NotchButtonStyle(.prominent))
                 } else {
-                    Button("Pause") { onPause(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
+                    Button(String(localized: "Pause", bundle: .creativeNotch)) { onPause(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
                 }
-                Button("Cancel") { onCancel(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
+                Button(String(localized: "Cancel", bundle: .creativeNotch)) { onCancel(timer.id) }.buttonStyle(NotchButtonStyle(.quiet))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -285,11 +286,13 @@ struct TimerTabView: View {
 
             rowButton(
                 countdown.isPaused ? "play.fill" : "pause.fill",
-                label: "\(countdown.isPaused ? "Resume" : "Pause") \(name)"
+                label: countdown.isPaused
+                    ? String(localized: "Resume \(name)", bundle: .creativeNotch, comment: "Resume 25-minute timer")
+                    : String(localized: "Pause \(name)", bundle: .creativeNotch, comment: "Pause 25-minute timer")
             ) {
                 countdown.isPaused ? onResume(timer.id) : onPause(timer.id)
             }
-            rowButton("xmark", label: "Cancel \(name)") { onCancel(timer.id) }
+            rowButton("xmark", label: String(localized: "Cancel \(name)", bundle: .creativeNotch, comment: "Cancel 25-minute timer")) { onCancel(timer.id) }
         }
     }
 

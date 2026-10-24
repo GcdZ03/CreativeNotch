@@ -29,18 +29,22 @@ public struct DownloadSummary: Equatable, Sendable {
 
     /// "report.pdf", or "3 downloads".
     public var title: String {
-        count == 1 ? leadingName : "\(count) downloads"
+        count == 1 ? leadingName : String(localized: "\(count) downloads", bundle: .creativeNotch)
     }
 
     /// "42%", or `nil` when there is no percent to show — never a made-up 0%.
-    public var percentText: String? { percent.map { "\($0)%" } }
+    public var percentText: String? {
+        percent.map { String(localized: "\($0)%", bundle: .creativeNotch, comment: "Download progress") }
+    }
 
     /// What VoiceOver reads, in words: "42%" read aloud is fine, but the
     /// sentence has to say what is at 42.
     public var spoken: String {
-        let subject = count == 1 ? "Downloading \(leadingName)" : "\(count) downloads"
+        let subject = count == 1
+            ? String(localized: "Downloading \(leadingName)", bundle: .creativeNotch)
+            : String(localized: "\(count) downloads", bundle: .creativeNotch)
         guard let percent else { return subject }
-        return "\(subject), \(percent) percent"
+        return String(localized: "\(subject), \(percent) percent", bundle: .creativeNotch, comment: "What is downloading, then how far along: Downloading report.pdf, 42 percent")
     }
 
     /// The badge's count, when there is more than one: "2"…"9", then "9+"
@@ -64,7 +68,7 @@ public struct DownloadCompletion: Equatable, Sendable {
     }
 
     /// The peek's line and its announcement.
-    public var text: String { "Downloaded \(name)" }
+    public var text: String { String(localized: "Downloaded \(name)", bundle: .creativeNotch) }
 }
 
 /// The downloads module's whole judgement: which progresses are running,

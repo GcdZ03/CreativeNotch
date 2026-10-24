@@ -22,16 +22,20 @@ public enum TimerSpokenText {
     /// Ceiling minutes above a minute, seconds at a minute and below —
     /// `TimerDisplay.text`'s rule, in words.
     public static func duration(_ remaining: TimeInterval) -> String {
-        let (count, unit) = parts(remaining)
-        return "\(count) \(unit)\(count == 1 ? "" : "s")"
+        switch parts(remaining) {
+        case .minutes(let count): return String(localized: "\(count) minutes", bundle: .creativeNotch)
+        case .seconds(let count): return String(localized: "\(count) seconds", bundle: .creativeNotch)
+        }
     }
 
     /// The ear badge: the time, and whether it is paused -- on screen that
     /// is a dimmed badge with a pause glyph, neither of which VoiceOver
     /// can see.
     public static func remaining(_ remaining: TimeInterval, isPaused: Bool) -> String {
-        let left = "\(duration(remaining)) remaining"
-        return isPaused ? "Timer paused, \(left)" : left
+        let time = duration(remaining)
+        return isPaused
+            ? String(localized: "Timer paused, \(time) remaining", bundle: .creativeNotch)
+            : String(localized: "\(time) remaining", bundle: .creativeNotch)
     }
 
     /// The panel's countdown, with the bar folded in: the bar has no words
@@ -42,8 +46,19 @@ public enum TimerSpokenText {
     /// digits, so the two halves of the sentence are one reading.
     public static func value(remaining: TimeInterval, isPaused: Bool, fraction: Double) -> String {
         let percent = Int((max(0, min(1, fraction)) * 100).rounded())
-        let left = "\(duration(remaining)) remaining, \(percent)% done"
-        return isPaused ? "Paused, \(left)" : left
+        let time = duration(remaining)
+        return isPaused
+            ? String(localized: "Paused, \(time) remaining, \(percent)% done", bundle: .creativeNotch)
+            : String(localized: "\(time) remaining, \(percent)% done", bundle: .creativeNotch)
+    }
+
+    /// One countdown among several, by the duration it was set to:
+    /// "25-minute timer". The completion peek names a timer the same way.
+    public static func name(duration: TimeInterval) -> String {
+        switch parts(duration) {
+        case .minutes(let count): return String(localized: "\(count)-minute timer", bundle: .creativeNotch)
+        case .seconds(let count): return String(localized: "\(count)-second timer", bundle: .creativeNotch)
+        }
     }
 
     /// The completion peek, spoken: "25-minute timer finished", and how
@@ -51,30 +66,32 @@ public enum TimerSpokenText {
     ///
     /// Lateness uses `TimerCompletionText`'s floor and units, so the
     /// written and spoken peek never disagree about whether it was late.
-    /// One countdown among several, by the duration it was set to:
-    /// "25-minute timer". The completion peek names a timer the same way.
-    public static func name(duration: TimeInterval) -> String {
-        let (count, unit) = parts(duration)
-        return "\(count)-\(unit) timer"
-    }
-
     public static func completion(_ completion: TimerCompletion) -> String {
-        let (count, unit) = parts(completion.duration)
-        let finished = "\(count)-\(unit) timer finished"
+        let finished: String
+        switch parts(completion.duration) {
+        case .minutes(let count): finished = String(localized: "\(count)-minute timer finished", bundle: .creativeNotch)
+        case .seconds(let count): finished = String(localized: "\(count)-second timer finished", bundle: .creativeNotch)
+        }
         guard completion.lateness >= TimerCompletionText.latenessFloor else { return finished }
 
         let minutes = Int(completion.lateness / 60)
-        let ago = minutes >= 60 ? plural(minutes / 60, "hour") : plural(minutes, "minute")
-        return "\(finished) \(ago) ago"
+        let ago = minutes >= 60
+            ? String(localized: "\(minutes / 60) hours", bundle: .creativeNotch)
+            : String(localized: "\(minutes) minutes", bundle: .creativeNotch)
+        return String(localized: "\(finished) \(ago) ago", bundle: .creativeNotch, comment: "25-minute timer finished, 3 minutes ago")
     }
 
-    private static func parts(_ remaining: TimeInterval) -> (Int, String) {
+    /// The display's granularity: ceiling minutes above a minute, seconds
+    /// at a minute and below. A case per unit rather than a unit *word*, so
+    /// each reading is one whole catalog entry a translator can inflect.
+    private enum Parts {
+        case minutes(Int)
+        case seconds(Int)
+    }
+
+    private static func parts(_ remaining: TimeInterval) -> Parts {
         let seconds = Int(ceil(max(0, remaining)))
-        if seconds >= 60 { return ((seconds + 59) / 60, "minute") }
-        return (seconds, "second")
-    }
-
-    private static func plural(_ count: Int, _ unit: String) -> String {
-        "\(count) \(unit)\(count == 1 ? "" : "s")"
+        if seconds >= 60 { return .minutes((seconds + 59) / 60) }
+        return .seconds(seconds)
     }
 }

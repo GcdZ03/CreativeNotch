@@ -187,11 +187,11 @@ public enum LaunchAtLoginState: Equatable, Sendable {
     public var detail: String {
         switch self {
         case .unread, .on, .off:
-            return "Opens CreativeNotch when you log in."
+            return String(localized: "Opens CreativeNotch when you log in.", bundle: .creativeNotch)
         case .needsApproval:
-            return "macOS is holding this until you allow it in System Settings \u{203A} General \u{203A} Login Items."
+            return String(localized: "macOS is holding this until you allow it in System Settings \u{203A} General \u{203A} Login Items.", bundle: .creativeNotch)
         case .unavailable(let path):
-            return "Only an installed copy can do this. This one is running from \(path)."
+            return String(localized: "Only an installed copy can do this. This one is running from \(path).", bundle: .creativeNotch)
         }
     }
 }

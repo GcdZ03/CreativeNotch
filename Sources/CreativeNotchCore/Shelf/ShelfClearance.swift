@@ -72,7 +72,6 @@ public struct ShelfRestoration: Equatable, Sendable {
     /// of names under a pane that fits one line would be cut off anyway.
     public var notice: String? {
         guard !skipped.isEmpty else { return nil }
-        let count = skipped.count
-        return "Couldn't restore \(count) \(count == 1 ? "item" : "items")"
+        return String(localized: "Couldn't restore \(skipped.count) items", bundle: .creativeNotch)
     }
 }

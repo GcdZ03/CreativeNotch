@@ -15,7 +15,7 @@ import SwiftUI
 struct RecordingBadgeView: View {
     /// "Recording" alone, beside the microphone badge, did not say what was
     /// recording.
-    static let accessibilityText = "Camera recording"
+    static let accessibilityText = String(localized: "Camera recording", bundle: .creativeNotch)
 
     var body: some View {
         Circle()

@@ -74,6 +74,69 @@ something is out of scope than after you have written it.
 `main` is protected: a change goes in through a pull request, and CI must
 pass. CI fails on **any** compiler warning, tests included.
 
+## Strings and translations
+
+Every word the app shows or speaks — panel text, Settings, the menu bar,
+VoiceOver labels and announcements — comes from one String Catalog,
+[`Sources/CreativeNotchCore/Localizable.xcstrings`](Sources/CreativeNotchCore/Localizable.xcstrings).
+The permission prompts (camera, Bluetooth, Calendars, Reminders, the
+Downloads folder), which macOS reads from the app itself, have their own:
+[`Resources/InfoPlist.xcstrings`](Resources/InfoPlist.xcstrings). A new
+`…UsageDescription` in `Resources/Info.plist` goes there too, with the same
+English; `LocalizationTests` fails until it does.
+
+**Writing a string.** In Core or the UI alike:
+
+```swift
+String(localized: "Close camera", bundle: .creativeNotch)
+Text("Nothing copied yet", bundle: .creativeNotch)
+```
+
+The bundle is not optional. Without it the lookup goes to the main bundle,
+which has no strings, and the English still shows — so nothing looks wrong
+until a translation fails to appear. `LocalizationTests` fails on prose in a
+literal that skips the catalog, and on a localized literal the catalog does
+not have. Interpolate rather than concatenate (`"Remove \(name)"`, not
+`"Remove " + name`), so a translator can move the name; and never build a
+plural with `n == 1 ? "" : "s"` — write `"\(n) items"` and give it plural
+variations.
+
+**After adding, changing or removing a string**, run:
+
+```bash
+./Scripts/sync-strings.sh
+```
+
+It extracts every localized literal with the compiler, merges them into the
+catalog (new keys added, unused ones removed, translations untouched) and
+fills in the English. A new plural then needs its English `one` and `other`
+forms; Xcode's catalog editor does this with **Vary by Plural**, or edit the
+JSON beside an existing one such as `"%lld items"`.
+
+**Adding a language** is adding entries — no code changes:
+
+1. Open `Localizable.xcstrings` in Xcode (open `Package.swift`, then the file)
+   and add the language with **+**, or add a `"<code>"` entry beside `"en"`
+   under each string's `"localizations"` in the JSON.
+2. Translate every string, including each plural's forms for that language
+   (Xcode lists the categories the language needs — Russian has four).
+3. Add the same language to `Resources/InfoPlist.xcstrings` (every
+   permission prompt in it). This is what switches the app's language, not a side
+   step: macOS chooses a nested bundle's language — and the strings live in
+   one — only from the languages the main app bundle has `.lproj` folders
+   for, and the main bundle's folders are compiled from this catalog. A
+   language in `Localizable.xcstrings` alone ships and is never shown.
+   `LocalizationTests` and `bundle.sh` both fail if you skip this.
+4. Run `swift test`, then `./Scripts/bundle.sh` and check
+   `dist/CreativeNotch.app/Contents/Resources/CreativeNotch_CreativeNotchCore.bundle/<code>.lproj`
+   exists. The `StringCatalogCompiler` plugin finds the language in the
+   catalog by itself.
+5. Try it without changing your Mac's language:
+   `open dist/CreativeNotch.app --args -AppleLanguages '(<code>)'`.
+
+Translations need a native speaker's review. Machine translations are not
+accepted: a confident wrong label is worse than an English one.
+
 ## Commits
 
 Conventional prefixes: `feat:`, `fix:`, `test:`, `refactor:`, `chore:`,

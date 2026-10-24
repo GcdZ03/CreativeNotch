@@ -14,8 +14,8 @@ public enum DropPayload: Equatable, Sendable {
     public var suggestedName: String {
         switch self {
         case .file(let url):     return url.lastPathComponent
-        case .text:              return "Dropped Text.txt"
-        case .image(_, let ext): return "Dropped Image.\(ext)"
+        case .text:              return String(localized: "Dropped Text", bundle: .creativeNotch, comment: "File name for dropped text, before .txt") + ".txt"
+        case .image(_, let ext): return String(localized: "Dropped Image", bundle: .creativeNotch, comment: "File name for a dropped image, before its extension") + ".\(ext)"
         }
     }
 }

@@ -63,13 +63,13 @@ public enum WelcomeCard {
     /// the strip closes the panel, not a gesture that would do nothing.
     public static let tips: [WelcomeTip] = [
         WelcomeTip(symbolName: "cursorarrow.rays",
-                   text: "Rest on the notch to peek at what\u{2019}s playing or what just changed."),
+                   text: String(localized: "Rest on the notch to peek at what\u{2019}s playing or what just changed.", bundle: .creativeNotch)),
         WelcomeTip(symbolName: "hand.tap",
-                   text: "Click it, or swipe down with two fingers, to open this panel."),
+                   text: String(localized: "Click it, or swipe down with two fingers, to open this panel.", bundle: .creativeNotch)),
         WelcomeTip(symbolName: "arrow.down.doc",
-                   text: "Drag files onto the notch to keep them on the shelf."),
+                   text: String(localized: "Drag files onto the notch to keep them on the shelf.", bundle: .creativeNotch)),
         WelcomeTip(symbolName: "square.grid.2x2",
-                   text: "Tabs are the icons up top. Swipe up on them to close."),
+                   text: String(localized: "Tabs are the icons up top. Swipe up on them to close.", bundle: .creativeNotch)),
     ]
 }
 

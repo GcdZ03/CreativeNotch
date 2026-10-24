@@ -10,6 +10,10 @@
        compiled asset catalog, and this bundle is assembled by hand. -->
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundleIdentifier</key><string>com.gcdz.creativenotch</string>
+  <!-- English is the language every string is written in. The permission
+       prompt below is translated through Resources/InfoPlist.xcstrings,
+       which bundle.sh compiles into Contents/Resources/<lang>.lproj. -->
+  <key>CFBundleDevelopmentRegion</key><string>en</string>
   <key>CFBundleVersion</key><string>1</string>
   <!-- Substituted by Scripts/bundle.sh from CoreInfo.version. -->
   <key>CFBundleShortVersionString</key><string>__VERSION__</string>

@@ -1579,7 +1579,7 @@ public struct NotchRootView: View {
     /// explaining a refusal, where the pane's own button is the next step.
     static func calendarActions(_ app: AppState) -> [(label: String, perform: () -> Void)] {
         guard case .glance = app.calendar?.pane else { return [] }
-        return [("Open Calendar", { app.onOpenCalendarApp?() })]
+        return [(String(localized: "Open Calendar", bundle: .creativeNotch), { app.onOpenCalendarApp?() })]
     }
 
     /// The header's dropper, or `nil` while the colour picker is switched
@@ -1609,12 +1609,12 @@ public struct NotchRootView: View {
         switch app.timerMode {
         case .stopwatch:
             let laps = app.stopwatch.laps.count
-            return laps == 0 ? nil : "\(laps) lap\(laps == 1 ? "" : "s")"
+            return laps == 0 ? nil : String(localized: "\(laps) laps", bundle: .creativeNotch)
         case .timer:
             switch rows.count {
             case 0: return nil
             case 1: return durationLabel(rows[0].countdown)
-            default: return "\(rows.count) running"
+            default: return String(localized: "\(rows.count) running", bundle: .creativeNotch, comment: "Timer title row: how many countdowns are running")
             }
         }
     }
@@ -1626,9 +1626,9 @@ public struct NotchRootView: View {
         _ app: AppState, rows: [RunningTimer]
     ) -> [(label: String, perform: () -> Void)] {
         guard app.timerMode == .timer, !rows.isEmpty else { return [] }
-        if app.isAddingTimer { return [("Back", { app.isAddingTimer = false })] }
+        if app.isAddingTimer { return [(String(localized: "Back", bundle: .creativeNotch), { app.isAddingTimer = false })] }
         guard rows.count < TimerSet.capacity, app.onStartTimer != nil else { return [] }
-        return [("Add", { app.isAddingTimer = true })]
+        return [(String(localized: "Add", bundle: .creativeNotch), { app.isAddingTimer = true })]
     }
 
     /// The timer tab's presets: the ones chosen in Settings, read from
@@ -1657,13 +1657,13 @@ public struct NotchRootView: View {
     ) -> [(label: String, perform: () -> Void)] {
         var actions: [(label: String, perform: () -> Void)] = []
         if !shelf.readyItems.isEmpty {
-            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
+            actions.append((String(localized: "AirDrop All", bundle: .creativeNotch), { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
         }
         if app.canUndoShelfClear {
-            actions.append(("Undo", { app.onUndoClearShelf?() }))
+            actions.append((String(localized: "Undo", bundle: .creativeNotch), { app.onUndoClearShelf?() }))
         }
         if !shelf.readyItems.isEmpty {
-            actions.append(("Clear", { app.onClearShelf?() }))
+            actions.append((String(localized: "Clear", bundle: .creativeNotch), { app.onClearShelf?() }))
         }
         return actions
     }
@@ -1677,7 +1677,7 @@ public struct NotchRootView: View {
         if let notice { return notice }
         guard let selection, let item = items.first(where: { $0.id == selection }),
               ShelfSelection.isSelectable(item) else { return nil }
-        return "Space to Quick Look · double-click to open"
+        return String(localized: "Space to Quick Look · double-click to open", bundle: .creativeNotch)
     }
 
     /// The clipboard's title-row verb: "Clear", while there is something for
@@ -1687,7 +1687,7 @@ public struct NotchRootView: View {
     static func clipboardActions(
         for clipboard: ClipboardStore, app: AppState
     ) -> [(label: String, perform: () -> Void)] {
-        clipboard.clearableCount == 0 ? [] : [("Clear", { app.onClearClipboard?() })]
+        clipboard.clearableCount == 0 ? [] : [(String(localized: "Clear", bundle: .creativeNotch), { app.onClearClipboard?() })]
     }
 
     /// "12 of 50" — the history against its size — or, while a search is
@@ -1696,33 +1696,36 @@ public struct NotchRootView: View {
     static func clipboardCount(for clipboard: ClipboardStore, query: String) -> String? {
         guard !clipboard.entries.isEmpty else { return nil }
         guard ClipboardSearch.isActive(query) else {
-            return "\(clipboard.entries.count) of \(clipboard.capacity)"
+            return String(localized: "\(clipboard.entries.count) of \(clipboard.capacity)", bundle: .creativeNotch, comment: "Clipboard title row: entries of capacity")
         }
         let kept = ClipboardSearch.filter(clipboard.entries, query: query).count
-        return "\(kept) of \(clipboard.entries.count)"
+        return String(localized: "\(kept) of \(clipboard.entries.count)", bundle: .creativeNotch, comment: "Clipboard title row while searching: matches of entries")
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.
     static func shelfCount(_ count: Int) -> String {
-        switch count {
-        case 0:  return "empty"
-        case 1:  return "1 item"
-        default: return "\(count) items"
-        }
+        count == 0
+            ? String(localized: "empty", bundle: .creativeNotch, comment: "Shelf title row count when nothing is on it")
+            : String(localized: "\(count) items", bundle: .creativeNotch)
     }
 
     /// The duration a running countdown was set to, for the timer's title
     /// row. Whole minutes: presets and the field are both in minutes.
     static func durationLabel(_ countdown: Countdown) -> String {
-        "\(Int(countdown.duration / 60)) min"
+        String(localized: "\(Int(countdown.duration / 60)) min", bundle: .creativeNotch, comment: "Minutes, abbreviated: 25 min")
     }
 
-    private var label: String {
-        switch app.state {
+    private var label: String { Self.label(for: app.state) }
+
+    /// The title row's text. An open tab reads its `Tab.title`, the same
+    /// word as its tab bar tooltip and pane ("Battery", where it once read
+    /// the raw value, "Power").
+    static func label(for state: NotchState) -> String {
+        switch state {
         case .closed:          return ""
         case .peek:            return "CreativeNotch"
-        case .open(let tab):   return tab.rawValue.capitalized
-        case .receiving:       return "Drop here"
+        case .open(let tab):   return tab.title
+        case .receiving:       return String(localized: "Drop here", bundle: .creativeNotch)
         }
     }
 }

@@ -20,7 +20,7 @@ struct WelcomeCardView: View {
     var body: some View {
         // `ModulePane` for the title row, so the card reads as one more pane
         // rather than as a dialog that arrived from somewhere else.
-        ModulePane(title: "Welcome to CreativeNotch") {
+        ModulePane(title: String(localized: "Welcome to CreativeNotch", bundle: .creativeNotch)) {
             VStack(alignment: .leading, spacing: 0) {
                 VStack(alignment: .leading, spacing: 9) {
                     ForEach(WelcomeCard.tips, id: \.symbolName) { tip in
@@ -46,12 +46,12 @@ struct WelcomeCardView: View {
 
                 HStack(spacing: 8) {
                     Spacer(minLength: 0)
-                    Button("Set Shortcut\u{2026}", action: onSetShortcut)
+                    Button(String(localized: "Set Shortcut\u{2026}", bundle: .creativeNotch), action: onSetShortcut)
                         .buttonStyle(NotchButtonStyle(.quiet))
-                        .accessibilityHint("Opens Settings at the global shortcut. No shortcut is set until you choose one.")
-                    Button("Got it", action: onDismiss)
+                        .accessibilityHint(String(localized: "Opens Settings at the global shortcut. No shortcut is set until you choose one.", bundle: .creativeNotch))
+                    Button(String(localized: "Got it", bundle: .creativeNotch), action: onDismiss)
                         .buttonStyle(NotchButtonStyle(.prominent))
-                        .accessibilityHint("Hides this welcome. Show it again from the menu bar icon.")
+                        .accessibilityHint(String(localized: "Hides this welcome. Show it again from the menu bar icon.", bundle: .creativeNotch))
                 }
             }
         }
@@ -64,6 +64,6 @@ struct WelcomeCardView: View {
         // having read it. Only the buttons, and the header, act.
         .onTapGesture {}
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Welcome to CreativeNotch")
+        .accessibilityLabel(String(localized: "Welcome to CreativeNotch", bundle: .creativeNotch))
     }
 }

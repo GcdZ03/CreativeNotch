@@ -538,7 +538,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// failure replaces the first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
-        showShelfNotice("Couldn't add \(item.displayName)")
+        showShelfNotice(String(localized: "Couldn't add \(item.displayName)", bundle: .creativeNotch))
     }
 
     /// Announces `notice` and puts it under the shelf until the pane has
@@ -624,7 +624,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// clears it -- and says what was copied, for someone who cannot see it.
     private func showPickedColor(_ color: SampledColor) {
         if case .open = state.state { state.pickedColor = color }
-        announce("Copied \(ColorName.spoken(color, as: state.colorFormat))")
+        announce(String(localized: "Copied \(ColorName.spoken(color, as: state.colorFormat))", bundle: .creativeNotch))
     }
 
     /// "Copy as" in Settings: saved, then applied to the next copy and the
