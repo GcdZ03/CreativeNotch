@@ -53,6 +53,12 @@ struct ShelfView: View {
         ]
     }
 
+    /// The empty shelf's target, stating this store's expiry rather than the
+    /// default one. Static so a test can check which age it was handed.
+    static func emptyTarget(for store: ShelfStore) -> DropTargetView {
+        DropTargetView(maxAge: store.maxAge)
+    }
+
     /// What VoiceOver reads for a tile: the file's name, as shown under it.
     static func tileAccessibilityLabel(for item: ShelfItem) -> String {
         item.displayName
@@ -71,7 +77,7 @@ struct ShelfView: View {
     @ViewBuilder
     private var content: some View {
         if store.items.isEmpty {
-            DropTargetView()
+            Self.emptyTarget(for: store)
         } else {
             // The width is read so the row can be *centred when it fits*.
             // `minWidth` is a floor, not a size: once the items are wider
