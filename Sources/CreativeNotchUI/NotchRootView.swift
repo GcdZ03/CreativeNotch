@@ -102,6 +102,18 @@ public final class AppState {
     @ObservationIgnored
     public var onSetTextSize: ((TextSize) -> Void)?
 
+    /// The panel's width, corners, tab side, header battery and closed-notch
+    /// badges (2026-10-24). Applied by `onSetLayoutOptions`, which also
+    /// resizes the panel for a new width and re-syncs the accepted region for
+    /// a badge shown or hidden; the view reads it on every draw, so a change
+    /// needs nothing re-registered.
+    public internal(set) var layoutOptions: LayoutOptions = .default
+
+    /// Saves the options, applies them and re-places the panel in one call,
+    /// so Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetLayoutOptions: ((LayoutOptions) -> Void)?
+
     /// The displays connected when last asked, for the "Show on" menu's
     /// per-display entries. Refreshed by `onRefreshDisplays` when Settings is
     /// shown and on every screen-parameter change -- never polled, and never
@@ -677,6 +689,7 @@ public struct NotchRootView: View {
             nowPlaying: app.nowPlaying,
             isRecording: app.isRecordingClip,
             capture: app.captureUse,
+            hiding: app.layoutOptions.hiddenBadges,
             at: now
         )
     }
@@ -848,7 +861,8 @@ public struct NotchRootView: View {
     private var backgroundShape: UnevenRoundedRectangle {
         let r = NotchShape.cornerRadii(
             presentation: app.state.presentation,
-            anchor: app.anchor
+            anchor: app.anchor,
+            corners: app.layoutOptions.corners
         )
         return UnevenRoundedRectangle(
             topLeadingRadius: r.topLeading,
@@ -958,7 +972,8 @@ public struct NotchRootView: View {
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
                         showsMedia: tab != .camera && app.showsMediaControls,
-                        textScale: app.textSize.scale
+                        textScale: app.textSize.scale,
+                        tabsSide: app.layoutOptions.tabsSide
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -967,6 +982,7 @@ public struct NotchRootView: View {
                             enabled: app.preferences,
                             hasBattery: app.hasBattery,
                             power: app.power,
+                            showsBattery: app.layoutOptions.showsBattery,
                             onSelect: { app.transition(to: .open($0)) },
                             onSettings: { app.onOpenSettings?() }
                         )

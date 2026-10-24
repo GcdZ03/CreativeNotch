@@ -68,7 +68,7 @@ struct PanelTabBar: View {
     let onSelect: (CreativeNotchCore.Tab) -> Void
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: PanelLayout.tabSpacing) {
             ForEach(Self.visible(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
                 Button {
                     onSelect(tab)
