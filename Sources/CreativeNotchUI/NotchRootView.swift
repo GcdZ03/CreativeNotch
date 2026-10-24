@@ -820,7 +820,7 @@ public struct NotchRootView: View {
             // glance.
             .overlay {
                 if app.state.presentation == .expanded {
-                    backgroundShape.strokeBorder(.white.opacity(0.08), lineWidth: 1)
+                    backgroundShape.strokeBorder(.hairline(0.08), lineWidth: 1)
                 }
             }
             .overlay {
@@ -1002,7 +1002,7 @@ public struct NotchRootView: View {
                 default:
                     Text(label)
                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(.ink(0.9))
                 } }
                 // Every state's content blurs in as the shape grows and
                 // fades fast as it shrinks (spec 2026-10-15). Replaces the

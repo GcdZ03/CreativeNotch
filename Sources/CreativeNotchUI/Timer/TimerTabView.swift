@@ -132,15 +132,15 @@ struct TimerTabView: View {
                     .opacity(0.55)
             }
             // Dimming is the paused signal, as it is in the ear.
-            .foregroundStyle(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+            .foregroundStyle(.ink(countdown.isPaused ? 0.45 : 0.95))
 
             // Redraws exactly when the digits do: same `now`, no clock of
             // its own.
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.14))
+                    Capsule().fill(.hairline(0.14))
                     Capsule()
-                        .fill(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+                        .fill(.ink(countdown.isPaused ? 0.45 : 0.95))
                         .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
                 }
             }

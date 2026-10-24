@@ -47,19 +47,19 @@ struct PowerView: View {
                             isCharged: snapshot.isCharged
                         ))
                         .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.ink(0.55))
                     }
 
                     HStack(spacing: 8) {
                         Text("Low Power Mode")
                             .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.6))
+                            .foregroundStyle(.ink(0.6))
                         Text(snapshot.isLowPowerMode ? "On" : "Off")
                             .font(.system(size: 10, weight: .semibold, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(.ink(0.85))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(Capsule().fill(.white.opacity(0.10)))
+                            .background(Capsule().fill(.hairline(0.10)))
                     }
                 }
             }
@@ -72,7 +72,7 @@ struct PowerView: View {
             // with no battery, so this is never a permanent state.
             Text("Reading power state…")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(.ink(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
@@ -82,7 +82,7 @@ struct PowerView: View {
         let level = CGFloat(min(100, max(0, s.level))) / 100
         return ZStack(alignment: .leading) {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(.white.opacity(0.6), lineWidth: 2.5)
+                .strokeBorder(.ink(0.6), lineWidth: 2.5)
             RoundedRectangle(cornerRadius: 7, style: .continuous)
                 .fill(Self.fill(for: s))
                 .frame(width: max(6, (88 - 12) * level))
@@ -91,7 +91,7 @@ struct PowerView: View {
         .frame(width: 88, height: 44)
         .overlay(alignment: .trailing) {
             RoundedRectangle(cornerRadius: 2)
-                .fill(.white.opacity(0.6))
+                .fill(.ink(0.6))
                 .frame(width: 5, height: 16)
                 .offset(x: 8)
         }

@@ -62,11 +62,11 @@ struct PlaybackProgressView: View {
         VStack(spacing: 4) {
             GeometryReader { g in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.15))
+                    Capsule().fill(.hairline(0.15))
                     if let scrubbing {
                         // Under the finger: exactly where it points, no motion.
                         Capsule()
-                            .fill(.white.opacity(0.85))
+                            .fill(.ink(0.85))
                             .frame(width: g.size.width * scrubbing / position.duration)
                     } else {
                         Fill(
@@ -104,7 +104,7 @@ struct PlaybackProgressView: View {
                 remainingText
             }
             .font(.system(size: 10, weight: .medium, design: .rounded).monospacedDigit())
-            .foregroundStyle(.white.opacity(0.5))
+            .foregroundStyle(.ink(0.5))
         }
         .onAppear(perform: run)
         .onChange(of: position) {
@@ -173,7 +173,7 @@ struct PlaybackProgressView: View {
 
         var body: some View {
             Capsule()
-                .fill(.white.opacity(0.85))
+                .fill(.ink(0.85))
                 .frame(width: width * fraction)
                 .onAppear {
                     guard moves, remaining > 0 else { return }

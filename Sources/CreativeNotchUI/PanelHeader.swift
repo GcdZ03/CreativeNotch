@@ -54,7 +54,7 @@ struct BatteryCell: View {
         HStack(spacing: 6) {
             ZStack(alignment: .leading) {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .strokeBorder(.white.opacity(0.55), lineWidth: 1.5)
+                    .strokeBorder(.ink(0.55), lineWidth: 1.5)
                     .frame(width: 22, height: 11)
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                     .fill(tone)
@@ -63,7 +63,7 @@ struct BatteryCell: View {
             }
             .overlay(alignment: .trailing) {
                 RoundedRectangle(cornerRadius: 1)
-                    .fill(.white.opacity(0.55))
+                    .fill(.ink(0.55))
                     .frame(width: 2, height: 4)
                     .offset(x: 3)
             }
@@ -71,7 +71,7 @@ struct BatteryCell: View {
                 .font(.system(size: 11, weight: .medium, design: .rounded))
                 .monospacedDigit()
                 .rollingDigits(level)
-                .foregroundStyle(.white.opacity(0.7))
+                .foregroundStyle(.ink(0.7))
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Battery \(level) percent\(isCharging ? ", charging" : "")")
