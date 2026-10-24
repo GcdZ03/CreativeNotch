@@ -384,7 +384,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// failure replaces the first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
-        let notice = "Couldn't add \(item.displayName)"
+        let notice = String(localized: "Couldn't add \(item.displayName)", bundle: .creativeNotch)
         announce(notice)
         shelfNoticeTask?.cancel()
         shelfNoticeTask = nil

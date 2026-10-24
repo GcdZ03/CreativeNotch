@@ -1,0 +1,18 @@
+{
+  "sourceLanguage" : "en",
+  "strings" : {
+    "NSCameraUsageDescription" : {
+      "comment" : "The camera permission prompt. Must match Resources/Info.plist, which LocalizationTests checks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch shows the camera in the notch, so you can check your framing or take a quick photo or clip. Nothing is uploaded; captures are saved to the file shelf."
+          }
+        }
+      }
+    }
+  },
+  "version" : "1.0"
+}

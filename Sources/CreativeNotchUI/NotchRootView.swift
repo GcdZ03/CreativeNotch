@@ -1157,8 +1157,8 @@ public struct NotchRootView: View {
                 ModulePane(
                     title: tab.title,
                     count: clipboard.entries.isEmpty
-                        ? nil : "\(clipboard.entries.count) of \(clipboard.capacity)",
-                    actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
+                        ? nil : String(localized: "\(clipboard.entries.count) of \(clipboard.capacity)", bundle: .creativeNotch, comment: "Clipboard title row: entries of capacity"),
+                    actions: clipboard.entries.isEmpty ? [] : [(String(localized: "Clear", bundle: .creativeNotch), { app.onClearClipboard?() })]
                 ) {
                     ClipboardView(
                         store: clipboard,
@@ -1220,38 +1220,36 @@ public struct NotchRootView: View {
     ) -> [(label: String, perform: () -> Void)] {
         var actions: [(label: String, perform: () -> Void)] = []
         if !shelf.readyItems.isEmpty {
-            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
+            actions.append((String(localized: "AirDrop All", bundle: .creativeNotch), { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
         }
         if app.canUndoShelfClear {
-            actions.append(("Undo", { app.onUndoClearShelf?() }))
+            actions.append((String(localized: "Undo", bundle: .creativeNotch), { app.onUndoClearShelf?() }))
         }
         if !shelf.readyItems.isEmpty {
-            actions.append(("Clear", { app.onClearShelf?() }))
+            actions.append((String(localized: "Clear", bundle: .creativeNotch), { app.onClearShelf?() }))
         }
         return actions
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.
     static func shelfCount(_ count: Int) -> String {
-        switch count {
-        case 0:  return "empty"
-        case 1:  return "1 item"
-        default: return "\(count) items"
-        }
+        count == 0
+            ? String(localized: "empty", bundle: .creativeNotch, comment: "Shelf title row count when nothing is on it")
+            : String(localized: "\(count) items", bundle: .creativeNotch)
     }
 
     /// The duration a running countdown was set to, for the timer's title
     /// row. Whole minutes: presets and the field are both in minutes.
     static func durationLabel(_ countdown: Countdown) -> String {
-        "\(Int(countdown.duration / 60)) min"
+        String(localized: "\(Int(countdown.duration / 60)) min", bundle: .creativeNotch, comment: "Minutes, abbreviated: 25 min")
     }
 
     private var label: String {
         switch app.state {
         case .closed:          return ""
         case .peek:            return "CreativeNotch"
-        case .open(let tab):   return tab.rawValue.capitalized
-        case .receiving:       return "Drop here"
+        case .open(let tab):   return tab.title
+        case .receiving:       return String(localized: "Drop here", bundle: .creativeNotch)
         }
     }
 }

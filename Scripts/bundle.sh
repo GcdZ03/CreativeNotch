@@ -35,6 +35,22 @@ cp "$(swift build -c "$CONFIG" --show-bin-path)/libCreativeNotchMediaBridge.dyli
    "$APP/Contents/Frameworks/libCreativeNotchMediaBridge.dylib"
 cp "$ROOT/Resources/media-helper.pl" "$APP/Contents/Resources/media-helper.pl"
 
+# Every user-facing string: Core's resource bundle, which the
+# StringCatalogCompiler plugin filled with the compiled .lproj tables. In
+# Resources/, not beside Contents/ where SwiftPM's own accessor would look --
+# anything at the bundle root breaks the signature, which is why
+# `Bundle.creativeNotch` looks here first.
+STRINGS_BUNDLE="$(swift build -c "$CONFIG" --show-bin-path)/CreativeNotch_CreativeNotchCore.bundle"
+if [ ! -f "$STRINGS_BUNDLE/en.lproj/Localizable.strings" ]; then
+  echo "the string catalog was not compiled into $STRINGS_BUNDLE" >&2
+  exit 1
+fi
+cp -R "$STRINGS_BUNDLE" "$APP/Contents/Resources/"
+# The permission prompt is read by macOS from the app's own .lproj folders,
+# not from Core's bundle, so its catalog is compiled straight into them.
+xcrun xcstringstool compile "$ROOT/Resources/InfoPlist.xcstrings" \
+  --output-directory "$APP/Contents/Resources" >/dev/null
+
 # One version string, not two. Info.plist carries a placeholder and the
 # real value comes from CoreInfo -- they used to be maintained by hand in
 # both places, which is a drift waiting to happen. (Follow-up F9.)

@@ -25,11 +25,11 @@ public enum CaptureFileNaming {
         calendar.timeZone = timeZone
         let c = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
 
-        let stamp = String(
-            format: "%04d-%02d-%02d at %02d.%02d.%02d",
-            c.year ?? 0, c.month ?? 0, c.day ?? 0,
-            c.hour ?? 0, c.minute ?? 0, c.second ?? 0
-        )
+        // The digits are fixed, so names sort by time in any language; only
+        // the word between them is translated, as Screenshot's is.
+        let day = String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+        let time = String(format: "%02d.%02d.%02d", c.hour ?? 0, c.minute ?? 0, c.second ?? 0)
+        let stamp = String(localized: "\(day) at \(time)", bundle: .creativeNotch, comment: "Capture file name: date, then time")
         return "\(kind.prefix) \(stamp) \(suffix).\(kind.fileExtension)"
     }
 
@@ -39,8 +39,8 @@ public enum CaptureFileNaming {
 
         var prefix: String {
             switch self {
-            case .still: return "Photo"
-            case .clip: return "Clip"
+            case .still: return String(localized: "Photo", bundle: .creativeNotch, comment: "Capture file name prefix")
+            case .clip: return String(localized: "Clip", bundle: .creativeNotch, comment: "Capture file name prefix")
             }
         }
 

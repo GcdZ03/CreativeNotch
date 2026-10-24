@@ -117,9 +117,9 @@ struct PlaybackProgressView: View {
         }
         .onChange(of: isPlaying) { run() }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Playback position")
+        .accessibilityLabel(String(localized: "Playback position", bundle: .creativeNotch))
         .accessibilityValue(
-            "\(Self.clock(current.elapsed(at: Date(), isPlaying: isPlaying))) of \(Self.clock(current.duration))"
+            String(localized: "\(Self.clock(current.elapsed(at: Date(), isPlaying: isPlaying))) of \(Self.clock(current.duration))", bundle: .creativeNotch, comment: "Playback position: 1:02 of 3:45")
         )
     }
 
@@ -211,7 +211,7 @@ struct PlaybackProgressView: View {
             Text("-" + Self.clock(current.duration - scrubbing))
         } else if isPlaying && motionAllowed {
             HStack(spacing: 0) {
-                Text("-")
+                Text(verbatim: "-")
                 Text(timerInterval: span, countsDown: true, showsHours: false)
             }
         } else {

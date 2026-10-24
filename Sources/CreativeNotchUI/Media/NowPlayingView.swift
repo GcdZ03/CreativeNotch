@@ -15,7 +15,7 @@ enum NowPlayingLabel {
     /// memos — and a dangling separator on those would look broken.
     static func text(for snapshot: TrackSnapshot) -> String {
         guard !snapshot.artist.isEmpty else { return snapshot.title }
-        return "\(snapshot.title) — \(snapshot.artist)"
+        return String(localized: "\(snapshot.title) — \(snapshot.artist)", bundle: .creativeNotch, comment: "Track title — artist")
     }
 }
 
@@ -135,7 +135,7 @@ struct NowPlayingPeekView: View {
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(track.isPlaying ? "Pause" : "Play")
+        .accessibilityLabel(track.isPlaying ? String(localized: "Pause", bundle: .creativeNotch) : String(localized: "Play", bundle: .creativeNotch))
     }
 
     /// A note glyph rather than nothing when there is no artwork.

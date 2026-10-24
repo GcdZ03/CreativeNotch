@@ -35,7 +35,7 @@ struct NowPlayingBadgeView: View {
     /// The peek's own sentence (`PeekAnnouncement.nowPlaying`), or just
     /// "Now playing" before a title has arrived.
     var accessibilityText: String {
-        track.map(PeekAnnouncement.nowPlaying) ?? "Now playing"
+        track.map(PeekAnnouncement.nowPlaying) ?? String(localized: "Now playing", bundle: .creativeNotch)
     }
 
     var body: some View {

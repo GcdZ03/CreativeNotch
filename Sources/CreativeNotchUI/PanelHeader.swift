@@ -34,8 +34,8 @@ struct PanelHeader: View {
                     Image(systemName: "gearshape")
                 }
                 .buttonStyle(NotchIconButtonStyle())
-                .help("Settings")
-                .accessibilityLabel("Settings")
+                .help(String(localized: "Settings", bundle: .creativeNotch))
+                .accessibilityLabel(String(localized: "Settings", bundle: .creativeNotch))
             }
             .padding(.trailing, 12)
             .frame(width: layout.trailingEarWidth, alignment: .trailing)
@@ -89,14 +89,16 @@ struct BatteryCell: View {
                     .notchFont(9, weight: .bold)
                     .foregroundStyle(.ink(0.7))
             }
-            Text("\(level)%")
+            Text(String(localized: "\(level)%", bundle: .creativeNotch, comment: "Battery level"))
                 .notchFont(11, weight: .medium, design: .rounded)
                 .monospacedDigit()
                 .rollingDigits(level)
                 .foregroundStyle(.ink(0.7))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Battery \(level) percent\(isCharging ? ", charging" : "")")
+        .accessibilityLabel(isCharging
+            ? String(localized: "Battery \(level) percent, charging", bundle: .creativeNotch)
+            : String(localized: "Battery \(level) percent", bundle: .creativeNotch))
     }
 
     private var tone: Color {

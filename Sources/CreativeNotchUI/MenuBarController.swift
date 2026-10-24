@@ -68,7 +68,7 @@ public final class MenuBarController: NSObject {
         // the panel has nowhere to open -- this is what makes that a legal
         // state rather than a trap.
         let settings = NSMenuItem(
-            title: "Settings…",
+            title: String(localized: "Settings…", bundle: .creativeNotch),
             action: #selector(openPreferences),
             keyEquivalent: ","
         )
@@ -90,7 +90,7 @@ public final class MenuBarController: NSObject {
         // Hidden rather than disabled: it exists for a few seconds after a
         // clear, and a greyed-out "Undo" the rest of the time is noise.
         let undoClear = NSMenuItem(
-            title: "Undo Clear Shelf",
+            title: String(localized: "Undo Clear Shelf", bundle: .creativeNotch),
             action: #selector(undoClearShelf),
             keyEquivalent: ""
         )
@@ -116,7 +116,7 @@ public final class MenuBarController: NSObject {
         // is about the panel: it opens the panel on the card, and the panel
         // opening under an activating Settings window would be hidden by it.
         let welcome = NSMenuItem(
-            title: "Show Welcome Again",
+            title: String(localized: "Show Welcome Again", bundle: .creativeNotch),
             action: #selector(showWelcome),
             keyEquivalent: ""
         )
@@ -125,7 +125,7 @@ public final class MenuBarController: NSObject {
         menu.addItem(.separator())
 
         let quit = NSMenuItem(
-            title: "Quit CreativeNotch",
+            title: String(localized: "Quit CreativeNotch", bundle: .creativeNotch),
             action: #selector(NSApplication.terminate(_:)),
             keyEquivalent: "q"
         )
@@ -138,7 +138,7 @@ public final class MenuBarController: NSObject {
     /// Read when the menu opens, never polled.
     func clearShelfTitle() -> String {
         let count = shelfCount()
-        return count == 0 ? "Shelf is empty" : "Clear Shelf (\(count))"
+        return count == 0 ? String(localized: "Shelf is empty", bundle: .creativeNotch) : String(localized: "Clear Shelf (\(count))", bundle: .creativeNotch)
     }
 
     @objc func clearShelf() {
@@ -160,7 +160,7 @@ public final class MenuBarController: NSObject {
     /// Read when the menu opens, never polled.
     func clearClipboardTitle() -> String {
         let count = clipboardCount()
-        return count == 0 ? "Clipboard is empty" : "Clear Clipboard (\(count))"
+        return count == 0 ? String(localized: "Clipboard is empty", bundle: .creativeNotch) : String(localized: "Clear Clipboard (\(count))", bundle: .creativeNotch)
     }
 
     @objc func clearClipboard() {

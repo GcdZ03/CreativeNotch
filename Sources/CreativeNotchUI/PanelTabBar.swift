@@ -10,11 +10,11 @@ public extension CreativeNotchCore.Tab {
     /// tab had two names depending on whether you hovered it or opened it.
     var title: String {
         switch self {
-        case .shelf:     return "Shelf"
-        case .clipboard: return "Clipboard"
-        case .power:     return "Battery"
-        case .timer:     return "Timer"
-        case .camera:    return "Camera"
+        case .shelf:     return String(localized: "Shelf", bundle: .creativeNotch)
+        case .clipboard: return String(localized: "Clipboard", bundle: .creativeNotch)
+        case .power:     return String(localized: "Battery", bundle: .creativeNotch)
+        case .timer:     return String(localized: "Timer", bundle: .creativeNotch)
+        case .camera:    return String(localized: "Camera", bundle: .creativeNotch)
         }
     }
 }

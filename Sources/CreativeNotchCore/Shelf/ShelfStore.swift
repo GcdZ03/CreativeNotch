@@ -734,33 +734,43 @@ public struct ShelfLimitRemoval: Equatable, Sendable {
 
     public var title: String {
         trashedCount > 0
-            ? "Move \(Self.plural(trashedCount, "file")) from the shelf to the Trash?"
-            : "Remove \(Self.plural(count, "item")) from the shelf?"
+            ? String(localized: "Move \(trashedCount) files from the shelf to the Trash?", bundle: .creativeNotch)
+            : String(localized: "Remove \(count) items from the shelf?", bundle: .creativeNotch)
     }
 
+    /// Whole sentences, each one catalog entry, joined with a space.
+    ///
+    /// A sentence that shows its number ("2 linked items also leave…") is a
+    /// catalog plural, so a language with more than two forms gets all of
+    /// them. One that does not ("It is" / "They are") is two separate
+    /// entries chosen here: a plural variation must reference its number —
+    /// `xcstringstool` refuses one that does not — and singular-or-not is
+    /// all a sentence without a number can agree with.
     public var message: String {
-        var message: String
+        var sentences: [String] = []
         if expiredCount == 0 {
-            message = "The new limit is lower than what the shelf holds now."
+            sentences.append(String(localized: "The new limit is lower than what the shelf holds now.", bundle: .creativeNotch))
         } else if expiredCount == count {
-            message = count == 1
-                ? "It is older than the shelf will now keep files."
-                : "They are older than the shelf will now keep files."
+            sentences.append(count == 1
+                ? String(localized: "It is older than the shelf will now keep files.", bundle: .creativeNotch)
+                : String(localized: "They are older than the shelf will now keep files.", bundle: .creativeNotch))
         } else {
-            message = "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files."
+            sentences.append(String(localized: "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files.", bundle: .creativeNotch))
         }
         if trashedCount > 0, linkedCount > 0 {
-            message += " \(Self.plural(linkedCount, "linked item")) also \(linkedCount == 1 ? "leaves" : "leave") the shelf, but \(linkedCount == 1 ? "its file stays" : "their files stay") where \(linkedCount == 1 ? "it is" : "they are")."
+            sentences.append(String(localized: "\(linkedCount) linked items also leave the shelf, but their files stay where they are.", bundle: .creativeNotch))
         } else if trashedCount == 0 {
-            message += count == 1 ? " Its file stays where it is." : " Their files stay where they are."
+            sentences.append(count == 1
+                ? String(localized: "Its file stays where it is.", bundle: .creativeNotch)
+                : String(localized: "Their files stay where they are.", bundle: .creativeNotch))
         }
-        return message
+        return sentences.joined(separator: " ")
     }
 
     /// The destructive button: what it does, not "OK".
-    public var confirmLabel: String { trashedCount > 0 ? "Move to Trash" : "Remove" }
-
-    private static func plural(_ n: Int, _ noun: String) -> String {
-        "\(n) \(noun)\(n == 1 ? "" : "s")"
+    public var confirmLabel: String {
+        trashedCount > 0
+            ? String(localized: "Move to Trash", bundle: .creativeNotch)
+            : String(localized: "Remove", bundle: .creativeNotch)
     }
 }

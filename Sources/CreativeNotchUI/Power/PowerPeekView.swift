@@ -91,10 +91,8 @@ struct PowerPeekView: View {
     /// invent one.
     var percentage: String? {
         switch event {
-        case .pluggedIn(let level), .unplugged(let level):
-            return "\(level)%"
-        case .lowBattery(_, let level):
-            return "\(level)%"
+        case .pluggedIn(let level), .unplugged(let level), .lowBattery(_, let level):
+            return String(localized: "\(level)%", bundle: .creativeNotch, comment: "Battery level")
         case .lowPowerMode:
             return nil
         }

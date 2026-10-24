@@ -50,11 +50,11 @@ struct ShelfView: View {
         onReveal: @escaping () -> Void
     ) -> [TileAction] {
         [
-            TileAction(label: "Show in Finder", symbolName: "folder",
+            TileAction(label: String(localized: "Show in Finder", bundle: .creativeNotch), symbolName: "folder",
                        isDestructive: false, perform: onReveal),
-            TileAction(label: "AirDrop", symbolName: "dot.radiowaves.left.and.right",
+            TileAction(label: String(localized: "AirDrop", bundle: .creativeNotch), symbolName: "dot.radiowaves.left.and.right",
                        isDestructive: false, perform: onAirDrop),
-            TileAction(label: "Remove", symbolName: "xmark",
+            TileAction(label: String(localized: "Remove", bundle: .creativeNotch), symbolName: "xmark",
                        isDestructive: true, perform: onRemove),
         ]
     }
@@ -86,7 +86,7 @@ struct ShelfView: View {
     /// What VoiceOver reads for a tile: the file's name, as shown under it,
     /// and that it is still copying while it is.
     static func tileAccessibilityLabel(for item: ShelfItem) -> String {
-        item.isPending ? "\(item.displayName), copying" : item.displayName
+        item.isPending ? String(localized: "\(item.displayName), copying", bundle: .creativeNotch) : item.displayName
     }
 
     @Environment(\.notchTextScale) private var textScale
@@ -195,7 +195,7 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: -5)
-                    .accessibilityLabel("Remove \(item.displayName)")
+                    .accessibilityLabel(String(localized: "Remove \(item.displayName)", bundle: .creativeNotch))
                 }
             }
             .overlay(alignment: .bottomTrailing) {
@@ -210,8 +210,8 @@ private struct ShelfItemView: View {
                     }
                     .buttonStyle(.plain)
                     .offset(x: 5, y: 5)
-                    .help("AirDrop")
-                    .accessibilityLabel("AirDrop \(item.displayName)")
+                    .help(String(localized: "AirDrop", bundle: .creativeNotch))
+                    .accessibilityLabel(String(localized: "AirDrop \(item.displayName)", bundle: .creativeNotch))
                 }
             }
             .frame(width: size.width, height: size.height)

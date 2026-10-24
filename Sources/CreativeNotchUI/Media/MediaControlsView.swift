@@ -19,9 +19,9 @@ struct MediaControlsView: View {
     /// In transport order, left to right, as they appear on every physical
     /// remote and media key row.
     static let buttons: [(command: MediaCommand, symbol: String, label: String)] = [
-        (.previousTrack, "backward.fill", "Previous track"),
-        (.togglePlayPause, "playpause.fill", "Play or pause"),
-        (.nextTrack, "forward.fill", "Next track"),
+        (.previousTrack, "backward.fill", String(localized: "Previous track", bundle: .creativeNotch)),
+        (.togglePlayPause, "playpause.fill", String(localized: "Play or pause", bundle: .creativeNotch)),
+        (.nextTrack, "forward.fill", String(localized: "Next track", bundle: .creativeNotch)),
     ]
 
     let isPlaying: Bool?
@@ -35,9 +35,9 @@ struct MediaControlsView: View {
     /// What the toggle shows: what pressing it will do.
     static func toggle(isPlaying: Bool?) -> (symbol: String, label: String) {
         switch isPlaying {
-        case true?:  return ("pause.fill", "Pause")
-        case false?: return ("play.fill", "Play")
-        case nil:    return ("playpause.fill", "Play or pause")
+        case true?:  return ("pause.fill", String(localized: "Pause", bundle: .creativeNotch))
+        case false?: return ("play.fill", String(localized: "Play", bundle: .creativeNotch))
+        case nil:    return ("playpause.fill", String(localized: "Play or pause", bundle: .creativeNotch))
         }
     }
 

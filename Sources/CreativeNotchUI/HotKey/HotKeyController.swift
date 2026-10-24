@@ -160,7 +160,7 @@ final class HotKeyController {
             status = .failed(Self.message(for: error))
         } catch {
             registrationID = nil
-            status = .failed("The system refused this combination.")
+            status = .failed(String(localized: "The system refused this combination.", bundle: .creativeNotch))
         }
     }
 
@@ -187,15 +187,15 @@ final class HotKeyController {
     static func message(for rejection: HotKeyValidation.Rejection) -> String {
         switch rejection {
         case .noModifiers:
-            return "Add a modifier such as \u{2318} or \u{2325}. On its own, that key would be taken away from every app."
+            return String(localized: "Add a modifier such as \u{2318} or \u{2325}. On its own, that key would be taken away from every app.", bundle: .creativeNotch)
         case .shiftOnly:
-            return "Add \u{2318}, \u{2325} or \u{2303}. Shift alone is too close to ordinary typing."
+            return String(localized: "Add \u{2318}, \u{2325} or \u{2303}. Shift alone is too close to ordinary typing.", bundle: .creativeNotch)
         case .standardShortcut:
-            return "Every app uses this shortcut. Choose a different one."
+            return String(localized: "Every app uses this shortcut. Choose a different one.", bundle: .creativeNotch)
         case .alreadyUsedInThisApp:
-            return "CreativeNotch already uses this shortcut."
+            return String(localized: "CreativeNotch already uses this shortcut.", bundle: .creativeNotch)
         case .usedByMacOS:
-            return "macOS already uses this shortcut, so it would never reach CreativeNotch."
+            return String(localized: "macOS already uses this shortcut, so it would never reach CreativeNotch.", bundle: .creativeNotch)
         }
     }
 
@@ -206,13 +206,13 @@ final class HotKeyController {
     static func message(for error: HotKeyError) -> String {
         switch error {
         case .exclusiveConflict:
-            return "Another app has claimed this combination exclusively. Choose a different one."
+            return String(localized: "Another app has claimed this combination exclusively. Choose a different one.", bundle: .creativeNotch)
         case .rejectedBySystem:
-            return "macOS refused this combination. Try adding another modifier."
+            return String(localized: "macOS refused this combination. Try adding another modifier.", bundle: .creativeNotch)
         case .handlerInstallFailed:
-            return "CreativeNotch could not listen for shortcuts. Restarting the app usually fixes this."
+            return String(localized: "CreativeNotch could not listen for shortcuts. Restarting the app usually fixes this.", bundle: .creativeNotch)
         case .other:
-            return "The system refused this combination."
+            return String(localized: "The system refused this combination.", bundle: .creativeNotch)
         }
     }
 }

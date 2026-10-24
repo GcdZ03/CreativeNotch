@@ -113,13 +113,13 @@ struct HotKeyRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button(recorder.isRecording ? "Press a key…" : (label ?? "Record…")) {
+            Button(recorder.isRecording ? String(localized: "Press a key…", bundle: .creativeNotch) : (label ?? String(localized: "Record…", bundle: .creativeNotch))) {
                 recorder.isRecording ? recorder.stop() : recorder.start()
             }
             .frame(minWidth: 120)
 
             if controller.combo != nil, !recorder.isRecording {
-                Button("Clear") { controller.setCombo(nil) }
+                Button(String(localized: "Clear", bundle: .creativeNotch)) { controller.setCombo(nil) }
                     .buttonStyle(.borderless)
             }
 
@@ -150,11 +150,11 @@ struct HotKeyRow: View {
         case .awaitingConfirmation:
             // The whole point of the module's honesty: registration succeeding
             // is not the feature, and this says so until the user proves it.
-            Text("Press it now to confirm")
+            Text("Press it now to confirm", bundle: .creativeNotch)
                 .font(.caption)
                 .foregroundStyle(.orange)
         case .confirmed:
-            Label("Confirmed", systemImage: "checkmark.circle.fill")
+            Label(String(localized: "Confirmed", bundle: .creativeNotch), systemImage: "checkmark.circle.fill")
                 .font(.caption)
                 .foregroundStyle(.green)
         case .failed(let message):

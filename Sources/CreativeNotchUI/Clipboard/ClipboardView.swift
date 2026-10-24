@@ -15,7 +15,7 @@ enum ClipboardPreview {
     static func text(for content: ClipboardContent) -> String {
         switch content {
         case .image(_, let ext):
-            return "\(ext.uppercased()) image"
+            return String(localized: "\(ext.uppercased()) image", bundle: .creativeNotch, comment: "A copied image: PNG image")
 
         case .text(let string):
             // Collapsed, not just trimmed: a copied code block rendered
@@ -50,19 +50,19 @@ enum ClipboardRowModel {
     /// What VoiceOver hears when a row is clicked. The row's label does
     /// not change under the VoiceOver cursor, so without this a VoiceOver
     /// user gets no sign the click did anything.
-    static let copiedAnnouncement = "Copied"
+    static let copiedAnnouncement = String(localized: "Copied", bundle: .creativeNotch)
 
     /// A clock time at rest, the verb on hover, and the confirmation after
     /// a click. The confirmation wins over hover: the pointer is still on
     /// the row it clicked, and "Copy" there would read as nothing having
     /// happened.
     static func trailingText(time: String, hovering: Bool, copied: Bool) -> String {
-        if copied { return "Copied ✓" }
-        return hovering ? "Copy" : time
+        if copied { return String(localized: "Copied ✓", bundle: .creativeNotch) }
+        return hovering ? String(localized: "Copy", bundle: .creativeNotch) : time
     }
 
     static func accessibilityLabel(entry: ClipboardEntry, time: String) -> String {
-        "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)"
+        String(localized: "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)", bundle: .creativeNotch)
     }
 
     /// One verb a row offers beyond hover.
@@ -89,9 +89,9 @@ enum ClipboardRowModel {
         onRemove: @escaping () -> Void
     ) -> [RowAction] {
         [
-            RowAction(label: "Copy", symbolName: "doc.on.doc",
+            RowAction(label: String(localized: "Copy", bundle: .creativeNotch), symbolName: "doc.on.doc",
                       isDestructive: false, isDefault: true, perform: onCopy),
-            RowAction(label: "Remove", symbolName: "xmark",
+            RowAction(label: String(localized: "Remove", bundle: .creativeNotch), symbolName: "xmark",
                       isDestructive: true, isDefault: false, perform: onRemove),
         ]
     }
@@ -113,7 +113,7 @@ struct ClipboardView: View {
             VStack(spacing: 6) {
                 Image(systemName: "doc.on.clipboard")
                     .notchFont(22, weight: .medium)
-                Text("Nothing copied yet")
+                Text("Nothing copied yet", bundle: .creativeNotch)
                     .notchFont(12, weight: .medium, design: .rounded)
             }
             .foregroundStyle(.ink(0.5))

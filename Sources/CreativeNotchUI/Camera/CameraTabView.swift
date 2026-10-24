@@ -38,12 +38,12 @@ struct CameraTabView: View {
             case .denied:
                 VStack(spacing: 2) {
                     message(
-                        "CreativeNotch needs camera access",
-                        detail: "Grant it in System Settings › Privacy & Security › Camera."
+                        String(localized: "CreativeNotch needs camera access", bundle: .creativeNotch),
+                        detail: String(localized: "Grant it in System Settings › Privacy & Security › Camera.", bundle: .creativeNotch)
                     )
                     // The way to undo a refusal, not just its name: the panel
                     // closes the moment the cursor leaves to go looking.
-                    Button("Open System Settings") {
+                    Button(String(localized: "Open System Settings", bundle: .creativeNotch)) {
                         if let url = Self.privacySettingsURL { NSWorkspace.shared.open(url) }
                     }
                     .buttonStyle(.plain)
@@ -54,7 +54,7 @@ struct CameraTabView: View {
                     .background(Capsule().fill(.hairline(0.16)))
                 }
             case .unavailable:
-                message("No camera found", detail: "This Mac has no built-in camera.")
+                message(String(localized: "No camera found", bundle: .creativeNotch), detail: String(localized: "This Mac has no built-in camera.", bundle: .creativeNotch))
             case .idle, .previewing, .recording:
                 CameraPreview(session: session, isMirrored: true)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -98,7 +98,7 @@ struct CameraTabView: View {
                         .foregroundStyle(.ink(0.8))
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Close camera")
+                .accessibilityLabel(String(localized: "Close camera", bundle: .creativeNotch))
             }
             Spacer()
             HStack(spacing: 18) {
@@ -108,7 +108,7 @@ struct CameraTabView: View {
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel("Take a photo")
+                .accessibilityLabel(String(localized: "Take a photo", bundle: .creativeNotch))
                 .disabled(state == .denied || state == .unavailable)
 
                 Button(action: onToggleRecording) {
@@ -117,7 +117,7 @@ struct CameraTabView: View {
                         .foregroundStyle(isRecording ? .red : .white)
                 }
                 .buttonStyle(.plain)
-                .accessibilityLabel(isRecording ? "Stop recording" : "Record a clip")
+                .accessibilityLabel(isRecording ? String(localized: "Stop recording", bundle: .creativeNotch) : String(localized: "Record a clip", bundle: .creativeNotch))
                 .disabled(state == .denied || state == .unavailable)
             }
             .padding(.bottom, 4)

@@ -21,7 +21,7 @@ struct TimerDonePeekView: View {
     var body: some View {
         if notchGap > 0 {
             HStack(spacing: 0) {
-                label("Timer", weight: .semibold, opacity: 0.95)
+                label(String(localized: "Timer", bundle: .creativeNotch), weight: .semibold, opacity: 0.95)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 10)
 
@@ -34,7 +34,7 @@ struct TimerDonePeekView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityText)
         } else {
-            label("Timer · \(detail)", weight: .medium, opacity: 0.9)
+            label(String(localized: "Timer · \(detail)", bundle: .creativeNotch, comment: "Finished-timer peek without a notch: Timer · 25m"), weight: .medium, opacity: 0.9)
                 .padding(.horizontal, 14)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilityText)

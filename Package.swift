@@ -1,8 +1,9 @@
-// swift-tools-version: 6.0
+// swift-tools-version: 6.1
 import PackageDescription
 
 let package = Package(
     name: "CreativeNotch",
+    defaultLocalization: "en",
     platforms: [.macOS("26.0")],
     products: [
         // Loaded at runtime by the perl helper; nothing links it. It is a
@@ -11,7 +12,15 @@ let package = Package(
                  targets: ["CreativeNotchMediaBridge"]),
     ],
     targets: [
-        .target(name: "CreativeNotchCore"),
+        .target(
+            name: "CreativeNotchCore",
+            // The one String Catalog for the whole app. Excluded so SwiftPM
+            // does not copy the raw JSON, which `Bundle` cannot read; the
+            // plugin compiles it into the `.lproj` tables it can.
+            exclude: ["Localizable.xcstrings"],
+            plugins: ["StringCatalogCompiler"]
+        ),
+        .plugin(name: "StringCatalogCompiler", capability: .buildTool()),
         // The only non-Swift target in the repo. Deliberately a dependency
         // of nothing: the perl helper dlopens it, no Swift target links it.
         .target(

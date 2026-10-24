@@ -44,7 +44,7 @@ struct PowerView: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text("\(snapshot.level)%")
+                        Text(String(localized: "\(snapshot.level)%", bundle: .creativeNotch, comment: "Battery level"))
                             .notchFont(34, weight: .semibold, design: .rounded)
                             .monospacedDigit()
                             .rollingDigits(snapshot.level)
@@ -60,10 +60,12 @@ struct PowerView: View {
                     }
 
                     HStack(spacing: 8) {
-                        Text("Low Power Mode")
+                        Text("Low Power Mode", bundle: .creativeNotch)
                             .notchFont(12, weight: .medium, design: .rounded)
                             .foregroundStyle(.ink(0.6))
-                        Text(snapshot.isLowPowerMode ? "On" : "Off")
+                        Text(snapshot.isLowPowerMode
+                             ? String(localized: "On", bundle: .creativeNotch, comment: "Low Power Mode is on")
+                             : String(localized: "Off", bundle: .creativeNotch, comment: "Low Power Mode is off"))
                             .notchFont(10, weight: .semibold, design: .rounded)
                             .foregroundStyle(.ink(0.85))
                             .padding(.horizontal, 8)
@@ -79,7 +81,7 @@ struct PowerView: View {
             // Reachable only for the instant between the panel opening and
             // the first IOKit read. The tab itself is hidden on machines
             // with no battery, so this is never a permanent state.
-            Text("Reading power state…")
+            Text("Reading power state…", bundle: .creativeNotch)
                 .notchFont(12, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.6))
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

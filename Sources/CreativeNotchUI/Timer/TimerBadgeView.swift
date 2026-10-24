@@ -26,7 +26,9 @@ struct TimerBadgeView: View {
     /// granularity (`TimerSpokenText`), and whether it is paused.
     var accessibilityText: String {
         if let remaining { return TimerSpokenText.remaining(remaining, isPaused: isPaused) }
-        return isPaused ? "Timer paused, \(text) remaining" : "\(text) remaining"
+        return isPaused
+            ? String(localized: "Timer paused, \(text) remaining", bundle: .creativeNotch)
+            : String(localized: "\(text) remaining", bundle: .creativeNotch)
     }
 
     var body: some View {
