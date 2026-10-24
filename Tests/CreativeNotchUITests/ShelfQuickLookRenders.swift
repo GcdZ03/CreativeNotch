@@ -17,7 +17,8 @@ import CreativeNotchCore
 /// shelf's tiles live in one. Nothing is put on screen: the window is never
 /// ordered in. Thumbnails are the file-type icons, as a tile shows before
 /// its Quick Look thumbnail arrives; Quick Look's own panel and the context
-/// menu are system windows and are not drawn here.
+/// menu are system windows and are not drawn here — `ShelfQuickLookLive`
+/// photographs those on screen.
 @MainActor
 @Suite(.enabled(if: ProcessInfo.processInfo.environment["CREATIVENOTCH_RENDER_DOCS"] != nil))
 struct ShelfQuickLookRenders {

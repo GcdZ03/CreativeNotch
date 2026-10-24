@@ -618,17 +618,31 @@ starting at the chosen one, so Quick Look's own arrows walk the shelf; a file
 still copying in is never selected, previewed or opened.
 
 **Nothing runs until asked.** No panel is created to answer whether one is
-up (`sharedPreviewPanelExists()` first), and there is no observer: Quick Look
-pages and closes itself. Its controller is found two ways, because the notch
-panel is non-activating — through the key window's responder chain
-(`NotchPanel.acceptsPreviewPanelControl`), and handed over directly before
-the preview is ordered front, since on a hover-open the notch panel is not
-key and once the preview is key the chain it walks is its own. The preview
-outlives the notch panel closing behind it — the pointer leaving for the
-preview starts the usual grace — and our own app activating is already
-ignored by the dismissal path. Space reaches the panel only while it is key,
-so after a hover-open it goes to the app underneath: a click in the panel
-makes it key first.
+up (`sharedPreviewPanelExists()` first), and the one observer — the preview's
+`willClose` — is added on the first preview, never before. Its controller is
+found two ways, because the notch panel is non-activating — through the key
+window's responder chain (`NotchPanel.acceptsPreviewPanelControl`), and
+handed over directly before the preview is ordered front, since on a
+hover-open the notch panel is not key and once the preview is key the chain
+it walks is its own. The preview outlives the notch panel closing behind it
+— the pointer leaving for the preview starts the usual grace — and our own
+app activating is already ignored by the dismissal path. Space reaches the
+panel only while it is key, so after a hover-open it goes to the app
+underneath: a click in the panel makes it key first.
+
+**The preview takes the keyboard without activating the app.**
+CreativeNotch is never the active app, and `QLPreviewPanel` is an ordinary
+panel, which cannot become key in an app that is not active: ordered front
+with `makeKeyAndOrderFront`, it left no window of ours key, and the next
+Space typed into whatever was frontmost. `ShelfQuickLook.prepare` gives it
+the notch panel's own `.nonactivatingPanel` style, so it becomes key while
+the other app stays in front, and its own Space, Esc and arrows work as in
+Finder. When it closes, nothing would be key again — so the `willClose`
+observer hands the keyboard back to the notch panel, if it is still open
+(`AppDelegate.shelfPreviewDidClose`), and Space there previews again. Paging
+in the preview moves the preview, not the selection ring. None of this is
+visible to a headless suite; the opt-in live suite (`ShelfQuickLookLive`,
+see DEVELOPMENT.md) drives it against the window server.
 
 Both are seams on `AppDelegate`, sandboxed by default like the Trash:
 `shelfOpener` is `.inert` and `shelfPreview` an `InertShelfPreview` until

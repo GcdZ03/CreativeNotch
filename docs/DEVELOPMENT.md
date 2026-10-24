@@ -194,6 +194,25 @@ CREATIVENOTCH_RENDER_DOCS=1 swift test --filter ShelfQuickLookRenders
 They go through an `NSHostingView` in a window that is never ordered in,
 rather than `ImageRenderer`, which does not draw `ScrollView` content.
 
+System windows — Quick Look's preview, a context menu — cannot be drawn
+offscreen, and key focus cannot be seen headless at all. For those there is
+one **live** suite, `ShelfQuickLookLive`, which puts a real `NotchPanel` and
+Quick Look on screen for a few seconds:
+
+```sh
+CREATIVENOTCH_LIVE_QUICKLOOK=1 swift test --filter ShelfQuickLookLive
+# and to rewrite shelf-quicklook-preview.png and shelf-quicklook-menu.png:
+CREATIVENOTCH_LIVE_QUICKLOOK=1 CREATIVENOTCH_RENDER_DOCS=1 swift test --filter ShelfQuickLookLive
+```
+
+It posts keys to its own process only and never moves the pointer, and it
+photographs only its own windows, so it needs no Accessibility or Screen
+Recording permission. It is XCTest rather than Swift Testing, and it waits on
+the real event loop rather than on a seam — the two exceptions to the rules
+here, and the reasons are in the file's header: a Swift Testing test runs on
+the main dispatch queue, where pumping events starves Quick Look and yielding
+lets AppKit stop the run loop the test runner lives on.
+
 ## Never sleep in a test
 
 There is no `Task.sleep` anywhere in the suite, and there should not be.
