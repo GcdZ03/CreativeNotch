@@ -609,8 +609,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Re-reads the displays the "Show on" menu offers. Asked when Settings
     /// is shown and on every screen-parameter change -- the two moments the
     /// list can be stale while someone is looking at it -- so nothing polls.
+    ///
+    /// A pinned display connected under a new name has the stored name
+    /// updated and saved here too (`DisplayChoice.refreshingName`), so the
+    /// next time it is unplugged Settings names it by what it is called
+    /// now. Saved without placing the panel again: the UUID is unchanged,
+    /// so the display it picks is the same one.
     func refreshConnectedDisplays() {
-        state.connectedDisplays = screenDescriptors()
+        let screens = screenDescriptors()
+        state.connectedDisplays = screens
+        let refreshed = state.displayChoice.refreshingName(from: screens)
+        if refreshed != state.displayChoice {
+            preferencesStore.setDisplayChoice(refreshed)
+            state.displayChoice = refreshed
+        }
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
