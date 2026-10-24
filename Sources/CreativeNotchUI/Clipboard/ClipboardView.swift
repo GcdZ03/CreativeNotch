@@ -64,6 +64,37 @@ enum ClipboardRowModel {
     static func accessibilityLabel(entry: ClipboardEntry, time: String) -> String {
         "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)"
     }
+
+    /// One verb a row offers beyond hover.
+    struct RowAction {
+        let label: String
+        let symbolName: String
+        let isDestructive: Bool
+        /// What pressing the row already does. VoiceOver reaches it as the
+        /// row's own press, so it is left out of the named actions rather
+        /// than offered twice.
+        let isDefault: Bool
+        let perform: () -> Void
+    }
+
+    /// The row's verbs, in menu order — the shelf tile's words and symbols
+    /// for the same ideas, with Remove last where the destructive verb sits.
+    ///
+    /// The single list the context menu and the accessibility actions are
+    /// both built from, as `ShelfView.tileActions` is, so the two cannot
+    /// drift apart. Remove used to live only in the menu, which a VoiceOver
+    /// user rarely opens; from here it is also in the rotor's Actions.
+    static func rowActions(
+        onCopy: @escaping () -> Void,
+        onRemove: @escaping () -> Void
+    ) -> [RowAction] {
+        [
+            RowAction(label: "Copy", symbolName: "doc.on.doc",
+                      isDestructive: false, isDefault: true, perform: onCopy),
+            RowAction(label: "Remove", symbolName: "xmark",
+                      isDestructive: true, isDefault: false, perform: onRemove),
+        ]
+    }
 }
 
 /// The clipboard history, and the source of copy-backs.
@@ -163,15 +194,25 @@ private struct ClipboardRow: View {
         // The shelf tile's words and symbols for the same idea: taking one
         // item off a panel list is "Remove", with the xmark, on both.
         .contextMenu {
-            Button(action: copy) {
-                Label("Copy", systemImage: "doc.on.doc")
-            }
-            Button(role: .destructive, action: onRemove) {
-                Label("Remove", systemImage: "xmark")
+            ForEach(actions, id: \.label) { action in
+                Button(role: action.isDestructive ? .destructive : nil, action: action.perform) {
+                    Label(action.label, systemImage: action.symbolName)
+                }
             }
         }
         .onDisappear { confirmation?.cancel() }
         .accessibilityLabel(ClipboardRowModel.accessibilityLabel(entry: entry, time: time))
+        // Copy stays the button's press, VoiceOver's default action; the
+        // rest of the menu is offered as named actions.
+        .accessibilityActions {
+            ForEach(actions.filter { !$0.isDefault }, id: \.label) { action in
+                Button(action.label, action: action.perform)
+            }
+        }
+    }
+
+    private var actions: [ClipboardRowModel.RowAction] {
+        ClipboardRowModel.rowActions(onCopy: copy, onRemove: onRemove)
     }
 
     /// Copies, then confirms on this row for a moment. The reset is a
