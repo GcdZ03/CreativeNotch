@@ -116,6 +116,14 @@ final class PreferencesController {
         state.onSetHoverBehaviour?(behaviour)
     }
 
+    /// Show on (2026-10-24). Written through `AppState`'s verb, which saves,
+    /// applies and moves the panel together, and read back from what applied.
+    var displayChoice: DisplayChoice { state.displayChoice }
+
+    func setDisplayChoice(_ choice: DisplayChoice) {
+        state.onSetDisplayChoice?(choice)
+    }
+
     /// The hotkey controller, for the recorder row. Reached through the
     /// switchboard's delegate rather than stored twice.
     var hotKeyController: HotKeyController? { switchboard.hotKeyController }
@@ -346,6 +354,14 @@ struct PreferencesView: View {
                 Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
             }
 
+            Section {
+                DisplayRow(controller: controller)
+            } header: {
+                Text("Display")
+            } footer: {
+                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed.")
+            }
+
             ForEach(PreferencesSection.allCases, id: \.self) { section in
                 Section {
                     ForEach(Self.rows.filter { $0.section == section }) { row in
@@ -551,6 +567,53 @@ struct HoverRow: View {
                         .frame(width: 44, alignment: .trailing)
                 }
                 .padding(.leading, 36)
+            }
+        }
+    }
+}
+
+/// "Show on" (2026-10-24): which display the notch lives on.
+///
+/// Reads the controller rather than holding a copy, unlike `HoverRow`: a
+/// menu has no in-between values to keep smooth, and reading what applied
+/// means the row cannot show a choice that was not saved.
+struct DisplayRow: View {
+    let controller: PreferencesController
+
+    /// What each choice is called in the menu. Here rather than on the Core
+    /// enum, which stores the choice and knows nothing of how it is worded.
+    static func title(for choice: DisplayChoice) -> String {
+        switch choice {
+        case .focusedWindow: return "Display with the focused window"
+        case .builtIn:       return "Built-in display"
+        }
+    }
+
+    var body: some View {
+        Picker(selection: Binding(
+            get: { controller.displayChoice },
+            set: { controller.setDisplayChoice($0) }
+        )) {
+            ForEach(DisplayChoice.allCases, id: \.self) { choice in
+                Text(Self.title(for: choice)).tag(choice)
+            }
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Show on")
+                        .font(.body.weight(.medium))
+                    Text("Which display the notch lives on.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "display")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.cyan)
+                    )
             }
         }
     }

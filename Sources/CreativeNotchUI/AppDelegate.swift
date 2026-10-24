@@ -323,9 +323,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
         // With no screen at all, the screen-parameter observer builds the
-        // panel when one appears (`screenParametersDidChange`).
-        if let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens) {
-            showPanel(on: screen.metrics)
+        // panel when one appears (`screenParametersDidChange`). The choice is
+        // read before `install` exists to load it, because it decides which
+        // screen `install` is handed.
+        state.displayChoice = PreferencesStore(defaults: preferencesDefaults).displayChoice
+        if let metrics = screenMetrics(state.displayChoice) {
+            showPanel(on: metrics)
         }
 
         let menuBar = MenuBarController(
@@ -350,15 +353,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         startSubsystems()
     }
 
-    /// The screen to build the panel on at launch.
+    /// The metrics of the screen "Show on" picks, or `nil` with no screen.
     ///
-    /// `NSScreen.main` is the screen holding the key window, and an accessory
-    /// app launching may have none — so the panel was never built, for the
-    /// whole session, while every subsystem started anyway. Any screen will
-    /// do: the panel follows the main one from the first screen change.
-    /// Generic so a test can answer it without a real display.
-    nonisolated static func launchScreen<S>(main: S?, all: [S]) -> S? {
-        main ?? all.first
+    /// The launch, a screen change, an activation and the preference itself
+    /// all ask here, so the choice is made in one place. `NSScreen.main` is
+    /// the screen holding the key window, and an accessory app launching may
+    /// have none -- the panel was once never built, for the whole session --
+    /// so the rule falls back to any screen (`DisplayChoice.screen(in:)`).
+    /// Injected so a test can answer it without a real display.
+    var screenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
+        NSScreen.chosen(by: choice)?.metrics
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
@@ -672,6 +676,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSetHoverBehaviour = { [weak self] behaviour in
             hoverStore.save(behaviour)
             self?.state.hoverBehaviour = behaviour
+        }
+
+        // Show on (2026-10-24). Loaded like the hover behaviour, and applied
+        // at once: waiting for the next activation would never come when
+        // pinned, which is the point of pinning.
+        state.displayChoice = preferencesStore.displayChoice
+        state.onSetDisplayChoice = { [weak self] choice in
+            self?.setDisplayChoice(choice)
         }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
@@ -1661,10 +1673,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             forName: NSApplication.didChangeScreenParametersNotification,
             object: nil, queue: .main
         ) { [weak self] _ in
-            guard let self,
-                  let screen = Self.launchScreen(main: NSScreen.main, all: NSScreen.screens)
-            else { return }
-            MainActor.assumeIsolated { self.screenParametersDidChange(metrics: screen.metrics) }
+            MainActor.assumeIsolated { self?.screenParametersDidChange() }
         }, NotificationCenter.default))
 
         observers.append((NSWorkspace.shared.notificationCenter.addObserver(
@@ -1678,11 +1687,37 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let pid = app?.processIdentifier {
                     self.applicationDidActivate(pid: pid)
                 }
-                if let screen = NSScreen.main {
-                    _ = self.reposition(metrics: screen.metrics)
-                }
+                self.activeApplicationDidChange()
             }
         }, NSWorkspace.shared.notificationCenter))
+    }
+
+    /// Another app came forward, so the focused window may be on another
+    /// display. Following focus, the panel goes with it; pinned, it stays
+    /// and the screen list is not even read -- an app switch is not a
+    /// reason to look.
+    func activeApplicationDidChange() {
+        guard state.displayChoice.followsActivation,
+              let metrics = screenMetrics(state.displayChoice)
+        else { return }
+        reposition(metrics: metrics)
+    }
+
+    /// A display was connected, disconnected or rearranged: place the panel
+    /// on whatever the choice picks from the screens there are now.
+    func screenParametersDidChange() {
+        guard let metrics = screenMetrics(state.displayChoice) else { return }
+        screenParametersDidChange(metrics: metrics)
+    }
+
+    /// Saves and applies a new "Show on", then places the panel by it at
+    /// once. `reposition` re-checks full screen when the panel moves, which
+    /// is the only time the display it is on can have changed.
+    func setDisplayChoice(_ choice: DisplayChoice) {
+        preferencesStore.setDisplayChoice(choice)
+        state.displayChoice = choice
+        guard panel != nil, let metrics = screenMetrics(choice) else { return }
+        reposition(metrics: metrics)
     }
 
     /// The display arrangement changed. Internal so a test can drive it

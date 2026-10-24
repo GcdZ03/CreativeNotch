@@ -2,6 +2,31 @@ import AppKit
 import CreativeNotchCore
 
 extension NSScreen {
+    /// The screen "Show on" picks right now, by `DisplayChoice.screen(in:)`.
+    ///
+    /// Read fresh on every call rather than remembered: the list changes
+    /// with the cables, and a remembered `NSScreen` for a display that has
+    /// gone is a panel placed on nothing.
+    @MainActor
+    static func chosen(by choice: DisplayChoice) -> NSScreen? {
+        let screens = NSScreen.screens
+        let main = NSScreen.main
+        let descriptors = screens.compactMap { screen in
+            screen.displayID.map {
+                ScreenDescriptor(id: $0, isBuiltIn: CGDisplayIsBuiltin($0) != 0, isMain: screen == main)
+            }
+        }
+        guard let id = choice.screen(in: descriptors) else { return nil }
+        return screens.first { $0.displayID == id }
+    }
+
+    /// The window server's number for this screen, the id the rule and
+    /// `CGDisplayIsBuiltin` share.
+    @MainActor
+    var displayID: CGDirectDisplayID? {
+        (deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? NSNumber)?.uint32Value
+    }
+
     /// Snapshots this screen into the AppKit-free value type the core uses.
     @MainActor
     public var metrics: ScreenMetrics {

@@ -82,6 +82,16 @@ public final class AppState {
     @ObservationIgnored
     public var onSetHoverBehaviour: ((HoverBehaviour) -> Void)?
 
+    /// Which display the notch lives on (2026-10-24). Applied by
+    /// `onSetDisplayChoice`; read by the activation and screen-change paths
+    /// each time they fire, so a change needs nothing re-registered.
+    public internal(set) var displayChoice: DisplayChoice = .default
+
+    /// Saves the choice, applies it and moves the panel in one call, so
+    /// Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
