@@ -112,6 +112,21 @@ public final class AppState {
     @ObservationIgnored
     public var onRefreshDisplays: (() -> Void)?
 
+    /// The Bluetooth grant as Bluetooth alerts last read it (2026-10-24), for
+    /// the Settings row's denied state. `nil` until the controller has read
+    /// it once, so a fresh `AppState` claims nothing either way.
+    public internal(set) var bluetoothAccess: BluetoothAuthorization?
+
+    /// Re-reads the grant — never prompts unless the module is on and macOS
+    /// has not been asked. Wired by `AppDelegate`; called when Settings is
+    /// shown, like `onRefreshDisplays`.
+    @ObservationIgnored
+    public var onRefreshBluetoothAccess: (() -> Void)?
+
+    /// Opens Privacy & Security › Bluetooth. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onOpenBluetoothSettings: (() -> Void)?
+
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
     public internal(set) var limits = Limits()
@@ -1041,6 +1056,11 @@ public struct NotchRootView: View {
                 // than left to `default` for that reason.
                 case .peek(.power(let event)):
                     Self.powerPeek(for: app, event: event)
+
+                // Bluetooth alerts (2026-10-24): the power peek's row shape,
+                // and its band height for the same reason.
+                case .peek(.bluetooth(let event)):
+                    BluetoothPeekView(event: event, bandHeight: app.anchor.rect.height)
 
                 case .peek(.nowPlaying(let track)):
                     // The same notch gap the power peek gets, from the same

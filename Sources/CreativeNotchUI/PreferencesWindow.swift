@@ -101,6 +101,10 @@ final class PreferencesController {
         // reused window's `.onAppear` would read the displays once per
         // process, and a monitor plugged in since would be missing.
         state.onRefreshDisplays?()
+        // The same boundary, for the same reason: macOS posts nothing when
+        // Bluetooth is allowed in System Settings, so coming back here is
+        // the moment to look. Reading never prompts.
+        state.onRefreshBluetoothAccess?()
         presenter(self)
     }
 
@@ -229,6 +233,17 @@ final class PreferencesController {
     /// switchboard's delegate rather than stored twice.
     var hotKeyController: HotKeyController? { switchboard.hotKeyController }
 
+    /// Whether Bluetooth alerts are on and macOS has said no — the one state
+    /// in which the module silently shows nothing unless this window says
+    /// why.
+    var isBluetoothDenied: Bool {
+        state.preferences.bluetooth && state.bluetoothAccess == .denied
+    }
+
+    func openBluetoothSettings() {
+        state.onOpenBluetoothSettings?()
+    }
+
     /// Whether a countdown is running, which is what makes the timer row's
     /// warning conditional. Shown unconditionally it would train people to
     /// ignore it.
@@ -336,7 +351,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -398,6 +413,13 @@ struct PreferencesView: View {
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
             title: "Battery and power",
             detail: "Level, charging state and Low Power Mode. Costs almost nothing either way."
+        ),
+        PreferencesRow(
+            module: .bluetooth, section: .notch, symbolName: "airpods", tint: .blue,
+            title: "Bluetooth alerts",
+            // Says what it asks for, because switching it on is what shows
+            // macOS's Bluetooth prompt.
+            detail: "A glance when AirPods, headphones or a speaker connect or disconnect. Needs Bluetooth access."
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -539,6 +561,11 @@ struct PreferencesView: View {
                     .padding(.leading, 36)
             }
 
+            if row.module == .bluetooth, controller.isBluetoothDenied {
+                BluetoothDeniedRow(controller: controller)
+                    .padding(.leading, 36)
+            }
+
             if let warning = Self.warning(for: row.module, controller: controller) {
                 Text(warning)
                     .font(.caption)
@@ -576,6 +603,29 @@ struct PreferencesView: View {
             return "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
         default:
             return nil
+        }
+    }
+}
+
+/// What Bluetooth alerts say when macOS has refused them (2026-10-24).
+///
+/// A denied grant is not an error, it is a choice the person made — the
+/// camera's rule — but left unsaid it reads as a broken module: switched
+/// on, never shows anything. So it says what happened and offers the one
+/// place it can be undone.
+struct BluetoothDeniedRow: View {
+    let controller: PreferencesController
+
+    static let message = "Bluetooth access is off for CreativeNotch, so no alerts can show. Allow it in System Settings › Privacy & Security › Bluetooth."
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(Self.message)
+                .font(.caption)
+                .foregroundStyle(.orange)
+            Button("Open Bluetooth Settings") {
+                controller.openBluetoothSettings()
+            }
         }
     }
 }

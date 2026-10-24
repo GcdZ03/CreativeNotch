@@ -44,6 +44,11 @@ struct SandboxedSeamsTests {
         #expect(camera.capturesDirectory == delegate.capturesDirectory)
         #expect(camera.capturesDirectory != CameraController.picturesCapturesDirectory)
         #expect(camera.capturesDirectory.standardizedFileURL.path.hasPrefix(Self.temporary))
+
+        // Bluetooth: no IOBluetooth registration and no system prompt can
+        // come from a delegate a test built.
+        #expect(delegate.bluetoothSource is SandboxBluetoothSource)
+        #expect(delegate.bluetoothAccess is SandboxBluetoothAccess)
     }
 
     /// Two delegates never share a sandbox, so one test's shelf cannot leak
@@ -70,6 +75,9 @@ struct SandboxedSeamsTests {
         #expect(delegate.shelfDirectory.path.hasSuffix("CreativeNotch/Shelf"))
         #expect(delegate.capturesDirectory == CameraController.picturesCapturesDirectory)
         #expect(delegate.capturesDirectory.lastPathComponent == "CreativeNotch")
+        // Constructing these registers nothing and prompts for nothing.
+        #expect(delegate.bluetoothSource is IOBluetoothSource)
+        #expect(delegate.bluetoothAccess is SystemBluetoothAccess)
     }
 
     @Test func onlyTheSystemTrashSaysItIs() {

@@ -61,6 +61,8 @@ public enum PeekContent: Equatable, Sendable {
     case nowPlaying(TrackSnapshot)
     case timerDone(TimerCompletion)
     case power(PowerEvent)
+    /// An audio Bluetooth device arriving or leaving (2026-10-24).
+    case bluetooth(BluetoothAudioEvent)
 }
 
 /// The one state the panel is ever in.
@@ -75,6 +77,9 @@ public enum NotchState: Equatable, Sendable {
         case .closed:            return .closed
         case .peek(.nowPlaying): return .mediaPeek
         case .peek(.power):      return .statusPeek
+        // The battery peek's one row below the notch: an icon, a name and
+        // a word, which is the same shape of message.
+        case .peek(.bluetooth):  return .statusPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }

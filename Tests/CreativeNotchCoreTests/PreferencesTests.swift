@@ -19,11 +19,12 @@ import Testing
     #expect(ModuleID.hotkey.rawValue == "hotkey")
     #expect(ModuleID.camera.rawValue == "camera")
     #expect(ModuleID.captureIndicator.rawValue == "capture-indicator")
+    #expect(ModuleID.bluetooth.rawValue == "bluetooth")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 9)
+    #expect(keys.count == 10)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -71,6 +72,17 @@ import Testing
 @Test func preferencesShipWithEverythingOn() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
+    }
+}
+
+/// Bluetooth alerts are the first module to ship off: switching them on is
+/// what asks macOS for Bluetooth access, and a prompt nobody asked for at
+/// launch is the thing the Permissions rule exists to prevent. Everything
+/// else needs no grant and costs nothing at rest, so it stays on.
+@Test func onlyBluetoothShipsOff() {
+    for module in ModuleID.allCases {
+        #expect(module.shippedDefault == (module != .bluetooth), "\(module)")
+        #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
     }
 }
 

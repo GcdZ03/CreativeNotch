@@ -20,6 +20,7 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var bluetooth: Bool
 
     public init(
         shelf: Bool = true,
@@ -30,7 +31,8 @@ public struct Preferences: Equatable, Sendable {
         timer: Bool = true,
         hotkey: Bool = true,
         camera: Bool = true,
-        captureIndicator: Bool = true
+        captureIndicator: Bool = true,
+        bluetooth: Bool = true
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -41,11 +43,21 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.bluetooth = bluetooth
     }
 
-    /// Everything on. The shipped state, and what a domain with no keys in it
-    /// resolves to.
+    /// Everything on. What the switchboard holds before `apply()` has read
+    /// anything, so constructing a delegate reads no defaults.
     public static let allEnabled = Preferences()
+
+    /// The shipped state, and what a domain with no keys in it resolves to:
+    /// every module at its `ModuleID.shippedDefault`. Equal to `allEnabled`
+    /// until Bluetooth alerts, the first module to ship off.
+    public static let shipped: Preferences = {
+        var preferences = Preferences()
+        for module in ModuleID.allCases { preferences[module] = module.shippedDefault }
+        return preferences
+    }()
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -59,6 +71,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .bluetooth:     return bluetooth
             }
         }
         set {
@@ -72,6 +85,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .bluetooth:     bluetooth = newValue
             }
         }
     }

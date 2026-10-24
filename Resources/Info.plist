@@ -26,6 +26,13 @@
        indicator. -->
   <key>NSCameraUsageDescription</key><string>CreativeNotch shows the camera in the notch, so you can check your framing or take a quick photo or clip. Nothing is uploaded; captures are saved to the file shelf.</string>
 
+  <!-- Bluetooth alerts (2026-10-24). IOBluetooth and CoreBluetooth sit behind
+       the Bluetooth privacy service, and without this key macOS terminates
+       the process on first use, as it does for the camera. It is shown only
+       when the person switches Bluetooth alerts on in Settings: the module
+       ships off, and nothing touches Bluetooth until then. -->
+  <key>NSBluetoothAlwaysUsageDescription</key><string>CreativeNotch shows a brief glance in the notch when AirPods, headphones or a speaker connect or disconnect. It only listens for connections; it does not scan for or connect to anything.</string>
+
   <!-- Reaction Effects are on by default for every app on macOS, so a hand
        gesture would produce confetti in a framing mirror. This sets the
        DEFAULT only: Apple documents it as applying "until such time that the

@@ -21,4 +21,21 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case hotkey
     case camera
     case captureIndicator = "capture-indicator"
+    /// AirPods and other audio Bluetooth devices connecting (2026-10-24).
+    case bluetooth
+
+    /// What an absent key means for this module.
+    ///
+    /// On for everything that needs no grant and costs nothing at rest.
+    /// **Bluetooth alerts ship off**: switching them on is what asks macOS
+    /// for Bluetooth access, and nothing in this app is allowed to prompt
+    /// at launch for a feature nobody chose (see Permissions in
+    /// `ARCHITECTURE.md`). Read through `PreferenceKeys.resolveEnabled`'s
+    /// `shippedDefault`, so a mistyped value reads as off too.
+    public var shippedDefault: Bool {
+        switch self {
+        case .bluetooth: return false
+        default:         return true
+        }
+    }
 }

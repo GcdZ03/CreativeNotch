@@ -17,13 +17,13 @@ struct PreferencesStoreTests {
     /// Drives the real read path against a genuinely empty domain rather than
     /// re-asserting the resolution function against itself. `dev.sh --fresh`
     /// produces exactly this state, so it is the one a developer hits daily.
-    @Test func anEmptyDomainResolvesEveryModuleOn() {
+    @Test func anEmptyDomainResolvesEveryModuleToItsShippedDefault() {
         let store = PreferencesStore(defaults: makeIsolatedDefaults())
         let loaded = store.load()
         for module in ModuleID.allCases {
-            #expect(loaded[module] == true, "\(module) came up off on a fresh domain")
+            #expect(loaded[module] == module.shippedDefault, "\(module) came up wrong on a fresh domain")
         }
-        #expect(loaded == Preferences.allEnabled)
+        #expect(loaded == Preferences.shipped)
     }
 
     @Test func aDisabledModuleSurvivesAReload() {
@@ -36,7 +36,7 @@ struct PreferencesStoreTests {
         let reloaded = PreferencesStore(defaults: defaults).load()
         #expect(reloaded.clipboard == false)
         for module in ModuleID.allCases where module != .clipboard {
-            #expect(reloaded[module] == true, "\(module) was disturbed by disabling clipboard")
+            #expect(reloaded[module] == module.shippedDefault, "\(module) was disturbed by disabling clipboard")
         }
     }
 
@@ -49,7 +49,7 @@ struct PreferencesStoreTests {
             let loaded = store.load()
             #expect(loaded[module] == false, "\(module) did not persist as off")
             for other in ModuleID.allCases where other != module {
-                #expect(loaded[other] == true, "disabling \(module) also disabled \(other)")
+                #expect(loaded[other] == other.shippedDefault, "disabling \(module) also disabled \(other)")
             }
         }
     }
@@ -82,5 +82,20 @@ struct PreferencesStoreTests {
 
         #expect(PreferencesStore(defaults: defaults).load().timer == true)
         #expect(defaults.object(forKey: PreferenceKeys.enabled(.timer)) as? String == "yes")
+    }
+
+    /// The off-by-default module is read through the same resolver with its
+    /// own shipped default: absent or mistyped stays off, a stored `true`
+    /// turns it on. Load it with the generic `true` default and this fails.
+    @Test func bluetoothStaysOffUntilSwitchedOn() {
+        let defaults = makeIsolatedDefaults()
+        let store = PreferencesStore(defaults: defaults)
+        #expect(store.load().bluetooth == false)
+
+        defaults.set("yes", forKey: PreferenceKeys.enabled(.bluetooth))
+        #expect(store.load().bluetooth == false)
+
+        store.setEnabled(true, for: .bluetooth)
+        #expect(store.load().bluetooth == true)
     }
 }
