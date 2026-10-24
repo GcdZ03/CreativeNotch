@@ -21,6 +21,8 @@ public final class MenuBarController: NSObject {
     private var clearShelfItem: NSMenuItem?
     private var undoClearShelfItem: NSMenuItem?
     private var clearClipboardItem: NSMenuItem?
+    /// "Update to v…", hidden unless the updater found one.
+    private(set) var updateItem: NSMenuItem?
 
     private let onShowPreferences: () -> Void
     private let onClearShelf: () -> Void
@@ -30,9 +32,13 @@ public final class MenuBarController: NSObject {
     private let onUndoClearShelf: () -> Void
     private let canUndoClearShelf: () -> Bool
     private let onShowWelcome: () -> Void
+    private let onCheckForUpdates: () -> Void
+    private let availableUpdate: () -> String?
+    private let onUpdate: () -> Void
 
     /// The undo pair defaults to "never offered", so a caller with no shelf
-    /// behind it need not spell it out.
+    /// behind it need not spell it out; the updater's three default to a
+    /// check that does nothing and no update.
     public init(
         onShowPreferences: @escaping () -> Void,
         onClearShelf: @escaping () -> Void,
@@ -41,7 +47,10 @@ public final class MenuBarController: NSObject {
         clipboardCount: @escaping () -> Int,
         onUndoClearShelf: @escaping () -> Void = {},
         canUndoClearShelf: @escaping () -> Bool = { false },
-        onShowWelcome: @escaping () -> Void = {}
+        onShowWelcome: @escaping () -> Void = {},
+        onCheckForUpdates: @escaping () -> Void = {},
+        availableUpdate: @escaping () -> String? = { nil },
+        onUpdate: @escaping () -> Void = {}
     ) {
         self.onShowPreferences = onShowPreferences
         self.onClearShelf = onClearShelf
@@ -51,6 +60,9 @@ public final class MenuBarController: NSObject {
         self.onUndoClearShelf = onUndoClearShelf
         self.canUndoClearShelf = canUndoClearShelf
         self.onShowWelcome = onShowWelcome
+        self.onCheckForUpdates = onCheckForUpdates
+        self.availableUpdate = availableUpdate
+        self.onUpdate = onUpdate
     }
 
     public func install() {
@@ -59,7 +71,13 @@ public final class MenuBarController: NSObject {
             systemSymbolName: "rectangle.topthird.inset.filled",
             accessibilityDescription: "CreativeNotch"
         )
+        item.menu = makeMenu()
+        self.item = item
+    }
 
+    /// The menu, built apart from the status item so a test can read its
+    /// items without putting an icon in the real menu bar.
+    func makeMenu() -> NSMenu {
         let menu = NSMenu()
         menu.delegate = self
 
@@ -74,8 +92,26 @@ public final class MenuBarController: NSObject {
         )
         settings.target = self
         menu.addItem(settings)
-        menu.addItem(.separator())
         self.settingsItem = settings
+
+        // The updater (2026-10-24), beside Settings because both are about
+        // the app rather than the notch. The check is always offered; the
+        // update only once one is known, like Undo Clear Shelf — and read
+        // when the menu opens, never polled.
+        let check = NSMenuItem(
+            title: String(localized: "Check for Updates\u{2026}", bundle: .creativeNotch),
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        check.target = self
+        menu.addItem(check)
+
+        let update = NSMenuItem(title: "", action: #selector(showUpdate), keyEquivalent: "")
+        update.target = self
+        refreshUpdateItem(update)
+        menu.addItem(update)
+        self.updateItem = update
+        menu.addItem(.separator())
 
         let clear = NSMenuItem(
             title: clearShelfTitle(),
@@ -130,9 +166,25 @@ public final class MenuBarController: NSObject {
             keyEquivalent: "q"
         )
         menu.addItem(quit)
+        return menu
+    }
 
-        item.menu = menu
-        self.item = item
+    /// Titled for the version found, or hidden with none.
+    private func refreshUpdateItem(_ item: NSMenuItem) {
+        if let version = availableUpdate() {
+            item.title = String(localized: "Update to v\(version)\u{2026}", bundle: .creativeNotch)
+            item.isHidden = false
+        } else {
+            item.isHidden = true
+        }
+    }
+
+    @objc func checkForUpdates() {
+        onCheckForUpdates()
+    }
+
+    @objc func showUpdate() {
+        onUpdate()
     }
 
     /// Read when the menu opens, never polled.
@@ -185,5 +237,6 @@ extension MenuBarController: NSMenuDelegate {
         undoClearShelfItem?.isHidden = !showsUndoClearShelf
         clearClipboardItem?.title = clearClipboardTitle()
         clearClipboardItem?.isEnabled = clipboardCount() > 0
+        if let updateItem { refreshUpdateItem(updateItem) }
     }
 }

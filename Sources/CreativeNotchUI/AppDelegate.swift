@@ -314,6 +314,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
 
+    // MARK: - Updates
+
+    /// The in-app updater (2026-10-24). **Sandboxed until
+    /// `configureForRealLaunch()`**, like the shelf's folder: a fresh
+    /// delegate's asks nobody, and its bundle is a path in this delegate's
+    /// temporary folder that is in no install folder, so nothing a test does
+    /// can download, replace, relaunch or quit anything.
+    ///
+    /// Lazy so it is built from `preferencesDefaults` as it stands when
+    /// first used — after a suite has pointed that at its own suite.
+    private(set) lazy var updates = UpdateController(
+        environment: .sandboxed(in: updatesSandbox),
+        defaults: preferencesDefaults
+    )
+
+    /// Where the sandboxed updater's pretend bundle would be.
+    private let updatesSandbox: URL
+
     /// The login-item toggle.
     ///
     /// Lazy, and it reads nothing until the Settings window asks it to: a
@@ -518,6 +536,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// otherwise offer a Clear that does nothing.
     var menuClipboardCount: Int { clipboard?.store.clearableCount ?? 0 }
 
+    /// The version the menu's "Update to v…" names, or `nil` to hide it.
+    var menuAvailableUpdate: String? {
+        updates.status.release.map { $0.version?.description ?? $0.tag }
+    }
+
     /// A row's Pin or Unpin, whichever the entry is not. An id the poller
     /// has evicted since the menu was built is a no-op in the store; the
     /// limit is a disabled menu item before it is ever a refusal here.
@@ -717,6 +740,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfTrash = .folder(sandbox.appendingPathComponent("Trash", isDirectory: true))
         capturesDirectory = sandbox.appendingPathComponent("Captures", isDirectory: true)
         downloadsDirectory = sandbox.appendingPathComponent("Downloads", isDirectory: true)
+        updatesSandbox = sandbox.appendingPathComponent("Updates", isDirectory: true)
         super.init()
     }
 
@@ -775,6 +799,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let url = AppDelegate.filesAndFoldersSettings else { return }
             NSWorkspace.shared.open(url)
         }
+        // Building these fetches nothing: the first request is the launch
+        // check, after the subsystems start. The domain is set second, so
+        // the real record is read against the real version.
+        updates.environment = .system()
+        updates.defaults = .standard
     }
 
     /// The user's Downloads folder, resolved by `FileManager` rather than
@@ -812,7 +841,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             clipboardCount: { [weak self] in self?.menuClipboardCount ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
             canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false },
-            onShowWelcome: { [weak self] in self?.showWelcomeAgain() }
+            onShowWelcome: { [weak self] in self?.showWelcomeAgain() },
+            onCheckForUpdates: { [weak self] in self?.checkForUpdatesFromMenu() },
+            availableUpdate: { [weak self] in self?.menuAvailableUpdate },
+            onUpdate: { [weak self] in self?.showUpdatesInSettings() }
         )
         menuBar.install()
         self.menuBar = menuBar
@@ -824,6 +856,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         observeScreenChanges()
 
         startSubsystems()
+        checkForUpdatesAtLaunch()
     }
 
     /// The metrics of the screen "Show on" picks, or `nil` with no screen.
@@ -1002,6 +1035,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         switchboard.apply()
     }
 
+    /// The launch's update check, after the subsystems are up so a slow
+    /// reply never holds the notch back. Not in `startSubsystems()`: the
+    /// updater is not a subsystem, owns nothing that runs, and is not the
+    /// switchboard's to start or stop.
+    func checkForUpdatesAtLaunch() {
+        updates.check(.launch)
+    }
+
+    /// The menu's "Check for Updates…": now, past the toggle and the daily
+    /// throttle, with Settings opened on the Updates section — the one place
+    /// that says what the check found, failure included.
+    func checkForUpdatesFromMenu() {
+        updates.check(.manual)
+        showUpdatesInSettings()
+    }
+
+    /// The menu's "Update to v…": Settings, on the Updates section, where
+    /// "Update Now" and the release notes are. Not the install itself — an
+    /// update that quits the app deserves the one more click.
+    func showUpdatesInSettings() {
+        if let presentPreferences { presentPreferences(.updates) } else { showPreferences(highlighting: .updates) }
+    }
+
     public func applicationWillTerminate(_ notification: Notification) {
         fullScreenWatcher?.stop()
         fullScreenWatcher = nil
@@ -1010,6 +1066,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         removeScreenObservers()
         switchboard.stopAll()
         activity.stop()
+        updates.stop()
     }
 
     /// What the hotkey does: open the panel, or close it if it is already
@@ -1076,7 +1133,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             preferences = PreferencesController(
                 switchboard: switchboard,
                 state: state,
-                launchAtLogin: launchAtLogin
+                launchAtLogin: launchAtLogin,
+                updates: updates
             )
         }
         preferences?.show(highlighting: section)
@@ -1385,6 +1443,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // survive being split from what it explains.
         activity.onChange = { [weak self] state in
             self?.switchboard.setActivity(state)
+            // Coming back to the Mac — a wake, an unlock — is a moment the
+            // app is awake anyway, so it is when the updater looks, at most
+            // once a day (`UpdateCheckPolicy`). Here rather than on the
+            // switchboard: the updater is not a module and runs nothing a
+            // lock would need to stop.
+            if state == .active { self?.updates.check(.wake) }
         }
 
         // Publishes into `AppState` for the panel header and feeds the
