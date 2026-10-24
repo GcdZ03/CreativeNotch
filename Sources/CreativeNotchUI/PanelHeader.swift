@@ -16,6 +16,8 @@ struct PanelHeader: View {
     let power: PowerSnapshot?
     let onSelect: (CreativeNotchCore.Tab) -> Void
     let onSettings: () -> Void
+    /// The colour picker's dropper, or `nil` while the module is off.
+    var colorPicker: ColorPickerHeaderModel? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -27,6 +29,12 @@ struct PanelHeader: View {
             Color.clear.frame(width: layout.notchGap)
 
             HStack(spacing: 10) {
+                // First, nearest the housing: a verb like the gear, kept
+                // apart from it by the battery so neither is hit for the
+                // other.
+                if let colorPicker {
+                    ColorPickerButton(model: colorPicker)
+                }
                 if hasBattery, let power {
                     BatteryCell(level: power.level, isCharging: power.isCharging)
                 }

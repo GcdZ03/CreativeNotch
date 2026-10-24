@@ -66,6 +66,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.hotkey, for: .hotkey)
         setEnabled(preferences.camera, for: .camera)
         setEnabled(preferences.captureIndicator, for: .captureIndicator)
+        setEnabled(preferences.colorPicker, for: .colorPicker)
     }
 
     /// Stops everything, regardless of preference.
@@ -83,6 +84,9 @@ final class ModuleSwitchboard {
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
+        // A pick whose loupe is still up must not write the pasteboard on
+        // the way out.
+        delegate.colorPicker?.setEnabled(false)
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -278,6 +282,17 @@ final class ModuleSwitchboard {
             // from anywhere must keep working while the panel is closed, and
             // there is nothing running between presses to suspend.
             delegate.hotkey?.setEnabled(enabled)
+
+        case .colorPicker:
+            // Nothing runs at rest, so off has two jobs only: forget the
+            // history -- off means the app holds nothing, as the clipboard
+            // leg says -- and drop a pick whose loupe is still up, since
+            // `NSColorSampler` cannot be cancelled. The controller does both,
+            // and publishes the empty history, which takes the strip with
+            // it. The dropper goes because the header reads
+            // `state.preferences`. No activity axis: there is nothing to
+            // suspend between picks.
+            delegate.colorPicker?.setEnabled(enabled)
 
         case .shelf:
             // Nothing to stop: the shelf owns no timer, observer or process,

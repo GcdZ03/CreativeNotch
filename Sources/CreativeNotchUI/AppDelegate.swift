@@ -192,6 +192,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the tests can reach its lifecycle, like every other controller.
     private(set) var hotkey: HotKeyController?
 
+    /// The colour picker (2026-10-24). Internal rather than private so the
+    /// switchboard and the tests can reach it, like every other controller.
+    private(set) var colorPicker: ColorPickerController?
+
+    /// What shows the loupe. Sandboxed by default like `shelfTrash`: a bare
+    /// delegate finishes every pick at once with nothing, and only
+    /// `configureForRealLaunch()` hands it the system's `NSColorSampler`.
+    /// Set it before `install(metrics:)`, which builds the controller.
+    var colorSampler: ColorSampling = InertColorSampler()
+
+    /// Where a picked colour is written. A uniquely named pasteboard of this
+    /// delegate's own until `configureForRealLaunch()` points it at the
+    /// general one, so no test overwrites what the developer last copied.
+    /// Lazy, because a test run builds hundreds of delegates and only a few
+    /// ever copy a colour.
+    lazy var colorPasteboard: NSPasteboard = NSPasteboard(
+        name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
+    )
+
     /// The settings window's controller, built on first use by
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
@@ -415,6 +434,73 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // MARK: - Colour picker
+
+    /// The header's dropper (2026-10-24): close the panel, show the loupe,
+    /// and bring the panel back on the tab it was on.
+    ///
+    /// **Closed first** so the whole screen can be sampled, the band under
+    /// the open panel included -- and so the cursor leaving for the loupe
+    /// does not race the 400ms dismiss grace into closing it anyway.
+    ///
+    /// **Reopened as ambient** (`.unspecified`, which `PanelFocus` never makes
+    /// key): the person has just clicked in another app's window, and the
+    /// confirmation must not take their keystrokes. A cancelled pick reopens
+    /// too, so Esc puts things back as they were. A pick dropped by switching
+    /// the module off mid-loupe reopens nothing (`ColorPickerController`).
+    func pickColor() {
+        guard state.preferences.colorPicker, let colorPicker else { return }
+        let returnTab: CreativeNotchCore.Tab? = {
+            if case .open(let tab) = state.state { return tab }
+            return nil
+        }()
+        let started = colorPicker.pick { [weak self] color in
+            guard let self else { return }
+            if let returnTab, !self.isHiddenForFullScreen {
+                let visible = TabVisibility.visible(enabled: self.state.preferences, hasBattery: self.state.hasBattery)
+                if visible.contains(returnTab) {
+                    self.state.transition(to: .open(returnTab))
+                } else {
+                    self.openPanel(openedBy: .unspecified)
+                }
+            }
+            guard let color else { return }
+            self.showPickedColor(color)
+        }
+        // After asking: an inert or instant sampler finishes inside `pick`,
+        // and closing then would undo the reopen it just made.
+        if started, colorPicker.isSampling { state.transition(to: .closed) }
+    }
+
+    /// A swatch's click: the same copy a pick ends with, shown the same way.
+    func copyColor(_ color: SampledColor) {
+        guard state.preferences.colorPicker, let colorPicker else { return }
+        colorPicker.copy(color)
+        showPickedColor(color)
+    }
+
+    /// Puts the strip up -- only on an open panel, since leaving `.open`
+    /// clears it -- and says what was copied, for someone who cannot see it.
+    private func showPickedColor(_ color: SampledColor) {
+        if case .open = state.state { state.pickedColor = color }
+        announce("Copied \(ColorName.spoken(color, as: state.colorFormat))")
+    }
+
+    /// "Copy as" in Settings: saved, then applied to the next copy and the
+    /// strip's text. What is already on the pasteboard is left alone.
+    func setColorFormat(_ format: ColorFormat) {
+        preferencesStore.setColorFormat(format)
+        colorPicker?.format = format
+        state.colorFormat = format
+    }
+
+    /// The strip belongs to the opening it was shown in: a tab switch keeps
+    /// it, anything that leaves `.open` takes it away. No timer.
+    func syncColorStrip(for next: NotchState) {
+        if case .open = next { return }
+        state.pickedColor = nil
+    }
+
     // MARK: - Dismissal
 
     /// How long an open panel survives the cursor leaving it.
@@ -528,6 +614,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        colorSampler = SystemColorSampler()
+        colorPasteboard = .general
     }
 
     // MARK: - Lifecycle
@@ -949,6 +1037,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onPreviewLimits = { [weak self] limits in
             self?.previewLimits(limits) ?? ShelfLimitRemoval(items: [])
         }
+        // The colour picker (2026-10-24). Built here, like the clipboard
+        // ring, and it starts nothing: the sampler exists only while a pick
+        // is in progress. The format is loaded, not cached, like the text
+        // size.
+        let colorPicker = ColorPickerController(sampler: colorSampler, pasteboard: colorPasteboard)
+        colorPicker.format = preferencesStore.colorFormat
+        colorPicker.onChange = { [weak self] history in
+            self?.state.recentColors = history.colors
+            // A colour the history no longer holds -- all of them, when the
+            // module is switched off -- is not one the strip may still show.
+            if let picked = self?.state.pickedColor, !history.colors.contains(picked) {
+                self?.state.pickedColor = nil
+            }
+        }
+        self.colorPicker = colorPicker
+        state.colorFormat = colorPicker.format
+        state.onPickColor = { [weak self] in self?.pickColor() }
+        state.onCopyColor = { [weak self] color in self?.copyColor(color) }
+        state.onSetColorFormat = { [weak self] format in self?.setColorFormat(format) }
+
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
@@ -1140,6 +1248,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
                 self.syncShelfNotice(for: newState)
+                self.syncColorStrip(for: newState)
                 self.tapIfOpening(newState)
             }
         }
