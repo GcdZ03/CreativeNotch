@@ -59,6 +59,15 @@ public final class PreferencesStore {
         defaults.set(size.rawValue, forKey: PreferenceKeys.textSize)
     }
 
+    /// How a picked colour is copied. Read on every call, never cached.
+    public var colorFormat: ColorFormat {
+        PreferenceKeys.resolveColorFormat(defaults.object(forKey: PreferenceKeys.colorFormat))
+    }
+
+    public func setColorFormat(_ format: ColorFormat) {
+        defaults.set(format.rawValue, forKey: PreferenceKeys.colorFormat)
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {

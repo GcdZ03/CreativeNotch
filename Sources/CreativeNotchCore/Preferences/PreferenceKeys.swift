@@ -59,6 +59,20 @@ public enum PreferenceKeys {
     // through the resolvers on `Limits`. Subsystem-first, like the module
     // toggles, so `defaults read` groups each with its module.
 
+    /// How a picked colour is copied (2026-10-24), as a `ColorFormat` raw
+    /// value. Absent means hex. Module-first, like the limits.
+    public static let colorFormat = "color-picker.format"
+
+    /// What a raw "Copy as" value means, by the policy `resolveDisplayChoice`
+    /// follows: anything that names no format reads as hex and is left in
+    /// place.
+    public static func resolveColorFormat(_ raw: Any?) -> ColorFormat {
+        guard let string = raw as? String, let format = ColorFormat(rawValue: string) else {
+            return .default
+        }
+        return format
+    }
+
     /// One of `Limits.shelfCapacityChoices`, as an integer.
     public static let shelfCapacity = "shelf.capacity"
     /// Days as an integer, `0` for never: `ShelfExpiry`'s raw value.
