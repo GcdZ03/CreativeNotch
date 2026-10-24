@@ -37,11 +37,11 @@ struct ShelfStoreTests {
         let external = try makeExternalFile(named: "Clip.mov")
         try store.addReference(to: external, now: Date())
 
-        for index in 0..<ShelfStore.capacity {
+        for index in 0..<ShelfStore.defaultCapacity {
             _ = try store.add(.text("drop \(index)"), now: Date())
         }
 
-        #expect(store.items.count == ShelfStore.capacity)
+        #expect(store.items.count == ShelfStore.defaultCapacity)
         #expect(FileManager.default.fileExists(atPath: external.path),
                 "the shelf trashed a file it does not own")
     }
@@ -229,9 +229,9 @@ struct ShelfStoreTests {
     @Test func purgingRemovesItemsOlderThanSevenDays() throws {
         let (store, _) = try makeStore()
         let old = try store.add(.text("ancient"), now: t0)
-        let fresh = try store.add(.text("recent"), now: t0.addingTimeInterval(ShelfStore.maxAge))
+        let fresh = try store.add(.text("recent"), now: t0.addingTimeInterval(ShelfStore.defaultMaxAge))
 
-        let removed = try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge + 1))
+        let removed = try store.purge(now: t0.addingTimeInterval(ShelfStore.defaultMaxAge + 1))
 
         #expect(removed.count == 1)
         #expect(removed.first?.id == old.id)
@@ -245,10 +245,10 @@ struct ShelfStoreTests {
         let (store, _) = try makeStore()
         try store.add(.text("borderline"), now: t0)
 
-        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge)).isEmpty)
+        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.defaultMaxAge)).isEmpty)
         #expect(store.items.count == 1)
 
-        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.maxAge + 1)).count == 1)
+        #expect(try store.purge(now: t0.addingTimeInterval(ShelfStore.defaultMaxAge + 1)).count == 1)
         #expect(store.items.isEmpty)
     }
 
@@ -381,7 +381,7 @@ struct ShelfStoreTests {
         }
 
         #expect(throws: (any Error).self) {
-            try store.purge(now: self.t0.addingTimeInterval(ShelfStore.maxAge + 1))
+            try store.purge(now: self.t0.addingTimeInterval(ShelfStore.defaultMaxAge + 1))
         }
         #expect(store.items.count == 2,
                 "expired items were dropped though their files are still on disk")
@@ -395,7 +395,7 @@ struct ShelfStoreTests {
     @Test func anEvictionThatCannotTrashKeepsTheOldest() throws {
         let (store, dir) = try makeStore()
         var oldest: ShelfItem?
-        for i in 0..<ShelfStore.capacity {
+        for i in 0..<ShelfStore.defaultCapacity {
             let item = try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i)))
             if i == 0 { oldest = item }
         }
@@ -410,7 +410,7 @@ struct ShelfStoreTests {
 
         let reference = try store.addReference(to: external, now: self.t0.addingTimeInterval(100))
         #expect(store.items.first?.id == reference.id)
-        #expect(store.items.count == ShelfStore.capacity + 1)
+        #expect(store.items.count == ShelfStore.defaultCapacity + 1)
         #expect(store.items.contains { $0.id == oldest?.id },
                 "the oldest item was dropped though its file is still on disk")
         #expect(FileManager.default.fileExists(atPath: oldest!.url.path))
@@ -437,7 +437,7 @@ struct ShelfStoreTests {
     @Test func aStuckOldestItemDoesNotFailLaterAddsOrStallEviction() throws {
         let (store, _) = try makeStore()
         var added: [ShelfItem] = []
-        for i in 0..<ShelfStore.capacity {
+        for i in 0..<ShelfStore.defaultCapacity {
             added.append(try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i))))
         }
         let stuck = added[0]
@@ -449,7 +449,7 @@ struct ShelfStoreTests {
             #expect(store.items.first?.id == item.id)
         }
 
-        #expect(store.items.count == ShelfStore.capacity,
+        #expect(store.items.count == ShelfStore.defaultCapacity,
                 "eviction stalled on the stuck file and the shelf kept growing")
         #expect(store.items.contains { $0.id == stuck.id },
                 "the stuck item was dropped though its file is still on disk")
@@ -459,7 +459,7 @@ struct ShelfStoreTests {
             #expect(!store.items.contains { $0.id == gone.id }, "\(gone.displayName) was not evicted")
         }
         let onDisk = try FileManager.default.contentsOfDirectory(atPath: stuck.url.deletingLastPathComponent().path)
-        #expect(onDisk.count == ShelfStore.capacity, "the evicted files were not trashed")
+        #expect(onDisk.count == ShelfStore.defaultCapacity, "the evicted files were not trashed")
     }
 
     /// The same for a capture added as a reference: the camera logs a lost
@@ -467,7 +467,7 @@ struct ShelfStoreTests {
     @Test func aStuckOldestItemDoesNotFailALaterReference() throws {
         let (store, _) = try makeStore()
         var added: [ShelfItem] = []
-        for i in 0..<ShelfStore.capacity {
+        for i in 0..<ShelfStore.defaultCapacity {
             added.append(try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i))))
         }
         try lock(added[0].url)
@@ -489,7 +489,7 @@ struct ShelfStoreTests {
         try lock(old.url)
         defer { unlock(old.url) }
 
-        let later = t0.addingTimeInterval(ShelfStore.maxAge + 60)
+        let later = t0.addingTimeInterval(ShelfStore.defaultMaxAge + 60)
         try store.add(.text("new"), now: later)
         try store.add(.text("newer"), now: later.addingTimeInterval(1))
 
@@ -630,7 +630,119 @@ struct ShelfStoreTests {
     }
 
     @Test func theCapAndAgeAreWhatTheSpecSays() {
-        #expect(ShelfStore.capacity == 20)
-        #expect(ShelfStore.maxAge == 7 * 24 * 3600)
+        #expect(ShelfStore.defaultCapacity == 20)
+        #expect(ShelfStore.defaultMaxAge == 7 * 24 * 3600)
+    }
+
+    /// The defaults are the Settings defaults, so the shelf a test builds
+    /// with no arguments is the shelf a fresh install gets.
+    @Test func theDefaultsMatchTheSettingsDefaults() throws {
+        let (store, _) = try makeStore()
+        #expect(store.capacity == Limits.defaultShelfCapacity)
+        #expect(store.maxAge == Limits.defaultShelfExpiry.maxAge)
+    }
+
+    // MARK: - Changing the limits (2026-10-24)
+
+    private func fill(_ store: ShelfStore, count: Int) throws -> [ShelfItem] {
+        try (0..<count).map { i in
+            try store.add(.text("item \(i)"), now: t0.addingTimeInterval(Double(i)))
+        }
+    }
+
+    /// Lowering the capacity applies straight away, oldest first, and by the
+    /// Trash -- the same eviction an add runs, not a second rule.
+    @Test func loweringTheCapacityTrashesTheOldest() throws {
+        let (store, dir) = try makeStore()
+        let added = try fill(store, count: 20)
+
+        store.setLimits(capacity: 10, maxAge: ShelfStore.defaultMaxAge, now: t0.addingTimeInterval(30))
+
+        #expect(store.capacity == 10)
+        #expect(store.items.map(\.id) == added.suffix(10).reversed().map(\.id))
+        let onDisk = try FileManager.default.contentsOfDirectory(atPath: dir.path)
+        #expect(onDisk.count == 10, "the evicted files were not trashed")
+    }
+
+    /// And later adds evict at the new capacity.
+    @Test func addsAfterLoweringEvictAtTheNewCapacity() throws {
+        let (store, _) = try makeStore()
+        store.setLimits(capacity: 10, maxAge: ShelfStore.defaultMaxAge, now: t0)
+        _ = try fill(store, count: 15)
+        #expect(store.items.count == 10)
+    }
+
+    /// Raising it forgets nothing, and makes room.
+    @Test func raisingTheCapacityKeepsEverything() throws {
+        let (store, _) = try makeStore()
+        _ = try fill(store, count: 20)
+        store.setLimits(capacity: 50, maxAge: ShelfStore.defaultMaxAge, now: t0.addingTimeInterval(30))
+        _ = try store.add(.text("more"), now: t0.addingTimeInterval(31))
+        #expect(store.items.count == 21)
+    }
+
+    /// Trash-before-drop holds on a limit change too: a file that will not go
+    /// stays listed, and the next oldest goes in its place.
+    @Test func loweringTheCapacityPastAStuckFileKeepsItListed() throws {
+        let (store, _) = try makeStore()
+        let added = try fill(store, count: 20)
+        try lock(added[0].url)
+        defer { unlock(added[0].url) }
+
+        store.setLimits(capacity: 10, maxAge: ShelfStore.defaultMaxAge, now: t0.addingTimeInterval(30))
+
+        #expect(store.items.count == 10)
+        #expect(store.items.contains { $0.id == added[0].id })
+        #expect(FileManager.default.fileExists(atPath: added[0].url.path))
+        #expect(!store.items.contains { $0.id == added[10].id })
+    }
+
+    /// A capacity below one would evict the item an add just made.
+    @Test func theCapacityIsAtLeastOne() throws {
+        let (store, _) = try makeStore()
+        store.setLimits(capacity: 0, maxAge: nil, now: t0)
+        let item = try store.add(.text("kept"), now: t0)
+        #expect(store.items.map(\.id) == [item.id])
+    }
+
+    /// Shortening the expiry purges straight away, rather than waiting for
+    /// the next add or the next launch to notice.
+    @Test func shorteningTheExpiryPurgesAtOnce() throws {
+        let (store, _) = try makeStore()
+        let old = try store.add(.text("old"), now: t0)
+        let fresh = try store.add(.text("fresh"), now: t0.addingTimeInterval(2 * 24 * 3600))
+
+        store.setLimits(
+            capacity: ShelfStore.defaultCapacity,
+            maxAge: ShelfExpiry.oneDay.maxAge,
+            now: t0.addingTimeInterval(2 * 24 * 3600 + 60)
+        )
+
+        #expect(store.items.map(\.id) == [fresh.id])
+        #expect(!FileManager.default.fileExists(atPath: old.url.path))
+    }
+
+    /// Never means never: neither the launch purge nor the upkeep after an
+    /// add expires anything, however old.
+    @Test func neverDisablesThePurge() throws {
+        let (store, _) = try makeStore()
+        store.setLimits(capacity: ShelfStore.defaultCapacity, maxAge: nil, now: t0)
+        let old = try store.add(.text("old"), now: t0)
+        let decadeLater = t0.addingTimeInterval(10 * 365 * 24 * 3600)
+
+        _ = try store.add(.text("new"), now: decadeLater)
+        #expect(try store.purge(now: decadeLater).isEmpty)
+        #expect(store.items.contains { $0.id == old.id })
+        #expect(FileManager.default.fileExists(atPath: old.url.path))
+    }
+
+    /// The limits can be given at construction, which is how the app applies
+    /// the saved ones before the launch purge.
+    @Test func theLimitsCanBeSetAtConstruction() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        let store = try ShelfStore(directory: dir, capacity: 10, maxAge: nil)
+        #expect(store.capacity == 10)
+        #expect(store.maxAge == nil)
     }
 }

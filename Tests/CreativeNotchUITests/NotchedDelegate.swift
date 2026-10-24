@@ -54,7 +54,7 @@ enum NotchedDelegate {
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchNotched-\(UUID().uuidString)")
-        delegate.playChime = {}
+        delegate.playChime = { _ in }
         delegate.performHaptic = {}
         // Far from any test panel, so the real pointer never decides a test.
         delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }

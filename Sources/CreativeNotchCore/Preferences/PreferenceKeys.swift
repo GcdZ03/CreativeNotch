@@ -41,6 +41,21 @@ public enum PreferenceKeys {
         return choice
     }
 
+    // The adjustable limits (2026-10-24), read by `PreferencesStore.loadLimits`
+    // through the resolvers on `Limits`. Subsystem-first, like the module
+    // toggles, so `defaults read` groups each with its module.
+
+    /// One of `Limits.shelfCapacityChoices`, as an integer.
+    public static let shelfCapacity = "shelf.capacity"
+    /// Days as an integer, `0` for never: `ShelfExpiry`'s raw value.
+    public static let shelfExpiryDays = "shelf.expiryDays"
+    /// One of `Limits.clipboardCapacityChoices`, as an integer.
+    public static let clipboardCapacity = "clipboard.capacity"
+    /// An array of three integers, in minutes.
+    public static let timerPresets = "timer.presets"
+    /// An `NSSound` name, or "None": `ChimeSound`'s raw value.
+    public static let timerChime = "timer.chime"
+
     /// What a raw defaults value means.
     ///
     /// This is the whole compatibility surface, which is why it is a pure

@@ -92,6 +92,16 @@ public final class AppState {
     @ObservationIgnored
     public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
 
+    /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
+    /// Applied by `onSetLimits`; the timer tab draws its presets from here.
+    public internal(set) var limits = Limits()
+
+    /// Saves and applies new limits in one call — to the stores as well as
+    /// here — for the reason `onSetHoverBehaviour` does both. Wired by
+    /// `AppDelegate`.
+    @ObservationIgnored
+    public var onSetLimits: ((Limits) -> Void)?
+
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
         case state(NotchState)
@@ -1093,7 +1103,7 @@ public struct NotchRootView: View {
                 ModulePane(
                     title: tab.title,
                     count: clipboard.entries.isEmpty
-                        ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
+                        ? nil : "\(clipboard.entries.count) of \(clipboard.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
                     ClipboardView(
@@ -1115,6 +1125,7 @@ public struct NotchRootView: View {
                 TimerTabView(
                     countdown: app.countdown,
                     now: now,
+                    presets: Self.timerPresets(app),
                     onStart: { app.onStartTimer?($0) },
                     onPause: { app.onPauseTimer?() },
                     onResume: { app.onResumeTimer?() },
@@ -1127,6 +1138,13 @@ public struct NotchRootView: View {
                 PowerView(snapshot: app.power)
             }
         }
+    }
+
+    /// The timer tab's presets: the ones chosen in Settings, read from
+    /// `AppState` so a change draws on the next frame. Static so a test can
+    /// check where the tab gets them without rendering it.
+    static func timerPresets(_ app: AppState) -> [Int] {
+        app.limits.timerPresets
     }
 
     /// The shelf's title-row verbs: "AirDrop All" then "Clear", or none

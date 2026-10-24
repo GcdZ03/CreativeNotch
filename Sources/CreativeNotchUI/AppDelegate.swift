@@ -62,7 +62,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// finish path would otherwise make the machine audibly chime, and the
     /// suite must stay silent. The default *is* the real chime, so
     /// production wiring is this line and nothing else.
-    var playChime: () -> Void = TimerChime.play
+    ///
+    /// Takes the sound to play (2026-10-24), so the same seam carries both
+    /// the finish alert and Settings' preview, and a test can see which
+    /// sound was asked for without hearing it.
+    var playChime: (ChimeSound) -> Void = TimerChime.play
 
     /// Speaks a peek to VoiceOver, behind an injection point like
     /// `playChime`, so a test can count what would be said.
@@ -223,6 +227,35 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// scheduled only by a clear, sleeps once, and is gone. `nil` whenever
     /// no undo is on offer, so nothing is scheduled while the shelf is idle.
     private(set) var shelfUndoTask: Task<Void, Never>?
+
+    /// Saves and applies new limits from Settings (2026-10-24) — the one path
+    /// `AppState.onSetLimits` takes, so nothing can be persisted without
+    /// being applied or applied without being persisted.
+    ///
+    /// Applied to the live stores, not left for a relaunch: a lowered shelf
+    /// capacity or expiry trashes what no longer fits straight away, by the
+    /// rules an add already follows, and a smaller clipboard forgets its
+    /// oldest entries. The timer's presets need nothing here — the tab draws
+    /// them from `AppState`.
+    ///
+    /// A newly chosen chime is played once, through the same `playChime`
+    /// seam the finish uses, so the menu can be auditioned without running a
+    /// timer to the end — and so no test hears it. "None" has nothing to
+    /// preview.
+    func applyLimits(_ limits: Limits) {
+        let previous = state.limits
+        preferencesStore.saveLimits(limits)
+        state.limits = limits
+        shelf?.setLimits(
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge,
+            now: Date(timeIntervalSince1970: now())
+        )
+        clipboard?.store.setCapacity(limits.clipboardCapacity)
+        if limits.chime != previous.chime, limits.chime != .none {
+            playChime(limits.chime)
+        }
+    }
 
     /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
     ///
@@ -671,7 +704,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onTrigger = { [weak self] in self?.toggleFromHotKey() }
         self.hotkey = hotkey
 
-        shelf = try? ShelfStore(directory: shelfDirectory)
+        // The limits chosen in Settings (2026-10-24), loaded before the
+        // stores are built so the launch purge runs against the chosen age:
+        // purging against the default would trash files a "30 days" shelf
+        // was promised to keep.
+        let limits = preferencesStore.loadLimits()
+        state.limits = limits
+
+        shelf = try? ShelfStore(
+            directory: shelfDirectory,
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge
+        )
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
 
@@ -680,7 +724,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // the shelf is. Starting the poller stays in
         // `applicationDidFinishLaunching` — building a panel must not
         // install a timer.
-        let clipboardStore = ClipboardStore()
+        let clipboardStore = ClipboardStore(capacity: limits.clipboardCapacity)
         let clipboard = ClipboardController(store: clipboardStore)
         state.clipboard = clipboardStore
         state.onCopyClipboard = { [weak clipboard] entry in clipboard?.copy(entry) }
@@ -711,6 +755,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSetDisplayChoice = { [weak self] choice in
             self?.setDisplayChoice(choice)
         }
+
+        state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
@@ -1023,7 +1069,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 now: self.now()
             )
         }
-        playChime()
+        playChime(state.limits.chime)
         // The existing peek path, not a second one: it already declines to
         // interrupt `.open` and `.receiving`, and it is what makes the
         // arbiter — rather than this caller — decide what is shown.

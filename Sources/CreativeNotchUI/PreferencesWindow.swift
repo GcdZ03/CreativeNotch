@@ -124,6 +124,15 @@ final class PreferencesController {
         state.onSetDisplayChoice?(choice)
     }
 
+    /// The adjustable limits (2026-10-24), through `AppState`'s verb like the
+    /// hover behaviour: saved and applied together, read back from what
+    /// applied.
+    var limits: Limits { state.limits }
+
+    func setLimits(_ limits: Limits) {
+        state.onSetLimits?(limits)
+    }
+
     /// The hotkey controller, for the recorder row. Reached through the
     /// switchboard's delegate rather than stored twice.
     var hotKeyController: HotKeyController? { switchboard.hotKeyController }
@@ -219,7 +228,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -265,12 +274,12 @@ struct PreferencesView: View {
             // Required, not decorative. The shelf owns no timer, observer or
             // process, so this toggle saves no power at all. Saying so beats
             // implying a saving that is not there.
-            detail: "Drag files onto the notch to stash them for a week. Off hides the tab; it does not save battery."
+            detail: "Drag files onto the notch to stash them. Off hides the tab; it does not save battery."
         ),
         PreferencesRow(
             module: .clipboard, section: .notch, symbolName: "doc.on.clipboard", tint: .purple,
             title: "Clipboard history",
-            detail: "The last 50 things you copied, in memory only."
+            detail: "The last things you copied, in memory only."
         ),
         PreferencesRow(
             module: .timer, section: .notch, symbolName: "timer", tint: .orange,
@@ -416,6 +425,11 @@ struct PreferencesView: View {
                 .padding(.leading, 36)
             }
 
+            if Self.hasLimits(row.module), controller.isEnabled(row.module) {
+                LimitsRows(module: row.module, controller: controller)
+                    .padding(.leading, 36)
+            }
+
             if let warning = Self.warning(for: row.module, controller: controller) {
                 Text(warning)
                     .font(.caption)
@@ -431,6 +445,16 @@ struct PreferencesView: View {
                     .fill(Color.accentColor.opacity(0.15))
                     .padding(-6)
             }
+        }
+    }
+
+    /// Which modules have limits to adjust, shown under their switch while
+    /// it is on — the shape the shortcut's recorder already has. Static so
+    /// a test can pin the list against `LimitsRows`.
+    static func hasLimits(_ module: ModuleID) -> Bool {
+        switch module {
+        case .shelf, .clipboard, .timer: return true
+        default: return false
         }
     }
 
@@ -616,5 +640,81 @@ struct DisplayRow: View {
                     )
             }
         }
+    }
+}
+
+/// The adjustable limits under the shelf, clipboard and timer switches
+/// (2026-10-24).
+///
+/// Holds no copy of its own, unlike `HoverRow`: every control reads
+/// `controller.limits` — `AppState`'s, which is observable — and writes the
+/// whole value back through `setLimits`, so what the row shows is always what
+/// applied, normalisation included. A preset typed as 500 reads back as 99.
+struct LimitsRows: View {
+    let module: ModuleID
+    let controller: PreferencesController
+
+    /// One field of `Limits`, both directions. Static and built from a key
+    /// path, like `LaunchAtLoginRow.binding`, so a test can drive the exact
+    /// binding a control is given without rendering it.
+    static func binding<Value>(
+        _ keyPath: WritableKeyPath<Limits, Value>,
+        on controller: PreferencesController
+    ) -> Binding<Value> {
+        Binding(
+            get: { controller.limits[keyPath: keyPath] },
+            set: { value in
+                var limits = controller.limits
+                limits[keyPath: keyPath] = value
+                controller.setLimits(limits)
+            }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            switch module {
+            case .shelf:
+                Picker("Holds", selection: Self.binding(\.shelfCapacity, on: controller)) {
+                    ForEach(Limits.shelfCapacityChoices, id: \.self) { Text("\($0) items").tag($0) }
+                }
+                Picker("Keeps files for", selection: Self.binding(\.shelfExpiry, on: controller)) {
+                    ForEach(ShelfExpiry.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+            case .clipboard:
+                Picker("Remembers", selection: Self.binding(\.clipboardCapacity, on: controller)) {
+                    ForEach(Limits.clipboardCapacityChoices, id: \.self) { Text("\($0) items").tag($0) }
+                }
+            case .timer:
+                presets
+                Picker("Chime", selection: Self.binding(\.chime, on: controller)) {
+                    ForEach(ChimeSound.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+            default:
+                EmptyView()
+            }
+        }
+        .pickerStyle(.menu)
+    }
+
+    /// Three number fields, one per preset button in the timer tab. Typed
+    /// rather than stepped: going from 25 to 90 by clicks is a chore, and
+    /// unlike the panel this window holds the keyboard. Out-of-range values
+    /// are clamped by `Limits` and read back clamped.
+    private var presets: some View {
+        HStack(spacing: 8) {
+            Text("Presets")
+            Spacer()
+            ForEach(0..<Limits.defaultTimerPresets.count, id: \.self) { index in
+                TextField("", value: Self.binding(\.timerPresets[index], on: controller), format: .number)
+                    .multilineTextAlignment(.trailing)
+                    .monospacedDigit()
+                    .frame(width: 44)
+                    .accessibilityLabel("Preset \(index + 1), in minutes")
+            }
+            Text("min")
+                .foregroundStyle(.secondary)
+        }
+        .help("\(Limits.presetRange.lowerBound)\u{2013}\(Limits.presetRange.upperBound) minutes each")
     }
 }

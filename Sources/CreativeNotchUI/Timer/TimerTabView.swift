@@ -28,14 +28,13 @@ import CreativeNotchCore
 struct TimerTabView: View {
     let countdown: Countdown?
     let now: Date
+    /// Three, in minutes, each already within `Limits.presetRange` — chosen
+    /// in Settings (2026-10-24), 5 / 10 / 25 until then.
+    var presets: [Int] = Limits.defaultTimerPresets
     var onStart: (TimeInterval) -> Void
     var onPause: () -> Void
     var onResume: () -> Void
     var onCancel: () -> Void
-
-    /// 5 / 10 / 25. The last is a pomodoro; the first two cover the
-    /// kitchen-timer cases without opening the custom field.
-    private static let presets: [Int] = [5, 10, 25]
 
     @State private var customMinutes: Int = 15
 
@@ -86,7 +85,9 @@ struct TimerTabView: View {
     private var idle: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
-                ForEach(Self.presets, id: \.self) { minutes in
+                // By position, not by value: two presets set to the same
+                // number are still two buttons.
+                ForEach(Array(presets.enumerated()), id: \.offset) { _, minutes in
                     Button("\(minutes) min") { onStart(TimeInterval(minutes) * 60) }
                         .buttonStyle(NotchButtonStyle(.quiet))
                 }
