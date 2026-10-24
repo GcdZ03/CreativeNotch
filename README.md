@@ -84,6 +84,8 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
+| ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -99,7 +101,7 @@ get a single centred pill instead; there is no housing to work around.
 Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images (25 or 100 if you prefer, in Settings), in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
-content is read. It backs off when nothing is happening and suspends
+content is read, and an optional list of apps whose copies it never records. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
 
 Media controls are the fourth: play/pause, next and previous, sent through
@@ -208,7 +210,7 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and one module asks later.**
+**Nothing is asked for at launch, and two things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history needs no permission, and the global shortcut
@@ -220,6 +222,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**Notifications, for the timer only.** The notch is hidden over full-screen
+apps, so a timer that finishes there posts a "Timer done" notification. macOS
+asks whether CreativeNotch may notify you the first time you *start* a timer —
+not at launch, and never if you switch off Settings → Timer → **Notify when
+hidden by a full-screen app** first. Say no and the timer chimes and VoiceOver
+announces it, exactly as before; Settings says notifications are off and links
+to System Settings → Notifications. Sounds are not requested: the app plays its
+own chime.
 
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
@@ -270,6 +281,7 @@ it back.
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
 | Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
+| Settings → Clipboard history → **Ignore copies from** → **Add App…** | Copies made in that app (or that declare it as their source) are never recorded; − beside an app takes it off the list. Empty until you add one |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -286,6 +298,7 @@ it back.
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
+| Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
