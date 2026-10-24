@@ -391,8 +391,9 @@ every `didChangeScreenParameters`; pinned to the built-in display it asks on
 everything but activation, falling back to the main screen when there is no
 built-in one (clamshell). Pinned to a specific display it is stored as
 `display:<UUID>:<name>` — the UUID because display ids are not stable across
-reconnections, the name only so Settings can label it while unplugged — and
-it falls back to the built-in, then main, then first screen while that
+reconnections, the name only so Settings can label it while unplugged, and
+refreshed (`DisplayChoice.refreshingName`) whenever the list is read with that
+display connected under a new name — and it falls back to the built-in, then main, then first screen while that
 display is absent. Nothing remembers the fallback: plugging the display back
 in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
@@ -606,11 +607,16 @@ counts a file that does not exist yet.
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
 and `restore(_:)` moves the files back out of the Trash with their original
 identity and drop time (a move keeps the creation date). Anything that cannot
-come back, because it was emptied from the Trash, is skipped and reported,
-and the rest still return. The record lives in `AppDelegate`, not the store,
-because how long the offer lasts is a UI decision; it is withdrawn by a
-one-shot `Task`, scheduled only by a clear, so nothing is pending while the
-shelf is idle.
+come back, because it was emptied from the Trash, is skipped and reported —
+under the shelf, through the same notice a failed copy uses, and to
+VoiceOver — and the rest still return. The record lives in `AppDelegate`, not
+the store, because how long the offer lasts is a UI decision; it is withdrawn
+by a one-shot `Task`, scheduled only by a clear, so nothing is pending while
+the shelf is idle. A second clear while the offer stands is merged into it
+(`ShelfClearance.merging`) and restarts the window, so one Undo brings back
+every batch. **Restoring never evicts.** The restored files are the oldest on
+the shelf, so the eviction an add runs would trash exactly what was asked
+back; the shelf may sit over its capacity until the next add enforces it.
 
 ### The drop region follows the drawn shape
 

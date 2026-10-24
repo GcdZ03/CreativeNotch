@@ -266,7 +266,7 @@ it back.
 | Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
-| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
+| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back. Clearing again inside those six seconds adds to the same Undo, which brings back everything cleared; restored files are kept even if the shelf goes over its limit until the next drop, and any that could not come back (emptied from the Trash meanwhile) are reported under the shelf as "Couldn't restore N items", also spoken by VoiceOver |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
 | Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
@@ -308,12 +308,14 @@ on in System Settings, springs become a short fade and the cover and bars stay
 still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
 drawn brighter (no secondary text below 70% white); the default look is
 unchanged. The battery shows a bolt while charging, and with **Differentiate
-Without Color** on, a "!" when low as well as the yellow.
+Without Color** on, a "!" when low as well as the yellow; VoiceOver says "low"
+or "charging" after the level.
 
 For bigger text, Settings → Display → **Text size** → **Large** or **Larger**
 draws the open panel's text 15% or 30% larger and grows the panel to fit it
-(up to 806×338 on a 14" MacBook Pro, never past the screen). It applies at
-once. macOS's own Text Size setting covers only Apple's apps, so this one is
+(up to 806×338 on a 14" MacBook Pro). On a screen too small for that, the text
+comes down to the largest size the screen holds rather than being cut off. It
+applies at once. macOS's own Text Size setting covers only Apple's apps, so this one is
 separate. The closed notch's badges and the glances that drop from it keep
 their size: they have to fit beside the camera housing and the menu bar.
 
@@ -339,7 +341,8 @@ place, Settings → Display → **Show on** → **Built-in display** pins it to 
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
 display instead. **Show on** also lists each connected external display by
 name: pick one and the notch stays there (as a pill, if that display has no
-notch). Unplug it and the notch waits on the built-in display — the menu shows
+notch). Rename a display and **Show on** picks up the new name the next time
+Settings or a display change reads the list. Unplug it and the notch waits on the built-in display — the menu shows
 the display as "(not connected)" so you can see it is still chosen — then
 returns as soon as you plug it back in. Connecting or disconnecting a display
 moves it at once.

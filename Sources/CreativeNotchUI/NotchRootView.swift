@@ -1153,8 +1153,10 @@ public struct NotchRootView: View {
                             onReveal: { app.onRevealShelfItem?($0) }
                         )
                         // A background copy that failed after its drop was
-                        // accepted. Under the tiles rather than in the title
-                        // row, which is for verbs; gone again on its own.
+                        // accepted, or an Undo that could not bring every
+                        // file back. Under the tiles rather than in the
+                        // title row, which is for verbs; gone again once
+                        // it has been on screen for a while.
                         if let notice = app.shelfNotice {
                             Text(notice)
                                 .notchFont(11, weight: .medium, design: .rounded)
