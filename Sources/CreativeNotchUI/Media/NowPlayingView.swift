@@ -99,14 +99,14 @@ struct NowPlayingPeekView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(track.title)
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(.ink(0.95))
                     .contentTransition(.opacity)
                 // Dropped rather than reserved, as in the panel, so a
                 // track with no artist sits level with the cover.
                 if !track.artist.isEmpty {
                     Text(track.artist)
                         .font(.system(size: 12, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.55))
+                        .foregroundStyle(.ink(0.55))
                         .contentTransition(.opacity)
                 }
             }
@@ -130,7 +130,7 @@ struct NowPlayingPeekView: View {
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: 34, height: 34)
-                .background(Circle().fill(.white.opacity(0.14)))
+                .background(Circle().fill(.hairline(0.14)))
                 .contentShape(Circle())
                 .contentTransition(.symbolEffect(.replace))
         }
@@ -153,10 +153,10 @@ struct NowPlayingPeekView: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 ZStack {
-                    Rectangle().fill(.white.opacity(0.08))
+                    Rectangle().fill(.hairline(0.08))
                     Image(systemName: "music.note")
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.ink(0.5))
                 }
             }
         }
@@ -167,7 +167,7 @@ struct NowPlayingPeekView: View {
         .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(.hairline(0.12), lineWidth: 1)
         }
         .nowPlayingCover(in: coverNamespace)
     }
@@ -201,7 +201,7 @@ struct NowPlayingView: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(snapshot.title)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(.ink(0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -211,7 +211,7 @@ struct NowPlayingView: View {
                 if !snapshot.artist.isEmpty {
                     Text(snapshot.artist)
                         .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
+                        .foregroundStyle(.ink(0.5))
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
@@ -236,14 +236,14 @@ struct NowPlayingView: View {
                     .resizable()
                     .aspectRatio(contentMode: .fill)
             } else {
-                Rectangle().fill(.white.opacity(0.10))
+                Rectangle().fill(.hairline(0.10))
             }
         }
         .frame(width: artworkSize, height: artworkSize)
         .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                .strokeBorder(.hairline(0.12), lineWidth: 1)
         }
     }
 }

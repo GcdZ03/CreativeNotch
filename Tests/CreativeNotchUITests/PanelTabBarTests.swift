@@ -117,8 +117,30 @@ struct PanelTabBarTests {
         #expect(Tab.shelf.title == "Shelf")
         #expect(Tab.clipboard.title == "Clipboard")
         #expect(Tab.timer.title == "Timer")
-        #expect(Tab.power.title == "Power")
+        #expect(Tab.power.title == "Battery")
         #expect(Tab.camera.title == "Camera")
+    }
+
+    /// One name for the tab and the pane it opens. The tab's tooltip and
+    /// VoiceOver label said "Power" over a pane titled "Battery"; README
+    /// and Settings say battery, so that is the name.
+    ///
+    /// Pinned by a source scan, as `theBodyRendersTheListItWasGiven` is:
+    /// a pane's title is unreachable from a test, so every pane must take
+    /// it from `tab.title` rather than spell its own.
+    @Test func everyPaneIsTitledAsItsTabIs() throws {
+        let source = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI/NotchRootView.swift")
+        let text = try String(contentsOf: source, encoding: .utf8)
+
+        for spelled in ["Shelf", "Clipboard", "Timer", "Battery", "Power", "Camera"] {
+            #expect(text.contains("title: \"\(spelled)\"") == false,
+                    "the \(spelled) pane spells its own title instead of using its tab's")
+        }
+        #expect(text.contains("title: tab.title"))
     }
 
     /// A machine with no battery must not be left promising a tab it

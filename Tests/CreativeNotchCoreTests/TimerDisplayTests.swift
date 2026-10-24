@@ -138,4 +138,14 @@ struct TimerDisplayTests {
         )
         #expect(produced.contains(TimerDisplay.widestText))
     }
+
+    // MARK: caption
+
+    /// Dimming alone was the paused signal in the panel, which is no signal
+    /// for anyone who cannot tell two greys apart. The word beside the
+    /// digits says it outright, for everyone.
+    @Test func theCaptionSaysWhenATimerIsPaused() {
+        #expect(TimerDisplay.caption(isPaused: false) == "left")
+        #expect(TimerDisplay.caption(isPaused: true) == "paused")
+    }
 }

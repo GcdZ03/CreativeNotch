@@ -46,13 +46,16 @@ struct NotchButtonStyle: ButtonStyle {
                 .onHover { hovering = $0 }
         }
 
-        private var fill: Color {
+        /// A quiet capsule is a hairline fill, so Increase Contrast lifts it
+        /// off the black; a prominent one is solid white already and is
+        /// left alone.
+        private var fill: AnyShapeStyle {
             switch emphasis {
             case .prominent:
-                return .white.opacity(configuration.isPressed ? 0.8 : 1)
+                return AnyShapeStyle(.white.opacity(configuration.isPressed ? 0.8 : 1))
             case .quiet:
                 let base = configuration.isPressed ? 0.22 : (hovering ? 0.16 : 0.10)
-                return .white.opacity(base)
+                return AnyShapeStyle(.hairline(base))
             }
         }
     }
@@ -70,10 +73,10 @@ struct NotchFieldStyle: TextFieldStyle {
             .padding(.vertical, 6)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.white.opacity(0.08))
+                    .fill(.hairline(0.08))
                     .overlay {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(.white.opacity(0.12), lineWidth: 1)
+                            .strokeBorder(.hairline(0.12), lineWidth: 1)
                     }
             }
     }
@@ -86,11 +89,11 @@ struct NotchIconButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(.white.opacity(selected ? 0.95 : 0.55))
+            .foregroundStyle(.ink(selected ? 0.95 : 0.55))
             .frame(width: 34, height: 24)
             .background {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(.white.opacity(selected ? 0.14 : (configuration.isPressed ? 0.10 : 0)))
+                    .fill(.hairline(selected ? 0.14 : (configuration.isPressed ? 0.10 : 0)))
             }
             .contentShape(.rect)
     }

@@ -2,11 +2,17 @@ import SwiftUI
 import CreativeNotchCore
 
 public extension CreativeNotchCore.Tab {
+    /// The tab's name: its tooltip, its VoiceOver label, and its pane's
+    /// title row, which takes it from here rather than spelling its own.
+    ///
+    /// `.power` is "Battery" because that is what README and Settings call
+    /// it. It was "Power" here over a pane titled "Battery", so the same
+    /// tab had two names depending on whether you hovered it or opened it.
     var title: String {
         switch self {
         case .shelf:     return "Shelf"
         case .clipboard: return "Clipboard"
-        case .power:     return "Power"
+        case .power:     return "Battery"
         case .timer:     return "Timer"
         case .camera:    return "Camera"
         }

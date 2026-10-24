@@ -53,6 +53,21 @@ struct TimerTabView: View {
         TimerProgress.fraction(countdown, at: now)
     }
 
+    /// The digits dim while paused. Unchanged from when dimming was the
+    /// whole signal.
+    static func digitsOpacity(isPaused: Bool) -> Double {
+        isPaused ? 0.45 : 0.95
+    }
+
+    /// The caption is quieter than the digits while running (the 0.55 of
+    /// the digits' white it always had, so the running look is unchanged)
+    /// and *louder* than them while paused. It used to inherit the digits'
+    /// dimming, which would have drawn "paused" at a quarter white — the
+    /// one word that says what dimming cannot, made the hardest to read.
+    static func captionOpacity(isPaused: Bool) -> Double {
+        isPaused ? 0.75 : digitsOpacity(isPaused: false) * 0.55
+    }
+
     private var idle: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
@@ -127,20 +142,22 @@ struct TimerTabView: View {
                     .font(.system(size: 44, weight: .medium, design: .rounded))
                     .monospacedDigit()
                     .rollingDigits(remaining, countsDown: true)
-                Text("left")
+                    // Dimming says paused at a glance, as it does in the ear.
+                    .foregroundStyle(.ink(Self.digitsOpacity(isPaused: countdown.isPaused)))
+                // The word says it outright, for anyone two greys do not
+                // separate — see `TimerDisplay.caption`.
+                Text(TimerDisplay.caption(isPaused: countdown.isPaused))
                     .font(.system(size: 16, weight: .medium, design: .rounded))
-                    .opacity(0.55)
+                    .foregroundStyle(.ink(Self.captionOpacity(isPaused: countdown.isPaused)))
             }
-            // Dimming is the paused signal, as it is in the ear.
-            .foregroundStyle(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
 
             // Redraws exactly when the digits do: same `now`, no clock of
             // its own.
             GeometryReader { geometry in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.14))
+                    Capsule().fill(.hairline(0.14))
                     Capsule()
-                        .fill(.white.opacity(countdown.isPaused ? 0.45 : 0.95))
+                        .fill(.ink(countdown.isPaused ? 0.45 : 0.95))
                         .frame(width: geometry.size.width * Self.trackFraction(countdown, at: now))
                 }
             }

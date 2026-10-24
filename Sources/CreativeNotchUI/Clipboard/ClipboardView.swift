@@ -85,7 +85,7 @@ struct ClipboardView: View {
                 Text("Nothing copied yet")
                     .font(.system(size: 12, weight: .medium, design: .rounded))
             }
-            .foregroundStyle(.white.opacity(0.5))
+            .foregroundStyle(.ink(0.5))
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             ScrollView(.vertical, showsIndicators: false) {
@@ -136,7 +136,7 @@ private struct ClipboardRow: View {
                     .font(kind == .code
                           ? .system(size: 11, design: .monospaced)
                           : .system(size: 12, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.88))
+                    .foregroundStyle(.ink(0.88))
                     .lineLimit(1)
                     .truncationMode(.tail)
 
@@ -147,7 +147,7 @@ private struct ClipboardRow: View {
                 Text(ClipboardRowModel.trailingText(time: time, hovering: hovering, copied: copied))
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .monospacedDigit()
-                    .foregroundStyle(.white.opacity(copied || hovering ? 0.7 : 0.4))
+                    .foregroundStyle(.ink(copied || hovering ? 0.7 : 0.4))
                     .contentTransition(reduceMotion ? .opacity : .interpolate)
             }
             .padding(.horizontal, 8)
@@ -155,7 +155,7 @@ private struct ClipboardRow: View {
             .contentShape(.rect)
             .background {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.white.opacity(hovering ? 0.08 : 0))
+                    .fill(.hairline(hovering ? 0.08 : 0))
             }
         }
         .buttonStyle(.plain)
@@ -207,10 +207,10 @@ private struct ClipboardRow: View {
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(.white.opacity(0.08))
+                        .fill(.hairline(0.08))
                     Image(systemName: kind.symbolName)
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.7))
+                        .foregroundStyle(.ink(0.7))
                 }
             }
         }
