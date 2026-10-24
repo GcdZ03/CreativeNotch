@@ -181,7 +181,9 @@ public enum NotchGeometry {
     /// the panel and its contents in proportion: the largest text that fits
     /// rather than larger text that does not.
     ///
-    /// Searched on a grid of thousandths, so the answer is a fixed point:
+    /// Searched on a grid of thousandths, starting half a point above the
+    /// size (the slack `NotchType.length`'s rounding can take off a built
+    /// frame), so the answer is a fixed point:
     /// asked again of the frame `panelFrame` built from it, it gives the
     /// same scale back. That lets a view read the scale from the panel's
     /// frame (`AppState.textScale`) and agree with the frame exactly,
@@ -193,7 +195,16 @@ public enum NotchGeometry {
         }
         guard requested.isFinite, requested > 1 else { return 1 }
         if fits(requested) { return requested }
-        let bound = min(requested, size.width / expandedSize.width, size.height / expandedSize.height)
+        // Half a point of slack: `NotchType.length` rounds, so a frame
+        // built at scale k can be up to half a point under k * expandedSize.
+        // Without the slack a search over that frame would start below k
+        // and read back a smaller scale; `fits` still rejects any start
+        // that does not actually fit.
+        let bound = min(
+            requested,
+            (size.width + 0.5) / expandedSize.width,
+            (size.height + 0.5) / expandedSize.height
+        )
         guard bound.isFinite, bound > 1 else { return 1 }
         var thousandths = Int((bound * 1000).rounded(.down))
         while thousandths > 1000, !fits(CGFloat(thousandths) / 1000) {

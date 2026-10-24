@@ -205,15 +205,31 @@ struct TextSizeTests {
     /// The panel's frame and the scale the views draw at agree: reading the
     /// scale back from the frame gives the fitted scale, so the fonts are
     /// never larger than the frame was sized for.
+    ///
+    /// Swept over many small screens at both enlarged sizes, since
+    /// `NotchType.length` rounds and only some sizes round the frame down
+    /// below the fitted scale (621 x 261 at Large was one).
     @Test func theFrameAndTheDrawnScaleAgree() {
-        let small = ScreenMetrics(
-            frame: CGRect(x: 0, y: 0, width: 720, height: 310),
-            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
-        )
-        let frame = NotchGeometry.panelFrame(for: NotchGeometry.anchor(for: small), in: small, textScale: 1.3)
-        let fromScreen = NotchGeometry.fittedTextScale(1.3, within: small.frame.size)
-        let fromFrame = NotchGeometry.fittedTextScale(1.3, within: frame.size)
-        #expect(fromFrame == fromScreen)
+        var mismatches: [String] = []
+        for requested in [CGFloat(1.15), 1.3] {
+            for width in stride(from: 621, through: 900, by: 1) {
+                for height in stride(from: 261, through: 400, by: 1) {
+                    let small = ScreenMetrics(
+                        frame: CGRect(x: 0, y: 0, width: width, height: height),
+                        safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+                    )
+                    let frame = NotchGeometry.panelFrame(
+                        for: NotchGeometry.anchor(for: small), in: small, textScale: requested
+                    )
+                    let fromScreen = NotchGeometry.fittedTextScale(requested, within: small.frame.size)
+                    let fromFrame = NotchGeometry.fittedTextScale(requested, within: frame.size)
+                    if fromFrame != fromScreen {
+                        mismatches.append("\(width)x\(height)@\(requested): \(fromScreen) vs \(fromFrame)")
+                    }
+                }
+            }
+        }
+        #expect(mismatches.count == 0, "\(mismatches.count) mismatches, e.g. \(mismatches.prefix(5))")
 
         let roomy = NotchGeometry.panelFrame(for: NotchGeometry.anchor(for: notched), in: notched, textScale: 1.3)
         #expect(NotchGeometry.fittedTextScale(1.3, within: roomy.size) == 1.3)
