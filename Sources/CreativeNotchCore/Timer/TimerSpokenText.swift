@@ -26,8 +26,9 @@ public enum TimerSpokenText {
         return "\(count) \(unit)\(count == 1 ? "" : "s")"
     }
 
-    /// The ear badge: the time, and whether it is paused, since dimming is
-    /// the only sign of that on screen.
+    /// The ear badge: the time, and whether it is paused -- on screen that
+    /// is a dimmed badge with a pause glyph, neither of which VoiceOver
+    /// can see.
     public static func remaining(_ remaining: TimeInterval, isPaused: Bool) -> String {
         let left = "\(duration(remaining)) remaining"
         return isPaused ? "Timer paused, \(left)" : left
@@ -50,6 +51,13 @@ public enum TimerSpokenText {
     ///
     /// Lateness uses `TimerCompletionText`'s floor and units, so the
     /// written and spoken peek never disagree about whether it was late.
+    /// One countdown among several, by the duration it was set to:
+    /// "25-minute timer". The completion peek names a timer the same way.
+    public static func name(duration: TimeInterval) -> String {
+        let (count, unit) = parts(duration)
+        return "\(count)-\(unit) timer"
+    }
+
     public static func completion(_ completion: TimerCompletion) -> String {
         let (count, unit) = parts(completion.duration)
         let finished = "\(count)-\(unit) timer finished"

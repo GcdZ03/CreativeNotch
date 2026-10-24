@@ -21,7 +21,7 @@ Rendered from `main` with the project's own offscreen renderer:
   buttons and a white field on a black notch. It is the only place the app
   stops looking like itself, and `NotchPanel.swift:43` already records one bug
   that came from stock controls resolving colours against a black ground.
-- The power tab puts a 30pt number top-left and the word "Off" pinned to the
+- The Battery tab puts a 30pt number top-left and the word "Off" pinned to the
   far right, with nothing in between.
 - A drag in flight turns the whole 620×260 black with one 13pt "Drop here".
 - The shelf offers no way to remove one item, and neither pane says how many

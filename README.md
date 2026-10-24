@@ -70,9 +70,11 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
 | ✅ Clipboard history | Done |
+| ✅ **Clipboard search and pins** — filter the history as you type; pin up to ten entries to the top | Done |
 | ✅ **Media metadata** — now-playing title, artist, artwork, playback position, and an ambient badge | Done |
 | ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
+| ✅ **Stopwatch and multiple timers** — up to three countdowns at once, and a stopwatch with laps, in the timer tab | Done |
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 | ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
@@ -82,8 +84,11 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Music and battery peeks** — a mini player and a status row that drop below the notch | Done |
 | ✅ **Trackpad swipes** — down to open, following the fingers; up to close; sideways to skip | Done |
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
+| ✅ **Shelf Quick Look and Open** — Space previews a tile, a double-click opens it | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
+| ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
@@ -100,8 +105,18 @@ get a single centred pill instead; there is no housing to work around.
 Clipboard history is the second, and the only one that genuinely polls. Fifty
 entries of text and images (25 or 100 if you prefer, in Settings), in memory only and gone on quit, with the
 pasteboard types password managers use to opt out honoured before any
-content is read. It backs off when nothing is happening and suspends
+content is read, and an optional list of apps whose copies it never records. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
+
+A search field at the top of the pane filters the history as you type,
+ignoring case and accents ("cafe" finds "Café"), and up to ten entries can
+be pinned to the top, where they stay through the history's size limit and
+through Clear. Pins are kept in memory like everything else, so they are gone
+on quit too.
+
+<p align="center">
+  <img src="docs/assets/features/clipboard-search-pin-pinned.png" width="620" alt="The clipboard tab: a search field under the title row, two pinned entries with pin glyphs at the top of the list, then the latest copies">
+</p>
 
 Media controls are the fourth: play/pause, next and previous, sent through
 the private MediaRemote framework to whatever application holds the media
@@ -221,12 +236,14 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and one module asks later.**
+**Nothing is asked for at launch, and two things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
-drag events, clipboard history needs no permission, and the global shortcut
-is registered with the window server rather than a monitor. The colour picker
-uses `NSColorSampler`, the system's own loupe, which hands back only the pixel
+drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
+is registered with the window server rather than a monitor. Quick Look and
+Open on the shelf use the system's own viewers on files the shelf already
+holds, so they ask for nothing either. The colour picker uses
+`NSColorSampler`, the system's own loupe, which hands back only the pixel
 you click and so needs no Screen Recording permission. Nine of the ten
 modules work with nothing granted.
 
@@ -235,6 +252,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**Notifications, for the timer only.** The notch is hidden over full-screen
+apps, so a timer that finishes there posts a "Timer done" notification. macOS
+asks whether CreativeNotch may notify you the first time you *start* a timer —
+not at launch, and never if you switch off Settings → Timer → **Notify when
+hidden by a full-screen app** first. Say no and the timer chimes and VoiceOver
+announces it, exactly as before; Settings says notifications are off and links
+to System Settings → Notifications. Sounds are not requested: the app plays its
+own chime.
 
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
@@ -277,14 +303,20 @@ it back.
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
-| Press Esc | Closes the panel |
+| Press Esc | Closes the panel — or, with a clipboard search typed, clears the search first |
 | Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
-| Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
-| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
-| Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied |
+| Right-click a shelf item | Open, Quick Look, Show in Finder, AirDrop, Remove; VoiceOver offers the same five as actions on the tile, which it reads by file name. A file still copying in offers none |
+| Click a shelf item | Selects it: a ring round the tile, and "Space to Quick Look · double-click to open" under the shelf |
+| Press Space on the shelf | Quick Look previews the selected file (or the first, if none is selected) and takes the keyboard, as in Finder: ← → page through the shelf's files, Space or Esc closes it, and the keyboard goes back to the panel. Works while the panel has the keyboard — after a click in it, or opened by a click on the notch or the shortcut, never on a hover-open |
+| Press ← or → on the shelf | Moves the selection, stopping at either end |
+| Double-click a shelf item | Opens it in its default app, as in Finder |
+| Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back. Clearing again inside those six seconds adds to the same Undo, which brings back everything cleared; restored files are kept even if the shelf goes over its limit until the next drop, and any that could not come back (emptied from the Trash meanwhile) are reported under the shelf as "Couldn't restore N items", also spoken by VoiceOver |
+| Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied; pinned entries sit above the rest |
+| Type in the clipboard's search field | Narrows the list to entries containing every word you type, ignoring case and accents; the title row counts what is kept, and closing the panel clears the search. The field takes the keyboard only when you click it, or when you opened the panel by clicking the notch or with the shortcut — never on a hover-open |
 | Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
-| Right-click a clipboard entry | Copy, or Remove to forget just that one; Clear in the title row forgets them all. VoiceOver offers Remove as an action on the row, whose press is Copy |
+| Right-click a clipboard entry | Copy; Pin, to keep it at the top (up to ten), or Unpin; or Remove to forget just that one. Clear in the title row forgets everything but the pins. VoiceOver offers Pin and Remove as actions on the row, whose press is Copy, and reads a pinned row as "Pinned" |
+| Settings → Clipboard history → **Ignore copies from** → **Add App…** | Copies made in that app (or that declare it as their source) are never recorded; − beside an app takes it off the list. Empty until you add one |
 | Click it again | Closes it |
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
@@ -299,14 +331,19 @@ it back.
 | Switch to the Timer tab | Presets (5, 10 and 25 minutes until you change them in Settings), or type your own up to 99 minutes |
 | Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
-| Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
+| Pause it | The countdown dims, shows a pause symbol beside the notch, and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
+| Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
+| Sleep through the deadline | It fires on wake and says how late it was |
+| Click **Add** beside a running timer | The presets come back (with **Back** to return); start up to three countdowns at once |
+| Run several | The tab lists them, each with its own pause and cancel; the notch shows whichever finishes first, and each one peeks and chimes when it finishes |
+| Switch to **Stopwatch** in the timer tab's title row | Start, then Lap and Pause while it runs, Reset and Resume while it is paused; the latest three laps show under the digits |
+| Close the panel with the stopwatch running | It keeps counting — it is a start time, not a ticking clock — and nothing redraws until you look again |
 | Click the eyedropper in the right ear | The panel closes and the system loupe follows the pointer; click anywhere on any screen to copy that colour, or press Esc to cancel. Either way the panel comes back on the same tab |
 | Pick a colour | It is on the clipboard as hex (`#3A7BD5`), or as RGB, HSL or a SwiftUI `Color(…)` — Settings → Colour picker → **Copy as**. A strip along the bottom of the panel shows the swatch and the value until you close the panel or press its ×; VoiceOver says the colour's name and value |
 | Click a swatch in the strip | Copies that colour again, in the current format; the strip keeps your last five picks, in memory only |
 | Right-click the eyedropper | The same recent colours, as a menu, without picking a new one |
-| Sleep through the deadline | It fires on wake and says how late it was |
-| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
+| Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you
@@ -327,12 +364,14 @@ on in System Settings, springs become a short fade and the cover and bars stay
 still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
 drawn brighter (no secondary text below 70% white); the default look is
 unchanged. The battery shows a bolt while charging, and with **Differentiate
-Without Color** on, a "!" when low as well as the yellow.
+Without Color** on, a "!" when low as well as the yellow; VoiceOver says "low"
+or "charging" after the level.
 
 For bigger text, Settings → Display → **Text size** → **Large** or **Larger**
 draws the open panel's text 15% or 30% larger and grows the panel to fit it
-(up to 806×338 on a 14" MacBook Pro, never past the screen). It applies at
-once. macOS's own Text Size setting covers only Apple's apps, so this one is
+(up to 806×338 on a 14" MacBook Pro). On a screen too small for that, the text
+comes down to the largest size the screen holds rather than being cut off. It
+applies at once. macOS's own Text Size setting covers only Apple's apps, so this one is
 separate. The closed notch's badges and the glances that drop from it keep
 their size: they have to fit beside the camera housing and the menu bar.
 
@@ -341,7 +380,9 @@ Low Power Mode change with the battery level, a finished timer, and the track
 when the music player drops down or the song changes under it (never a pause
 or a seek). The timer's countdown reads as words with its progress ("8 minutes
 remaining, 25% done"), at the same granularity as the digits, and every badge
-beside the notch says what it shows.
+beside the notch says what it shows. With several timers, each row is named by
+its duration ("5-minute timer") and so are its Pause and Cancel buttons; a
+paused stopwatch reads in words ("Paused, 1 minute 5 seconds").
 
 The keys work once the panel has the keyboard: when you opened it by clicking
 the notch or with the global shortcut, or after clicking inside it. A panel
@@ -358,7 +399,8 @@ place, Settings → Display → **Show on** → **Built-in display** pins it to 
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
 display instead. **Show on** also lists each connected external display by
 name: pick one and the notch stays there (as a pill, if that display has no
-notch). Unplug it and the notch waits on the built-in display — the menu shows
+notch). Rename a display and **Show on** picks up the new name the next time
+Settings or a display change reads the list. Unplug it and the notch waits on the built-in display — the menu shows
 the display as "(not connected)" so you can see it is still chosen — then
 returns as soon as you plug it back in. Connecting or disconnecting a display
 moves it at once.
@@ -421,6 +463,7 @@ since. **Nothing is outstanding:**
 |---|---|
 | **Battery and power state** — level, charging state, Low Power Mode | **Shipped** |
 | **Timer** — a countdown, counting down in the notch | **Shipped** |
+| **Stopwatch and multiple timers** — three countdowns at once, and a stopwatch with laps | **Shipped** |
 | **Preferences** — turn modules off, and the subsystem stops | **Shipped** |
 | **Launch at login** — a switch that reads the system rather than remembering | **Shipped** |
 | **Global shortcut** — open the panel from anywhere | **Shipped** |

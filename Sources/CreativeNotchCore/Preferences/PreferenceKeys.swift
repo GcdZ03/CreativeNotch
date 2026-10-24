@@ -84,6 +84,16 @@ public enum PreferenceKeys {
     /// An `NSSound` name, or "None": `ChimeSound`'s raw value.
     public static let timerChime = "timer.chime"
 
+    /// Whether a timer that finishes while the notch is hidden for a
+    /// full-screen app also posts a notification (2026-10-24). A boolean
+    /// read through `resolveEnabled`, so absent means on.
+    public static let timerNotifyWhenHidden = "timer.notifyWhenHidden"
+
+    /// Bundle identifiers whose copies clipboard history ignores
+    /// (2026-10-24), as an array of strings read through
+    /// `ClipboardExclusions.resolve`. Absent means none.
+    public static let clipboardExcludedApps = "clipboard.excludedApps"
+
     /// What a raw defaults value means.
     ///
     /// This is the whole compatibility surface, which is why it is a pure

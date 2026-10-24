@@ -262,6 +262,27 @@ struct ShowOnDisplayTests {
         #expect(controller.displayOptions.last.map(DisplayRow.title(for:)) == "DELL U2720Q")
     }
 
+    /// A pinned display renamed since it was picked: the next time the
+    /// display list is read with it connected, the stored name is updated
+    /// and saved, so Settings names it correctly the next time it is
+    /// unplugged -- and the panel does not move, since the display is the
+    /// same one.
+    @Test func aRenamedPinnedDisplayHasItsNameRefreshed() {
+        let (d, plugs) = makePinnedDelegate()
+        let stale = DisplayChoice.display(uuid: Self.dellUUID, name: "Old name")
+        d.state.onSetDisplayChoice?(stale)
+        d.refreshConnectedDisplays()
+
+        #expect(d.state.displayChoice == Self.pinned)
+        #expect(PreferencesStore(defaults: d.preferencesDefaults).displayChoice == Self.pinned)
+        #expect(d.currentAnchor.isNotch == false)
+
+        // Unplugged, the refreshed name is the one Settings shows.
+        plugs.screens = [Self.builtInScreen]
+        d.screenParametersDidChange()
+        #expect(d.state.displayChoice == Self.pinned)
+    }
+
     @Test func menuTitles() {
         let options = DisplayChoice.options(for: [], current: .display(uuid: Self.dellUUID, name: ""))
         #expect(options.map(DisplayRow.title(for:)) == [

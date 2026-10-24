@@ -168,7 +168,10 @@ final class ModuleSwitchboard {
                 // resident for the session and reappear the moment the
                 // switch goes back on. Here rather than in `stop()`, which
                 // quitting also calls and where it would be redundant.
-                delegate.clipboard?.store.clear()
+                // `removeAll`, not `clear`: Clear keeps pins, and off keeps
+                // nothing — pins included.
+                delegate.clipboard?.store.removeAll()
+                delegate.state.clipboardQuery = ""
             }
 
         case .mediaMetadata:
@@ -245,6 +248,17 @@ final class ModuleSwitchboard {
                 delegate.state.onResumeTimer = nil
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
+                // The stopwatch is different: it has nothing to finish and,
+                // with the tab gone, nowhere to be read. It costs nothing
+                // running — it is two numbers — but one left counting
+                // invisibly would greet the user with an hour they never
+                // saw when the tab came back. So it is reset, its verb goes
+                // with the others, and the tab comes back on its default
+                // half.
+                delegate.state.onStopwatch = nil
+                delegate.state.stopwatch = Stopwatch()
+                delegate.state.timerMode = .timer
+                delegate.state.isAddingTimer = false
             }
 
         case .camera:
@@ -299,6 +313,12 @@ final class ModuleSwitchboard {
             // and its idle cost is genuinely zero. Disabling hides the tab and
             // refuses drops — the drop closures read `state.preferences`.
             delegate.state.shelf = enabled ? delegate.shelf : nil
+            // The one thing it can leave on screen: a Quick Look of its
+            // files. A switched-off shelf must not keep previewing them.
+            if !enabled {
+                delegate.shelfPreview.close()
+                delegate.state.shelfSelection = nil
+            }
         }
 
         retargetTabsIfNeeded()
