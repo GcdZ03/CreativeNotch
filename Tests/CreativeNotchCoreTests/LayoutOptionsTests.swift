@@ -39,6 +39,7 @@ struct LayoutOptionsTests {
         #expect(o.showsBattery)
         #expect(o.showsNowPlayingBadge)
         #expect(o.showsTimerBadge)
+        #expect(o.showsDownloadsBadge)
         #expect(o.hiddenBadges.isEmpty)
         #expect(PanelWidth.standard.nominalWidth == NotchGeometry.expandedSize.width)
         #expect(PanelCorners.standard.radius == NotchGeometry.panelCornerRadius)
@@ -68,12 +69,15 @@ struct LayoutOptionsTests {
         o.showsBattery = false
         o.showsNowPlayingBadge = false
         o.showsTimerBadge = false
+        o.showsDownloadsBadge = false
         PreferencesStore(defaults: defaults).saveLayout(o)
         #expect(PreferencesStore(defaults: defaults).loadLayout() == o)
         #expect(defaults.string(forKey: PreferenceKeys.layoutWidth) == "wide")
         #expect(defaults.string(forKey: PreferenceKeys.layoutCorners) == "round")
         #expect(defaults.string(forKey: PreferenceKeys.layoutTabsSide) == "right")
         #expect(defaults.object(forKey: PreferenceKeys.layoutShowsBattery) as? Bool == false)
+        #expect(defaults.object(forKey: PreferenceKeys.layoutShowsDownloadsBadge) as? Bool == false)
+        #expect(PreferenceKeys.layoutShowsDownloadsBadge == "layout.badge.downloads")
     }
 
     /// Hand-typed junk reads as the default and is left in place for
@@ -262,6 +266,49 @@ struct LayoutOptionsTests {
         }
     }
 
+    /// The downloads ring is a trailing badge on the closed notch, and the
+    /// status ear -- dropper, battery and gear -- is the open header's. On a
+    /// 14" notch, at every width, text size, tab count and side for the tabs,
+    /// the closed notch with the ring stays inside the open panel, so opening
+    /// from it grows outward and never jumps; and the ring is narrower than
+    /// either ear, so whichever holds the status items has room for the ring's
+    /// band as well as for them.
+    @Test func theDownloadsBadgeFitsBesideTheStatusEarOnAFourteenInchNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let badge = BadgeSlot.downloads
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in 0...Tab.allCases.count {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        let closed = NotchShape.visibleRect(
+                            presentation: .closed, anchor: anchor, panelFrame: frame,
+                            badgeWidth: badge.width, leadingBadgeWidth: badge.leadingWidth
+                        )
+                        let open = NotchShape.visibleRect(
+                            presentation: .expanded, anchor: anchor, panelFrame: frame
+                        )
+                        #expect(open.contains(closed),
+                                "the ring leaves a \(width) panel at \(size) with \(count) tabs on the \(side)")
+                        #expect(badge.width < layout.trailingEarWidth)
+                        #expect(badge.width < layout.statusEarWidth)
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) on the \(side)")
+                        // And on the screen: the ring stays clear of the
+                        // menu bar's right half, which starts past the notch.
+                        #expect(anchor.rect.maxX + badge.width <= fourteen.frame.maxX)
+                    }
+                }
+            }
+        }
+    }
+
     /// Compact's floor is the wider of the two ears' needs: with no tabs at
     /// all beside a notch, the status items still set it.
     @Test func compactKeepsRoomForTheStatusItemsWithNoTabs() {
@@ -424,6 +471,24 @@ struct LayoutOptionsTests {
                 == .timer)
     }
 
+    /// A hidden downloads ring passes the slot to whatever is below it --
+    /// media -- and never above it: a countdown still outranks it.
+    @Test func aHiddenDownloadsBadgeGivesTheSlotToMedia() {
+        let summary = DownloadSummary(count: 1, percent: 42, leadingName: "a.zip")
+        var o = LayoutOptions()
+        o.showsDownloadsBadge = false
+        #expect(o.hiddenBadges == [.downloads])
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .nowPlaying)
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: nil, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .none)
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .timer)
+        // Shown, it takes the slot from media as before.
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, downloads: summary,
+                                     hiding: LayoutOptions().hiddenBadges, at: now) == .downloads)
+    }
+
     /// Both hidden: nothing of the user's own grows the notch.
     @Test func bothHiddenLeaveTheNotchBare() {
         var o = LayoutOptions()
@@ -437,7 +502,7 @@ struct LayoutOptionsTests {
     /// the first is what explains a camera left on after the panel closed,
     /// the second is a module of its own with its own switch.
     @Test func theRecordingAndCaptureBadgesCannotBeHidden() {
-        let everything: Set<BadgeSlot> = [.nowPlaying, .timer, .recording, .capture]
+        let everything: Set<BadgeSlot> = [.nowPlaying, .timer, .downloads, .recording, .capture]
         #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, isRecording: true,
                                      hiding: everything, at: now) == .recording)
         #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing,

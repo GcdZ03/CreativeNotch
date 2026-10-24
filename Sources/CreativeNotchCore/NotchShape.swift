@@ -151,15 +151,15 @@ public enum NotchShape {
     /// nothing else to explain it; this badge is the explanation, and it
     /// cannot be the thing that yields to a track starting.
     ///
-    /// Below it, a running or paused timer owns the slot; media takes it back
-    /// when the timer finishes or is cancelled. Paused *media* shows nothing:
-    /// the badge answers "is something playing".
+    /// Below it, a running or paused timer owns the slot, then downloads in
+    /// progress; media takes it back when both are done. Paused *media*
+    /// shows nothing: the badge answers "is something playing".
     ///
     /// `hidden` is the badges switched off in Settings (2026-10-24,
     /// `LayoutOptions.hiddenBadges`). A hidden badge is passed over as if it
     /// had nothing to show, so the next one down takes the slot. It is
-    /// consulted for the timer and media only: the recording dot is the
-    /// camera exemption's explanation, above, and the capture indicator is a
+    /// consulted for the timer, downloads and media only: the recording dot
+    /// is the camera exemption's explanation, above, and the capture indicator is a
     /// module whose whole output is this badge, with its own switch -- hiding
     /// either here would be a second, quieter way to lose a privacy signal.
     public static func badgeSlot(

@@ -70,6 +70,8 @@ public enum PreferenceKeys {
     public static let layoutShowsNowPlayingBadge = "layout.badge.nowPlaying"
     /// A boolean: the countdown badge beside the closed notch.
     public static let layoutShowsTimerBadge = "layout.badge.timer"
+    /// A boolean: the download progress ring beside the closed notch.
+    public static let layoutShowsDownloadsBadge = "layout.badge.downloads"
 
     /// What a raw value for one of the layout menus means, by the policy
     /// `resolveTextSize` follows: anything that names no choice reads as

@@ -411,7 +411,7 @@ it back.
 | Settings → Layout → **Corners** | Tight, Default or Round bottom corners on the open panel; the closed notch keeps the camera housing's curve |
 | Settings → Layout → **Tabs** → **Right** | Swaps the ears: the tabs move right of the camera, the eyedropper, the battery and the gear left |
 | Settings → Layout → **Battery in the header** off | Drops the level from beside the gear; the Battery tab and the charger glance stay |
-| Settings → Layout → **Now-playing badge** / **Timer badge** off | Keeps that badge from beside the closed notch; a finished timer still chimes and drops its glance |
+| Settings → Layout → **Now-playing badge** / **Timer badge** / **Downloads badge** off | Keeps that badge from beside the closed notch; a finished timer still chimes and drops its glance, and a finished download still peeks |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you

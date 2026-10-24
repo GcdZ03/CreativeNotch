@@ -166,9 +166,9 @@ panel. No observer: the view reads `AppState.textSize` on its next draw.
 
 ### Layout options
 
-Settings → Layout (`LayoutOptions`, Core, 2026-10-24) is six options saved and
-applied as one value: panel width, corner style, which ear holds the tabs, the
-header's battery cell, and the now-playing and timer badges. They are settings
+Settings → Layout (`LayoutOptions`, Core, 2026-10-24) is seven options saved
+and applied as one value: panel width, corner style, which ear holds the tabs,
+the header's battery cell, and the now-playing, timer and downloads badges. They are settings
 rather than a module because they run nothing — no observer, no timer, nothing
 for a switch to stop — and every default is the geometry and look from before
 the setting. Each lands in the one Core function that already owned the fact:
@@ -213,8 +213,8 @@ the setting. Each lands in the one Core function that already owned the fact:
   because `AppDelegate.currentBadgeSlot` and the view ask the same function,
   the drawn, hit-test and hover rects still agree. `setLayoutOptions` re-syncs
   the accepted region itself: hiding a badge changes the closed shape without
-  a state or geometry change, so no funnel event would. Only the timer and
-  media badges can be hidden. The recording dot is the camera exemption's
+  a state or geometry change, so no funnel event would. Only the timer,
+  downloads and media badges can be hidden. The recording dot is the camera exemption's
   explanation, and the capture indicator is a module whose whole output is
   that badge, with its own switch.
 
@@ -399,11 +399,13 @@ panel leaves `.open` (`syncKeyWindow`), never on a tab switch.
 
 ### Peek arbitration
 
-One slot, five competitors. `PeekArbiter` resolves them: **drag > finished
-timer > power > Bluetooth > now-playing**. Transient content preempts ambient
-content and then falls back, the same model as the iPhone Dynamic Island.
-Power has a 3 s TTL, a Bluetooth device 2.5 s and a finished timer 600 s; a
-drag has none and lasts until cleared.
+One slot, seven competitors. `PeekArbiter` resolves them: **drag > finished
+timer > power > Bluetooth > finished download > downloads in progress >
+now-playing**. Transient content preempts ambient content and then falls back,
+the same model as the iPhone Dynamic Island. Power has a 3 s TTL, a Bluetooth
+device 2.5 s, a finished download 5 s and a finished timer 600 s; a drag has
+none and lasts until cleared, and downloads in progress, like now-playing, are
+ambient and end when the downloads do.
 
 Power sits above now-playing for a reason: now-playing is ambient wallpaper
 and yields to anything, while power is unsolicited but consequential. A
@@ -411,14 +413,19 @@ finished timer outranks both, because being interrupted by it is exactly what
 the user asked for. A Bluetooth device arriving sits between power and
 now-playing: unsolicited, but caused by the person's own hands — they just put
 the AirPods in — so it yields to anything that is news to them, and its TTL is
-the shortest because it confirms rather than informs.
+the shortest because it confirms rather than informs. It does sit above a
+finished download, which is news but not consequential: the Bluetooth peek
+goes first and the longer completion is still there once it has gone, where
+the other order would hide the Bluetooth peek entirely. Downloads in progress
+sit above now-playing in the badge slot's order, so a hover over the ring
+shows the download and not the track the ring took the slot from.
 
 **Differing TTLs mean the re-evaluation delay has to follow the content.**
 With one TTL in the app, `AppDelegate` could re-read the arbiter after a
 single fixed delay. A long peek re-checked too early finds the arbiter still
 returning it, transitions to the state it is already in, and is never looked
 at again — the notch stays open until something unrelated moves it. So
-`AppDelegate.reevaluationDelay(for:power:timerDone:bluetooth:)` picks the delay, and
+`AppDelegate.reevaluationDelay(for:power:timerDone:bluetooth:downloadDone:)` picks the delay, and
 `reevaluatePeek` reschedules when what it reveals is itself transient. It
 terminates because every transient source strictly expires; ambient content
 is never rescheduled, which is what stops this being a timer that runs for
@@ -1284,16 +1291,23 @@ place a download's progress shows without opening anything. Hovering it shows
 the battery peek's row (`.statusPeek`) with the name, a bar and the
 percentage — ambient, like the music peek: kept while the pointer is on it,
 never fallen back to without it, never announced. A finished download is a
-transient peek (`downloadDoneTTL`, five seconds) ranked below power and a
-finished timer; it is announced, and clicking it (`NotchRootView.handleTap`,
+transient peek (`downloadDoneTTL`, five seconds) ranked below a finished
+timer, power and a Bluetooth device — the 2.5 s Bluetooth peek goes first and
+the completion is still there after it; it is announced, and clicking it (`NotchRootView.handleTap`,
 or VoiceOver's activate) shows the file in Finder. No tab: the ear bar has no
 room, and there is nothing to do with a download in progress but watch it.
+Settings → Layout → **Downloads badge** hides the ring
+(`LayoutOptions.showsDownloadsBadge`, in `hiddenBadges`) and the slot falls to
+the track; the module keeps watching and the completion still peeks. The ring
+is narrower than either header ear at every width, side and text size on a
+14" notch, so the closed notch with it stays inside the open panel
+(`LayoutOptionsTests`).
 
 ### Permission, and why it ships off
 
 Reading the Downloads folder is a TCC prompt (`NSDownloadsFolderUsageDescription`).
-`ModuleID.shippedDefault` is `false` for this module alone, so a fresh install
-asks nothing; switching it on runs one directory read off the main actor —
+`ModuleID.shippedDefault` is `false` for it, as for the calendar and Bluetooth
+alerts, so a fresh install asks nothing; switching it on runs one directory read off the main actor —
 which is what makes macOS ask, and which waits on the answer — and only a
 successful read subscribes. Refused, `DownloadsAccess.denied` puts a warning
 and an "Open Privacy Settings…" button under the switch rather than letting
@@ -1394,10 +1408,10 @@ value of the wrong type reads as absent and is **not** rewritten: someone who
 ran `defaults write … -string yes` gets working software and keeps the evidence
 of what they typed.
 
-**Two modules ship off: the calendar and Bluetooth alerts**, because each
-needs a permission and switching it on is what asks. That is
+**Three modules ship off: the calendar, Bluetooth alerts and downloads**,
+because each needs a permission and switching it on is what asks. That is
 `ModuleID.shippedDefault`, passed as `resolveEnabled`'s `shippedDefault` by
-`PreferencesStore.load`, so absent and mistyped both read off for those two
+`PreferencesStore.load`, so absent and mistyped both read off for those three
 keys and on for the rest — "absent" is still decided in one place.
 `Preferences.shipped` is what an empty domain loads; `.allEnabled` means every
 switch on, which is not the shipped state.

@@ -100,6 +100,52 @@ struct DownloadPeekArbitrationTests {
         #expect(arbiter.content(now: 0) == .timerDone(TimerCompletion(duration: 60, lateness: 0)))
     }
 
+    /// Below a Bluetooth device: that peek is 2.5 s confirming something the
+    /// person just did, and the 5 s completion is still there once it has
+    /// gone. The other order would hide the Bluetooth peek entirely.
+    @Test func aBluetoothPeekCoversAFinishedDownloadAndThenRevealsIt() {
+        let airPods = BluetoothAudioEvent(name: "AirPods", kind: .airPodsPro, connected: true)
+        var arbiter = PeekArbiter()
+        arbiter.setDownloads(summary)
+        arbiter.recordDownloadDone(done, now: 0)
+        arbiter.recordBluetooth(airPods, now: 0)
+        #expect(arbiter.content(now: 0) == .bluetooth(airPods))
+        #expect(arbiter.content(now: PeekArbiter.bluetoothTTL) == .downloadDone(done))
+        #expect(arbiter.content(now: PeekArbiter.downloadDoneTTL) == .downloads(summary))
+        #expect(PeekArbiter.bluetoothTTL < PeekArbiter.downloadDoneTTL)
+    }
+
+    /// Bluetooth outranks downloads in progress too, like every transient
+    /// peek outranks ambient content; power outranks all of them.
+    @Test func theFullOrderIncludesBluetooth() {
+        let airPods = BluetoothAudioEvent(name: "AirPods", kind: .airPodsPro, connected: true)
+        var arbiter = PeekArbiter()
+        arbiter.setNowPlaying(playing)
+        arbiter.setDownloads(summary)
+        arbiter.recordBluetooth(airPods, now: 0)
+        #expect(arbiter.content(now: 0) == .bluetooth(airPods))
+        arbiter.recordDownloadDone(done, now: 0)
+        #expect(arbiter.content(now: 0) == .bluetooth(airPods))
+        arbiter.recordPower(.unplugged(level: 50), now: 0)
+        #expect(arbiter.content(now: 0) == .power(.unplugged(level: 50)))
+        arbiter.clearBluetooth()
+        arbiter.clearPower()
+        #expect(arbiter.content(now: 0) == .downloadDone(done))
+        arbiter.clearDownloads()
+        #expect(arbiter.content(now: 0) == .nowPlaying(playing))
+    }
+
+    /// Switching Bluetooth off withdraws its own peek only, revealing the
+    /// completion queued behind it.
+    @Test func clearingBluetoothRevealsAQueuedCompletion() {
+        let airPods = BluetoothAudioEvent(name: "AirPods", kind: .airPodsPro, connected: false)
+        var arbiter = PeekArbiter()
+        arbiter.recordDownloadDone(done, now: 0)
+        arbiter.recordBluetooth(airPods, now: 0)
+        arbiter.clearBluetooth()
+        #expect(arbiter.content(now: 0) == .downloadDone(done))
+    }
+
     @Test func revealingAFinishedDownloadAcknowledgesIt() {
         var arbiter = PeekArbiter()
         arbiter.recordDownloadDone(done, now: 0)

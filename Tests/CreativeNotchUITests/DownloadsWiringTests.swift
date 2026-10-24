@@ -112,6 +112,30 @@ struct DownloadsWiringTests {
         #expect(NotchRootView.drawnRect(for: delegate.state).width == delegate.acceptedRect.width)
     }
 
+    /// Settings → Layout → Downloads badge off takes the ring off the closed
+    /// notch at once, the three rects still agreeing; the module keeps
+    /// watching, so the ring comes back when the badge is shown again.
+    @Test func hidingTheDownloadsBadgeShrinksAllThreeRectsTogether() async {
+        let (delegate, source, _) = makeDelegate()
+        await switchOn(delegate)
+        source.send(.published(DownloadID(), reading("a.zip.download", 42, of: 100)))
+        #expect(delegate.currentBadgeWidth == NotchGeometry.downloadsBadgeWidth)
+
+        delegate.state.onSetLayoutOptions?(LayoutOptions(showsDownloadsBadge: false))
+
+        #expect(delegate.currentBadgeSlot == .none)
+        #expect(delegate.currentBadgeWidth == 0)
+        #expect(delegate.state.downloads?.percent == 42)
+        let drawn = NotchRootView.drawnRect(for: delegate.state)
+        #expect(drawn.size == delegate.acceptedRect.size)
+        #expect(drawn.minX == delegate.acceptedRect.minX)
+        #expect(delegate.hoverView?.trackingRect == delegate.acceptedRect)
+
+        delegate.state.onSetLayoutOptions?(.default)
+        #expect(delegate.currentBadgeSlot == .downloads)
+        #expect(NotchRootView.drawnRect(for: delegate.state).size == delegate.acceptedRect.size)
+    }
+
     /// Off removes the badge and narrows the notch again at once -- a stale
     /// badge would keep swallowing menu bar clicks for the session.
     @Test func switchingOffTakesTheBadgeAway() async {

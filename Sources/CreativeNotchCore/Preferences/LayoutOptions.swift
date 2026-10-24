@@ -67,7 +67,7 @@ public enum EarSide: String, CaseIterable, Sendable {
 
 /// The panel's size and layout options, as one value (2026-10-24).
 ///
-/// One value rather than six properties on `AppState` for the reason `Limits`
+/// One value rather than seven properties on `AppState` for the reason `Limits`
 /// is one: they are saved together, applied together, and read by one draw,
 /// so a partial write is a second way for the domain and the app to disagree.
 ///
@@ -95,6 +95,11 @@ public struct LayoutOptions: Equatable, Sendable {
     /// peeks when it ends; only the ambient readout goes.
     public var showsTimerBadge: Bool
 
+    /// The download progress ring beside the closed notch. The downloads
+    /// module still watches, and a finished download still peeks; only the
+    /// ambient ring goes, and the slot falls to whatever is below it.
+    public var showsDownloadsBadge: Bool
+
     public static let `default` = LayoutOptions()
 
     public init(
@@ -103,7 +108,8 @@ public struct LayoutOptions: Equatable, Sendable {
         tabsSide: EarSide = .default,
         showsBattery: Bool = true,
         showsNowPlayingBadge: Bool = true,
-        showsTimerBadge: Bool = true
+        showsTimerBadge: Bool = true,
+        showsDownloadsBadge: Bool = true
     ) {
         self.width = width
         self.corners = corners
@@ -111,15 +117,17 @@ public struct LayoutOptions: Equatable, Sendable {
         self.showsBattery = showsBattery
         self.showsNowPlayingBadge = showsNowPlayingBadge
         self.showsTimerBadge = showsTimerBadge
+        self.showsDownloadsBadge = showsDownloadsBadge
     }
 
-    /// The badges `NotchShape.badgeSlot` should pass over. Only the two the
-    /// user starts themselves can be in it: see that function for why the
-    /// recording dot and the capture indicator never are.
+    /// The badges `NotchShape.badgeSlot` should pass over. Only the ambient
+    /// ones -- media, the timer and downloads -- can be in it: see that
+    /// function for why the recording dot and the capture indicator never are.
     public var hiddenBadges: Set<BadgeSlot> {
         var hidden: Set<BadgeSlot> = []
         if !showsNowPlayingBadge { hidden.insert(.nowPlaying) }
         if !showsTimerBadge { hidden.insert(.timer) }
+        if !showsDownloadsBadge { hidden.insert(.downloads) }
         return hidden
     }
 }
