@@ -21,6 +21,12 @@ struct PowerPeekView: View {
     /// The notch's own band, left empty; the row hangs below it.
     var bandHeight: CGFloat = 32
 
+    /// What VoiceOver reads: the title and the percentage, the words the
+    /// announcement for this peek uses (`PeekAnnouncement`). Combining the
+    /// children instead read the icon's symbol name too, and the bar as
+    /// nothing at all.
+    var accessibilityText: String { PowerLabel.spoken(for: event) }
+
     var body: some View {
         VStack(spacing: 0) {
             Color.clear.frame(height: bandHeight)
@@ -44,7 +50,8 @@ struct PowerPeekView: View {
             .padding(.horizontal, 14)
             .frame(maxHeight: .infinity)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 
     private var icon: some View {

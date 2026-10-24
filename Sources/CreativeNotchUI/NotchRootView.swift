@@ -875,7 +875,8 @@ public struct NotchRootView: View {
                             NowPlayingBadgeView(
                                 artwork: app.nowPlayingArtwork,
                                 aspect: app.nowPlayingArtworkAspect,
-                                coverNamespace: sharedCover
+                                coverNamespace: sharedCover,
+                                track: app.nowPlaying
                             )
                             EqualizerBarsView(
                                 isPlaying: true,

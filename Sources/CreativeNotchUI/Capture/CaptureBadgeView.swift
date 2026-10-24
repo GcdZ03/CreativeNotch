@@ -14,21 +14,35 @@ import CreativeNotchCore
 struct CaptureBadgeView: View {
     let use: CaptureUse
 
+    /// One sentence for whichever glyphs are showing. Static so the words
+    /// are pinned without rendering, as `ShelfView.tileAccessibilityLabel`
+    /// is.
+    static func accessibilityText(for use: CaptureUse) -> String {
+        switch (use.microphone, use.camera) {
+        case (true, true):  return "Microphone and camera in use"
+        case (true, false): return "Microphone in use"
+        case (false, true): return "Camera in use"
+        case (false, false): return ""
+        }
+    }
+
     var body: some View {
         HStack(spacing: 3) {
             if use.microphone {
                 Image(systemName: "mic.fill")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .accessibilityLabel("Microphone in use")
             }
             if use.camera {
                 Image(systemName: "video.fill")
                     .font(.system(size: 9, weight: .semibold))
                     .foregroundStyle(.green)
-                    .accessibilityLabel("Camera in use")
             }
         }
         .padding(.trailing, 8)
+        // One element, not two glyphs: with both devices on, a VoiceOver
+        // user hears both in one stop rather than having to find the second.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(Self.accessibilityText(for: use))
     }
 }

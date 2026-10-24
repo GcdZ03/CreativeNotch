@@ -13,11 +13,15 @@ import SwiftUI
 /// what this has to communicate is "the camera is on", which a dot says
 /// completely.
 struct RecordingBadgeView: View {
+    /// "Recording" alone, beside the microphone badge, did not say what was
+    /// recording.
+    static let accessibilityText = "Camera recording"
+
     var body: some View {
         Circle()
             .fill(.red)
             .frame(width: 10, height: 10)
             .padding(.trailing, 9)
-            .accessibilityLabel("Recording")
+            .accessibilityLabel(Self.accessibilityText)
     }
 }
