@@ -470,7 +470,9 @@ holding the observer weakly. Do the same for any new C callback.
 **Nothing is requested at launch. The camera is the one module that needs a
 grant at all.** The file shelf's drag detection and drop target work through
 AppKit's own drag events, clipboard needs nothing, and the global shortcut
-goes through the window server rather than a monitor.
+goes through the window server rather than a monitor. The colour picker uses
+`NSColorSampler`, which returns only the clicked pixel and so needs no Screen
+Recording grant; there is no usage string for it because there is no prompt.
 
 `CameraController.reevaluate()` reads `authorizationStatus()` before building
 the capture graph. `.denied` and `.restricted` short-circuit to the denied
@@ -1512,6 +1514,75 @@ have to work out that they are in a failure case before finding the manual
 route. Two things here remain unmeasured, both narrower than the question
 above: whether quarantine blocks a login launch, and the `.needsApproval`
 state, which the probe could not produce.
+
+## The colour picker
+
+A dropper in the open panel's trailing ear, beside the battery and the gear
+(2026-10-24). Click it, click a pixel anywhere, and the colour is on the
+pasteboard.
+
+### Nothing runs at rest, so it ships on
+
+`NSColorSampler` is the system's loupe: the window server draws it and hands
+back only the colour clicked, which is why it needs no Screen Recording grant
+— the sanctioned alternative to capturing the screen. It exists only between
+the click on the dropper and the click on the screen. There is no monitor, no
+capture, no timer and no process before or after, and the history is five
+`SampledColor`s in memory. A module that needs no permission and costs nothing
+idle defaults on, like the shelf; its Settings row says both in so many words.
+
+The switchboard leg therefore has two jobs and no lifecycle: forget the
+history (off means the app holds nothing, the clipboard's rule) and drop a
+pick whose loupe is still up. `NSColorSampler` has no cancel, so
+`ColorPickerController` bumps a generation and the late completion finds it
+stale — it copies nothing and reopens nothing. There is no activity axis:
+nothing exists between picks to suspend.
+
+### The panel steps aside, then comes back ambient
+
+`AppDelegate.pickColor()` closes the panel before the loupe appears, so the
+band the open panel covers can be sampled too — and so the pointer leaving
+for the loupe does not race the 400ms dismiss grace. When the pick finishes
+(a colour, or Esc) the panel reopens on the tab it was on with
+`openedBy: .unspecified`, which `PanelFocus` never makes key: the person has
+just clicked in another app's window, and a confirmation must not take their
+keystrokes. Closing happens *after* asking the sampler, only if the loupe is
+actually up, so an instant sampler (the sandbox default) cannot have its
+reopen undone.
+
+### The result is part of the opening, not a peek
+
+The strip over the body's bottom edge (`ColorStripView`) is driven by
+`AppState.pickedColor`, set by a pick or a swatch and cleared by its close
+button and by the state funnel the moment the panel leaves `.open`
+(`syncColorStrip`). A tab switch keeps it. Nothing times it out, so nothing is
+scheduled. A peek was considered and declined: the panel is where the dropper
+was clicked and where the person is looking when it returns, and a fifth
+`PeekArbiter` competitor would be one more TTL to re-evaluate for a message
+the panel can already carry.
+
+The header could not hold the swatches — five dots beside the dropper, battery
+and gear would reach the housing on a 14" notch at the larger text sizes — so
+the strip holds them, and the dropper's right-click menu offers the same
+history without a fresh pick.
+
+### Formats are Core, and the colour is sRGB
+
+`ColorFormat` (hex, `rgb()`, `hsl()`, `Color(red:green:blue:)`) and the CSS
+HSL conversion live in Core with hand-worked reference values. `SampledColor`
+is three 8-bit sRGB channels: the AppKit side converts the sampler's `NSColor`
+to sRGB first, because a hex value means sRGB to every tool it is pasted into,
+and a Display P3 colour outside sRGB clamps to its edge rather than trapping
+on the `UInt8` conversion. `ColorName` gives VoiceOver a coarse name first
+("blue, #3A7BD5"), since a value alone says nothing to someone who cannot see
+the swatch.
+
+The sampler and the pasteboard are seams with sandboxed defaults
+(`InertColorSampler`, a uniquely named pasteboard), pointed at the real ones
+only by `configureForRealLaunch()`, so the suite never shows a loupe or
+overwrites the developer's clipboard. A second global shortcut for the
+dropper was left out: `HotKeyController` owns exactly one registration and
+one settings row, and doubling it is a change to that module, not this one.
 
 ## Deliberately absent
 

@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All nine modules are built, and every one of them can be switched off.**
+**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -84,6 +84,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -125,6 +126,18 @@ streaming the result back as newline-delimited JSON. The helper is
 supervised with bounded restarts, started only while the screen is
 unlocked and the machine is awake, and stopped the moment the app quits —
 one subprocess is the budget for this project, and it never outlives it.
+
+The colour picker is a dropper in the right ear of the open panel. Click it
+and the panel steps aside for the system's own magnifying loupe; click any
+pixel on any screen and its colour is on the clipboard, as `#3A7BD5` unless
+you chose RGB, HSL or a SwiftUI `Color(…)` in Settings. The panel comes back
+with the colour and its value in a strip along the bottom, beside the last
+five colours you picked, each a click from the clipboard again. Nothing runs
+until you click the dropper, and it needs no permission.
+
+<p align="center">
+  <img src="docs/assets/features/color-picker-history.png" width="620" alt="The open panel with a strip along the bottom: a blue swatch, the value #3A7BD5 and the word Copied, then five round swatches of recent colours and a close button; an eyedropper sits in the right ear beside the battery">
+</p>
 
 ---
 
@@ -212,7 +225,9 @@ immediately.
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history needs no permission, and the global shortcut
-is registered with the window server rather than a monitor. Eight of the nine
+is registered with the window server rather than a monitor. The colour picker
+uses `NSColorSampler`, the system's own loupe, which hands back only the pixel
+you click and so needs no Screen Recording permission. Nine of the ten
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -286,6 +301,10 @@ it back.
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
+| Click the eyedropper in the right ear | The panel closes and the system loupe follows the pointer; click anywhere on any screen to copy that colour, or press Esc to cancel. Either way the panel comes back on the same tab |
+| Pick a colour | It is on the clipboard as hex (`#3A7BD5`), or as RGB, HSL or a SwiftUI `Color(…)` — Settings → Colour picker → **Copy as**. A strip along the bottom of the panel shows the swatch and the value until you close the panel or press its ×; VoiceOver says the colour's name and value |
+| Click a swatch in the strip | Copies that colour again, in the current format; the strip keeps your last five picks, in memory only |
+| Right-click the eyedropper | The same recent colours, as a menu, without picking a new one |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
