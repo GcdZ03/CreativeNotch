@@ -13,6 +13,18 @@ import CreativeNotchCore
 /// decides when that is — this view has no clock of its own. When the
 /// digits do change they roll to the new value (`rollingDigits`), a
 /// fraction of a second once a minute, never a loop.
+///
+/// **Paused shows a glyph as well as dimming.** Dimming alone was the
+/// signal for a long time, on the reasoning that a glyph would not fit
+/// beside three digits in the 44pt slot. Rendered, it does: the widest
+/// digits, `0:00`, are about 28pt at 12pt rounded, and a 7pt `pause.fill`
+/// with 2pt of spacing brings that to about 37pt, still clear of the camera
+/// housing at both notch heights (`TimerBadgeRenderingTests`). Two greys are
+/// no signal under Differentiate Without Color, and Increase Contrast lifts
+/// the dim one most of the way to the bright, so the shape is what says
+/// paused to everyone. Both are free: a paused timer still redraws zero
+/// times, since nothing about it changes until it is resumed. VoiceOver
+/// hears "Timer paused, …" from `accessibilityText`.
 struct TimerBadgeView: View {
     let text: String
     let isPaused: Bool
@@ -30,17 +42,24 @@ struct TimerBadgeView: View {
     }
 
     var body: some View {
-        Text(text)
-            .font(.system(size: 12, weight: .semibold, design: .rounded))
-            .monospacedDigit()
-            .rollingDigits(text, countsDown: true)
-            // Dimming is the paused signal. A pause glyph would compete
-            // with three digits in a 44pt slot, and dimming has a property
-            // worth having: a paused timer redraws zero times, because
-            // nothing about it changes until it is resumed.
-            .foregroundStyle(.white.opacity(isPaused ? 0.4 : 0.95))
-            .lineLimit(1)
-            .fixedSize()
-            .accessibilityLabel(accessibilityText)
+        HStack(spacing: 2) {
+            // Ahead of the digits, so they keep their place at the
+            // trailing edge whether or not it shows.
+            if isPaused {
+                Image(systemName: "pause.fill")
+                    .font(.system(size: 7, weight: .bold))
+            }
+            Text(text)
+                .font(.system(size: 12, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .rollingDigits(text, countsDown: true)
+        }
+        // Dimmed while paused, through `NotchInk` so Increase Contrast
+        // lifts both shades -- which is why the glyph carries the signal.
+        .foregroundStyle(.ink(isPaused ? 0.4 : 0.95))
+        .lineLimit(1)
+        .fixedSize()
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
     }
 }

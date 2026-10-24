@@ -132,7 +132,12 @@ setting — Default, Large, Larger, a factor of 1, 1.15 or 1.3 — and one facto
 drives three things that must agree:
 
 - **The panel's frame.** `NotchGeometry.panelFrame(for:in:textScale:)` grows
-  `expandedSize` by the factor, clamped to the screen but never below 620×260.
+  `expandedSize` by the factor, never below 620×260. On a screen too small
+  for the enlarged panel the factor itself comes down — `fittedTextScale`,
+  the largest scale whose panel fits — rather than the frame being clamped
+  under full-size text, which cut the bottom row off. `AppState.textScale`
+  reads the same fitted scale back from the frame (the fit is a fixed point),
+  and that, not the raw setting, is what the layout and the fonts use.
   `AppDelegate` asks for every frame through one helper that passes the scale;
   changing the setting goes through `reposition`, so the funnel, the tracking
   rect and the hosting view follow as they do on a screen change.
@@ -149,9 +154,11 @@ drives three things that must agree:
 
 At the default every size comes back exactly, so the look is unchanged.
 `TextSizeRenderingTests` renders each size with its own frame and checks that
-nothing runs off the bottom of the panel, with a control proving the check sees
-the clipping the larger frame exists to avoid. No observer: the view reads
-`AppState.textSize` on its next draw.
+nothing runs off the bottom of the panel — on a roomy screen and on screens
+too small for Larger — with a control proving the check sees the clipping
+the larger frame exists to avoid. Semantic styles such as `.title3` are fixed
+sizes on macOS too, so `noPanelFontUsesAFixedTextStyle` keeps them out of the
+panel. No observer: the view reads `AppState.textSize` on its next draw.
 
 ## The window is always full size
 
@@ -301,8 +308,15 @@ only while it is key, so `NotchPanel` handles them itself (`keyDown`,
 `PanelKey` to `AppDelegate.handlePanelKey`, which asks `PanelKeyboard` (Core)
 what it means and makes the same `transition(to:)` a click would. ⌘N counts
 the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
-a gap in the numbering. Neither key does anything unless the state is `.open`
-— Esc never tears down a drop target mid-drag.
+a gap in the numbering. With a search typed on the clipboard tab, Esc clears
+the search first and only the next press closes — `PanelKeyboard` decides that
+from `AppState.clipboardQuery`, so it is tested in Core like the rest. No key
+does anything unless the state is `.open`
+— Esc never tears down a drop target mid-drag. Space and ← → are decoded the
+same way and answered only on the shelf tab (Quick Look and the selection,
+below); anywhere else they are passed on, and a text field that is editing —
+the timer's minutes, the clipboard search — consumes them before the window
+sees them.
 
 ### Who gets the keyboard
 
@@ -384,8 +398,9 @@ every `didChangeScreenParameters`; pinned to the built-in display it asks on
 everything but activation, falling back to the main screen when there is no
 built-in one (clamshell). Pinned to a specific display it is stored as
 `display:<UUID>:<name>` — the UUID because display ids are not stable across
-reconnections, the name only so Settings can label it while unplugged — and
-it falls back to the built-in, then main, then first screen while that
+reconnections, the name only so Settings can label it while unplugged, and
+refreshed (`DisplayChoice.refreshingName`) whenever the list is read with that
+display connected under a new name — and it falls back to the built-in, then main, then first screen while that
 display is absent. Nothing remembers the fallback: plugging the display back
 in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
@@ -417,8 +432,10 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   SwiftUI re-resolves the style when the setting changes. A new dimmed
   white in the panel should use these, not `.white.opacity`. State never
   rests on colour or dimming alone: `PowerGaugeTone.glyph` adds a bolt while
-  charging (always) and a mark when low (under the setting), and
-  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits.
+  charging (always) and a mark when low (under the setting) — and VoiceOver
+  hears the same tone, "…, low", from `PowerGaugeTone.spokenLabel` —
+  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits, and
+  the ear's timer badge draws a pause glyph ahead of its dimmed digits.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
@@ -468,7 +485,7 @@ holding the observer weakly. Do the same for any new C callback.
 ## Permissions
 
 **Nothing is requested at launch. The camera is the one module that needs a
-grant at all.** The file shelf's drag detection and drop target work through
+grant to work at all; the timer asks for one optional extra.** The file shelf's drag detection and drop target work through
 AppKit's own drag events, clipboard needs nothing, and the global shortcut
 goes through the window server rather than a monitor.
 
@@ -480,6 +497,20 @@ is otherwise indistinguishable from a bug. `.notDetermined` falls through to
 — the app never calls `requestAccess` itself. `NSCameraUsageDescription` in
 `Info.plist` is the text that prompt shows. There is deliberately no
 `NSMicrophoneUsageDescription`: clips are silent.
+
+**Notifications are the timer's, and optional.** A finished timer posts a
+notification only where its peek cannot be seen — the notch ordered out for a
+full-screen app (`TimerDoneNotice.shouldPost`, Core). Permission is asked
+when a countdown *starts*, never at launch and never at the finish, where the
+prompt would arrive instead of the banner over the app the user is busy in.
+`SystemTimerNotices` reaches `UNUserNotificationCenter` lazily and only from a
+bundled `.app` (the call traps in an unbundled process); every
+`AppDelegate()` starts with the recording `SilentTimerNotices`, and only
+`configureForRealLaunch()` swaps in the real one. Denied is not an error: the
+chime and the VoiceOver announcement go out first either way, and Settings
+says notifications are off. Alerts only, no sound — the app has its own chime.
+No usage-description key exists for notifications, so `Info.plist` is
+unchanged.
 
 Accessibility was required until the system HUD was removed: `MediaKeyMonitor`
 needed it to detect volume and brightness keypresses. `Permissions`,
@@ -597,11 +628,62 @@ counts a file that does not exist yet.
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
 and `restore(_:)` moves the files back out of the Trash with their original
 identity and drop time (a move keeps the creation date). Anything that cannot
-come back, because it was emptied from the Trash, is skipped and reported,
-and the rest still return. The record lives in `AppDelegate`, not the store,
-because how long the offer lasts is a UI decision; it is withdrawn by a
-one-shot `Task`, scheduled only by a clear, so nothing is pending while the
-shelf is idle.
+come back, because it was emptied from the Trash, is skipped and reported —
+under the shelf, through the same notice a failed copy uses, and to
+VoiceOver — and the rest still return. The record lives in `AppDelegate`, not
+the store, because how long the offer lasts is a UI decision; it is withdrawn
+by a one-shot `Task`, scheduled only by a clear, so nothing is pending while
+the shelf is idle. A second clear while the offer stands is merged into it
+(`ShelfClearance.merging`) and restarts the window, so one Undo brings back
+every batch. **Restoring never evicts.** The restored files are the oldest on
+the shelf, so the eviction an add runs would trash exactly what was asked
+back; the shelf may sit over its capacity until the next add enforces it.
+
+### Quick Look and Open
+
+A click on a tile selects it (`AppState.shelfSelection`, drawn as a ring), a
+double-click opens it with its default app, and Space previews the selection
+in the system's `QLPreviewPanel` — also reachable as Open and Quick Look in
+the tile's menu and VoiceOver actions. Which verbs a tile offers, in what
+order, and what a preview pages through are pure Core (`ShelfTileVerb`,
+`ShelfPreview`, `ShelfSelection`): the preview is handed **every ready item**,
+starting at the chosen one, so Quick Look's own arrows walk the shelf; a file
+still copying in is never selected, previewed or opened.
+
+**Nothing runs until asked.** No panel is created to answer whether one is
+up (`sharedPreviewPanelExists()` first), and the one observer — the preview's
+`willClose` — is added on the first preview, never before. Its controller is
+found two ways, because the notch panel is non-activating — through the key
+window's responder chain (`NotchPanel.acceptsPreviewPanelControl`), and
+handed over directly before the preview is ordered front, since on a
+hover-open the notch panel is not key and once the preview is key the chain
+it walks is its own. The preview outlives the notch panel closing behind it
+— the pointer leaving for the preview starts the usual grace — and our own
+app activating is already ignored by the dismissal path. Space reaches the
+panel only while it is key, so after a hover-open it goes to the app
+underneath: a click in the panel makes it key first.
+
+**The preview takes the keyboard without activating the app.**
+CreativeNotch is never the active app, and `QLPreviewPanel` is an ordinary
+panel, which cannot become key in an app that is not active: ordered front
+with `makeKeyAndOrderFront`, it left no window of ours key, and the next
+Space typed into whatever was frontmost. `ShelfQuickLook.prepare` gives it
+the notch panel's own `.nonactivatingPanel` style, so it becomes key while
+the other app stays in front, and its own Space, Esc and arrows work as in
+Finder. When it closes, nothing would be key again — so the `willClose`
+observer hands the keyboard back to the notch panel, if it is still open
+(`AppDelegate.shelfPreviewDidClose`), and Space there previews again. Paging
+in the preview moves the preview, not the selection ring. None of this is
+visible to a headless suite; the opt-in live suite (`ShelfQuickLookLive`,
+see DEVELOPMENT.md) drives it against the window server.
+
+Both are seams on `AppDelegate`, sandboxed by default like the Trash:
+`shelfOpener` is `.inert` and `shelfPreview` an `InertShelfPreview` until
+`configureForRealLaunch()` hands in `NSWorkspace.open` and `ShelfQuickLook`,
+so no test can launch an app or put a preview on screen
+(`SandboxedSeamsTests`). Switching the shelf off closes a preview of its
+files and forgets the selection. No permission: both are the system's own
+viewers, reading files the shelf already holds.
 
 ### The drop region follows the drawn shape
 
@@ -644,6 +726,15 @@ The poller is therefore designed around minimising what that costs:
   `ConcealedType`, `TransientType` and `AutoGeneratedType` are what password
   managers set, and checking them first means the app never holds a secret
   even briefly.
+- **Excluded apps are refused before any content is read, too**
+  (2026-10-24). Settings holds a list of bundle identifiers
+  (`clipboard.excludedApps`, empty by default). At a detected change — never
+  on an idle tick, and not at all while the list is empty — the poller reads
+  `NSWorkspace.frontmostApplication` and the `org.nspasteboard.source` type,
+  and `ClipboardExclusions.excludes` (Core) refuses the copy if either names
+  a listed app. Either, not source-first: the list is a privacy promise, and
+  a false positive costs one missing entry. A refused copy still counts as
+  activity for the back-off, like a concealed one.
 - **Images are transcoded to PNG at capture**, so an uncompressed retina
   screenshot is judged at the size the ring will actually hold rather than
   being dropped for exceeding the cap at its raw size.
@@ -651,6 +742,37 @@ The poller is therefore designed around minimising what that costs:
 Fifty entries by default (25 or 100 in Settings; shrinking forgets the oldest
 at once), in memory only, gone on quit. The byte budget is not a setting. File
 URLs are left to the shelf.
+
+### Search and pins cost nothing at rest
+
+Neither adds a subsystem. The search is a filter over `entries`
+(`ClipboardSearch`, Core) evaluated when the pane redraws — because the query
+or the ring changed — and never otherwise: no index, no debounce timer, since a
+hundred entries is not a search problem. It matches every word of the query,
+ignoring case and diacritics, against the whole entry rather than the
+80-character row preview. The query lives in `AppState.clipboardQuery`, not in
+the view, because Esc has to read it (below); it survives a tab switch and is
+emptied when the panel leaves `.open`, so a reopen never shows a stale filter.
+
+The field never asks for focus. On a hover-open the panel is not key
+(`PanelFocus`), so the field cannot steal keystrokes; a click in it makes the
+panel key the way any click does. An `.accessory` app has no Edit menu, so
+`NotchPanel.performKeyEquivalent` maps ⌘X/C/V/A/Z to the field editor while one
+is first responder — otherwise pasting into the search would do nothing.
+
+**Pins** are a flag on `ClipboardEntry`, kept at the front of `entries`, so
+the view, the search and the menu bar read one list in display order. They
+count towards the history size and the byte budget but are never what either
+evicts — the oldest *unpinned* entry goes instead, and one unpinned entry (the
+one just copied) always survives. Because that exemption would otherwise be a
+way round both limits, pins have their own ceiling, `maxPinned` = 10, which
+bounds them at 100 MB of images. **Clear keeps pins** without asking: a pin is
+the person saying "keep this", the menu bar's Clear has nowhere to show a
+question, and Unpin or Remove is how a pin goes; the title row and the menu bar
+count only what Clear would take. **Switching the module off forgets pins**
+(`removeAll`), because off means the app holds nothing. Pins are never written
+to disk, for the reason nothing else here is: they are the entries most likely
+to matter, which makes them the worst ones to leave behind in a file.
 
 ## Media
 
@@ -883,6 +1005,18 @@ tracked the text would resize the closed notch every time a digit dropped —
 visually jittery, and worse, it would re-run the drawn/hit-test/hover sync on
 every change, turning a once-a-minute redraw into a once-a-minute geometry
 update.
+
+### Over a full-screen app it posts a notification
+
+The `FullScreenWatcher` orders the panel out over full-screen apps, so a
+timer finishing there peeks into an invisible window. `timerDidFinish` asks
+`TimerDoneNotice.shouldPost(notchOnScreen:enabled:)` and, hidden and wanted,
+hands a "Timer done" notice to the `timerNotices` seam — *after* the chime and
+alongside the announcement, never instead of them. Posted at the moment the
+one-shot fires, with no trigger: a notification queued for the deadline would
+be a second copy of it, to be cancelled on every pause and cancel. One
+identifier, so a second finish replaces the first banner. The switch is
+`timer.notifyWhenHidden`, absent meaning on.
 
 ### The trap that nearly shipped
 

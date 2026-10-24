@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import SwiftUI
 import Testing
 import CreativeNotchCore
 @testable import CreativeNotchUI
@@ -320,5 +321,49 @@ struct WelcomeWiringTests {
         // A plain open asks for nothing new.
         controller.show()
         #expect(controller.highlight.request == second)
+    }
+
+    /// **On the very first open the form has not laid out yet**, and a
+    /// `scrollTo` issued then lands nowhere: the Shortcut row is at the
+    /// bottom of a form that has no rows to scroll between yet. The request
+    /// waits for the form's first layout and is acted on then; once laid
+    /// out, later asks scroll straight away.
+    @Test func theScrollWaitsForTheFormsFirstLayout() {
+        let highlight = PreferencesHighlight()
+        highlight.ask(for: .shortcut)
+        #expect(highlight.scrollTarget == nil, "scrolled a form that has not laid out")
+        let beforeLayout = highlight.scrollKey
+
+        highlight.formDidLayOut()
+        #expect(highlight.scrollTarget == .shortcut)
+        #expect(highlight.scrollKey != beforeLayout, "the scroll task would not re-run")
+
+        // A later layout pass is not a new request.
+        let laidOut = highlight.scrollKey
+        highlight.formDidLayOut()
+        #expect(highlight.scrollKey == laidOut)
+
+        // And with the form up, an ask scrolls at once.
+        highlight.fade(request: highlight.request)
+        #expect(highlight.scrollTarget == nil)
+        highlight.ask(for: .shortcut)
+        #expect(highlight.scrollTarget == .shortcut)
+    }
+
+    /// The real view reports its layout: hosted offscreen and laid out,
+    /// the form tells the highlight it is ready.
+    @Test func theFormReportsItsLayout() {
+        let d = makeDelegate()
+        let controller = PreferencesController(
+            switchboard: d.switchboard,
+            state: d.state,
+            launchAtLogin: d.launchAtLogin,
+            presenter: { _ in }
+        )
+        controller.show(highlighting: .shortcut)
+        let host = NSHostingView(rootView: PreferencesView(controller: controller))
+        host.frame = CGRect(x: 0, y: 0, width: 520, height: 600)
+        host.layoutSubtreeIfNeeded()
+        #expect(controller.highlight.scrollTarget == .shortcut)
     }
 }

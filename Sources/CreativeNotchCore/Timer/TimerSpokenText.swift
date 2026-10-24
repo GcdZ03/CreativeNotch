@@ -26,8 +26,9 @@ public enum TimerSpokenText {
         return "\(count) \(unit)\(count == 1 ? "" : "s")"
     }
 
-    /// The ear badge: the time, and whether it is paused, since dimming is
-    /// the only sign of that on screen.
+    /// The ear badge: the time, and whether it is paused -- on screen that
+    /// is a dimmed badge with a pause glyph, neither of which VoiceOver
+    /// can see.
     public static func remaining(_ remaining: TimeInterval, isPaused: Bool) -> String {
         let left = "\(duration(remaining)) remaining"
         return isPaused ? "Timer paused, \(left)" : left

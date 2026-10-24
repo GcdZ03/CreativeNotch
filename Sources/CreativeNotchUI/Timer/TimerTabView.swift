@@ -185,7 +185,8 @@ struct TimerTabView: View {
                     .notchFont(44, weight: .medium, design: .rounded)
                     .monospacedDigit()
                     .rollingDigits(remaining, countsDown: true)
-                    // Dimming says paused at a glance, as it does in the ear.
+                    // Dimming says paused at a glance, as it does in the
+                    // ear (where a pause glyph stands in for the word).
                     .foregroundStyle(.ink(Self.digitsOpacity(isPaused: countdown.isPaused)))
                 // The word says it outright, for anyone two greys do not
                 // separate — see `TimerDisplay.caption`.
