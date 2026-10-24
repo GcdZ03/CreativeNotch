@@ -136,7 +136,7 @@ struct UpdateInstallRulesTests {
         let release = Release(
             tag: "v0.13.0",
             notesURL: URL(string: "https://github.com/GcdZ03/CreativeNotch/releases/tag/v0.13.0")!,
-            archiveURL: URL(string: "https://github.com/x/a.tar.gz"),
+            archiveURL: URL(string: "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/CreativeNotch-v0.13.0.tar.gz"),
             checksumURL: nil
         )
         let record = UpdateRecord(lastCheck: Date(timeIntervalSince1970: 1_800_000_000), etag: #"W/"e""#, release: release)

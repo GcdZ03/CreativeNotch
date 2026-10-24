@@ -87,12 +87,15 @@ public struct UpdateRecord: Equatable, Sendable {
 
     /// The record from raw defaults values, by `PreferenceKeys.resolveEnabled`'s
     /// policy: a value of the wrong type reads as absent and is left in
-    /// place.
+    /// place. So does a release whose links `parse` would not have taken
+    /// (`Release.isTrusted`) — and with it gone, its ETag is not sent.
     public static func resolve(lastCheck: Any?, etag: Any?, release: Any?) -> UpdateRecord {
         UpdateRecord(
             lastCheck: (lastCheck as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) },
             etag: etag as? String,
-            release: (release as? Data).flatMap { try? JSONDecoder().decode(Release.self, from: $0) }
+            release: (release as? Data)
+                .flatMap { try? JSONDecoder().decode(Release.self, from: $0) }
+                .flatMap { $0.isTrusted ? $0 : nil }
         )
     }
 }

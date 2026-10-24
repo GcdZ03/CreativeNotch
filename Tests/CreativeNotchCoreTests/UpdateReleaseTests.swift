@@ -55,8 +55,8 @@ struct UpdateReleaseTests {
     /// stray source archive or a renamed upload must not be installed.
     @Test func anAssetWithAnotherNameIsIgnored() throws {
         let release = try #require(Release.parse(Self.json(assets: [
-            ("source.tar.gz", "https://github.com/x/source.tar.gz"),
-            ("CreativeNotch-v0.12.0.tar.gz", "https://github.com/x/CreativeNotch-v0.12.0.tar.gz"),
+            ("source.tar.gz", "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/source.tar.gz"),
+            ("CreativeNotch-v0.12.0.tar.gz", "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.12.0/CreativeNotch-v0.12.0.tar.gz"),
         ])))
         #expect(release.archiveURL == nil)
         #expect(release.checksumURL == nil)
@@ -67,7 +67,7 @@ struct UpdateReleaseTests {
     /// nothing is installed unverified.
     @Test func anArchiveWithoutItsChecksumIsNotInstallable() throws {
         let release = try #require(Release.parse(Self.json(assets: [
-            ("CreativeNotch-v0.13.0.tar.gz", "https://github.com/x/CreativeNotch-v0.13.0.tar.gz"),
+            ("CreativeNotch-v0.13.0.tar.gz", "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/CreativeNotch-v0.13.0.tar.gz"),
         ])))
         #expect(release.archiveURL != nil)
         #expect(!release.isInstallable)
@@ -76,14 +76,95 @@ struct UpdateReleaseTests {
     /// Plain HTTP is refused for everything the app downloads or opens.
     @Test func nonHTTPSLinksAreRefused() throws {
         let insecure = try #require(Release.parse(Self.json(assets: [
-            ("CreativeNotch-v0.13.0.tar.gz", "http://github.com/x/CreativeNotch-v0.13.0.tar.gz"),
-            ("CreativeNotch-v0.13.0.tar.gz.sha256", "http://github.com/x/CreativeNotch-v0.13.0.tar.gz.sha256"),
+            ("CreativeNotch-v0.13.0.tar.gz", "http://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/CreativeNotch-v0.13.0.tar.gz"),
+            ("CreativeNotch-v0.13.0.tar.gz.sha256", "http://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/CreativeNotch-v0.13.0.tar.gz.sha256"),
         ])))
         #expect(insecure.archiveURL == nil)
         #expect(insecure.checksumURL == nil)
         #expect(Release.parse(Self.json(html: "http://github.com/GcdZ03/CreativeNotch")) == nil)
         #expect(Release.parse(Self.json(html: "file:///etc/passwd")) == nil)
     }
+
+    /// Every link must be this repository's (2026-10-25). The checksum
+    /// comes from the same reply as the archive, so it cannot vouch for a
+    /// link served beside it: an asset on another host, in another
+    /// repository, or under another tag is dropped, and the release is then
+    /// announced but never installed.
+    @Test func assetsFromAnotherHostOrRepositoryAreRefused() throws {
+        let archive = "CreativeNotch-v0.13.0.tar.gz"
+        func assets(_ base: String) -> [(String, String)] {
+            [(archive, "\(base)/\(archive)"), (archive + ".sha256", "\(base)/\(archive).sha256")]
+        }
+        let foreign = [
+            "https://example.com/GcdZ03/CreativeNotch/releases/download/v0.13.0",  // another host
+            "https://github.com.example.com/GcdZ03/CreativeNotch/releases/download/v0.13.0",
+            "https://objects.githubusercontent.com/GcdZ03/CreativeNotch/releases/download/v0.13.0",
+            "https://github.com/x/CreativeNotch/releases/download/v0.13.0",  // another repository
+            "https://github.com/GcdZ03/Other/releases/download/v0.13.0",
+            "https://github.com/x",  // nowhere near a release
+            "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.12.0",  // another tag
+            "https://github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/../../../../x/y/releases/download/v0.13.0",
+            "https://github.com:8443/GcdZ03/CreativeNotch/releases/download/v0.13.0",  // a port
+            "https://user@github.com/GcdZ03/CreativeNotch/releases/download/v0.13.0",  // credentials
+        ]
+        for base in foreign {
+            let release = try #require(Release.parse(Self.json(assets: assets(base))), "\(base)")
+            #expect(release.archiveURL == nil, "\(base)")
+            #expect(release.checksumURL == nil, "\(base)")
+            #expect(!release.isInstallable, "\(base)")
+        }
+        // A query on an otherwise right link is refused too.
+        let query = try #require(Release.parse(Self.json(assets: [
+            (archive, "\(Self.download)/v0.13.0/\(archive)?x=1"),
+        ])))
+        #expect(query.archiveURL == nil)
+    }
+
+    /// The exact shape GitHub serves passes, the host in any case.
+    @Test func thisRepositorysDownloadsAreAccepted() throws {
+        let archive = "CreativeNotch-v0.13.0.tar.gz"
+        let release = try #require(Release.parse(Self.json(assets: [
+            (archive, "https://GitHub.com/GcdZ03/CreativeNotch/releases/download/v0.13.0/\(archive)"),
+            (archive + ".sha256", "\(Self.download)/v0.13.0/\(archive).sha256"),
+        ])))
+        #expect(release.isInstallable)
+        #expect(release.isTrusted)
+    }
+
+    /// "Release Notes" hands `html_url` to the browser, so it is held to the
+    /// same host and repository; a reply whose notes are elsewhere is not a
+    /// release.
+    @Test func notesFromAnotherHostOrRepositoryAreRefused() {
+        for html in [
+            "https://example.com/GcdZ03/CreativeNotch/releases/tag/v0.13.0",
+            "https://github.com/x/CreativeNotch/releases/tag/v0.13.0",
+            "https://github.com/GcdZ03/Other/releases/tag/v0.13.0",
+            "https://github.com/GcdZ03/CreativeNotch",
+            "https://github.com/GcdZ03/CreativeNotch/releases",
+            "https://github.com/GcdZ03/CreativeNotch/releases/../../../x/y",
+        ] {
+            #expect(Release.parse(Self.json(html: html)) == nil, "\(html)")
+        }
+    }
+
+    /// A cached release is held to the same rules when read back, so a
+    /// hand-edited preferences value cannot redirect "Update Now".
+    @Test func anUntrustedCachedReleaseIsDropped() throws {
+        let foreign = Release(
+            tag: "v0.13.0",
+            notesURL: URL(string: "https://github.com/GcdZ03/CreativeNotch/releases/tag/v0.13.0")!,
+            archiveURL: URL(string: "https://example.com/CreativeNotch-v0.13.0.tar.gz"),
+            checksumURL: URL(string: "https://example.com/CreativeNotch-v0.13.0.tar.gz.sha256")
+        )
+        #expect(!foreign.isTrusted)
+        let record = UpdateRecord.resolve(lastCheck: nil, etag: "e", release: try JSONEncoder().encode(foreign))
+        #expect(record.release == nil)
+        #expect(record.conditionalETag == nil)
+        let trusted = try #require(Release.parse(Self.json()))
+        #expect(UpdateRecord.resolve(lastCheck: nil, etag: "e", release: try JSONEncoder().encode(trusted)).release == trusted)
+    }
+
+    private static let download = "https://github.com/GcdZ03/CreativeNotch/releases/download"
 
     @Test func malformedReplies() {
         #expect(Release.parse(Data()) == nil)

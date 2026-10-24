@@ -43,15 +43,29 @@ public struct Release: Codable, Equatable, Sendable {
     ///
     /// Only the asset named for this tag is taken — not the first `.tar.gz`,
     /// which is what `install.sh`'s `grep` settles for — so a stray source
-    /// archive or a mislabelled upload is never what gets installed. Every
-    /// link must be HTTPS: these are URLs the app downloads from and hands
-    /// to the browser, and the reply is the one input it does not control.
+    /// archive or a mislabelled upload is never what gets installed.
+    ///
+    /// Every link must be this repository's own, over HTTPS (2026-10-25):
+    /// the notes a page under `github.com/GcdZ03/CreativeNotch/releases/`,
+    /// and each asset exactly
+    /// `github.com/GcdZ03/CreativeNotch/releases/download/<tag>/<name>`.
+    /// These are URLs the app downloads from and hands to the browser, and
+    /// the reply is the one input it does not control — the `.sha256` comes
+    /// from the same reply as the archive, so the checksum cannot vouch for
+    /// a link it was served beside. GitHub's redirect from there to its
+    /// asset storage is followed by `URLSession` and is not this check's
+    /// business. A link that fails is dropped: a foreign asset makes the
+    /// release uninstallable, a foreign notes page makes the reply no
+    /// release at all.
     public static func parse(_ data: Data) -> Release? {
         guard let reply = try? JSONDecoder().decode(Reply.self, from: data),
               !reply.tagName.isEmpty,
-              let notes = secure(reply.htmlURL) else { return nil }
+              let notes = reply.htmlURL.flatMap(URL.init(string:)),
+              isNotesPage(notes) else { return nil }
         func asset(named name: String) -> URL? {
-            reply.assets?.first { $0.name == name }.flatMap { secure($0.downloadURL) }
+            reply.assets?.first { $0.name == name }
+                .flatMap { $0.downloadURL.flatMap(URL.init(string:)) }
+                .flatMap { isAsset($0, named: name, tag: reply.tagName) ? $0 : nil }
         }
         let archive = archiveName(for: reply.tagName)
         return Release(
@@ -62,9 +76,46 @@ public struct Release: Codable, Equatable, Sendable {
         )
     }
 
-    private static func secure(_ text: String?) -> URL? {
-        guard let text, let url = URL(string: text), url.scheme == "https", url.host() != nil else { return nil }
-        return url
+    /// Whether every link this release holds passes the checks `parse`
+    /// makes. A release read back from the cache is held to it again, so a
+    /// hand-edited preferences value cannot point "Update Now" elsewhere.
+    public var isTrusted: Bool {
+        Self.isNotesPage(notesURL)
+            && archiveURL.map { Self.isAsset($0, named: archiveName, tag: tag) } != false
+            && checksumURL.map { Self.isAsset($0, named: checksumName, tag: tag) } != false
+    }
+
+    /// A page of this repository's releases: `https://github.com/GcdZ03/
+    /// CreativeNotch/releases/…`, at least one component below `releases`.
+    static func isNotesPage(_ url: URL) -> Bool {
+        guard let path = repositoryPath(url) else { return false }
+        let prefix = ["releases"]
+        return path.count > prefix.count && Array(path.prefix(prefix.count)) == prefix
+    }
+
+    /// Exactly `https://github.com/GcdZ03/CreativeNotch/releases/download/
+    /// <tag>/<name>`, with no query or fragment.
+    static func isAsset(_ url: URL, named name: String, tag: String) -> Bool {
+        guard url.query == nil, url.fragment == nil,
+              let path = repositoryPath(url) else { return false }
+        return path == ["releases", "download", tag, name]
+    }
+
+    /// The path components after `/GcdZ03/CreativeNotch` for an HTTPS link
+    /// to github.com itself — no other host, port or credentials — or `nil`.
+    /// A "." or ".." component is refused outright: a server would resolve
+    /// it, and resolved it could leave the repository.
+    private static func repositoryPath(_ url: URL) -> [String]? {
+        guard url.scheme?.lowercased() == "https",
+              url.host()?.lowercased() == UpdateEndpoint.host,
+              url.port == nil, url.user() == nil, url.password() == nil else { return nil }
+        let components = url.pathComponents
+        guard components.first == "/",
+              !components.contains(where: { $0 == "." || $0 == ".." }) else { return nil }
+        let rest = Array(components.dropFirst())
+        let repository = UpdateEndpoint.repository.split(separator: "/").map(String.init)
+        guard rest.count > repository.count, Array(rest.prefix(repository.count)) == repository else { return nil }
+        return Array(rest.dropFirst(repository.count))
     }
 
     /// The fields read from GitHub's reply; everything else is ignored.
@@ -93,9 +144,16 @@ public struct Release: Codable, Equatable, Sendable {
 
 /// Where the updater asks, and how it introduces itself.
 public enum UpdateEndpoint {
+    /// The repository every release link must belong to, as `install.sh`'s
+    /// `REPO`.
+    public static let repository = "GcdZ03/CreativeNotch"
+    /// The only host a release link may name. Its downloads redirect to
+    /// GitHub's asset storage; that hop is `URLSession`'s to follow.
+    public static let host = "github.com"
+
     /// The endpoint `Scripts/install.sh` uses, so the app and the installer
     /// can never disagree about what "latest" means.
-    public static let latestRelease = URL(string: "https://api.github.com/repos/GcdZ03/CreativeNotch/releases/latest")!
+    public static let latestRelease = URL(string: "https://api.github.com/repos/\(repository)/releases/latest")!
 
     /// Who is asking, on every request the updater makes — the API call
     /// and both downloads.

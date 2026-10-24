@@ -15,8 +15,8 @@ enum UpdateFakes {
         Release(
             tag: tag,
             notesURL: notes,
-            archiveURL: installable ? URL(string: "https://github.com/x/CreativeNotch-\(tag).tar.gz") : nil,
-            checksumURL: installable ? URL(string: "https://github.com/x/CreativeNotch-\(tag).tar.gz.sha256") : nil
+            archiveURL: installable ? URL(string: "https://github.com/GcdZ03/CreativeNotch/releases/download/\(tag)/CreativeNotch-\(tag).tar.gz") : nil,
+            checksumURL: installable ? URL(string: "https://github.com/GcdZ03/CreativeNotch/releases/download/\(tag)/CreativeNotch-\(tag).tar.gz.sha256") : nil
         )
     }
 
@@ -25,8 +25,8 @@ enum UpdateFakes {
         Data(#"""
         {"tag_name": "\#(tag)", "html_url": "https://github.com/GcdZ03/CreativeNotch/releases/tag/\#(tag)",
          "assets": [
-          {"name": "CreativeNotch-\#(tag).tar.gz", "browser_download_url": "https://github.com/x/CreativeNotch-\#(tag).tar.gz"},
-          {"name": "CreativeNotch-\#(tag).tar.gz.sha256", "browser_download_url": "https://github.com/x/CreativeNotch-\#(tag).tar.gz.sha256"}]}
+          {"name": "CreativeNotch-\#(tag).tar.gz", "browser_download_url": "https://github.com/GcdZ03/CreativeNotch/releases/download/\#(tag)/CreativeNotch-\#(tag).tar.gz"},
+          {"name": "CreativeNotch-\#(tag).tar.gz.sha256", "browser_download_url": "https://github.com/GcdZ03/CreativeNotch/releases/download/\#(tag)/CreativeNotch-\#(tag).tar.gz.sha256"}]}
         """#.utf8)
     }
 

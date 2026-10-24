@@ -282,6 +282,9 @@ struct LocalizationTests {
         "CreativeNotch.app", #"CreativeNotch-\(tag).tar.gz"#,
         "curl -fsSL https://raw.githubusercontent.com/GcdZ03/CreativeNotch/main/Scripts/install.sh | bash",
         #"sleep 1; i=0; while kill -0 $1 2>/dev/null && [ $i -lt 50 ]; do sleep 0.2; i=$((i+1)); done; exec \"$2\" \"$0\""#,
+        // The repository every release link must belong to
+        // (`UpdateEndpoint.repository`, 2026-10-25): a URL path, not text.
+        "GcdZ03/CreativeNotch",
     ]
 
     // MARK: - Helpers
