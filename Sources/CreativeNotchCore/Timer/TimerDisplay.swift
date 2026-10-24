@@ -36,6 +36,20 @@ public enum TimerDisplay {
         return String(format: "0:%02d", seconds)
     }
 
+    /// The word beside the panel's digits: "left" while running, "paused"
+    /// while paused.
+    ///
+    /// Dimming was the only paused signal, and two greys are no signal for
+    /// anyone who cannot tell them apart (Differentiate Without Color, or
+    /// Increase Contrast, which lifts the dim one most of the way to the
+    /// bright). The word is shown to everyone rather than only under the
+    /// setting: it reads naturally ("12m paused") and costs nothing, since
+    /// a paused timer does not redraw. The ear's badge keeps dimming alone
+    /// — see `TimerBadgeView` for why a 44pt slot has no room for more.
+    public static func caption(isPaused: Bool) -> String {
+        isPaused ? "paused" : "left"
+    }
+
     /// How long until `text` returns something different, or `nil` when the
     /// timer has finished and there is nothing left to schedule.
     ///

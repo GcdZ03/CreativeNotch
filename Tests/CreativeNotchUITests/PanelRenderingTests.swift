@@ -196,6 +196,17 @@ struct TabRenderingTests {
         #expect(PowerView.fill(for: PowerSnapshot(level: 80, source: .battery, isCharging: false, isLowPowerMode: false)) == .white)
     }
 
+    /// The paused word must be the easiest thing to read when paused, not
+    /// the hardest: it no longer inherits the digits' dimming.
+    @Test func thePausedCaptionReadsAboveTheDimmedDigits() {
+        #expect(TimerTabView.captionOpacity(isPaused: true)
+                > TimerTabView.digitsOpacity(isPaused: true))
+        // Running, it stays the quieter of the two, as it always was.
+        #expect(TimerTabView.captionOpacity(isPaused: false)
+                < TimerTabView.digitsOpacity(isPaused: false))
+        #expect(abs(TimerTabView.captionOpacity(isPaused: false) - 0.95 * 0.55) < 0.0001)
+    }
+
     /// The gauge and the header cell draw the glyph Core picks, so the two
     /// cannot disagree about whether a low battery is marked.
     @Test func theBatteryGlyphComesFromCore() {
