@@ -50,10 +50,15 @@ enum NotchedDelegate {
     /// `countdown` is applied *before* `install`, which seeds the accepted
     /// region from `visibleRect()` directly — that is how a test reaches
     /// the badged state without a scheduler running.
+    ///
+    /// `shelfFileManager` defaults to the real one, as before; a suite that
+    /// makes the shelf trash something hands in a `SandboxTrash` so nothing
+    /// reaches the user's real Trash.
     @MainActor
-    static func make(countdown: Countdown? = nil) -> AppDelegate {
+    static func make(countdown: Countdown? = nil, shelfFileManager: FileManager = .default) -> AppDelegate {
         let delegate = AppDelegate()
         delegate.shelfTrash = TestTrash.shelf
+        delegate.shelfFileManager = shelfFileManager
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory

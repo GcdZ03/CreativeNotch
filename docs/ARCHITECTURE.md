@@ -535,7 +535,11 @@ next oldest, so one stuck file neither refuses every later drop nor lets the
 shelf grow past its capacity plus the stuck ones. Lowering a limit in Settings
 runs the same eviction and purge at once (`setLimits`), sparing nothing since
 nothing was just added; "never" switches the purge off rather than setting a
-very large age.
+very large age. Settings asks first: `previewLimits` (over the pure
+`ShelfStore.removals`) names what `setLimits` would take without touching the
+disk, assuming every file will go — a stuck file cannot be known without
+trying to move it, and eviction skipping it for the next oldest keeps the
+count right anyway.
 
 **Clear can be undone for six seconds.** `clear()` returns a
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
@@ -958,8 +962,26 @@ A change goes through `AppState.onSetLimits` → `AppDelegate.applyLimits`, whic
 saves and applies in one call: the live `ShelfStore` evicts and purges at once
 by its usual trash-before-drop rules, the clipboard ring trims its oldest
 entries, and the timer tab draws its presets from `AppState`. Nothing waits for
-a relaunch, and nothing is scheduled — each store acts once, on the change. A
-newly chosen chime is previewed through the same `playChime` seam the finish
+a relaunch, and nothing is scheduled — each store acts once, on the change.
+
+**Except a change that would trash shelf files, which is asked about first.**
+`PreferencesController.setLimits` calls `AppState.onPreviewLimits` before
+anything else; a non-empty `ShelfLimitRemoval` is held in `PendingLimits`
+instead of applied, and the shelf rows show a confirmation dialog whose
+wording comes from the removal (linked captures are "removed", never "moved
+to the Trash"). Confirm applies the held value through the same
+`onSetLimits`; Cancel, or dismissing the dialog, drops it — nothing was
+saved or applied, and the picker, which shows the held value while the
+question is up, moves back to the applied one. There is no Undo after a
+confirmed change: the pane's six-second offer and the menu bar's "Undo Clear
+Shelf" are out of sight from Settings and say the wrong thing, and restoring
+under the new limit would evict the same files again unless the undo also
+reverted the setting — which is what Cancel already does before anything
+moves. The files are in the Trash either way. The clipboard's size is not
+asked about: its entries are in-memory text and images, not files, and the
+picker says plainly how many it keeps.
+
+A newly chosen chime is previewed through the same `playChime` seam the finish
 uses, which is what keeps the test suite silent.
 
 ### The first thing that ever turned a tab off

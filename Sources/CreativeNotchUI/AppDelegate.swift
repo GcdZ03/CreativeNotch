@@ -208,6 +208,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("CreativeNotch/Shelf")
 
+    /// The `FileManager` the shelf moves files to the Trash with.
+    /// Overridable for the reason `shelfDirectory` is: a test that lowers a
+    /// limit hands in one whose Trash is a temporary directory, so evicted
+    /// files never reach the user's real one.
+    var shelfFileManager: FileManager = .default
+
     private(set) var shelf: ShelfStore?
 
     /// How the shelf copies a dropped file. Overridable, like
@@ -256,7 +262,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// Applied to the live stores, not left for a relaunch: a lowered shelf
     /// capacity or expiry trashes what no longer fits straight away, by the
-    /// rules an add already follows, and a smaller clipboard forgets its
+    /// rules an add already follows. Settings asks first, through
+    /// `previewLimits`, so by the time a change that trashes files reaches
+    /// here the user has confirmed it. A smaller clipboard forgets its
     /// oldest entries. The timer's presets need nothing here — the tab draws
     /// them from `AppState`.
     ///
@@ -277,6 +285,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if limits.chime != previous.chime, limits.chime != .none {
             playChime(limits.chime)
         }
+    }
+
+    /// What `applyLimits` would take off the shelf, without taking it —
+    /// asked by Settings before a change, so one that would trash files can
+    /// be confirmed first. Measured at the same `now` the apply uses.
+    func previewLimits(_ limits: Limits) -> ShelfLimitRemoval {
+        shelf?.previewLimits(
+            capacity: limits.shelfCapacity,
+            maxAge: limits.shelfExpiry.maxAge,
+            now: Date(timeIntervalSince1970: now())
+        ) ?? ShelfLimitRemoval(items: [])
     }
 
     /// Clears the shelf and offers the clear back for `shelfUndoWindow`.
@@ -773,6 +792,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         shelf = try? ShelfStore(
             directory: shelfDirectory,
+            fileManager: shelfFileManager,
             capacity: limits.shelfCapacity,
             maxAge: limits.shelfExpiry.maxAge,
             copier: shelfCopier,
@@ -822,6 +842,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
+        state.onPreviewLimits = { [weak self] limits in
+            self?.previewLimits(limits) ?? ShelfLimitRemoval(items: [])
+        }
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }

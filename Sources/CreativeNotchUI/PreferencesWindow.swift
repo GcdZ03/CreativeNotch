@@ -129,8 +129,46 @@ final class PreferencesController {
     /// applied.
     var limits: Limits { state.limits }
 
+    /// A change that would move shelf files to the Trash, held until the
+    /// user answers (2026-10-24). Held here, like `highlight`, because the
+    /// window's view is built once and reused.
+    let pendingLimits = PendingLimits()
+
+    /// What the rows show: the change being asked about while the question
+    /// is up, and what applied otherwise. Cancel then moves the picker from
+    /// the held value back to the applied one — a real change of value, so
+    /// the menu redraws instead of keeping the choice that was refused.
+    var displayedLimits: Limits { pendingLimits.change?.limits ?? state.limits }
+
+    /// Applies at once, unless the change would take something off the
+    /// shelf: a lowered capacity or expiry moves real files to the Trash, so
+    /// that change is held and Settings asks first. Everything else —
+    /// raising a limit, the clipboard, the presets, the chime — applies as
+    /// before, because a question asked about nothing is one people learn to
+    /// click through.
     func setLimits(_ limits: Limits) {
-        state.onSetLimits?(limits)
+        let removal = state.onPreviewLimits?(limits) ?? ShelfLimitRemoval(items: [])
+        if removal.isEmpty {
+            pendingLimits.change = nil
+            state.onSetLimits?(limits)
+        } else {
+            pendingLimits.change = PendingLimits.Change(limits: limits, removal: removal)
+        }
+    }
+
+    /// "Move to Trash": applies the held change. Takes the change rather
+    /// than reading `pendingLimits`, so it applies what the dialog showed
+    /// even if SwiftUI dismissed the dialog — clearing the hold — before
+    /// running the button's action.
+    func confirmLimits(_ change: PendingLimits.Change) {
+        pendingLimits.change = nil
+        state.onSetLimits?(change.limits)
+    }
+
+    /// "Cancel", or the dialog dismissed: nothing was applied, so dropping
+    /// the hold is the whole of it.
+    func cancelLimits() {
+        pendingLimits.change = nil
     }
 
     /// The hotkey controller, for the recorder row. Reached through the
@@ -181,6 +219,22 @@ final class PreferencesController {
         NSApp.activate()
         self.window = window
     }
+}
+
+/// A limit change waiting on "Move N files to the Trash?" (2026-10-24).
+///
+/// Observable so the dialog appears when a change is held and goes when it
+/// is answered. Nothing here applies anything; the controller does, on
+/// confirm, through the same `onSetLimits` every other change takes.
+@MainActor
+@Observable
+final class PendingLimits {
+    struct Change: Equatable {
+        let limits: Limits
+        let removal: ShelfLimitRemoval
+    }
+
+    var change: Change?
 }
 
 /// A request to land on one section of the form (2026-10-24).
@@ -650,6 +704,11 @@ struct DisplayRow: View {
 /// `controller.limits` — `AppState`'s, which is observable — and writes the
 /// whole value back through `setLimits`, so what the row shows is always what
 /// applied, normalisation included. A preset typed as 500 reads back as 99.
+///
+/// The one exception is a shelf change that would trash files: the row shows
+/// it (`displayedLimits`) while "Move N files to the Trash?" asks, and goes
+/// back to what applied if the answer is Cancel. One dialog serves both shelf
+/// pickers, since only one change can be held at a time.
 struct LimitsRows: View {
     let module: ModuleID
     let controller: PreferencesController
@@ -662,12 +721,23 @@ struct LimitsRows: View {
         on controller: PreferencesController
     ) -> Binding<Value> {
         Binding(
-            get: { controller.limits[keyPath: keyPath] },
+            get: { controller.displayedLimits[keyPath: keyPath] },
             set: { value in
                 var limits = controller.limits
                 limits[keyPath: keyPath] = value
                 controller.setLimits(limits)
             }
+        )
+    }
+
+    /// Whether the shelf's "Move N files to the Trash?" is up. Dismissing it
+    /// any way other than the destructive button — Cancel, Escape — is a
+    /// cancel, so the held change is dropped and the picker reverts. Static,
+    /// like `binding`, so a test can drive it without rendering.
+    static func confirming(_ controller: PreferencesController) -> Binding<Bool> {
+        Binding(
+            get: { controller.pendingLimits.change != nil },
+            set: { presented in if !presented { controller.cancelLimits() } }
         )
     }
 
@@ -680,6 +750,19 @@ struct LimitsRows: View {
                 }
                 Picker("Keeps files for", selection: Self.binding(\.shelfExpiry, on: controller)) {
                     ForEach(ShelfExpiry.allCases, id: \.self) { Text($0.label).tag($0) }
+                }
+                .confirmationDialog(
+                    controller.pendingLimits.change?.removal.title ?? "",
+                    isPresented: Self.confirming(controller),
+                    titleVisibility: .visible,
+                    presenting: controller.pendingLimits.change
+                ) { change in
+                    Button(change.removal.confirmLabel, role: .destructive) {
+                        controller.confirmLimits(change)
+                    }
+                    Button("Cancel", role: .cancel) { controller.cancelLimits() }
+                } message: { change in
+                    Text(change.removal.message)
                 }
             case .clipboard:
                 Picker("Remembers", selection: Self.binding(\.clipboardCapacity, on: controller)) {
