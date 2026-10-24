@@ -132,7 +132,12 @@ setting — Default, Large, Larger, a factor of 1, 1.15 or 1.3 — and one facto
 drives three things that must agree:
 
 - **The panel's frame.** `NotchGeometry.panelFrame(for:in:textScale:)` grows
-  `expandedSize` by the factor, clamped to the screen but never below 620×260.
+  `expandedSize` by the factor, never below 620×260. On a screen too small
+  for the enlarged panel the factor itself comes down — `fittedTextScale`,
+  the largest scale whose panel fits — rather than the frame being clamped
+  under full-size text, which cut the bottom row off. `AppState.textScale`
+  reads the same fitted scale back from the frame (the fit is a fixed point),
+  and that, not the raw setting, is what the layout and the fonts use.
   `AppDelegate` asks for every frame through one helper that passes the scale;
   changing the setting goes through `reposition`, so the funnel, the tracking
   rect and the hosting view follow as they do on a screen change.
@@ -149,9 +154,11 @@ drives three things that must agree:
 
 At the default every size comes back exactly, so the look is unchanged.
 `TextSizeRenderingTests` renders each size with its own frame and checks that
-nothing runs off the bottom of the panel, with a control proving the check sees
-the clipping the larger frame exists to avoid. No observer: the view reads
-`AppState.textSize` on its next draw.
+nothing runs off the bottom of the panel — on a roomy screen and on screens
+too small for Larger — with a control proving the check sees the clipping
+the larger frame exists to avoid. Semantic styles such as `.title3` are fixed
+sizes on macOS too, so `noPanelFontUsesAFixedTextStyle` keeps them out of the
+panel. No observer: the view reads `AppState.textSize` on its next draw.
 
 ## The window is always full size
 

@@ -126,17 +126,22 @@ struct TextSizeTests {
         #expect(frame.maxY == anchor.rect.maxY)
     }
 
-    /// Clamped to the screen -- but never below the default size, which is
-    /// what the panel has always been regardless of the screen.
-    @Test func theGrownPanelIsClampedToTheScreenButNeverShrinks() {
+    /// On a screen too small for the enlarged panel, the panel shrinks to
+    /// the largest scale that fits -- both sides by the same factor, so the
+    /// text drawn at that scale fits the frame -- but never below the
+    /// default size, which is what the panel has always been regardless of
+    /// the screen.
+    @Test func theGrownPanelIsFittedToTheScreenButNeverShrinks() {
         let small = ScreenMetrics(
             frame: CGRect(x: 0, y: 0, width: 700, height: 300),
             safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
         )
         let anchor = NotchGeometry.anchor(for: small)
         let frame = NotchGeometry.panelFrame(for: anchor, in: small, textScale: TextSize.larger.scale)
+        let fitted = NotchGeometry.fittedTextScale(TextSize.larger.scale, within: small.frame.size)
         #expect(frame.width == 700)
-        #expect(frame.height == 300)
+        #expect(frame.height == NotchType.length(NotchGeometry.expandedSize.height, scale: fitted))
+        #expect(frame.height <= 300)
         #expect(frame.minX >= small.frame.minX)
         #expect(frame.maxX <= small.frame.maxX)
 
@@ -163,5 +168,54 @@ struct TextSizeTests {
                     .mediaColumnWidth == 0)
         #expect(PanelLayout.resolve(anchor: anchor, panelFrame: frame, showsMedia: true)
                     .mediaColumnWidth == PanelLayout.mediaColumnWidth)
+    }
+
+    // MARK: - Fitting the scale to a small screen
+
+    /// **Clamping the frame alone clipped the text.** The fonts were still
+    /// drawn at the full factor inside a frame cut down to the screen. The
+    /// scale itself comes down instead, to the largest the screen holds.
+    @Test func theScaleComesDownToTheLargestThatFits() {
+        let expanded = NotchGeometry.expandedSize
+        // Room for everything: the requested scale, untouched.
+        #expect(NotchGeometry.fittedTextScale(1.3, within: CGSize(width: 1470, height: 956)) == 1.3)
+        // Width-bound and height-bound screens.
+        for size in [CGSize(width: 700, height: 900), CGSize(width: 1400, height: 300), CGSize(width: 701.6, height: 299.7)] {
+            let scale = NotchGeometry.fittedTextScale(1.3, within: size)
+            #expect(scale < 1.3)
+            #expect(scale >= 1)
+            #expect(NotchType.length(expanded.width, scale: scale) <= size.width)
+            #expect(NotchType.length(expanded.height, scale: scale) <= size.height)
+            // The largest: a little more no longer fits.
+            let more = scale + 0.01
+            #expect(NotchType.length(expanded.width, scale: more) > size.width
+                    || NotchType.length(expanded.height, scale: more) > size.height)
+        }
+    }
+
+    /// Never below one: a screen smaller than even the default panel keeps
+    /// the default look, as before the setting. And a default request is
+    /// never raised.
+    @Test func theFittedScaleNeverGoesBelowOneOrAboveTheRequest() {
+        #expect(NotchGeometry.fittedTextScale(1.3, within: CGSize(width: 500, height: 200)) == 1)
+        #expect(NotchGeometry.fittedTextScale(1, within: CGSize(width: 5000, height: 5000)) == 1)
+        #expect(NotchGeometry.fittedTextScale(1.15, within: .zero) == 1)
+    }
+
+    /// The panel's frame and the scale the views draw at agree: reading the
+    /// scale back from the frame gives the fitted scale, so the fonts are
+    /// never larger than the frame was sized for.
+    @Test func theFrameAndTheDrawnScaleAgree() {
+        let small = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 720, height: 310),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        )
+        let frame = NotchGeometry.panelFrame(for: NotchGeometry.anchor(for: small), in: small, textScale: 1.3)
+        let fromScreen = NotchGeometry.fittedTextScale(1.3, within: small.frame.size)
+        let fromFrame = NotchGeometry.fittedTextScale(1.3, within: frame.size)
+        #expect(fromFrame == fromScreen)
+
+        let roomy = NotchGeometry.panelFrame(for: NotchGeometry.anchor(for: notched), in: notched, textScale: 1.3)
+        #expect(NotchGeometry.fittedTextScale(1.3, within: roomy.size) == 1.3)
     }
 }
