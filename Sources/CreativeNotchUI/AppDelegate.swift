@@ -210,6 +210,28 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private(set) var shelf: ShelfStore?
 
+    /// How the shelf copies a dropped file. Overridable, like
+    /// `shelfDirectory`, so a test can decide when -- and whether -- a copy
+    /// finishes. Set it before `install(metrics:)`.
+    var shelfCopier: ShelfCopier = .system
+
+    /// Where the shelf sends what it clears, evicts and purges. Overridable
+    /// so tests never move files into the user's real Trash. Set it before
+    /// `install(metrics:)`, whose launch purge already uses it.
+    var shelfTrash: ShelfTrash = .system
+
+    /// How long "Couldn't add …" stays under the shelf after a background
+    /// copy fails. Long enough to read a file name; it is a report, not an
+    /// offer, so nothing waits on it.
+    static let defaultShelfNoticeDuration: Duration = .seconds(4)
+
+    /// Overridable for the reason `shelfUndoWindow` is.
+    var shelfNoticeDuration: Duration = AppDelegate.defaultShelfNoticeDuration
+
+    /// The one-shot that withdraws the notice. Scheduled only by a failed
+    /// copy, sleeps once, and is gone: `nil` whenever no notice is shown.
+    private(set) var shelfNoticeTask: Task<Void, Never>?
+
     /// How long "Undo" stays on offer after the shelf is cleared.
     ///
     /// Long enough to notice a mistake and reach the button, short enough
@@ -311,6 +333,35 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.canUndoShelfClear = false
     }
 
+    /// How many shelf items the menu bar's Clear Shelf counts and acts on.
+    ///
+    /// Ready items only, as the pane's title row: `clear()` never touches a
+    /// copy in progress, so counting one would offer a Clear that does
+    /// nothing.
+    var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
+
+    /// A dropped file's background copy failed after the drop was accepted.
+    ///
+    /// Logged, announced to VoiceOver, and said under the shelf for
+    /// `shelfNoticeDuration`. The announcement is what reaches someone whose
+    /// pane is closed or who cannot see the line: the drop already said yes,
+    /// and no view is left carrying the item. A second failure replaces the
+    /// first line rather than queueing behind it.
+    func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
+        NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
+        let notice = "Couldn't add \(item.displayName)"
+        announce(notice)
+        shelfNoticeTask?.cancel()
+        state.shelfNotice = notice
+        shelfNoticeTask = Task { @MainActor [weak self] in
+            guard let duration = self?.shelfNoticeDuration else { return }
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.state.shelfNotice = nil
+            self?.shelfNoticeTask = nil
+        }
+    }
+
     // MARK: - Dismissal
 
     /// How long an open panel survives the cursor leaving it.
@@ -393,7 +444,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
             onClearShelf: { [weak self] in self?.clearShelf() },
-            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
+            shelfCount: { [weak self] in self?.menuShelfCount ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
             clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
@@ -723,8 +774,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelf = try? ShelfStore(
             directory: shelfDirectory,
             capacity: limits.shelfCapacity,
-            maxAge: limits.shelfExpiry.maxAge
+            maxAge: limits.shelfExpiry.maxAge,
+            copier: shelfCopier,
+            trash: shelfTrash
         )
+        shelf?.onCopyFailed = { [weak self] item, error in
+            self?.reportShelfCopyFailure(item, error)
+        }
         _ = try? shelf?.purge(now: Date())
         state.shelf = shelf
 
@@ -906,6 +962,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // Spec section 9: a write that fails refuses the drop rather
             // than half-completing it. Swallowing the error and opening
             // the shelf anyway would show an empty shelf and no reason why.
+            //
+            // A file is not copied here: `add` checks what it cheaply can,
+            // lists it as pending and copies in the background, so a large
+            // drop no longer holds the main thread. A copy that fails after
+            // that is reported by `reportShelfCopyFailure`, since this drop
+            // has long since been answered.
             var stored = 0
             for payload in payloads {
                 do {

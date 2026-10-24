@@ -27,7 +27,7 @@ struct ShelfStoreObservationTests {
     private func makeStore() throws -> ShelfStore {
         let directory = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchShelfObs-\(UUID().uuidString)")
-        return try ShelfStore(directory: directory)
+        return try ShelfStore(directory: directory, trash: TestTrash.shelf)
     }
 
     @Test func addingAnItemNotifiesObservers() throws {

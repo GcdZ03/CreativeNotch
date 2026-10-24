@@ -31,6 +31,9 @@ struct DismissBehaviourTests {
     ) -> (AppDelegate, MonitorSpy) {
         let spy = MonitorSpy()
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.installOutsideClickMonitor = { handler in spy.install(handler) }
         delegate.removeOutsideClickMonitor = { spy.remove($0) }

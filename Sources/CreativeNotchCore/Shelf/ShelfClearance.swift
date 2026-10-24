@@ -12,7 +12,7 @@ public struct ShelfClearance: Equatable, Sendable {
         /// The item as it was listed, with its original URL and drop time.
         public let item: ShelfItem
 
-        /// Where `FileManager.trashItem` put an owned file.
+        /// Where the shelf's `ShelfTrash` put an owned file.
         ///
         /// `nil` for a reference, which was never moved, and for an owned
         /// file that was already gone when the shelf was cleared -- there

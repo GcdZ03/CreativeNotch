@@ -99,6 +99,9 @@ struct HotKeyRecorderTests {
         let store = HotKeyStore(defaults: TestDefaults.isolated("recorder"))
         let hotKey = HotKeyController(store: store)
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated("recorder-prefs")
         let controller = PreferencesController(
             switchboard: delegate.switchboard,

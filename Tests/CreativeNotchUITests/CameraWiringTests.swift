@@ -18,6 +18,7 @@ struct CameraWiringTests {
 
     private func makeDelegate() throws -> (AppDelegate, CameraController, Log) {
         let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated("camera-wiring")
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory

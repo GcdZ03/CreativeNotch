@@ -38,6 +38,9 @@ struct GrowthLagTests {
 
     private func makeDelegate(delay: Duration = .milliseconds(60)) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = delay
         delegate.install(metrics: Self.notched)

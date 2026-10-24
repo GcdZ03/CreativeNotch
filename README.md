@@ -87,7 +87,8 @@ command. It is not sold, and it is not on the App Store.
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
-back out anywhere later.
+back out anywhere later. A large file copies in the background, so the app
+never pauses for it.
 
 Nothing is ever drawn behind the camera housing. The closed notch's badges
 sit in the **ear to its right**, leaving the left clear for app menus; the
@@ -256,6 +257,7 @@ it back.
 | Two-finger swipe down on the notch | The notch follows your fingers and opens past a threshold, with one haptic tap |
 | Two-finger swipe up on the panel's top strip (the tab icons) | Closes it; scrolling anywhere else in the panel is just scrolling |
 | Drag a file onto the notch | Opens as a drop target; drop anywhere in the panel |
+| Drop a large file | Its tile appears at once, dimmed under a spinner, while it copies in the background; it can be dragged out once the spinner goes. A file that is missing or bigger than the free space is refused at the drop; one whose copy fails later disappears with "Couldn't add …" under the shelf for a few seconds, also spoken by VoiceOver |
 | Drag an item out of the shelf | Copies it wherever you drop it |
 | Click the notch | Opens the full panel, on the tab you used last. The tabs are the icons in the left ear of the notch; the battery level and a settings gear sit in the right ear |
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |

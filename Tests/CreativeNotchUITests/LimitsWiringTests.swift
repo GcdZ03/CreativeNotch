@@ -36,6 +36,7 @@ struct LimitsWiringTests {
         PreferencesStore(defaults: defaults).saveLimits(Self.custom)
 
         let d = AppDelegate()
+        d.shelfTrash = TestTrash.shelf
         d.preferencesDefaults = defaults
         d.growthDelay = .zero
         d.shelfDirectory = FileManager.default.temporaryDirectory
@@ -64,9 +65,10 @@ struct LimitsWiringTests {
             .appendingPathComponent("CreativeNotchLimits-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let eightDaysAgo = Date().addingTimeInterval(-8 * 24 * 3600)
-        let old = try ShelfStore(directory: directory).add(.text("eight days old"), now: eightDaysAgo)
+        let old = try ShelfStore(directory: directory, trash: TestTrash.shelf).add(.text("eight days old"), now: eightDaysAgo)
 
         let d = AppDelegate()
+        d.shelfTrash = TestTrash.shelf
         d.preferencesDefaults = defaults
         d.growthDelay = .zero
         d.shelfDirectory = directory

@@ -126,6 +126,9 @@ struct ShowOnDisplayTests {
     @Test func theChoiceIsSavedAndRestoredOnTheNextLaunch() {
         let defaults = TestDefaults.isolated("show-on")
         let first = AppDelegate()
+        first.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        first.shelfTrash = TestTrash.shelf
         first.preferencesDefaults = defaults
         first.playChime = { _ in }
         first.screenMetrics = { _ in nil }
@@ -133,6 +136,9 @@ struct ShowOnDisplayTests {
         first.state.onSetDisplayChoice?(.builtIn)
 
         let second = AppDelegate()
+        second.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        second.shelfTrash = TestTrash.shelf
         second.preferencesDefaults = defaults
         second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)

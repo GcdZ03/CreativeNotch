@@ -151,6 +151,14 @@ public final class AppState {
     /// Set by `AppDelegate`, which holds what the clear took.
     public internal(set) var canUndoShelfClear = false
 
+    /// A short line under the shelf -- "Couldn't add Holiday.mov" -- when a
+    /// dropped file's background copy fails, or `nil`.
+    ///
+    /// The drop had already been accepted by then, so the pane is the only
+    /// place left to say so. Observable, like `canUndoShelfClear`, because
+    /// it lapses on its own; set and withdrawn by `AppDelegate`.
+    public internal(set) var shelfNotice: String?
+
     /// Puts back what the last Clear moved to the Trash. Wired, like
     /// `onClearShelf`, to the delegate that holds the record.
     @ObservationIgnored
@@ -1089,12 +1097,24 @@ public struct NotchRootView: View {
                     count: Self.shelfCount(shelf.items.count),
                     actions: Self.shelfActions(for: shelf, app: app)
                 ) {
-                    ShelfView(
-                        store: shelf,
-                        onRemove: { app.onRemoveShelfItem?($0) },
-                        onAirDrop: { app.onAirDropShelfItems?([$0]) },
-                        onReveal: { app.onRevealShelfItem?($0) }
-                    )
+                    VStack(alignment: .leading, spacing: 6) {
+                        ShelfView(
+                            store: shelf,
+                            onRemove: { app.onRemoveShelfItem?($0) },
+                            onAirDrop: { app.onAirDropShelfItems?([$0]) },
+                            onReveal: { app.onRevealShelfItem?($0) }
+                        )
+                        // A background copy that failed after its drop was
+                        // accepted. Under the tiles rather than in the title
+                        // row, which is for verbs; gone again on its own.
+                        if let notice = app.shelfNotice {
+                            Text(notice)
+                                .font(.system(size: 11, weight: .medium, design: .rounded))
+                                .foregroundStyle(.ink(0.6))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                    }
                 }
             }
 
@@ -1151,6 +1171,10 @@ public struct NotchRootView: View {
     /// when it is empty -- with "Undo" before Clear for the few seconds a
     /// clear can still be taken back.
     ///
+    /// Both act on `readyItems`: a file still copying in has nothing to
+    /// AirDrop, and Clear would pass it by, so a shelf holding only copies
+    /// in progress offers neither.
+    ///
     /// AirDrop All hands every file to AirDrop in one go — one picker, not
     /// one per file — through the same `onAirDropShelfItems` verb the
     /// tiles use. Clear stays last, at the edge, where the destructive verb
@@ -1161,13 +1185,13 @@ public struct NotchRootView: View {
         for shelf: ShelfStore, app: AppState
     ) -> [(label: String, perform: () -> Void)] {
         var actions: [(label: String, perform: () -> Void)] = []
-        if !shelf.items.isEmpty {
-            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.items.map(\.url)) }))
+        if !shelf.readyItems.isEmpty {
+            actions.append(("AirDrop All", { app.onAirDropShelfItems?(shelf.readyItems.map(\.url)) }))
         }
         if app.canUndoShelfClear {
             actions.append(("Undo", { app.onUndoClearShelf?() }))
         }
-        if !shelf.items.isEmpty {
+        if !shelf.readyItems.isEmpty {
             actions.append(("Clear", { app.onClearShelf?() }))
         }
         return actions

@@ -32,7 +32,7 @@ struct DropTargetRetentionTests {
     @Test func theTargetReadsTheStoresExpiry() throws {
         let dir = FileManager.default.temporaryDirectory
             .appendingPathComponent("CreativeNotchRetention-\(UUID().uuidString)")
-        let store = try ShelfStore(directory: dir, maxAge: nil)
+        let store = try ShelfStore(directory: dir, maxAge: nil, trash: TestTrash.shelf)
         #expect(ShelfView.emptyTarget(for: store).maxAge == nil)
     }
 }

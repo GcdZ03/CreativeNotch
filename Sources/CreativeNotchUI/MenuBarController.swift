@@ -83,7 +83,7 @@ public final class MenuBarController: NSObject {
             keyEquivalent: ""
         )
         clear.target = self
-        clear.isEnabled = shelfCount() > 0
+        clear.isEnabled = canClearShelf
         menu.addItem(clear)
         self.clearShelfItem = clear
 
@@ -150,6 +150,9 @@ public final class MenuBarController: NSObject {
     /// it then does nothing.
     var showsUndoClearShelf: Bool { canUndoClearShelf() }
 
+    /// Clear Shelf is offered only while there is something it would clear.
+    var canClearShelf: Bool { shelfCount() > 0 }
+
     @objc func undoClearShelf() {
         onUndoClearShelf()
     }
@@ -178,7 +181,7 @@ extension MenuBarController: NSMenuDelegate {
     /// current without anything polling on a timer.
     public func menuWillOpen(_ menu: NSMenu) {
         clearShelfItem?.title = clearShelfTitle()
-        clearShelfItem?.isEnabled = shelfCount() > 0
+        clearShelfItem?.isEnabled = canClearShelf
         undoClearShelfItem?.isHidden = !showsUndoClearShelf
         clearClipboardItem?.title = clearClipboardTitle()
         clearClipboardItem?.isEnabled = clipboardCount() > 0
