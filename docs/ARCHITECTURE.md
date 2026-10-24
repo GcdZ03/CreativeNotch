@@ -105,8 +105,8 @@ Inside the expanded rect, `PanelLayout.resolve(anchor:panelFrame:showsMedia:)`
 — pure, in Core — is the one place the panel is split up: a header as tall
 as the anchor whose middle column is the camera housing, and below it a
 fixed 212pt media column (grown with the text size) beside the module pane.
-Tabs live in the leading ear, battery and the settings gear in the trailing
-ear, and nothing is drawn
+Tabs live in the left ear, battery and the settings gear in the right
+ear (swappable, below), and nothing is drawn
 behind the housing, the same rule every peek already follows. On a pill the
 gap is zero and the two ears are halves.
 
@@ -153,10 +153,54 @@ nothing runs off the bottom of the panel, with a control proving the check sees
 the clipping the larger frame exists to avoid. No observer: the view reads
 `AppState.textSize` on its next draw.
 
+### Layout options
+
+Settings → Layout (`LayoutOptions`, Core, 2026-10-24) is six options saved and
+applied as one value: panel width, corner style, which ear holds the tabs, the
+header's battery cell, and the now-playing and timer badges. They are settings
+rather than a module because they run nothing — no observer, no timer, nothing
+for a switch to stop — and every default is the geometry and look from before
+the setting. Each lands in the one Core function that already owned the fact:
+
+- **Width** is a parameter of `NotchGeometry.panelFrame(…, width:tabCount:)`.
+  Compact (560), Default (620, `expandedSize`) and Wide (720) are nominal
+  widths the text size then grows; the floor on a small screen stays 620 (or
+  Compact's own), so Wide is a preference a small screen may refuse but no
+  option shrinks the panel below what it always was there. Beside a real
+  notch Compact also goes no narrower than `notch + 2 × PanelLayout.tabEarWidth`
+  for the tabs showing: the panel is centred, so both ears are equal, and
+  either may hold the tabs. That makes Compact the one width that depends on
+  the tab count, so `AppDelegate.tabsDidChange` re-places the panel when a
+  tab-bearing module is toggled or the Battery tab first appears — and only
+  at Compact, so Default and Wide never move for a module switch.
+  `PanelTabBar` and `NotchIconButtonStyle` read `tabEarWidth`'s constants, so
+  the arithmetic and the drawing cannot drift.
+- **Tabs side** is `PanelLayout.tabsSide`. Only the ears' *contents* swap;
+  their widths and the housing between them are hardware facts.
+- **Corners** is a parameter of `NotchShape.cornerRadii`, and rounds the
+  expanded panel only. The closed notch must keep matching the cutout, and a
+  peek is sized into the housing's band, where a 30pt radius would make a
+  lozenge.
+- **Badges** are `NotchShape.badgeSlot(…, hiding:)`. A hidden badge is passed
+  over as if it had nothing to show, so the next one down takes the slot, and
+  because `AppDelegate.currentBadgeSlot` and the view ask the same function,
+  the drawn, hit-test and hover rects still agree. `setLayoutOptions` re-syncs
+  the accepted region itself: hiding a badge changes the closed shape without
+  a state or geometry change, so no funnel event would. Only the timer and
+  media badges can be hidden. The recording dot is the camera exemption's
+  explanation, and the capture indicator is a module whose whole output is
+  that badge, with its own switch.
+
+A width change goes through `reposition`, the path a screen change takes; the
+rest is read by the view on its next draw. `LayoutRenderingTests` renders
+every width at every text size, both tab sides and five tabs on a 14" notch
+and checks nothing lands behind the housing or runs off the bottom.
+
 ## The window is always full size
 
 `NotchPanel` is a borderless, non-activating `NSPanel` sized to the fully
-expanded bounds (620×260, larger with a larger text size) at all times.
+expanded bounds (620×260, larger with a larger text size, narrower or wider
+with the panel width) at all times.
 Content animates inside it. That
 avoids window-resize jank, but it means a large transparent rectangle sits
 permanently under your menu bar.
