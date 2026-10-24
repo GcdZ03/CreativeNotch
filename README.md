@@ -73,6 +73,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Media metadata** — now-playing title, artist, artwork, playback position, and an ambient badge | Done |
 | ✅ **Battery and power state** — level, charging state, Low Power Mode | Done |
 | ✅ **Timer** — a countdown, counting down in the notch | Done |
+| ✅ **Stopwatch and multiple timers** — up to three countdowns at once, and a stopwatch with laps, in the timer tab | Done |
 | ✅ **Preferences** — switch any module off, and its subsystem stops | Done |
 | ✅ **Global shortcut** — open the notch from anywhere, without a global monitor | Done |
 | ✅ **Camera** — a mirror under the lens, a shutter, and a record button | Done |
@@ -287,6 +288,10 @@ it back.
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
+| Click **Add** beside a running timer | The presets come back (with **Back** to return); start up to three countdowns at once |
+| Run several | The tab lists them, each with its own pause and cancel; the notch shows whichever finishes first, and each one peeks and chimes when it finishes |
+| Switch to **Stopwatch** in the timer tab's title row | Start, then Lap and Pause while it runs, Reset and Resume while it is paused; the latest three laps show under the digits |
+| Close the panel with the stopwatch running | It keeps counting — it is a start time, not a ticking clock — and nothing redraws until you look again |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
@@ -322,7 +327,9 @@ Low Power Mode change with the battery level, a finished timer, and the track
 when the music player drops down or the song changes under it (never a pause
 or a seek). The timer's countdown reads as words with its progress ("8 minutes
 remaining, 25% done"), at the same granularity as the digits, and every badge
-beside the notch says what it shows.
+beside the notch says what it shows. With several timers, each row is named by
+its duration ("5-minute timer") and so are its Pause and Cancel buttons; a
+paused stopwatch reads in words ("Paused, 1 minute 5 seconds").
 
 The keys work once the panel has the keyboard: when you opened it by clicking
 the notch or with the global shortcut, or after clicking inside it. A panel
@@ -402,6 +409,7 @@ since. **Nothing is outstanding:**
 |---|---|
 | **Battery and power state** — level, charging state, Low Power Mode | **Shipped** |
 | **Timer** — a countdown, counting down in the notch | **Shipped** |
+| **Stopwatch and multiple timers** — three countdowns at once, and a stopwatch with laps | **Shipped** |
 | **Preferences** — turn modules off, and the subsystem stops | **Shipped** |
 | **Launch at login** — a switch that reads the system rather than remembering | **Shipped** |
 | **Global shortcut** — open the panel from anywhere | **Shipped** |
