@@ -145,9 +145,21 @@ public enum NotchGeometry {
     /// resizes — content animates inside it instead, which avoids resize
     /// jank. The cost is a large transparent rect, which `NotchShape`
     /// handles via hit-testing.
-    public static func panelFrame(for anchor: Anchor, in m: ScreenMetrics) -> CGRect {
-        let width = max(expandedSize.width, anchor.rect.width)
-        let height = expandedSize.height
+    ///
+    /// `textScale` is `TextSize.scale` (2026-10-24): larger text needs a
+    /// larger panel, so both sides grow by the factor the fonts do, through
+    /// the same `NotchType.length`. The growth is clamped to the screen, but
+    /// never below `expandedSize` -- that is what the panel has always been,
+    /// whatever the screen, and the clamp below keeps it on screen as before.
+    public static func panelFrame(
+        for anchor: Anchor, in m: ScreenMetrics, textScale: CGFloat = 1
+    ) -> CGRect {
+        let grown = CGSize(
+            width: min(NotchType.length(expandedSize.width, scale: textScale), m.frame.width),
+            height: min(NotchType.length(expandedSize.height, scale: textScale), m.frame.height)
+        )
+        let width = max(expandedSize.width, grown.width, anchor.rect.width)
+        let height = max(expandedSize.height, grown.height)
         let unclampedX = anchor.rect.midX - width / 2
         // The right bound can fall left of the left bound on a screen
         // narrower than the panel, in which case the left bound wins --
