@@ -321,22 +321,26 @@ panel leaves `.open` (`syncKeyWindow`), never on a tab switch.
 
 ### Peek arbitration
 
-One slot, four competitors. `PeekArbiter` resolves them: **drag > finished
-timer > power > now-playing**. Transient content preempts ambient content and
-then falls back, the same model as the iPhone Dynamic Island. Power has a 3 s
-TTL and a finished timer 600 s; a drag has none and lasts until cleared.
+One slot, five competitors. `PeekArbiter` resolves them: **drag > finished
+timer > power > Bluetooth > now-playing**. Transient content preempts ambient
+content and then falls back, the same model as the iPhone Dynamic Island.
+Power has a 3 s TTL, a Bluetooth device 2.5 s and a finished timer 600 s; a
+drag has none and lasts until cleared.
 
 Power sits above now-playing for a reason: now-playing is ambient wallpaper
 and yields to anything, while power is unsolicited but consequential. A
 finished timer outranks both, because being interrupted by it is exactly what
-the user asked for.
+the user asked for. A Bluetooth device arriving sits between power and
+now-playing: unsolicited, but caused by the person's own hands — they just put
+the AirPods in — so it yields to anything that is news to them, and its TTL is
+the shortest because it confirms rather than informs.
 
 **Differing TTLs mean the re-evaluation delay has to follow the content.**
 With one TTL in the app, `AppDelegate` could re-read the arbiter after a
 single fixed delay. A long peek re-checked too early finds the arbiter still
 returning it, transitions to the state it is already in, and is never looked
 at again — the notch stays open until something unrelated moves it. So
-`AppDelegate.reevaluationDelay(for:power:timerDone:)` picks the delay, and
+`AppDelegate.reevaluationDelay(for:power:timerDone:bluetooth:)` picks the delay, and
 `reevaluatePeek` reschedules when what it reveals is itself transient. It
 terminates because every transient source strictly expires; ambient content
 is never rescheduled, which is what stops this being a timer that runs for
@@ -467,8 +471,8 @@ holding the observer weakly. Do the same for any new C callback.
 
 ## Permissions
 
-**Nothing is requested at launch. The camera is the one module that needs a
-grant at all.** The file shelf's drag detection and drop target work through
+**Nothing is requested at launch. Two modules need a grant: the camera, and
+Bluetooth alerts.** The file shelf's drag detection and drop target work through
 AppKit's own drag events, clipboard needs nothing, and the global shortcut
 goes through the window server rather than a monitor.
 
@@ -480,6 +484,19 @@ is otherwise indistinguishable from a bug. `.notDetermined` falls through to
 — the app never calls `requestAccess` itself. `NSCameraUsageDescription` in
 `Info.plist` is the text that prompt shows. There is deliberately no
 `NSMicrophoneUsageDescription`: clips are silent.
+
+**Bluetooth alerts ship off** (`ModuleID.shippedDefault`), the first module to
+do so, because switching them on is what asks. `BluetoothRunState` (Core)
+decides from the switch and the grant: off is `.idle` and never asks;
+on with macOS not yet asked is `.request`, which creates a `CBCentralManager`
+— the documented way to raise the prompt, dropped as soon as it answers;
+allowed is `.listen`; denied is `.denied`, which the Settings row states in
+orange with a button to Privacy & Security › Bluetooth. The grant is read
+through `CBManager.authorization`, which never prompts, and re-read whenever
+Settings is shown, because macOS posts nothing when it changes.
+`NSBluetoothAlwaysUsageDescription` is in `Info.plist`: IOBluetooth and
+CoreBluetooth both sit behind the Bluetooth privacy service, and without the
+key the process is terminated on first use, as with the camera.
 
 Accessibility was required until the system HUD was removed: `MediaKeyMonitor`
 needed it to detect volume and brightness keypresses. `Permissions`,
@@ -904,6 +921,38 @@ non-`Equatable` box. `nowPlaying` keeps the dedupe on purpose: an equal
 away, `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what stops
 you.
 
+## Bluetooth alerts
+
+A one-row glance below the notch (the battery peek's `.statusPeek` shape) when
+an audio Bluetooth device connects or disconnects. No tab: it is a moment, not
+a place, and the ear has no room for a sixth icon.
+
+- **Event-driven.** `IOBluetoothDevice.register(forConnectNotifications:)`
+  once, and `register(forDisconnectNotification:)` per connected device, both
+  delivered on the main run loop and all unregistered by `stop()`. Nothing is
+  registered while the module is off, and nothing wakes on a clock.
+- **Not every connection is news.** The connect notification reports every
+  device already connected when it is registered, and headphones that bring up
+  two profiles report twice. `BluetoothConnections` (Core) keeps the set of
+  audio devices known to be connected, seeded with a baseline taken before
+  registering, and only a change to it is an event.
+- **What is audio.** `BluetoothAudioKind.classify` decides from the class of
+  device: major class audio/video and an audio minor class (headphones,
+  headset, hands-free, speaker, HiFi, portable, car), or unclassified with the
+  audio service bit. Video kit under the same major class, phones that
+  advertise audio, and keyboards renamed "AirPods" are all `nil`. The name only
+  refines: AirPods, AirPods Pro, AirPods Max and Beats all report headphones.
+- **No battery level.** IOBluetooth's battery properties are private, and the
+  alternative is polling the IORegistry. Omitted, and the peek says nothing
+  about charge rather than guessing.
+- **The activity gate** suppresses peeks and leaves the notifications
+  registered, power's shape: the connection set stays right across a lock, so
+  AirPods taken out behind the lock screen do not "disconnect" again on unlock.
+- `IOBluetoothSource` and `SystemBluetoothAccess` are behind the
+  `BluetoothSource` and `BluetoothAccess` protocols; a fresh `AppDelegate`
+  holds sandbox versions that register nothing and never prompt, and only
+  `configureForRealLaunch()` hands it the real ones.
+
 ## Preferences
 
 Seven switches. **Switching a module off stops what it runs**, rather than
@@ -987,6 +1036,13 @@ entire compatibility surface and is tested with no `UserDefaults` in sight. A
 value of the wrong type reads as absent and is **not** rewritten: someone who
 ran `defaults write … -string yes` gets working software and keeps the evidence
 of what they typed.
+
+**One module ships off: Bluetooth alerts**, because switching them on is
+what asks for Bluetooth access. That is `ModuleID.shippedDefault`, passed as
+`resolveEnabled`'s `shippedDefault` by `PreferencesStore.load`, so absent and
+mistyped both read off for that one key and on for the rest. `Preferences.shipped`
+is what an empty domain resolves to; `.allEnabled` stays "everything on", the
+switchboard's value before `apply()` has read anything.
 
 `UserDefaults.register(defaults:)` is refused. It is invisible to
 `defaults read`, it is per-process, and it makes "what does absent mean" depend
