@@ -424,6 +424,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSScreen.chosen(by: choice)?.metrics
     }
 
+    /// The metrics of the screen an app activation moves the panel to, or
+    /// `nil` to leave it where it is (`DisplayChoice.screenOnActivation`).
+    /// Separate from `screenMetrics` because an activation with no main
+    /// screen is no news about focus and must not fall back to the first
+    /// screen the way the launch does. Injected for the same reason.
+    var activationScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
+        NSScreen.chosenOnActivation(by: choice)?.metrics
+    }
+
     /// Builds and presents the panel. `nil` means the real thing,
     /// `buildAndPresentPanel(metrics:)`; a test hands in a spy, because the
     /// real one puts a window on screen and hosts it in a Space.
@@ -1786,7 +1795,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// reason to look.
     func activeApplicationDidChange() {
         guard state.displayChoice.followsActivation,
-              let metrics = screenMetrics(state.displayChoice)
+              let metrics = activationScreenMetrics(state.displayChoice)
         else { return }
         reposition(metrics: metrics)
     }

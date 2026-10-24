@@ -73,6 +73,23 @@ struct DisplayChoiceTests {
         #expect(!DisplayChoice.builtIn.followsActivation)
     }
 
+    /// An activation names a screen only when there is a main one: with no
+    /// key window (an accessory app coming forward) there is no news about
+    /// where focus is, and before the setting the panel stayed where it was
+    /// rather than falling back to the menu-bar display.
+    @Test func anActivationWithNoMainScreenChoosesNothing() {
+        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [builtIn, externalMain]) == 2)
+        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [builtInMain, external]) == 1)
+        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [external, builtIn]) == nil)
+        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: []) == nil)
+    }
+
+    /// Pinned, an activation never names a screen, main or not.
+    @Test func aPinnedActivationChoosesNothing() {
+        #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtIn, externalMain]) == nil)
+        #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtInMain, external]) == nil)
+    }
+
     // MARK: - Persistence
 
     @Test func anAbsentValueResolvesToTheDefault() {

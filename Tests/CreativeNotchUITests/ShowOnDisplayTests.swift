@@ -28,6 +28,10 @@ struct ShowOnDisplayTests {
             asked.choices.append(choice)
             return choice == .builtIn ? NotchedDelegate.metrics : Self.external
         }
+        d.activationScreenMetrics = { choice in
+            asked.choices.append(choice)
+            return choice == .builtIn ? nil : Self.external
+        }
         if choice != .focusedWindow { d.state.onSetDisplayChoice?(choice) }
         asked.choices.removeAll()
         return (d, asked)
@@ -51,6 +55,16 @@ struct ShowOnDisplayTests {
         d.activeApplicationDidChange()
         #expect(d.currentAnchor.isNotch)
         #expect(asked.choices.isEmpty)
+    }
+
+    /// An activation with no main screen (an accessory app with no key
+    /// window) leaves the panel where it is, as it did before the setting --
+    /// it does not fall back to the menu-bar display the way the launch does.
+    @Test func anActivationWithNoMainScreenLeavesThePanelAlone() {
+        let (d, _) = makeDelegate()
+        d.activationScreenMetrics = { _ in nil }
+        d.activeApplicationDidChange()
+        #expect(d.currentAnchor.isNotch)
     }
 
     // MARK: - Screen changes

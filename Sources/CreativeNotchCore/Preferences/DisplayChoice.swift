@@ -41,6 +41,20 @@ public enum DisplayChoice: String, CaseIterable, Sendable {
     /// whichever app is frontmost, and asking on every Cmd-Tab is work the
     /// rule says not to do.
     public var followsActivation: Bool { self == .focusedWindow }
+
+    /// The screen an app activation moves the notch to, or `nil` to leave it
+    /// where it is.
+    ///
+    /// Stricter than `screen(in:)`: with no main screen (an accessory app
+    /// with no key window came forward) the activation says nothing about
+    /// where focus is, so it does not fall back to the first screen. That is
+    /// what the app did before the setting -- it repositioned on activation
+    /// only when `NSScreen.main` existed -- while the launch and a screen
+    /// change, which must put the panel somewhere, keep the fallback.
+    public func screenOnActivation(in screens: [ScreenDescriptor]) -> CGDirectDisplayID? {
+        guard followsActivation, let main = screens.first(where: \.isMain) else { return nil }
+        return main.id
+    }
 }
 
 /// What the screen rule needs to know about one display, and nothing else.

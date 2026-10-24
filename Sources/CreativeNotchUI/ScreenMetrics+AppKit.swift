@@ -9,6 +9,19 @@ extension NSScreen {
     /// gone is a panel placed on nothing.
     @MainActor
     static func chosen(by choice: DisplayChoice) -> NSScreen? {
+        picked(by: choice.screen(in:))
+    }
+
+    /// The screen an app activation moves the panel to, by
+    /// `DisplayChoice.screenOnActivation(in:)`: `nil` when pinned, or when
+    /// there is no main screen, so the panel stays where it is.
+    @MainActor
+    static func chosenOnActivation(by choice: DisplayChoice) -> NSScreen? {
+        picked(by: choice.screenOnActivation(in:))
+    }
+
+    @MainActor
+    private static func picked(by rule: ([ScreenDescriptor]) -> CGDirectDisplayID?) -> NSScreen? {
         let screens = NSScreen.screens
         let main = NSScreen.main
         let descriptors = screens.compactMap { screen in
@@ -16,7 +29,7 @@ extension NSScreen {
                 ScreenDescriptor(id: $0, isBuiltIn: CGDisplayIsBuiltin($0) != 0, isMain: screen == main)
             }
         }
-        guard let id = choice.screen(in: descriptors) else { return nil }
+        guard let id = rule(descriptors) else { return nil }
         return screens.first { $0.displayID == id }
     }
 
