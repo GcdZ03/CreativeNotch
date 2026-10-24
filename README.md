@@ -282,7 +282,7 @@ it back.
 | Switch to the Timer tab | Presets, or type your own up to 99 minutes |
 | Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
-| Pause it | The countdown dims, and stops redrawing entirely |
+| Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once, and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
@@ -293,7 +293,10 @@ would rather hovering opened the panel itself, Settings → Hover → **Open on
 hover** does that after a delay you choose (0.2–1.0 s) — straight to the
 panel, which has the progress bar and the music controls. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
-still.
+still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
+drawn brighter (no secondary text below 70% white); the default look is
+unchanged. The battery shows a bolt while charging, and with **Differentiate
+Without Color** on, a "!" when low as well as the yellow.
 
 The keys work once the panel has the keyboard: when you opened it by clicking
 the notch or with the global shortcut, or after clicking inside it. A panel

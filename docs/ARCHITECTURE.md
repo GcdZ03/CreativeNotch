@@ -354,6 +354,18 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   hover growth goes, and the bars stand still. The root view only ever takes
   motion away from what it inherits — setting it outright once overrode a
   test's "still" and made two renders differ.
+- **Increase Contrast and Differentiate Without Color.** The panel's
+  hierarchy is white at different opacities, so every dimmed white is drawn
+  as `.ink(x)` (text, glyphs) or `.hairline(x)` (borders, faint fills) —
+  `NotchInk`, a `ShapeStyle` that reads `colorSchemeContrast` where it is
+  drawn and asks `ContrastOpacity` (Core) for the value. Standard contrast
+  returns `x` untouched; increased lifts it onto `floor...1` (text 0.7,
+  hairline 0.25), keeping the order and leaving 0 at 0. No new observer:
+  SwiftUI re-resolves the style when the setting changes. A new dimmed
+  white in the panel should use these, not `.white.opacity`. State never
+  rests on colour or dimming alone: `PowerGaugeTone.glyph` adds a bolt while
+  charging (always) and a mark when low (under the setting), and
+  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
