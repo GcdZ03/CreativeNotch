@@ -41,6 +41,15 @@ public final class PreferencesStore {
         )
     }
 
+    /// Which display the notch lives on. Read on every call, never cached.
+    public var displayChoice: DisplayChoice {
+        PreferenceKeys.resolveDisplayChoice(defaults.object(forKey: PreferenceKeys.showOn))
+    }
+
+    public func setDisplayChoice(_ choice: DisplayChoice) {
+        defaults.set(choice.rawValue, forKey: PreferenceKeys.showOn)
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {

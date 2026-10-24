@@ -65,7 +65,7 @@ command. It is not sold, and it is not on the App Store.
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
 | ✅ Hover to peek, click to open — or, in Settings, open on hover with a delay | Built |
-| ✅ Follows the focused screen | Built |
+| ✅ Follows the focused screen — or, in Settings, stays on the built-in display | Built |
 | ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
@@ -313,6 +313,12 @@ its minutes field has to be typable.
 
 The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
+
+With more than one display, the notch follows the display with the focused
+window, moving whenever you switch to an app on another one. To keep it in one
+place, Settings → Display → **Show on** → **Built-in display** pins it to the
+laptop screen; with the lid closed, or on a Mac without one, it uses the main
+display instead. Connecting or disconnecting a display moves it at once.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

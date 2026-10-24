@@ -26,6 +26,21 @@ public enum PreferenceKeys {
     /// forgotten what the notch does. Absent means not yet seen.
     public static let welcomeSeen = "welcome.seen"
 
+    /// Which display the notch lives on (2026-10-24), as a `DisplayChoice`
+    /// raw value. Absent means following the focused window, the behaviour
+    /// from before the setting existed.
+    public static let showOn = "display.showOn"
+
+    /// What a raw "Show on" value means. A string naming no choice, or a
+    /// value of another type, reads as the default and is not rewritten --
+    /// the policy `resolveEnabled` sets out below.
+    public static func resolveDisplayChoice(_ raw: Any?) -> DisplayChoice {
+        guard let string = raw as? String, let choice = DisplayChoice(rawValue: string) else {
+            return .default
+        }
+        return choice
+    }
+
     /// What a raw defaults value means.
     ///
     /// This is the whole compatibility surface, which is why it is a pure

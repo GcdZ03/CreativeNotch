@@ -500,11 +500,17 @@ struct AppStateTransitionTests {
     /// `NSScreen.main` is the screen with the key window, and an accessory
     /// app at launch may have none. The panel was then never built at all,
     /// for the rest of the session, while every subsystem still started.
-    /// Any screen will do.
+    /// Any screen will do. The launch asks "Show on"'s rule
+    /// (`AppDelegate.screenMetrics`), so the fallback is pinned there --
+    /// every branch in `DisplayChoiceTests` -- and restated here because
+    /// this is the regression it guards.
     @Test func launchFallsBackToAnyScreenWhenThereIsNoMainOne() {
-        #expect(AppDelegate.launchScreen(main: 1, all: [2, 3]) == 1)
-        #expect(AppDelegate.launchScreen(main: nil, all: [2, 3]) == 2)
-        #expect(AppDelegate.launchScreen(main: Int?.none, all: []) == nil)
+        let first = ScreenDescriptor(id: 2, isBuiltIn: false, isMain: false)
+        let second = ScreenDescriptor(id: 3, isBuiltIn: false, isMain: false)
+        let main = ScreenDescriptor(id: 1, isBuiltIn: false, isMain: true)
+        #expect(DisplayChoice.focusedWindow.screen(in: [first, main]) == 1)
+        #expect(DisplayChoice.focusedWindow.screen(in: [first, second]) == 2)
+        #expect(DisplayChoice.focusedWindow.screen(in: []) == nil)
     }
 
     /// With no screen at all, the panel is built when one appears rather
