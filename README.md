@@ -65,7 +65,7 @@ command. It is not sold, and it is not on the App Store.
 |---|---|
 | ✅ Panel anchored to the notch, or a pill on notchless Macs | Built |
 | ✅ Hover to peek, click to open — or, in Settings, open on hover with a delay | Built |
-| ✅ Follows the focused screen — or, in Settings, stays on the built-in display | Built |
+| ✅ Follows the focused screen — or, in Settings, stays on the built-in display or a display you name | Built |
 | ✅ Menu bar item | Built |
 | ✅ **File shelf** — drag files in, drag them out | Built |
 | ✅ Media controls | Done |
@@ -337,7 +337,12 @@ With more than one display, the notch follows the display with the focused
 window, moving whenever you switch to an app on another one. To keep it in one
 place, Settings → Display → **Show on** → **Built-in display** pins it to the
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
-display instead. Connecting or disconnecting a display moves it at once.
+display instead. **Show on** also lists each connected external display by
+name: pick one and the notch stays there (as a pill, if that display has no
+notch). Unplug it and the notch waits on the built-in display — the menu shows
+the display as "(not connected)" so you can see it is still chosen — then
+returns as soon as you plug it back in. Connecting or disconnecting a display
+moves it at once.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

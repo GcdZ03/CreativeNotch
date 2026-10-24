@@ -102,6 +102,16 @@ public final class AppState {
     @ObservationIgnored
     public var onSetTextSize: ((TextSize) -> Void)?
 
+    /// The displays connected when last asked, for the "Show on" menu's
+    /// per-display entries. Refreshed by `onRefreshDisplays` when Settings is
+    /// shown and on every screen-parameter change -- never polled, and never
+    /// read by the placement rule, which asks `NSScreen` afresh each time.
+    public internal(set) var connectedDisplays: [ScreenDescriptor] = []
+
+    /// Re-reads `connectedDisplays`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshDisplays: (() -> Void)?
+
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
     public internal(set) var limits = Limits()

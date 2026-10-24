@@ -22,15 +22,33 @@ extension NSScreen {
 
     @MainActor
     private static func picked(by rule: ([ScreenDescriptor]) -> CGDirectDisplayID?) -> NSScreen? {
-        let screens = NSScreen.screens
-        let main = NSScreen.main
-        let descriptors = screens.compactMap { screen in
-            screen.displayID.map {
-                ScreenDescriptor(id: $0, isBuiltIn: CGDisplayIsBuiltin($0) != 0, isMain: screen == main)
-            }
-        }
         guard let id = rule(descriptors) else { return nil }
         return screens.first { $0.displayID == id }
+    }
+
+    /// Every connected screen as the rule and the "Show on" menu see it,
+    /// read fresh -- the menu's list and the placement come from the same
+    /// reading, so a display Settings offers is one the rule can find.
+    @MainActor
+    static var descriptors: [ScreenDescriptor] {
+        let main = NSScreen.main
+        return screens.compactMap { screen in
+            screen.displayID.map {
+                ScreenDescriptor(
+                    id: $0, isBuiltIn: CGDisplayIsBuiltin($0) != 0, isMain: screen == main,
+                    uuid: uuid(of: $0), name: screen.localizedName
+                )
+            }
+        }
+    }
+
+    /// The display's persistent UUID, uppercase as `CFUUIDCreateString`
+    /// spells it, or `nil` if the system has none for it. Unlike the
+    /// display id, it is the same for the same display after a reboot or
+    /// a reconnection, which is what a pin has to survive.
+    private static func uuid(of id: CGDirectDisplayID) -> String? {
+        guard let uuid = CGDisplayCreateUUIDFromDisplayID(id)?.takeRetainedValue() else { return nil }
+        return CFUUIDCreateString(nil, uuid) as String?
     }
 
     /// The window server's number for this screen, the id the rule and
