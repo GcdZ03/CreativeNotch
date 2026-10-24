@@ -84,8 +84,11 @@ public enum CalendarGlance {
 
     /// The next instant the glance would read differently: an event starting
     /// (its row stops counting down and reads "Now") or ending (it drops
-    /// out), a timed reminder falling due (it turns overdue), or midnight
-    /// (today becomes yesterday and the window moves). Never later than
+    /// out), an event coming within `CalendarText.countdownHorizon`
+    /// ("10:30–11:00" becomes "in 60 min"), a counting-down row's next whole
+    /// minute ("in 28 min" becomes "in 27 min"), a timed reminder falling
+    /// due (it turns overdue), or midnight (today becomes yesterday and the
+    /// window moves). Never later than
     /// midnight, and never at or before `now` -- an instant already reached
     /// would wake at once, find nothing new, and schedule itself again.
     ///
@@ -102,6 +105,17 @@ public enum CalendarGlance {
         for event in events {
             candidates.append(event.start)
             candidates.append(event.end)
+            // Only a timed event starting today counts down: an all-day row
+            // never does, and one starting tomorrow reads "Tomorrow 08:15"
+            // until midnight, which is already a candidate.
+            guard !event.isAllDay, event.start > now, event.start < midnight else { continue }
+            if let minutes = CalendarText.minutesUntil(event, now: now) {
+                // "in m min" holds while more than m-1 minutes remain. At
+                // m == 1 this is the start itself, already a candidate.
+                candidates.append(event.start.addingTimeInterval(-Double(minutes - 1) * 60))
+            } else {
+                candidates.append(event.start.addingTimeInterval(-CalendarText.countdownHorizon))
+            }
         }
         for reminder in reminders where !reminder.isCompleted && reminder.hasTime {
             if let due = reminder.due { candidates.append(due) }

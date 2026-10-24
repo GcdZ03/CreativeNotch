@@ -217,6 +217,58 @@ struct CalendarBoundaryTests {
                 == F.date(10, 20))
     }
 
+    /// Inside the hour a row counts down, so its next whole minute is a
+    /// boundary: at 09:02 "in 28 min" becomes "in 27 min" at 09:03.
+    @Test func aCountdownsNextMinuteIsABoundary() {
+        let events = [F.event("Standup", start: F.date(9, 30), end: F.date(9, 45))]
+        #expect(CalendarGlance.nextBoundary(after: F.date(9, 2), events: events, reminders: [], calendar: F.calendar)
+                == F.date(9, 3))
+        // Mid-minute: 27.5 minutes to go reads "in 28 min" until 27 remain.
+        let midMinute = F.date(9, 2).addingTimeInterval(30)
+        #expect(CalendarGlance.nextBoundary(after: midMinute, events: events, reminders: [], calendar: F.calendar)
+                == F.date(9, 3))
+    }
+
+    /// An event further off starts counting down an hour before it starts:
+    /// at 08:00 "10:30–11:00" next changes at 09:30, to "in 60 min".
+    @Test func comingWithinTheHourIsABoundary() {
+        let events = [F.event("Review", start: F.date(10, 30), end: F.date(11))]
+        #expect(CalendarGlance.nextBoundary(after: F.date(8), events: events, reminders: [], calendar: F.calendar)
+                == F.date(9, 30))
+    }
+
+    /// All-day rows never count down, and a row for tomorrow reads
+    /// "Tomorrow 00:30" until midnight: neither adds a wake.
+    @Test func allDayAndTomorrowAddNoCountdownWakes() {
+        let events = [
+            F.allDay("Holiday"),
+            F.event("Late", start: F.date(0, 30, dayOffset: 1), end: F.date(1, dayOffset: 1)),
+        ]
+        #expect(CalendarGlance.nextBoundary(after: F.date(23), events: events, reminders: [], calendar: F.calendar)
+                == F.date(0, dayOffset: 1))
+    }
+
+    /// Walked from 08:00 to the start, every boundary is an instant the row
+    /// reads differently, and nothing changes in between -- the pane never
+    /// shows a stale count and never wakes for nothing.
+    @Test func everyBoundaryChangesTheRowAndNothingChangesBetween() {
+        let event = F.event("Review", start: F.date(10, 30), end: F.date(11))
+        func text(_ at: Date) -> String {
+            CalendarText.when(event, now: at, calendar: F.calendar, locale: F.locale)
+        }
+        var now = F.date(8)
+        var wakes = 0
+        while now < event.start {
+            let next = CalendarGlance.nextBoundary(after: now, events: [event], reminders: [], calendar: F.calendar)
+            #expect(text(next.addingTimeInterval(-0.5)) == text(now), "changed before \(next)")
+            #expect(text(next) != text(now), "nothing changed at \(next)")
+            now = next
+            wakes += 1
+        }
+        // 09:30, then one per minute from "in 60 min" down to the start.
+        #expect(wakes == 61)
+    }
+
     /// Never later than midnight, whatever is scheduled for next week.
     @Test func midnightCapsTheBoundary() {
         let now = F.date(23)
@@ -241,10 +293,13 @@ struct CalendarTextTests {
         #expect(when(event, at: F.date(9, 30).addingTimeInterval(-30)) == "in 1 min")
     }
 
-    /// An hour or more away, the time itself is more use than a count.
+    /// More than an hour away, the time itself is more use than a count.
+    /// The count begins at exactly an hour, an instant the boundary can
+    /// wake for.
     @Test func laterTodayIsATimeRange() {
         let event = F.event("Review", start: F.date(10, 30), end: F.date(11))
-        #expect(when(event, at: F.date(9, 30)) == "10:30\u{2013}11:00")
+        #expect(when(event, at: F.date(9, 29)) == "10:30\u{2013}11:00")
+        #expect(when(event, at: F.date(9, 30)) == "in 60 min")
         #expect(when(event, at: F.date(9, 31)) == "in 59 min")
     }
 

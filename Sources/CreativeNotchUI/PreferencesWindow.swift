@@ -238,10 +238,19 @@ final class PreferencesController {
     var hasRunningCountdown: Bool { state.countdown != nil }
 
     /// Whether the calendar is switched on over grants that let it read
-    /// nothing -- the case a switch reading "on" would lie about.
+    /// nothing -- the case a switch reading "on" would lie about. Refused
+    /// by the user, which Privacy & Security can undo.
     var calendarAccessRefused: Bool {
-        guard state.preferences.calendar, let pane = state.calendar?.pane else { return false }
-        return pane == .denied || pane == .restricted
+        guard state.preferences.calendar else { return false }
+        return state.calendar?.pane == .denied
+    }
+
+    /// The same, but restricted by a profile or Screen Time: nothing in
+    /// Privacy & Security can change it, so the warning must not send
+    /// anyone there (the pane says the same, with no button).
+    var calendarAccessRestricted: Bool {
+        guard state.preferences.calendar else { return false }
+        return state.calendar?.pane == .restricted
     }
 
     private var recorders: [ObjectIdentifier: HotKeyRecorder] = [:]
@@ -596,6 +605,8 @@ struct PreferencesView: View {
             // nothing (ARCHITECTURE.md, "Why the settings surface is a
             // window").
             return "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security."
+        case .calendar where controller.calendarAccessRestricted:
+            return "Calendars and Reminders access is restricted on this Mac by a profile or Screen Time, so the glance has nothing to show."
         default:
             return nil
         }

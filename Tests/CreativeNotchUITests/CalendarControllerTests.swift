@@ -216,7 +216,8 @@ struct CalendarControllerTests {
     // MARK: - The one-shot
 
     /// While the pane is open, one task sleeps until the next boundary --
-    /// here the standup starting at 09:30, half an hour from now.
+    /// here 09:01, when the standup's row goes from "in 30 min" to
+    /// "in 29 min".
     @Test func theBoundaryIsScheduledForTheNextEventEdge() async {
         let source = FakeCalendarSource()
         source.events = [CalendarDates.event("Standup", start: CalendarDates.date(9, 30), end: CalendarDates.date(9, 45))]
@@ -224,10 +225,10 @@ struct CalendarControllerTests {
         controller.setEnabled(true, userInitiated: false)
         controller.setPaneVisible(true)
 
-        #expect(controller.scheduledBoundary == CalendarDates.date(9, 30))
+        #expect(controller.scheduledBoundary == CalendarDates.date(9, 1))
         #expect(controller.boundaryTask != nil)
         await log.waitForRequests(1)
-        #expect(await log.requests == [.seconds(30 * 60)])
+        #expect(await log.requests == [.seconds(60)])
     }
 
     /// One at a time: a refresh that moves the boundary replaces the pending
@@ -240,7 +241,8 @@ struct CalendarControllerTests {
         controller.setEnabled(true, userInitiated: false)
         controller.setPaneVisible(true)
         let first = controller.boundaryTask
-        #expect(controller.scheduledBoundary == CalendarDates.date(12))
+        // Lunch at 12:00 starts counting down an hour before.
+        #expect(controller.scheduledBoundary == CalendarDates.date(11))
 
         source.postChange()
         #expect(controller.boundaryTask == first, "same boundary, same task")
@@ -250,7 +252,8 @@ struct CalendarControllerTests {
         source.postChange()
         #expect(first?.isCancelled == true)
         #expect(controller.boundaryTask != nil)
-        #expect(controller.scheduledBoundary == CalendarDates.date(9, 20))
+        // The call, 20 minutes off, counts down: "in 19 min" at 09:01.
+        #expect(controller.scheduledBoundary == CalendarDates.date(9, 1))
     }
 
     /// Reaching the boundary refreshes, and the refresh schedules the next.

@@ -1456,8 +1456,12 @@ a status read rather than a query. The calendar itself is queried only:
 - when the database changes *while the pane is open*. A change posted while it
   is closed is ignored: the next open reads afresh anyway;
 - when one one-shot `Task` reaches `CalendarGlance.nextBoundary` — the next
-  event start or end, a timed reminder falling due, or midnight, whichever is
-  first — again only while the pane is open. Leaving the pane cancels it; a
+  event start or end, an event coming within the hour ("10:30–11:00" becomes
+  "in 60 min"), a counting-down row's next whole minute ("in 28 min" becomes
+  "in 27 min"), a timed reminder falling due, or midnight, whichever is
+  first — again only while the pane is open. A countdown inside the hour
+  therefore wakes once a minute, the way the timer's display does
+  (`TimerDisplay.nextChange`): the display's granularity is the schedule. Leaving the pane cancels it; a
   refresh that leaves the boundary where it was keeps the task already sleeping
   towards it, so there is never more than one.
 

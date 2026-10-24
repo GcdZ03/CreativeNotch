@@ -29,7 +29,15 @@ struct CalendarWiringTests {
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}
         delegate.media?.supervisor.stopHelper = {}
-        delegate.calendar?.sleep = { _ in try? await Task.sleep(for: .seconds(86_400 * 365)) }
+        // No real clock: a fixed Wednesday 09:00 in Berlin, and a one-shot
+        // that parks until cancelled without ever reading the time.
+        delegate.calendar?.now = { CalendarDates.date(9) }
+        delegate.calendar?.calendar = { CalendarDates.calendar }
+        delegate.calendar?.sleep = { _ in
+            // A stream nothing ever yields to: iterating it suspends until
+            // the task is cancelled, then ends. No timer is involved.
+            for await _ in AsyncStream<Never> { _ in } {}
+        }
         return (delegate, source)
     }
 
@@ -87,7 +95,7 @@ struct CalendarWiringTests {
     /// reads, any other state cancels the one-shot.
     @Test func openingThePaneReadsAndLeavingItCancelsTheBoundary() {
         let source = FakeCalendarSource()
-        source.events = [CalendarDates.event("Standup", start: Date().addingTimeInterval(600), end: Date().addingTimeInterval(1200))]
+        source.events = [CalendarDates.event("Standup", start: CalendarDates.date(9, 10), end: CalendarDates.date(9, 20))]
         let (delegate, _) = makeDelegate(source)
         delegate.switchboard.apply()
         delegate.switchboard.setEnabled(true, for: .calendar, persist: true)
@@ -97,6 +105,8 @@ struct CalendarWiringTests {
         #expect(source.eventFetches.count == 1)
         #expect(delegate.state.calendar?.events.map(\.title) == ["Standup"])
         #expect(delegate.calendar?.boundaryTask != nil)
+        // "in 10 min" at the pinned 09:00 next reads "in 9 min" at 09:01.
+        #expect(delegate.calendar?.scheduledBoundary == CalendarDates.date(9, 1))
 
         delegate.state.transition(to: .open(.shelf))
         #expect(delegate.calendar?.boundaryTask == nil)
@@ -187,6 +197,35 @@ struct CalendarWiringTests {
         source.accessByEntity = [.events: .denied, .reminders: .denied]
         controller.show()
 
-        #expect(PreferencesView.warning(for: .calendar, controller: controller) != nil)
+        let warning = PreferencesView.warning(for: .calendar, controller: controller)
+        #expect(warning?.contains("Privacy & Security") == true, "a refusal can be undone there")
+    }
+
+    /// Restricted by a profile or Screen Time, the warning says so and does
+    /// not send anyone to a setting that cannot change it.
+    @Test func settingsExplainsARestrictedGrant() {
+        let source = FakeCalendarSource()
+        let (delegate, _) = makeDelegate(source)
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .calendar, persist: true)
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: LaunchAtLoginController(
+                bundlePath: "/tmp/NotInstalled.app",
+                installDirectories: ["/Applications"],
+                readStatus: { 0 }, register: {}, unregister: {}
+            ),
+            presenter: { _ in }
+        )
+
+        source.accessByEntity = [.events: .restricted, .reminders: .restricted]
+        controller.show()
+
+        #expect(delegate.state.calendar?.pane == .restricted)
+        let warning = PreferencesView.warning(for: .calendar, controller: controller)
+        #expect(warning?.contains("restricted") == true)
+        #expect(warning?.contains("Privacy & Security") == false)
+        #expect(warning?.contains("Turn it on") == false)
     }
 }

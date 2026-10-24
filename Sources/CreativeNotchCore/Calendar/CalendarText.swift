@@ -6,7 +6,10 @@ import Foundation
 /// "HH:mm": a 12-hour locale gets "2:30 PM", a 24-hour one "14:30".
 public enum CalendarText {
 
-    /// Under an hour away, a count reads faster than a time.
+    /// An hour or less away, a count reads faster than a time. Exactly an
+    /// hour reads "in 60 min", so the count begins at an instant
+    /// (`start - countdownHorizon`) that `CalendarGlance.nextBoundary` can
+    /// wake for, rather than just after one.
     static let countdownHorizon: TimeInterval = 60 * 60
 
     /// The row's right-hand side: "in 15 min", "10:30–11:00",
@@ -87,9 +90,11 @@ public enum CalendarText {
 
     /// Whole minutes until the start, rounded up so the last half-minute
     /// reads "in 1 min" rather than "in 0 min"; `nil` past the horizon.
-    private static func minutesUntil(_ event: CalendarEvent, now: Date) -> Int? {
+    /// Internal so `CalendarGlance.nextBoundary` schedules by the same rule
+    /// the row is written by.
+    static func minutesUntil(_ event: CalendarEvent, now: Date) -> Int? {
         let seconds = event.start.timeIntervalSince(now)
-        guard seconds > 0, seconds < countdownHorizon else { return nil }
+        guard seconds > 0, seconds <= countdownHorizon else { return nil }
         return Int((seconds / 60).rounded(.up))
     }
 
