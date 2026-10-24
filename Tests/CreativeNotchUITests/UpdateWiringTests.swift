@@ -41,9 +41,13 @@ struct UpdateWiringTests {
 
     // MARK: - Triggers
 
+    /// Pinned below the fakes' v0.13.0 rather than left at `CoreInfo.version`:
+    /// these tests are about wiring, and reading the real version made them
+    /// fail the moment a release bumped it to the fakes' tag.
     private func delegate(_ fetcher: FakeReleaseFetcher) -> AppDelegate {
         let delegate = NotchedDelegate.make()
         delegate.updates.environment.fetcher = fetcher
+        delegate.updates.environment.currentVersion = "0.12.0"
         return delegate
     }
 
