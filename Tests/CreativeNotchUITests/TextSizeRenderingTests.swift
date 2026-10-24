@@ -96,6 +96,29 @@ struct TextSizeRenderingTests {
             $0.countdown = Countdown(duration: 25 * 60, startingAt: Date(timeIntervalSinceReferenceDate: -90))
             $0.transition(to: .open(.timer))
         }),
+        // Several countdowns (2026-10-24): the list at its cap, and the add
+        // picker under a title row carrying Back and the mode switch.
+        ("timer list of three", {
+            let t0 = Date(timeIntervalSinceReferenceDate: -90)
+            $0.timers = [1500, 300, 600].enumerated().map {
+                RunningTimer(id: $0.offset, countdown: Countdown(duration: TimeInterval($0.element), startingAt: t0)!)
+            }
+            $0.countdown = $0.timers[1].countdown
+            $0.transition(to: .open(.timer))
+        }),
+        ("timer adding", {
+            $0.countdown = Countdown(duration: 25 * 60, startingAt: Date(timeIntervalSinceReferenceDate: -90))
+            $0.isAddingTimer = true
+            $0.transition(to: .open(.timer))
+        }),
+        ("stopwatch with laps", {
+            let t0 = Date(timeIntervalSinceReferenceDate: -300)
+            $0.stopwatch = Stopwatch().started(at: t0)
+                .lapped(at: t0.addingTimeInterval(62)).lapped(at: t0.addingTimeInterval(130))
+                .lapped(at: t0.addingTimeInterval(191)).paused(at: t0.addingTimeInterval(250))
+            $0.timerMode = .stopwatch
+            $0.transition(to: .open(.timer))
+        }),
         ("battery", { $0.transition(to: .open(.power)) }),
         ("welcome", {
             $0.welcomeSeen = false

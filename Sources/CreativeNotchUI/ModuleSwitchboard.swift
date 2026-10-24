@@ -241,6 +241,17 @@ final class ModuleSwitchboard {
                 delegate.state.onResumeTimer = nil
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
+                // The stopwatch is different: it has nothing to finish and,
+                // with the tab gone, nowhere to be read. It costs nothing
+                // running — it is two numbers — but one left counting
+                // invisibly would greet the user with an hour they never
+                // saw when the tab came back. So it is reset, its verb goes
+                // with the others, and the tab comes back on its default
+                // half.
+                delegate.state.onStopwatch = nil
+                delegate.state.stopwatch = Stopwatch()
+                delegate.state.timerMode = .timer
+                delegate.state.isAddingTimer = false
             }
 
         case .camera:

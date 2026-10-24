@@ -623,17 +623,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         watchForFullScreen()
     }
 
-    /// The four actions the timer tab can take.
+    /// The actions the timer tab can take: the four countdown verbs and the
+    /// stopwatch's one.
     ///
     /// Extracted so the switchboard can nil them when the timer is switched
     /// off and restore them when it comes back. `onChange` and `onFinished`
     /// are deliberately not among them: they are the publish and finish paths
     /// of a countdown that is allowed to outlive the toggle.
+    ///
+    /// Starting one closes the add picker: it exists to start one, and left
+    /// up it would offer another the cap may refuse.
     func wireTimerActions() {
-        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
-        state.onPauseTimer = { [weak timer] in timer?.pause() }
-        state.onResumeTimer = { [weak timer] in timer?.resume() }
-        state.onCancelTimer = { [weak timer] in timer?.cancel() }
+        state.onStartTimer = { [weak timer, weak state] duration in
+            timer?.start(duration: duration)
+            state?.isAddingTimer = false
+        }
+        state.onPauseTimer = { [weak timer] id in timer?.pause(id: id) }
+        state.onResumeTimer = { [weak timer] id in timer?.resume(id: id) }
+        state.onCancelTimer = { [weak timer] id in timer?.cancel(id: id) }
+        state.onStopwatch = { [weak self] command in self?.applyStopwatch(command) }
+    }
+
+    /// The stopwatch is a value in `AppState`, moved at the delegate's
+    /// injected clock. Nothing is scheduled here, ever: the running digits
+    /// are a `Text(timerInterval:)` counting from `Stopwatch.anchor`.
+    func applyStopwatch(_ command: StopwatchCommand) {
+        state.stopwatch = state.stopwatch.applying(command, at: Date(timeIntervalSince1970: now()))
     }
 
     /// Tells the camera whether its tab is on screen.
@@ -1238,8 +1253,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// of a *visible* countdown drops clicks straight through to the menu
     /// bar and never registers hover. `TimerBadgeTests` pins the 274 that
     /// results.
+    ///
+    /// The tab's list of every countdown is read from the controller in the
+    /// same breath, so the soonest and the list are one reading. With no
+    /// countdown left the add picker goes too, so the next one starts from
+    /// the plain single-timer view.
     func countdownDidChange(_ countdown: Countdown?) {
         state.countdown = countdown
+        state.timers = timer?.timers.all ?? []
+        if countdown == nil { state.isAddingTimer = false }
         syncTrackingRect()
     }
 
