@@ -52,8 +52,10 @@ struct TextSizeRenderingTests {
         return s
     }
 
-    static func bitmap(_ s: AppState) -> NSBitmapImageRep? {
-        let size = s.panelFrame.size
+    /// `size` renders into a frame other than the panel's own, for the
+    /// control.
+    static func bitmap(_ s: AppState, size: CGSize? = nil) -> NSBitmapImageRep? {
+        let size = size ?? s.panelFrame.size
         let renderer = ImageRenderer(
             content: NotchRootView(app: s, now: Date(timeIntervalSinceReferenceDate: 0))
                 .frame(width: size.width, height: size.height)
@@ -66,10 +68,10 @@ struct TextSizeRenderingTests {
     /// The strip every pane keeps clear: above the 1pt hairline, inside the
     /// rounded corners, either side of the music column's divider -- which
     /// runs the body's full height on purpose.
-    static func bottomStrip(_ s: AppState) -> [CGRect] {
-        let size = s.panelFrame.size
+    static func bottomStrip(_ s: AppState, size: CGSize? = nil) -> [CGRect] {
+        let size = size ?? s.panelFrame.size
         let divider = PanelLayout.resolve(
-            anchor: s.anchor, panelFrame: s.panelFrame, showsMedia: true, textScale: s.textSize.scale
+            anchor: s.anchor, panelFrame: s.panelFrame, showsMedia: true, textScale: s.textScale
         ).mediaColumnWidth
         let y = size.height - 9
         return [
@@ -79,8 +81,8 @@ struct TextSizeRenderingTests {
     }
 
     /// Lit pixels in the strip, as a fraction.
-    static func stripInk(_ b: NSBitmapImageRep, _ s: AppState) -> Double {
-        bottomStrip(s).map { PanelRenderingTests.ink(b, in: $0) }.max() ?? 0
+    static func stripInk(_ b: NSBitmapImageRep, _ s: AppState, size: CGSize? = nil) -> Double {
+        bottomStrip(s, size: size).map { PanelRenderingTests.ink(b, in: $0) }.max() ?? 0
     }
 
     /// The camera housing, panel-local, top-left origin, inside the header.
@@ -94,6 +96,29 @@ struct TextSizeRenderingTests {
         ("timer idle", { $0.transition(to: .open(.timer)) }),
         ("timer running", {
             $0.countdown = Countdown(duration: 25 * 60, startingAt: Date(timeIntervalSinceReferenceDate: -90))
+            $0.transition(to: .open(.timer))
+        }),
+        // Several countdowns (2026-10-24): the list at its cap, and the add
+        // picker under a title row carrying Back and the mode switch.
+        ("timer list of three", {
+            let t0 = Date(timeIntervalSinceReferenceDate: -90)
+            $0.timers = [1500, 300, 600].enumerated().map {
+                RunningTimer(id: $0.offset, countdown: Countdown(duration: TimeInterval($0.element), startingAt: t0)!)
+            }
+            $0.countdown = $0.timers[1].countdown
+            $0.transition(to: .open(.timer))
+        }),
+        ("timer adding", {
+            $0.countdown = Countdown(duration: 25 * 60, startingAt: Date(timeIntervalSinceReferenceDate: -90))
+            $0.isAddingTimer = true
+            $0.transition(to: .open(.timer))
+        }),
+        ("stopwatch with laps", {
+            let t0 = Date(timeIntervalSinceReferenceDate: -300)
+            $0.stopwatch = Stopwatch().started(at: t0)
+                .lapped(at: t0.addingTimeInterval(62)).lapped(at: t0.addingTimeInterval(130))
+                .lapped(at: t0.addingTimeInterval(191)).paused(at: t0.addingTimeInterval(250))
+            $0.timerMode = .stopwatch
             $0.transition(to: .open(.timer))
         }),
         ("battery", { $0.transition(to: .open(.power)) }),
@@ -124,13 +149,42 @@ struct TextSizeRenderingTests {
         #expect(PanelRenderingTests.ink(b, in: Self.housing(s)) == 0)
     }
 
-    /// The control for the strip check: the largest text in the panel's
-    /// default frame does run off it.
+    /// The control for the strip check: the largest text squeezed into the
+    /// panel's default frame -- what a screen too small for the enlarged
+    /// panel used to get, the frame clamped and the fonts not -- does run
+    /// off it.
     @Test func largerTextInTheOldPanelIsCaught() throws {
-        let s = Self.state(.larger, geometry: 1)
+        let s = Self.state(.larger)
         s.transition(to: .open(.timer))
-        let b = try #require(Self.bitmap(s))
-        #expect(Self.stripInk(b, s) > 0)
+        let squeezed = NotchGeometry.expandedSize
+        let b = try #require(Self.bitmap(s, size: squeezed))
+        #expect(Self.stripInk(b, s, size: squeezed) > 0)
+    }
+
+    /// **A screen too small for the enlarged panel.** The frame used to be
+    /// clamped to the screen while the text stayed at the full factor, and
+    /// ran off the bottom (the control above). Now the scale comes down to
+    /// the largest the screen holds, so nothing does -- on a screen just
+    /// big enough for the default panel, and one partway between.
+    @Test(arguments: [CGSize(width: 620, height: 300), CGSize(width: 720, height: 320)])
+    func largerTextOnASmallScreenIsFittedNotClipped(screen: CGSize) throws {
+        let small = ScreenMetrics(
+            frame: CGRect(origin: .zero, size: screen),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        )
+        for pane in Self.panes {
+            let s = Self.state(.larger)
+            let anchor = NotchGeometry.anchor(for: small)
+            s.setGeometry(
+                anchor: anchor,
+                panelFrame: NotchGeometry.panelFrame(for: anchor, in: small, textScale: TextSize.larger.scale)
+            )
+            #expect(s.textScale < TextSize.larger.scale)
+            pane.apply(s)
+            let b = try #require(Self.bitmap(s))
+            #expect(Self.stripInk(b, s) == 0,
+                    "\(pane.name) runs off the bottom of a \(s.panelFrame.size) panel on a \(screen) screen")
+        }
     }
 
     /// The setting actually reaches the panel: the pane's title, "Battery",
@@ -225,5 +279,30 @@ struct TextSizeRenderingTests {
             checked += 1
         }
         #expect(checked > 20)
+    }
+
+    /// A semantic text style (`.title3`, `.largeTitle`, …) is a fixed size
+    /// too on macOS -- there is no Dynamic Type behind it -- so in the panel
+    /// it ignores Text size exactly as `.system(size:)` would. The camera's
+    /// close button was one. Settings and its shortcut recorder are a
+    /// standard window, where the system styles are right.
+    @Test func noPanelFontUsesAFixedTextStyle() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Sources/CreativeNotchUI")
+        let settings: Set<String> = ["PreferencesWindow.swift", "HotKeyRecorder.swift"]
+        let styles = ["largeTitle", "title", "title2", "title3", "headline", "subheadline",
+                      "body", "callout", "footnote", "caption", "caption2"]
+        let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
+        for case let url as URL in enumerator where url.pathExtension == "swift" {
+            guard !settings.contains(url.lastPathComponent) else { continue }
+            let code = try String(contentsOf: url, encoding: .utf8)
+            for style in styles {
+                #expect(!code.contains(".font(.\(style))"),
+                        "\(url.lastPathComponent) uses .font(.\(style)), which ignores Text size; use .notchFont")
+            }
+        }
     }
 }

@@ -98,27 +98,40 @@ struct ClipboardRowModelTests {
 /// as a named one.
 struct ClipboardRowActionsTests {
 
-    @Test func theMenuOffersCopyThenRemove() {
-        let actions = ClipboardRowModel.rowActions(onCopy: {}, onRemove: {})
-        #expect(actions.map(\.label) == ["Copy", "Remove"])
-        #expect(actions.map(\.symbolName) == ["doc.on.doc", "xmark"])
-        #expect(actions.map(\.isDestructive) == [false, true])
+    private static func actions(
+        onCopy: @escaping () -> Void = {}, onRemove: @escaping () -> Void = {}
+    ) -> [ClipboardRowModel.RowAction] {
+        ClipboardRowModel.rowActions(
+            isPinned: false, canPin: true, onCopy: onCopy, onTogglePin: {}, onRemove: onRemove)
+    }
+
+    /// Pin sits between them (`ClipboardRowPinTests`); Copy leads and the
+    /// destructive Remove stays last.
+    @Test func theMenuOffersCopyFirstAndRemoveLast() {
+        let actions = Self.actions()
+        #expect(actions.first?.label == "Copy")
+        #expect(actions.last?.label == "Remove")
+        #expect(actions.first?.symbolName == "doc.on.doc")
+        #expect(actions.last?.symbolName == "xmark")
+        #expect(actions.map(\.isDestructive) == [false, false, true])
     }
 
     /// Copy is what pressing the row does; VoiceOver's action list carries
     /// only what the press does not.
     @Test func voiceOverIsOfferedRemoveAsANamedAction() {
-        let actions = ClipboardRowModel.rowActions(onCopy: {}, onRemove: {})
-        #expect(actions.filter { !$0.isDefault }.map(\.label) == ["Remove"])
+        let named = ClipboardRowModel.accessibilityActions(Self.actions()).map(\.label)
+        #expect(named.contains("Remove"))
+        #expect(!named.contains("Copy"))
     }
 
     @Test func eachActionPerformsItsOwnVerb() {
         var calls: [String] = []
-        let actions = ClipboardRowModel.rowActions(
+        let actions = Self.actions(
             onCopy: { calls.append("copy") },
             onRemove: { calls.append("remove") }
         )
-        for action in actions { action.perform() }
+        actions.first?.perform()
+        actions.last?.perform()
         #expect(calls == ["copy", "remove"])
     }
 }

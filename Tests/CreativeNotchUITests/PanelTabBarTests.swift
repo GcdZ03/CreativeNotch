@@ -90,7 +90,7 @@ struct PanelTabBarTests {
         #expect(tabs == [.shelf, .timer, .power, .camera])
     }
 
-    /// Three of the four facts on the power tab are meaningless without a
+    /// Three of the four facts on the Battery tab are meaningless without a
     /// battery, so it is hidden on a Mac mini.
     @Test func thePowerTabIsHiddenWithoutABattery() {
         #expect(PanelTabBar.visible(enabled: .allEnabled, hasBattery: false)

@@ -1,16 +1,30 @@
 import Foundation
 import CreativeNotchCore
 
-/// Owns the live countdown and the single outstanding one-shot.
+/// Owns the live countdowns and the single outstanding one-shot.
 ///
 /// There is never a repeating timer here. Each wake reschedules the next
 /// one from `TimerSchedule`, so a 25-minute countdown costs 25 wakes in its
 /// first 24 minutes rather than 1,500 — the clipboard poller stays the only
 /// repeating thing in the project.
+///
+/// **Several countdowns, still one wake (2026-10-24).** Up to
+/// `TimerSet.capacity` run at once, and there is still exactly one
+/// outstanding one-shot: `TimerSet.nextWake` is the earliest member's own
+/// `TimerSchedule` answer, and every change cancels and replaces it. A
+/// timer per countdown would be three schedules waking independently; this
+/// is one, aimed at whichever countdown next needs a redraw or a
+/// completion. Starting a preset with none running behaves exactly as it
+/// did when one countdown was the whole model.
 @MainActor
 final class TimerController {
 
-    private(set) var countdown: Countdown?
+    /// Every running or paused countdown, in start order.
+    private(set) var timers = TimerSet()
+
+    /// The countdown the ear shows: the soonest to finish
+    /// (`TimerSet.soonest`). What `onChange` publishes.
+    var countdown: Countdown? { timers.soonest(at: now()) }
 
     /// The delay of the outstanding one-shot, or `nil` when nothing is
     /// scheduled. Recorded synchronously as the task is spawned.
@@ -22,17 +36,19 @@ final class TimerController {
     /// costs zero redraws would have nothing asserting it at this layer.
     private(set) var scheduledWake: TimeInterval?
 
-    /// Fires whenever the countdown value changes and the UI should redraw.
+    /// Fires whenever the countdowns change and the UI should redraw, with
+    /// the soonest. The whole list is `timers`, read in the same breath.
     var onChange: ((Countdown?) -> Void)?
 
-    /// Fires once, when the deadline passes.
+    /// Fires once per countdown, when its deadline passes.
     var onFinished: ((Countdown) -> Void)?
 
     /// Injected so tests can drive the whole lifecycle by passing
     /// timestamps, exactly as `PeekArbiter` and `ShelfStore` do.
     private let now: () -> Date
 
-    /// The outstanding one-shot. There is at most one, ever.
+    /// The outstanding one-shot. There is at most one, ever — however many
+    /// countdowns are running.
     ///
     /// Readable rather than private so that `reschedulingCancelsThe
     /// OutstandingWake` can prove it: `Task.cancel()` sets `isCancelled`
@@ -49,26 +65,49 @@ final class TimerController {
         self.now = now
     }
 
+    /// Adds a countdown. With none running this is the single timer it
+    /// always was; with some running it starts beside them, and at
+    /// `TimerSet.capacity` it is refused rather than replacing one.
     func start(duration: TimeInterval) {
-        guard let new = Countdown(duration: duration, startingAt: now()) else { return }
-        countdown = new
+        guard timers.add(duration: duration, at: now()) != nil else { return }
         publish()
     }
 
+    /// The bare verbs act on every countdown. They are the switchboard's
+    /// (quitting cancels all of them, not the soonest) and the shape the
+    /// single-timer path always had; the tab's rows use the `id:` forms.
     func pause() {
-        guard let countdown, !countdown.isPaused else { return }
-        self.countdown = countdown.paused(at: now())
+        guard timers.all.contains(where: { !$0.countdown.isPaused }) else { return }
+        timers.pauseAll(at: now())
         publish()
     }
 
     func resume() {
-        guard let countdown, countdown.isPaused else { return }
-        self.countdown = countdown.resumed(at: now())
+        guard timers.all.contains(where: { $0.countdown.isPaused }) else { return }
+        timers.resumeAll(at: now())
         publish()
     }
 
     func cancel() {
-        countdown = nil
+        timers.removeAll()
+        publish()
+    }
+
+    func pause(id: Int) {
+        guard let timer = timers.timer(id), !timer.countdown.isPaused else { return }
+        timers.pause(id: id, at: now())
+        publish()
+    }
+
+    func resume(id: Int) {
+        guard let timer = timers.timer(id), timer.countdown.isPaused else { return }
+        timers.resume(id: id, at: now())
+        publish()
+    }
+
+    func cancel(id: Int) {
+        guard timers.timer(id) != nil else { return }
+        timers.remove(id: id)
         publish()
     }
 
@@ -98,18 +137,17 @@ final class TimerController {
         pending = nil
         scheduledWake = nil
 
-        guard let countdown else { return }
-
-        if countdown.hasFinished(at: now()) {
-            onFinished?(countdown)
-            self.countdown = nil
-            onChange?(nil)
-            return
+        // The deadline is decided by the clock, not by the one-shot having
+        // fired: every countdown found past it completes here, each with
+        // its own `onFinished`, in the order they finished — and the rest
+        // carry on.
+        let finished = timers.removeFinished(at: now())
+        if !finished.isEmpty {
+            for countdown in finished { onFinished?(countdown) }
+            onChange?(countdown)
         }
 
-        guard let delay = TimerSchedule.nextWake(
-            countdown: countdown, isActive: isActive, at: now()
-        ) else { return }
+        guard let delay = timers.nextWake(isActive: isActive, at: now()) else { return }
 
         scheduledWake = delay
         pending = Task { @MainActor [weak self] in

@@ -94,6 +94,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    /// Where a finished timer's notification goes (2026-10-24), when the
+    /// notch is hidden and cannot show the peek.
+    ///
+    /// Sandboxed by default like `shelfDirectory`: a fresh delegate records
+    /// into `SilentTimerNotices` and reaches no notification center, so no
+    /// test can post a real banner or raise a permission prompt. Only
+    /// `configureForRealLaunch()` installs `SystemTimerNotices`.
+    var timerNotices: any TimerNoticeCenter = SilentTimerNotices()
+
     /// Whether MediaRemote is loadable, behind a seam.
     ///
     /// In the shape of `playChime` and `now`, and for a sharper reason than
@@ -192,6 +201,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the tests can reach its lifecycle, like every other controller.
     private(set) var hotkey: HotKeyController?
 
+    /// The colour picker (2026-10-24). Internal rather than private so the
+    /// switchboard and the tests can reach it, like every other controller.
+    private(set) var colorPicker: ColorPickerController?
+
+    /// What shows the loupe. Sandboxed by default like `shelfTrash`: a bare
+    /// delegate finishes every pick at once with nothing, and only
+    /// `configureForRealLaunch()` hands it the system's `NSColorSampler`.
+    /// Set it before `install(metrics:)`, which builds the controller.
+    var colorSampler: ColorSampling = InertColorSampler()
+
+    /// Where a picked colour is written. A uniquely named pasteboard of this
+    /// delegate's own until `configureForRealLaunch()` points it at the
+    /// general one, so no test overwrites what the developer last copied.
+    /// Lazy, because a test run builds hundreds of delegates and only a few
+    /// ever copy a colour.
+    lazy var colorPasteboard: NSPasteboard = NSPasteboard(
+        name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
+    )
+
     /// The settings window's controller, built on first use by
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
@@ -233,6 +261,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// only `configureForRealLaunch()` hands it `.system`.
     var shelfTrash: ShelfTrash
 
+    /// Opens a shelf file with its default app. Overridable, and sandboxed
+    /// by default (`ShelfOpener.inert`, which opens nothing) like
+    /// `shelfTrash`: only `configureForRealLaunch()` hands in `NSWorkspace`,
+    /// so no test can launch an app on the machine running it.
+    var shelfOpener: ShelfOpener = .inert
+
+    /// Previews shelf files. Sandboxed by default like `shelfOpener`; only
+    /// `configureForRealLaunch()` hands in Quick Look, so no test can put a
+    /// preview panel on screen.
+    var shelfPreview: ShelfPreviewing = InertShelfPreview() {
+        didSet { shelfPreview.onClose = { [weak self] in self?.shelfPreviewDidClose() } }
+    }
+
     /// How long "Couldn't add …" stays under the shelf after a background
     /// copy fails. Long enough to read a file name; it is a report, not an
     /// offer, so nothing waits on it.
@@ -256,7 +297,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// seconds, the same reason `growthDelay` is.
     var shelfUndoWindow: Duration = AppDelegate.defaultShelfUndoWindow
 
-    /// What the last clear took, while it can still be undone.
+    /// What the clears made while the offer stood took, merged newest
+    /// first, while they can still be undone.
     private var pendingShelfClearance: ShelfClearance?
 
     /// The one-shot that withdraws the offer. Not a repeating timer: it is
@@ -318,8 +360,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// take, so either can be undone from the pane. Clear moves real files
     /// to the Trash; before the undo, getting one back meant finding it in
     /// Finder. A clear that fails partway still offers back what it did
-    /// take. A new clear replaces the previous offer rather than merging
-    /// with it: Undo undoes the clear just made.
+    /// take. A new clear made while an offer still stands is merged into it
+    /// and restarts the window: replacing the record instead left the first
+    /// batch in the Trash with no button pointing at it, so one Undo puts
+    /// back everything cleared since the offer appeared.
     func clearShelf() {
         guard let shelf else { return }
         let clearance: ShelfClearance
@@ -335,21 +379,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         offerShelfUndo(clearance)
     }
 
-    /// Puts back what the last clear took, if the offer has not lapsed.
-    /// Items that cannot come back -- emptied from the Trash in the
-    /// meantime -- are skipped by the store; the rest still return.
+    /// Puts back what the clears on offer took, if the offer has not
+    /// lapsed. Items that cannot come back -- emptied from the Trash in the
+    /// meantime -- are skipped by the store; the rest still return, and the
+    /// shelf pane says how many did not, through the same notice a failed
+    /// copy uses. A count that was only logged left a user wondering why
+    /// fewer tiles came back than went.
     func undoClearShelf() {
         guard let clearance = pendingShelfClearance else { return }
         withdrawShelfUndo()
         guard let restoration = shelf?.restore(clearance) else { return }
-        if !restoration.skipped.isEmpty {
+        if let notice = restoration.notice {
             NSLog("CreativeNotch: could not restore \(restoration.skipped.count) shelf item(s)")
+            showShelfNotice(notice)
         }
     }
 
     private func offerShelfUndo(_ clearance: ShelfClearance) {
         shelfUndoTask?.cancel()
-        pendingShelfClearance = clearance
+        pendingShelfClearance = pendingShelfClearance.map(clearance.merging) ?? clearance
         state.canUndoShelfClear = true
         shelfUndoTask = Task { @MainActor [weak self] in
             guard let window = self?.shelfUndoWindow else { return }
@@ -373,6 +421,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// nothing.
     var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
 
+    /// How many clipboard entries the menu bar's Clear Clipboard counts.
+    ///
+    /// What Clear would take — pins stay — for the reason `menuShelfCount`
+    /// leaves out copies in progress: a history of pins alone would
+    /// otherwise offer a Clear that does nothing.
+    var menuClipboardCount: Int { clipboard?.store.clearableCount ?? 0 }
+
+    /// A row's Pin or Unpin, whichever the entry is not. An id the poller
+    /// has evicted since the menu was built is a no-op in the store; the
+    /// limit is a disabled menu item before it is ever a refusal here.
+    private func togglePin(_ id: UUID) {
+        guard let store = clipboard?.store,
+              let entry = store.entries.first(where: { $0.id == id }) else { return }
+        if entry.isPinned { store.unpin(id) } else { store.pin(id) }
+    }
+
     /// A dropped file's background copy failed after the drop was accepted.
     ///
     /// Logged, announced to VoiceOver, and said under the shelf. The
@@ -384,7 +448,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// failure replaces the first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
-        let notice = "Couldn't add \(item.displayName)"
+        showShelfNotice("Couldn't add \(item.displayName)")
+    }
+
+    /// Announces `notice` and puts it under the shelf until the pane has
+    /// shown it -- the one path every shelf report takes, so a failed copy
+    /// and an undo that came back short read and behave the same.
+    private func showShelfNotice(_ notice: String) {
         announce(notice)
         shelfNoticeTask?.cancel()
         shelfNoticeTask = nil
@@ -413,6 +483,73 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.state.shelfNotice = nil
             self?.shelfNoticeTask = nil
         }
+    }
+
+    // MARK: - Colour picker
+
+    /// The header's dropper (2026-10-24): close the panel, show the loupe,
+    /// and bring the panel back on the tab it was on.
+    ///
+    /// **Closed first** so the whole screen can be sampled, the band under
+    /// the open panel included -- and so the cursor leaving for the loupe
+    /// does not race the 400ms dismiss grace into closing it anyway.
+    ///
+    /// **Reopened as ambient** (`.unspecified`, which `PanelFocus` never makes
+    /// key): the person has just clicked in another app's window, and the
+    /// confirmation must not take their keystrokes. A cancelled pick reopens
+    /// too, so Esc puts things back as they were. A pick dropped by switching
+    /// the module off mid-loupe reopens nothing (`ColorPickerController`).
+    func pickColor() {
+        guard state.preferences.colorPicker, let colorPicker else { return }
+        let returnTab: CreativeNotchCore.Tab? = {
+            if case .open(let tab) = state.state { return tab }
+            return nil
+        }()
+        let started = colorPicker.pick { [weak self] color in
+            guard let self else { return }
+            if let returnTab, !self.isHiddenForFullScreen {
+                let visible = TabVisibility.visible(enabled: self.state.preferences, hasBattery: self.state.hasBattery)
+                if visible.contains(returnTab) {
+                    self.state.transition(to: .open(returnTab))
+                } else {
+                    self.openPanel(openedBy: .unspecified)
+                }
+            }
+            guard let color else { return }
+            self.showPickedColor(color)
+        }
+        // After asking: an inert or instant sampler finishes inside `pick`,
+        // and closing then would undo the reopen it just made.
+        if started, colorPicker.isSampling { state.transition(to: .closed) }
+    }
+
+    /// A swatch's click: the same copy a pick ends with, shown the same way.
+    func copyColor(_ color: SampledColor) {
+        guard state.preferences.colorPicker, let colorPicker else { return }
+        colorPicker.copy(color)
+        showPickedColor(color)
+    }
+
+    /// Puts the strip up -- only on an open panel, since leaving `.open`
+    /// clears it -- and says what was copied, for someone who cannot see it.
+    private func showPickedColor(_ color: SampledColor) {
+        if case .open = state.state { state.pickedColor = color }
+        announce("Copied \(ColorName.spoken(color, as: state.colorFormat))")
+    }
+
+    /// "Copy as" in Settings: saved, then applied to the next copy and the
+    /// strip's text. What is already on the pasteboard is left alone.
+    func setColorFormat(_ format: ColorFormat) {
+        preferencesStore.setColorFormat(format)
+        colorPicker?.format = format
+        state.colorFormat = format
+    }
+
+    /// The strip belongs to the opening it was shown in: a tab switch keeps
+    /// it, anything that leaves `.open` takes it away. No timer.
+    func syncColorStrip(for next: NotchState) {
+        if case .open = next { return }
+        state.pickedColor = nil
     }
 
     // MARK: - Dismissal
@@ -528,6 +665,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        shelfOpener = .system
+        shelfPreview = ShelfQuickLook()
+        timerNotices = SystemTimerNotices()
+        colorSampler = SystemColorSampler()
+        colorPasteboard = .general
     }
 
     // MARK: - Lifecycle
@@ -551,7 +693,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             onClearShelf: { [weak self] in self?.clearShelf() },
             shelfCount: { [weak self] in self?.menuShelfCount ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
-            clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
+            clipboardCount: { [weak self] in self?.menuClipboardCount ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
             canUndoClearShelf: { [weak self] in self?.state.canUndoShelfClear ?? false },
             onShowWelcome: { [weak self] in self?.showWelcomeAgain() }
@@ -596,8 +738,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Re-reads the displays the "Show on" menu offers. Asked when Settings
     /// is shown and on every screen-parameter change -- the two moments the
     /// list can be stale while someone is looking at it -- so nothing polls.
+    ///
+    /// A pinned display connected under a new name has the stored name
+    /// updated and saved here too (`DisplayChoice.refreshingName`), so the
+    /// next time it is unplugged Settings names it by what it is called
+    /// now. Saved without placing the panel again: the UUID is unchanged,
+    /// so the display it picks is the same one.
     func refreshConnectedDisplays() {
-        state.connectedDisplays = screenDescriptors()
+        let screens = screenDescriptors()
+        state.connectedDisplays = screens
+        let refreshed = state.displayChoice.refreshingName(from: screens)
+        if refreshed != state.displayChoice {
+            preferencesStore.setDisplayChoice(refreshed)
+            state.displayChoice = refreshed
+        }
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
@@ -623,18 +777,54 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         watchForFullScreen()
     }
 
-    /// The four actions the timer tab can take.
+    /// The actions the timer tab can take: the four countdown verbs and the
+    /// stopwatch's one.
     ///
     /// Extracted so the switchboard can nil them when the timer is switched
     /// off and restore them when it comes back. `onChange` and `onFinished`
     /// are deliberately not among them: they are the publish and finish paths
     /// of a countdown that is allowed to outlive the toggle.
+    ///
+    /// Starting one closes the add picker: it exists to start one, and left
+    /// up it would offer another the cap may refuse.
     func wireTimerActions() {
-        state.onStartTimer = { [weak timer] duration in timer?.start(duration: duration) }
-        state.onPauseTimer = { [weak timer] in timer?.pause() }
-        state.onResumeTimer = { [weak timer] in timer?.resume() }
-        state.onCancelTimer = { [weak timer] in timer?.cancel() }
+        state.onStartTimer = { [weak self, weak timer, weak state] duration in
+            timer?.start(duration: duration)
+            state?.isAddingTimer = false
+            self?.prepareTimerNotices()
+        }
+        state.onPauseTimer = { [weak timer] id in timer?.pause(id: id) }
+        state.onResumeTimer = { [weak timer] id in timer?.resume(id: id) }
+        state.onCancelTimer = { [weak timer] id in timer?.cancel(id: id) }
+        state.onStopwatch = { [weak self] command in self?.applyStopwatch(command) }
     }
+
+    /// The stopwatch is a value in `AppState`, moved at the delegate's
+    /// injected clock. Nothing is scheduled here, ever: the running digits
+    /// are a `Text(timerInterval:)` counting from `Stopwatch.anchor`.
+    func applyStopwatch(_ command: StopwatchCommand) {
+        state.stopwatch = state.stopwatch.applying(command, at: Date(timeIntervalSince1970: now()))
+    }
+
+    /// A countdown just started: the moment to ask for notification
+    /// permission, if the setting wants it and macOS has never been asked.
+    /// The seam decides "never asked"; see `TimerDoneNotice
+    /// .shouldRequestAuthorization` for why here and not at launch or at the
+    /// finish.
+    private func prepareTimerNotices() {
+        guard state.timerNotifyWhenHidden else { return }
+        timerNotices.prepare()
+    }
+
+    /// Reads what macOS allows the timer's notification into `AppState`, for
+    /// the line under the Settings switch. Asked when Settings is shown.
+    func refreshTimerNoticeAuthorization() async {
+        state.timerNoticeAuthorization = await timerNotices.authorization()
+    }
+
+    /// Whether a peek put in the slot now would be seen: there is a panel,
+    /// and it is not ordered out for a full-screen app.
+    var isNotchOnScreen: Bool { panel != nil && !isHiddenForFullScreen }
 
     /// Tells the camera whether its tab is on screen.
     ///
@@ -810,6 +1000,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
         panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
+        panel.quickLook = shelfPreview as? ShelfQuickLook
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
         host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
@@ -926,6 +1117,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
         state.onRevealShelfItem = { url in NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        state.onOpenShelfItem = { [weak self] id in self?.openShelfItem(id) }
+        state.onQuickLookShelfItem = { [weak self] id in self?.quickLookShelfItem(id) }
 
         // Open on hover (2026-10-17). Loaded here, saved and applied together
         // by the verb, like the shortcut's store.
@@ -953,12 +1146,58 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // size; applied at once, like it.
         state.onSetLayoutOptions = { [weak self] options in self?.setLayoutOptions(options) }
 
+        // The timer's notification switch and clipboard history's excluded
+        // apps (2026-10-24). Loaded like the hover behaviour, saved and
+        // applied together by the verb. Neither has anything to restart:
+        // both are read at the moment they matter -- a timer finishing, a
+        // copy detected -- so a change applies to the next one.
+        state.timerNotifyWhenHidden = preferencesStore.timerNotifyWhenHidden
+        state.onSetTimerNotifyWhenHidden = { [weak self] enabled in
+            guard let self else { return }
+            self.preferencesStore.setTimerNotifyWhenHidden(enabled)
+            self.state.timerNotifyWhenHidden = enabled
+            // Switched on mid-countdown: ask now, while the user is at the
+            // desktop, rather than leave the finish with no permission.
+            if enabled, self.state.countdown != nil { self.timerNotices.prepare() }
+        }
+        state.onRefreshTimerNotices = { [weak self] in
+            Task { @MainActor [weak self] in await self?.refreshTimerNoticeAuthorization() }
+        }
+        state.clipboardExcludedApps = preferencesStore.clipboardExcludedApps
+        state.onSetClipboardExcludedApps = { [weak self] ids in
+            guard let self else { return }
+            self.preferencesStore.setClipboardExcludedApps(ids)
+            self.state.clipboardExcludedApps = ids
+        }
+        clipboard.poller.excludedApps = { [weak self] in self?.state.clipboardExcludedApps ?? [] }
+
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onPreviewLimits = { [weak self] limits in
             self?.previewLimits(limits) ?? ShelfLimitRemoval(items: [])
         }
+        // The colour picker (2026-10-24). Built here, like the clipboard
+        // ring, and it starts nothing: the sampler exists only while a pick
+        // is in progress. The format is loaded, not cached, like the text
+        // size.
+        let colorPicker = ColorPickerController(sampler: colorSampler, pasteboard: colorPasteboard)
+        colorPicker.format = preferencesStore.colorFormat
+        colorPicker.onChange = { [weak self] history in
+            self?.state.recentColors = history.colors
+            // A colour the history no longer holds -- all of them, when the
+            // module is switched off -- is not one the strip may still show.
+            if let picked = self?.state.pickedColor, !history.colors.contains(picked) {
+                self?.state.pickedColor = nil
+            }
+        }
+        self.colorPicker = colorPicker
+        state.colorFormat = colorPicker.format
+        state.onPickColor = { [weak self] in self?.pickColor() }
+        state.onCopyColor = { [weak self] color in self?.copyColor(color) }
+        state.onSetColorFormat = { [weak self] format in self?.setColorFormat(format) }
+
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
+        state.onTogglePinClipboardEntry = { [weak self] id in self?.togglePin(id) }
         state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
         state.onOpenSettings = { [weak self] in
             self?.openSettingsFromPanel(highlighting: nil)
@@ -1037,7 +1276,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         self.timer = timer
         wireTimerActions()
 
-        // Publishes into `AppState` for the power tab, and into the
+        // Publishes into `AppState` for the Battery tab, and into the
         // arbiter for the peek. Starting and stopping stays in
         // `applicationDidFinishLaunching` / `applicationWillTerminate`,
         // like the clipboard and media controllers — building the wiring
@@ -1148,6 +1387,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.syncKeyWindow(for: newState)
                 self.syncCameraVisibility(for: newState)
                 self.syncShelfNotice(for: newState)
+                self.syncColorStrip(for: newState)
                 self.tapIfOpening(newState)
             }
         }
@@ -1247,8 +1487,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// of a *visible* countdown drops clicks straight through to the menu
     /// bar and never registers hover. `TimerBadgeTests` pins the 274 that
     /// results.
+    ///
+    /// The tab's list of every countdown is read from the controller in the
+    /// same breath, so the soonest and the list are one reading. With no
+    /// countdown left the add picker goes too, so the next one starts from
+    /// the plain single-timer view.
     func countdownDidChange(_ countdown: Countdown?) {
         state.countdown = countdown
+        state.timers = timer?.timers.all ?? []
+        if countdown == nil { state.isAddingTimer = false }
         syncTrackingRect()
     }
 
@@ -1280,6 +1527,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // interrupt `.open` and `.receiving`, and it is what makes the
         // arbiter — rather than this caller — decide what is shown.
         presentPeek()
+        // Behind a full-screen app the peek above lands in an ordered-out
+        // window. A notification is the one alert that shows there; it is
+        // added to the chime and the announcement, never in place of them,
+        // so a denied permission leaves exactly what there was before.
+        if TimerDoneNotice.shouldPost(notchOnScreen: isNotchOnScreen, enabled: state.timerNotifyWhenHidden) {
+            timerNotices.post(TimerDoneNotice(completion: completion))
+        }
         // When no peek carries it -- the panel is open, the module is off, a
         // drag holds the slot -- VoiceOver is told here instead. With the
         // chime set to None nothing else would say the timer finished. A
@@ -1882,14 +2136,92 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
-        guard let action = PanelKeyboard.action(for: key, in: state.state, visible: visible) else {
+        guard let action = PanelKeyboard.action(
+            for: key, in: state.state, visible: visible,
+            clipboardQuery: state.clipboardQuery,
+            clipboardIsEmpty: state.clipboard?.entries.isEmpty ?? true
+        ) else {
             return false
         }
         switch action {
         case .close:            state.transition(to: .closed)
         case .select(let tab):  state.transition(to: .open(tab))
+        case .quickLook:        return toggleShelfQuickLook()
+        case .moveShelfSelection(let step): return moveShelfSelection(by: step)
+        case .clearSearch:      state.clipboardQuery = ""
         }
         return true
+    }
+
+    // MARK: - Quick Look and Open (2026-10-24)
+
+    /// The shelf's items, or none while the module is off: `state.shelf` is
+    /// what the switchboard clears, so a switched-off shelf previews and
+    /// opens nothing even if a stale verb reaches here.
+    private var visibleShelfItems: [ShelfItem] { state.shelf?.items ?? [] }
+
+    /// Shows `id` — or, for `nil`, the selection's first ready neighbour —
+    /// in Quick Look, paging over every ready item, and selects what it
+    /// shows so the ring and the preview agree. Returns whether anything
+    /// was shown: a copying item, or a shelf with no file in it, shows
+    /// nothing (`ShelfPreview`).
+    @discardableResult
+    func quickLookShelfItem(_ id: UUID?) -> Bool {
+        let items = visibleShelfItems
+        guard let request = ShelfPreview.request(for: id, in: items) else { return false }
+        state.shelfSelection = items.first { $0.url == request.current }?.id
+        shelfPreview.show(request)
+        return true
+    }
+
+    /// Space on the shelf tab: previews the selection. Once the preview is
+    /// up it has the keyboard (`ShelfQuickLook.prepare`) and closes itself
+    /// on Space, as in Finder, so this sees Space with a preview up only if
+    /// someone clicked back into the panel first — and then closes it.
+    ///
+    /// Always consumed, even with nothing to show: a declined key goes on to
+    /// `NSWindow.keyDown`, which beeps, and Space on the shelf tab is never
+    /// anybody else's.
+    private func toggleShelfQuickLook() -> Bool {
+        if shelfPreview.isVisible {
+            shelfPreview.close()
+        } else {
+            quickLookShelfItem(state.shelfSelection)
+        }
+        return true
+    }
+
+    /// ← →, while the panel has the keyboard. A preview that is up follows
+    /// the selection — reached only after a click back into the panel,
+    /// since while the preview is key its own arrows page it instead.
+    private func moveShelfSelection(by step: Int) -> Bool {
+        guard let next = ShelfSelection.moved(from: state.shelfSelection, by: step, in: visibleShelfItems) else {
+            return false
+        }
+        state.shelfSelection = next
+        if shelfPreview.isVisible { quickLookShelfItem(next) }
+        return true
+    }
+
+    /// Quick Look closed itself, taking the keyboard with it: hands it back
+    /// to the notch panel while the panel is still open, so Space previews
+    /// again and Esc closes the panel. A panel that has closed meanwhile —
+    /// the pointer left it for the preview — is left closed and unkeyed.
+    func shelfPreviewDidClose() {
+        guard case .open = state.state, let panel else { return }
+        if let takeKey { takeKey() } else { panel.makeKey() }
+    }
+
+    /// Hands the file to its default app — a tile's double-click or Open.
+    /// The app that opens it comes forward, and that activation closes the
+    /// panel through the usual `applicationDidActivate` path.
+    func openShelfItem(_ id: UUID) {
+        guard let item = visibleShelfItems.first(where: { $0.id == id }),
+              ShelfSelection.isSelectable(item) else { return }
+        state.shelfSelection = id
+        if !shelfOpener.open(item.url) {
+            NSLog("CreativeNotch: could not open shelf item \(item.displayName)")
+        }
     }
 
     private func syncDismissAffordances(for newState: NotchState) {

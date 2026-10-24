@@ -66,6 +66,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.hotkey, for: .hotkey)
         setEnabled(preferences.camera, for: .camera)
         setEnabled(preferences.captureIndicator, for: .captureIndicator)
+        setEnabled(preferences.colorPicker, for: .colorPicker)
     }
 
     /// Stops everything, regardless of preference.
@@ -83,6 +84,9 @@ final class ModuleSwitchboard {
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
+        // A pick whose loupe is still up must not write the pasteboard on
+        // the way out.
+        delegate.colorPicker?.setEnabled(false)
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -166,7 +170,10 @@ final class ModuleSwitchboard {
                 // resident for the session and reappear the moment the
                 // switch goes back on. Here rather than in `stop()`, which
                 // quitting also calls and where it would be redundant.
-                delegate.clipboard?.store.clear()
+                // `removeAll`, not `clear`: Clear keeps pins, and off keeps
+                // nothing — pins included.
+                delegate.clipboard?.store.removeAll()
+                delegate.state.clipboardQuery = ""
             }
 
         case .mediaMetadata:
@@ -243,6 +250,17 @@ final class ModuleSwitchboard {
                 delegate.state.onResumeTimer = nil
                 delegate.state.onCancelTimer = nil
                 delegate.arbiter.dismissTimerDone()
+                // The stopwatch is different: it has nothing to finish and,
+                // with the tab gone, nowhere to be read. It costs nothing
+                // running — it is two numbers — but one left counting
+                // invisibly would greet the user with an hour they never
+                // saw when the tab came back. So it is reset, its verb goes
+                // with the others, and the tab comes back on its default
+                // half.
+                delegate.state.onStopwatch = nil
+                delegate.state.stopwatch = Stopwatch()
+                delegate.state.timerMode = .timer
+                delegate.state.isAddingTimer = false
             }
 
         case .camera:
@@ -281,11 +299,28 @@ final class ModuleSwitchboard {
             // there is nothing running between presses to suspend.
             delegate.hotkey?.setEnabled(enabled)
 
+        case .colorPicker:
+            // Nothing runs at rest, so off has two jobs only: forget the
+            // history -- off means the app holds nothing, as the clipboard
+            // leg says -- and drop a pick whose loupe is still up, since
+            // `NSColorSampler` cannot be cancelled. The controller does both,
+            // and publishes the empty history, which takes the strip with
+            // it. The dropper goes because the header reads
+            // `state.preferences`. No activity axis: there is nothing to
+            // suspend between picks.
+            delegate.colorPicker?.setEnabled(enabled)
+
         case .shelf:
             // Nothing to stop: the shelf owns no timer, observer or process,
             // and its idle cost is genuinely zero. Disabling hides the tab and
             // refuses drops — the drop closures read `state.preferences`.
             delegate.state.shelf = enabled ? delegate.shelf : nil
+            // The one thing it can leave on screen: a Quick Look of its
+            // files. A switched-off shelf must not keep previewing them.
+            if !enabled {
+                delegate.shelfPreview.close()
+                delegate.state.shelfSelection = nil
+            }
         }
 
         retargetTabsIfNeeded()

@@ -24,6 +24,8 @@ struct PanelHeader: View {
     var showsBattery: Bool = true
     let onSelect: (CreativeNotchCore.Tab) -> Void
     let onSettings: () -> Void
+    /// The colour picker's dropper, or `nil` while the module is off.
+    var colorPicker: ColorPickerHeaderModel? = nil
 
     var body: some View {
         HStack(spacing: 0) {
@@ -50,6 +52,13 @@ struct PanelHeader: View {
                 .padding(edge, PanelLayout.earInset)
         case .status:
             HStack(spacing: 10) {
+                // First, nearest the housing: a verb like the gear, kept
+                // apart from it by the battery so neither is hit for the
+                // other. It follows the status ear to whichever side the
+                // tabs leave free.
+                if let colorPicker {
+                    ColorPickerButton(model: colorPicker)
+                }
                 if showsBattery, hasBattery, let power {
                     BatteryCell(level: power.level, isCharging: power.isCharging)
                 }
@@ -71,7 +80,8 @@ struct PanelHeader: View {
 /// The fill's colour is not the only signal: the glyph Core picks (a bolt
 /// while charging, and under Differentiate Without Color a mark when low)
 /// sits beside the level, where at 9pt it is legible. Inside a 22×11 cell
-/// it would not be.
+/// it would not be. VoiceOver hears the tone as a word, "low" or
+/// "charging", after the level (`PowerGaugeTone.spokenLabel`).
 struct BatteryCell: View {
     let level: Int
     let isCharging: Bool
@@ -117,7 +127,8 @@ struct BatteryCell: View {
                 .foregroundStyle(.ink(0.7))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Battery \(level) percent\(isCharging ? ", charging" : "")")
+        // The tone in words as well as colour: "…, low" or "…, charging".
+        .accessibilityLabel(PowerGaugeTone.spokenLabel(level: level, isCharging: isCharging))
     }
 
     private var tone: Color {

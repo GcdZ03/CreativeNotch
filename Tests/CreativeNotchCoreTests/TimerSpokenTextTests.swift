@@ -36,6 +36,15 @@ struct TimerSpokenTextTests {
         #expect(TimerSpokenText.duration(-30) == "0 seconds")
     }
 
+    // MARK: - Naming one among several
+
+    /// With several countdowns each row needs a name VoiceOver can tell
+    /// apart: the duration it was set to, as the completion peek says it.
+    @Test func aTimerIsNamedByItsSetDuration() {
+        #expect(TimerSpokenText.name(duration: 1500) == "25-minute timer")
+        #expect(TimerSpokenText.name(duration: 30) == "30-second timer")
+    }
+
     // MARK: - The running countdown
 
     @Test func theValueSaysWhatIsLeftAndHowFarAlong() {
