@@ -284,7 +284,7 @@ it back.
 | Switch to the Timer tab | Presets (5, 10 and 25 minutes until you change them in Settings), or type your own up to 99 minutes |
 | Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
-| Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
+| Pause it | The countdown dims, shows a pause symbol beside the notch, and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |

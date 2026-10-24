@@ -424,8 +424,10 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   SwiftUI re-resolves the style when the setting changes. A new dimmed
   white in the panel should use these, not `.white.opacity`. State never
   rests on colour or dimming alone: `PowerGaugeTone.glyph` adds a bolt while
-  charging (always) and a mark when low (under the setting), and
-  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits.
+  charging (always) and a mark when low (under the setting) — and VoiceOver
+  hears the same tone, "…, low", from `PowerGaugeTone.spokenLabel` —
+  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits, and
+  the ear's timer badge draws a pause glyph ahead of its dimmed digits.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
