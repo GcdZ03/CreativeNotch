@@ -34,4 +34,20 @@ public enum PowerGaugeTone: Equatable, Sendable {
         case .normal:   return nil
         }
     }
+
+    /// What VoiceOver says for a battery gauge: the level, then the tone
+    /// when there is one -- "Battery 15 percent, low".
+    ///
+    /// The tone's other cues, the fill colour and the glyph, are visual; a
+    /// label of the level alone left "low" unsaid to anyone not looking.
+    /// Decided here, beside `tone`, so the spoken word and the colour cannot
+    /// disagree about what low is.
+    public static func spokenLabel(level: Int, isCharging: Bool) -> String {
+        let base = "Battery \(level) percent"
+        switch tone(level: level, isCharging: isCharging) {
+        case .charging: return base + ", charging"
+        case .low:      return base + ", low"
+        case .normal:   return base
+        }
+    }
 }

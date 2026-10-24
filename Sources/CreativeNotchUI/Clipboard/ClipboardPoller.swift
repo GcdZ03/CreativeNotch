@@ -40,6 +40,21 @@ public final class ClipboardPoller {
 
     public var cancelTimer: (Any) -> Void = { ($0 as? Timer)?.invalidate() }
 
+    /// The apps whose copies are never recorded (2026-10-24), asked at each
+    /// detected change rather than held: the list lives in `AppState`, and a
+    /// copy here would be a second one that Settings could leave stale.
+    public var excludedApps: () -> [String] = { [] }
+
+    /// The app in front, behind a seam so a test decides the answer rather
+    /// than whatever the developer has open.
+    ///
+    /// Read only when the pasteboard changed *and* the list is not empty --
+    /// never on an idle tick, so the exclusion adds no work to the
+    /// `changeCount` comparison that almost every tick is.
+    public var frontmostApp: () -> String? = {
+        NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+    }
+
     /// What the running timer is set to, or `nil` when suspended.
     public private(set) var scheduledInterval: TimeInterval?
 
@@ -141,8 +156,21 @@ public final class ClipboardPoller {
 
         reschedule(now: now)
 
-        guard changed, let content = pasteboard.clipboardCapture() else { return }
+        guard changed, !isFromExcludedApp(), let content = pasteboard.clipboardCapture() else { return }
         onCapture?(content)
+    }
+
+    /// Whether this change came from an app on the excluded list. Asked
+    /// before `clipboardCapture()`, so an excluded app's copy is refused
+    /// before a byte of it is read -- the same order the concealed type gets.
+    private func isFromExcludedApp() -> Bool {
+        let excluded = excludedApps()
+        guard !excluded.isEmpty else { return false }
+        return ClipboardExclusions.excludes(
+            source: pasteboard.clipboardSource(),
+            frontmost: frontmostApp(),
+            excluded: excluded
+        )
     }
 
     // MARK: - Internals

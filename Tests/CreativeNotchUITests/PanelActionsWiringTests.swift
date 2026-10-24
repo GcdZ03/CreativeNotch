@@ -104,6 +104,81 @@ struct PanelActionsWiringTests {
         #expect(shelf.items.isEmpty, "an undo that had lapsed still restored")
     }
 
+    /// Two clears inside the window are one undo. Before, the second clear's
+    /// record replaced the first's, and the first batch stayed in the Trash
+    /// with no button left that pointed at it.
+    @Test func undoRestoresEveryClearMadeWhileTheOfferStood() throws {
+        let d = makeDelegate()
+        let shelf = try #require(d.shelf)
+        let first = try shelf.add(.text("first"), now: Date())
+        d.clearShelf()
+        let second = try shelf.add(.text("second"), now: Date().addingTimeInterval(1))
+        d.clearShelf()
+        #expect(shelf.items.isEmpty)
+
+        d.undoClearShelf()
+
+        #expect(shelf.items.map(\.id) == [second.id, first.id])
+        #expect(d.state.canUndoShelfClear == false)
+    }
+
+    /// A lapsed offer is not merged into the next one: after the window,
+    /// a clear starts a fresh undo.
+    @Test func aClearAfterTheOfferLapsedStartsAFreshUndo() async throws {
+        let d = makeDelegate()
+        d.shelfUndoWindow = .milliseconds(20)
+        let shelf = try #require(d.shelf)
+        try shelf.add(.text("gone for good"), now: Date())
+        d.clearShelf()
+        let offer = try #require(d.shelfUndoTask)
+        await offer.value
+
+        d.shelfUndoWindow = AppDelegate.defaultShelfUndoWindow
+        let kept = try shelf.add(.text("kept"), now: Date().addingTimeInterval(1))
+        d.clearShelf()
+        d.undoClearShelf()
+
+        #expect(shelf.items.map(\.id) == [kept.id])
+    }
+
+    /// What an undo could not bring back is said under the shelf and to
+    /// VoiceOver, through the notice a failed copy already uses -- not just
+    /// logged where nobody looks.
+    @Test func itemsThatCannotBeRestoredAreReported() throws {
+        let d = makeDelegate()
+        var spoken: [String] = []
+        d.announce = { spoken.append($0) }
+        let shelf = try #require(d.shelf)
+        let external = d.shelfDirectory.deletingLastPathComponent()
+            .appendingPathComponent("CreativeNotchUndoRef-\(UUID().uuidString).txt")
+        try Data("x".utf8).write(to: external)
+        try shelf.addReference(to: external, now: Date())
+        d.clearShelf()
+        // The referenced file goes away while the undo is on offer.
+        let elsewhere = external.deletingLastPathComponent()
+            .appendingPathComponent("CreativeNotchUndoMoved-\(UUID().uuidString).txt")
+        try FileManager.default.moveItem(at: external, to: elsewhere)
+
+        d.undoClearShelf()
+
+        #expect(shelf.items.isEmpty)
+        #expect(d.state.shelfNotice == "Couldn't restore 1 item")
+        #expect(spoken == ["Couldn't restore 1 item"])
+    }
+
+    /// Everything came back, so there is nothing to say.
+    @Test func aCleanUndoSaysNothing() throws {
+        let d = makeDelegate()
+        var spoken: [String] = []
+        d.announce = { spoken.append($0) }
+        let shelf = try #require(d.shelf)
+        try shelf.add(.text("x"), now: Date())
+        d.clearShelf()
+        d.undoClearShelf()
+        #expect(d.state.shelfNotice == nil)
+        #expect(spoken.isEmpty)
+    }
+
     /// Clearing an empty shelf takes nothing, so offers nothing back.
     @Test func clearingAnEmptyShelfOffersNoUndo() {
         let d = makeDelegate()

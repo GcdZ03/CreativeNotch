@@ -55,11 +55,22 @@ public enum PanelKey: Equatable, Sendable {
     case escape
     /// ⌘ plus a number-row digit, 1-based as printed on the key.
     case commandDigit(Int)
+    /// Space with no modifier: Quick Look on the shelf.
+    case space
+    /// ← and → with no modifier: the shelf's selection.
+    case arrowLeft
+    case arrowRight
 }
 
 public enum PanelKeyAction: Equatable, Sendable {
     case close
     case select(Tab)
+    /// Preview the shelf's selection — or close the preview if it is up.
+    case quickLook
+    /// Move the shelf's selection this many tiles; negative is left.
+    case moveShelfSelection(Int)
+    /// Empty the clipboard pane's search, and stay open.
+    case clearSearch
 }
 
 public enum PanelKeyboard {
@@ -73,14 +84,41 @@ public enum PanelKeyboard {
     /// Only an open panel answers. A peek is ambient and `.receiving` is a
     /// drag in flight — Esc tearing down a drop target mid-drag is exactly
     /// what the dismissal paths are careful never to do.
-    public static func action(for key: PanelKey, in state: NotchState, visible: [Tab]) -> PanelKeyAction? {
-        guard case .open = state else { return nil }
+    ///
+    /// Space and the arrows belong to the shelf tab alone, where the tiles
+    /// are the only thing with a selection. Anywhere else they are passed on:
+    /// on the timer tab Space is someone typing in the minutes field, and on
+    /// the clipboard tab someone typing in the search — though a field that
+    /// is editing consumes it before the window ever sees it.
+    ///
+    /// `clipboardQuery` is what is typed in the clipboard pane's search. Esc
+    /// takes back the last thing done first, as it does in every search
+    /// field on the Mac: with a search on the clipboard tab it clears the
+    /// search, and only the next press closes. A query of spaces filters
+    /// nothing (`ClipboardSearch.isActive`), so it holds nothing back.
+    ///
+    /// `clipboardIsEmpty` says the history has no entries. The pane then
+    /// shows "Nothing copied yet" and no search field, so a query left over
+    /// from before a Clear or the last Remove is one nobody can see — Esc
+    /// closes at once rather than spend a press clearing it.
+    public static func action(
+        for key: PanelKey, in state: NotchState, visible: [Tab],
+        clipboardQuery: String = "", clipboardIsEmpty: Bool = false
+    ) -> PanelKeyAction? {
+        guard case .open(let tab) = state else { return nil }
         switch key {
         case .escape:
+            if tab == .clipboard, !clipboardIsEmpty, ClipboardSearch.isActive(clipboardQuery) { return .clearSearch }
             return .close
         case .commandDigit(let n):
             guard visible.indices.contains(n - 1) else { return nil }
             return .select(visible[n - 1])
+        case .space:
+            return tab == .shelf ? .quickLook : nil
+        case .arrowLeft:
+            return tab == .shelf ? .moveShelfSelection(-1) : nil
+        case .arrowRight:
+            return tab == .shelf ? .moveShelfSelection(1) : nil
         }
     }
 }

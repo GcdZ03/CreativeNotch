@@ -24,6 +24,17 @@ struct PreferencesStoreTests {
             #expect(loaded[module] == module.shippedDefault, "\(module) came up wrong on a fresh domain")
         }
         #expect(loaded == Preferences.shipped)
+        // The modules that ship off, read through the real path.
+        #expect(loaded.calendar == false)
+        #expect(loaded.bluetooth == false)
+    }
+
+    /// Switched on once, the calendar stays on: an off-by-default module
+    /// must persist `true`, not merely read as absent.
+    @Test func theCalendarSwitchedOnSurvivesAReload() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setEnabled(true, for: .calendar)
+        #expect(PreferencesStore(defaults: defaults).load().calendar == true)
     }
 
     @Test func aDisabledModuleSurvivesAReload() {
@@ -49,7 +60,7 @@ struct PreferencesStoreTests {
             let loaded = store.load()
             #expect(loaded[module] == false, "\(module) did not persist as off")
             for other in ModuleID.allCases where other != module {
-                #expect(loaded[other] == other.shippedDefault, "disabling \(module) also disabled \(other)")
+                #expect(loaded[other] == other.shippedDefault, "disabling \(module) also changed \(other)")
             }
         }
     }
@@ -97,5 +108,31 @@ struct PreferencesStoreTests {
 
         store.setEnabled(true, for: .bluetooth)
         #expect(store.load().bluetooth == true)
+    }
+
+    // MARK: - Timer notice and clipboard exclusions (2026-10-24)
+
+    /// Absent means on: the notification is the only thing a full-screen
+    /// user would see, and the setting is there to turn it off, not on.
+    @Test func timerNoticesAreOnInAnEmptyDomain() {
+        #expect(PreferencesStore(defaults: makeIsolatedDefaults()).timerNotifyWhenHidden)
+    }
+
+    @Test func timerNoticesSwitchedOffSurviveAReload() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setTimerNotifyWhenHidden(false)
+        #expect(defaults.object(forKey: "timer.notifyWhenHidden") as? Bool == false)
+        #expect(PreferencesStore(defaults: defaults).timerNotifyWhenHidden == false)
+    }
+
+    @Test func clipboardExclusionsAreEmptyInAnEmptyDomain() {
+        #expect(PreferencesStore(defaults: makeIsolatedDefaults()).clipboardExcludedApps == [])
+    }
+
+    @Test func clipboardExclusionsSurviveAReloadUnderTheDocumentedKey() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setClipboardExcludedApps(["com.apple.Terminal", "com.b"])
+        #expect(defaults.stringArray(forKey: "clipboard.excludedApps") == ["com.apple.Terminal", "com.b"])
+        #expect(PreferencesStore(defaults: defaults).clipboardExcludedApps == ["com.apple.Terminal", "com.b"])
     }
 }

@@ -315,19 +315,20 @@ struct TimerWiringTests {
 
         delegate.state.onStartTimer?(1500)
         #expect(timer.countdown != nil)
+        let id = try #require(timer.timers.all.first?.id)
         #expect(delegate.state.countdown != nil)
         #expect(delegate.acceptedRect.width == 274)
 
-        delegate.state.onPauseTimer?()
+        delegate.state.onPauseTimer?(id)
         #expect(delegate.state.countdown?.isPaused == true)
         // A paused timer schedules nothing at all: that is where the
         // "zero redraws while paused" claim becomes true.
         #expect(timer.scheduledWake == nil)
 
-        delegate.state.onResumeTimer?()
+        delegate.state.onResumeTimer?(id)
         #expect(delegate.state.countdown?.isPaused == false)
 
-        delegate.state.onCancelTimer?()
+        delegate.state.onCancelTimer?(id)
         #expect(delegate.state.countdown == nil)
         #expect(delegate.acceptedRect.width == 230)
     }

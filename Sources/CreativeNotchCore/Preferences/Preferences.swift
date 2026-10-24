@@ -21,6 +21,8 @@ public struct Preferences: Equatable, Sendable {
     public var camera: Bool
     public var captureIndicator: Bool
     public var bluetooth: Bool
+    public var calendar: Bool
+    public var colorPicker: Bool
 
     public init(
         shelf: Bool = true,
@@ -32,7 +34,9 @@ public struct Preferences: Equatable, Sendable {
         hotkey: Bool = true,
         camera: Bool = true,
         captureIndicator: Bool = true,
-        bluetooth: Bool = true
+        bluetooth: Bool = false,
+        calendar: Bool = false,
+        colorPicker: Bool = true
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -44,20 +48,19 @@ public struct Preferences: Equatable, Sendable {
         self.camera = camera
         self.captureIndicator = captureIndicator
         self.bluetooth = bluetooth
+        self.calendar = calendar
+        self.colorPicker = colorPicker
     }
 
-    /// Everything on. What the switchboard holds before `apply()` has read
-    /// anything, so constructing a delegate reads no defaults.
-    public static let allEnabled = Preferences()
-
     /// The shipped state, and what a domain with no keys in it resolves to:
-    /// every module at its `ModuleID.shippedDefault`. Equal to `allEnabled`
-    /// until Bluetooth alerts, the first module to ship off.
-    public static let shipped: Preferences = {
-        var preferences = Preferences()
-        for module in ModuleID.allCases { preferences[module] = module.shippedDefault }
-        return preferences
-    }()
+    /// every module on except the two that need a permission and so wait to
+    /// be asked for -- Bluetooth alerts and the calendar
+    /// (`ModuleID.shippedDefault`).
+    public static let shipped = Preferences()
+
+    /// Every module on, Bluetooth alerts and the calendar included. Not the
+    /// shipped state; what a person who switched everything on has.
+    public static let allEnabled = Preferences(bluetooth: true, calendar: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -72,6 +75,8 @@ public struct Preferences: Equatable, Sendable {
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
             case .bluetooth:     return bluetooth
+            case .calendar:      return calendar
+            case .colorPicker:   return colorPicker
             }
         }
         set {
@@ -86,6 +91,8 @@ public struct Preferences: Equatable, Sendable {
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
             case .bluetooth:     bluetooth = newValue
+            case .calendar:      calendar = newValue
+            case .colorPicker:   colorPicker = newValue
             }
         }
     }

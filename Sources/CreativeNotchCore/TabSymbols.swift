@@ -10,6 +10,7 @@ public extension Tab {
         case .power:     return "battery.100percent"
         case .timer:     return "timer"
         case .camera:    return "camera"
+        case .calendar:  return "calendar"
         }
     }
 }

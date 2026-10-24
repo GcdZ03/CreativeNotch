@@ -91,10 +91,14 @@ struct CameraTabView: View {
         VStack {
             HStack {
                 Spacer()
-                // The way out, since the tab bar is suppressed.
+                // The way out, since the tab bar is suppressed. Sized
+                // through the type scale like every panel glyph: 15 and,
+                // below, 26 are `.title3`'s and `.largeTitle`'s sizes, so
+                // the default look is unchanged and Larger text reaches
+                // the camera's controls too.
                 Button(action: onClose) {
                     Image(systemName: "xmark.circle.fill")
-                        .font(.title3)
+                        .notchFont(15)
                         .foregroundStyle(.ink(0.8))
                 }
                 .buttonStyle(.plain)
@@ -104,7 +108,7 @@ struct CameraTabView: View {
             HStack(spacing: 18) {
                 Button(action: onShutter) {
                     Image(systemName: "circle.inset.filled")
-                        .font(.largeTitle)
+                        .notchFont(26)
                         .foregroundStyle(.white)
                 }
                 .buttonStyle(.plain)
@@ -113,7 +117,7 @@ struct CameraTabView: View {
 
                 Button(action: onToggleRecording) {
                     Image(systemName: isRecording ? "stop.circle.fill" : "record.circle")
-                        .font(.largeTitle)
+                        .notchFont(26)
                         .foregroundStyle(isRecording ? .red : .white)
                 }
                 .buttonStyle(.plain)

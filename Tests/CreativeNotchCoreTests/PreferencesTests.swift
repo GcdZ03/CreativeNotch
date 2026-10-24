@@ -20,11 +20,13 @@ import Testing
     #expect(ModuleID.camera.rawValue == "camera")
     #expect(ModuleID.captureIndicator.rawValue == "capture-indicator")
     #expect(ModuleID.bluetooth.rawValue == "bluetooth")
+    #expect(ModuleID.calendar.rawValue == "calendar")
+    #expect(ModuleID.colorPicker.rawValue == "color-picker")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 10)
+    #expect(keys.count == 12)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -69,21 +71,29 @@ import Testing
 
 // MARK: - The value
 
-@Test func preferencesShipWithEverythingOn() {
+@Test func preferencesShipWithEverythingOnButTheCalendar() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
+        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth), "\(module)")
+        #expect(Preferences.shipped[module] == module.shippedDefault)
     }
 }
 
-/// Bluetooth alerts are the first module to ship off: switching them on is
-/// what asks macOS for Bluetooth access, and a prompt nobody asked for at
-/// launch is the thing the Permissions rule exists to prevent. Everything
-/// else needs no grant and costs nothing at rest, so it stays on.
-@Test func onlyBluetoothShipsOff() {
+/// Bluetooth alerts and the calendar are the modules that ship off: each
+/// needs a permission, and a permission is asked for when someone switches
+/// the feature on -- never at launch, and never for a feature nobody chose.
+/// Everything else needs no grant and costs nothing at rest, so it stays on.
+@Test func onlyThePermissionModulesShipOff() {
     for module in ModuleID.allCases {
-        #expect(module.shippedDefault == (module != .bluetooth), "\(module)")
+        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
     }
+}
+
+@Test func theCalendarShipsOffBecauseItNeedsAPermission() {
+    #expect(ModuleID.calendar.shippedDefault == false)
+    #expect(Preferences().calendar == false)
+    #expect(Preferences().bluetooth == false)
 }
 
 @Test func theSubscriptReachesEveryModuleIndependently() {
