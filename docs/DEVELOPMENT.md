@@ -14,6 +14,13 @@ swift test --filter NotchGeometryTests  # one suite
 The whole suite is headless: no window server, no signing, no bundle. If a
 change can be verified here, verify it here.
 
+The feature screenshots in `docs/assets/features/` come from the same
+offscreen renderer, and are rewritten only when asked:
+
+```bash
+CREATIVENOTCH_RENDER_FEATURES=1 swift test --filter CalendarPanelRenderingTests
+```
+
 ### 2. See it on screen — `./Scripts/dev.sh` (~6 seconds)
 
 ```bash

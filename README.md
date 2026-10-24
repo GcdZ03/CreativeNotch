@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All nine modules are built, and every one of them can be switched off.**
+**The foundation is complete. All ten modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -84,6 +84,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Calendar and reminders** — your next three events and today's due reminders, off until you switch it on | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -101,6 +102,19 @@ entries of text and images (25 or 100 if you prefer, in Settings), in memory onl
 pasteboard types password managers use to opt out honoured before any
 content is read. It backs off when nothing is happening and suspends
 entirely while the screen is locked or the machine is asleep.
+
+The calendar glance is the newest, and the first module that ships **off**.
+Switch it on in Settings and it asks for Calendars and Reminders access; the
+calendar icon then sits beside the battery in the right ear, and its pane
+shows the next three events of today and tomorrow — under way, "in 15 min",
+or a time — and how many reminders are due or overdue. It reads the
+calendar only while that pane is open: on opening, when Calendar changes
+under it, and once at the next moment the rows would read differently. It
+never polls.
+
+<p align="center">
+  <img src="docs/assets/features/calendar-glance.png" width="620" alt="The open panel on the calendar tab: three events with coloured calendar dots — Product sync now, until 9:30; Design review in 28 min; Lunch with Sam 12:30 to 13:30 — and a line reading 3 reminders due, 1 overdue">
+</p>
 
 Media controls are the fourth: play/pause, next and previous, sent through
 the private MediaRemote framework to whatever application holds the media
@@ -208,11 +222,11 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and one module asks later.**
+**Nothing is asked for at launch, and two modules ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history needs no permission, and the global shortcut
-is registered with the window server rather than a monitor. Eight of the nine
+is registered with the window server rather than a monitor. Eight of the ten
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -220,6 +234,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**The calendar glance asks for Calendars and Reminders** — full access, since
+it reads events rather than adding them — and only when you switch it on in
+Settings, which it ships off for that reason. If it was already on (after an
+update re-signs the app), the pane offers **Allow Access…** instead of
+prompting at launch. Grant one and not the other and it shows what it can.
+Refuse both and the pane says so, with **Open Privacy Settings**; Settings
+warns under its switch too. Events and reminders are read on your Mac, only
+while the pane is open, and kept nowhere.
 
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
@@ -263,7 +286,7 @@ it back.
 | Hover a tab icon | Its name, as a tooltip; the name also heads the pane, with a count |
 | Click the gear | Closes the panel and opens Settings |
 | Press Esc | Closes the panel |
-| Press ⌘1 … ⌘5 | Switches to that tab, counting only the tabs you have switched on |
+| Press ⌘1 … ⌘6 | Switches to that tab, counting only the tabs you have switched on — left to right, so the calendar beside the battery is last |
 | Hover a shelf item | An × removes just that one, and the round button AirDrops it; AirDrop All and Clear in the title row act on the whole shelf |
 | Right-click a shelf item | Show in Finder, AirDrop, Remove; VoiceOver offers the same three as actions on the tile, which it reads by file name |
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back |
@@ -287,6 +310,9 @@ it back.
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
+| Switch on Calendar and reminders in Settings | Asks for Calendars and Reminders access, then puts a calendar icon beside the battery in the panel's right ear |
+| Click the calendar icon | The next three events of today and tomorrow, each with its calendar's colour and when — "Now, until 9:30", "in 28 min", "12:30–13:30", "Tomorrow 10:00", "All day" — and how many reminders are due or overdue. **Open Calendar** in the title row opens Calendar |
+| Change something in Calendar with the pane open | It shows at once; with the pane closed, the next open reads it |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
@@ -320,7 +346,9 @@ their size: they have to fit beside the camera housing and the menu bar.
 With **VoiceOver** on, each peek is announced as it appears — the charger or
 Low Power Mode change with the battery level, a finished timer, and the track
 when the music player drops down or the song changes under it (never a pause
-or a seek). The timer's countdown reads as words with its progress ("8 minutes
+or a seek). Each calendar row reads as a sentence with its calendar's name
+("Design review, in 28 minutes, Work calendar"), so the colour dot is never
+the only clue. The timer's countdown reads as words with its progress ("8 minutes
 remaining, 25% done"), at the same granularity as the digits, and every badge
 beside the notch says what it shows.
 
