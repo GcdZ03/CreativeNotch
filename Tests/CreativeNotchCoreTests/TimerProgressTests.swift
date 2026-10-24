@@ -57,4 +57,16 @@ struct PowerGaugeToneTests {
         #expect(PowerGaugeTone.normal.glyph(differentiateWithoutColor: false) == nil)
         #expect(PowerGaugeTone.normal.glyph(differentiateWithoutColor: true) == nil)
     }
+
+    /// VoiceOver hears the tone too. The yellow fill and the low mark are
+    /// for eyes; the header's battery cell used to say only the level, so
+    /// "low" reached nobody using a screen reader. Charging was already
+    /// spoken, and still wins over low as it does for the colour.
+    @Test func theSpokenLabelSaysTheTone() {
+        #expect(PowerGaugeTone.spokenLabel(level: 67, isCharging: false) == "Battery 67 percent")
+        #expect(PowerGaugeTone.spokenLabel(level: 15, isCharging: false) == "Battery 15 percent, low")
+        #expect(PowerGaugeTone.spokenLabel(level: 20, isCharging: false) == "Battery 20 percent, low")
+        #expect(PowerGaugeTone.spokenLabel(level: 15, isCharging: true) == "Battery 15 percent, charging")
+        #expect(PowerGaugeTone.spokenLabel(level: 80, isCharging: true) == "Battery 80 percent, charging")
+    }
 }

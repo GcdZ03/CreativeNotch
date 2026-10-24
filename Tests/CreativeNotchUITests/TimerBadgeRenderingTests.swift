@@ -55,6 +55,52 @@ struct TimerBadgeRenderingTests {
         #expect(Render.differs(running, paused))
     }
 
+    /// **Not by dimming alone.** Two greys are no signal under
+    /// Differentiate Without Color, and Increase Contrast lifts the dim one
+    /// most of the way to the bright. A paused badge draws a pause glyph
+    /// ahead of the digits, so its ink reaches further left than the same
+    /// digits running.
+    @Test func aPausedBadgeShowsAGlyphAheadOfTheDigits() throws {
+        func ink(_ paused: Bool) throws -> CGRect {
+            let png = try #require(Self.pixels(
+                TimerBadgeView(text: "25m", isPaused: paused)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            ))
+            let bitmap = try #require(NSBitmapImageRep(data: png))
+            return TextSizeRenderingTests.inkBounds(bitmap, in: CGRect(x: 0, y: 0, width: 60, height: 32))
+        }
+        let running = try ink(false)
+        let paused = try ink(true)
+        #expect(running.width > 10, "the running badge drew no digits")
+        #expect(paused.minX < running.minX - 4, "no pause glyph ahead of the digits")
+        #expect(abs(paused.maxX - running.maxX) <= 1, "the digits moved")
+    }
+
+    /// The glyph is only worth having if it fits: the widest digits and the
+    /// glyph together stay inside the fixed slot, clear of the camera
+    /// housing on its leading side, at both notch heights (the slot is the
+    /// same width on a 14" and a 16" MacBook Pro; only the band's height
+    /// differs, and the badge is centred in it).
+    @Test func thePausedBadgeFitsTheSlotAtBothNotchHeights() throws {
+        for height in [32.0, 38.0] {
+            let renderer = ImageRenderer(content:
+                TimerBadgeView(text: TimerDisplay.widestText, isPaused: true)
+                    .frame(width: NotchGeometry.timerBadgeWidth, height: height, alignment: .trailing)
+            )
+            renderer.scale = 1
+            let image = try #require(renderer.nsImage)
+            let bitmap = try #require(image.tiffRepresentation.flatMap(NSBitmapImageRep.init(data:)))
+            let ink = TextSizeRenderingTests.inkBounds(
+                bitmap, in: CGRect(x: 0, y: 0, width: NotchGeometry.timerBadgeWidth, height: height)
+            )
+            // Something drew, and it starts clear of the slot's leading
+            // edge -- the housing -- rather than running into it.
+            #expect(ink.width > 30)
+            #expect(ink.minX >= 4, "at \(height)pt the paused badge runs into the housing")
+            #expect(ink.minY > 0 && ink.maxY < height)
+        }
+    }
+
     /// The widest string must fit the fixed width without truncating.
     /// Truncation would be the tell that `timerBadgeWidth` is too small.
     @Test func theWidestStringFitsTheFixedWidth() throws {

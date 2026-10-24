@@ -50,7 +50,8 @@ struct PanelHeader: View {
 /// The fill's colour is not the only signal: the glyph Core picks (a bolt
 /// while charging, and under Differentiate Without Color a mark when low)
 /// sits beside the level, where at 9pt it is legible. Inside a 22×11 cell
-/// it would not be.
+/// it would not be. VoiceOver hears the tone as a word, "low" or
+/// "charging", after the level (`PowerGaugeTone.spokenLabel`).
 struct BatteryCell: View {
     let level: Int
     let isCharging: Bool
@@ -96,7 +97,8 @@ struct BatteryCell: View {
                 .foregroundStyle(.ink(0.7))
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Battery \(level) percent\(isCharging ? ", charging" : "")")
+        // The tone in words as well as colour: "…, low" or "…, charging".
+        .accessibilityLabel(PowerGaugeTone.spokenLabel(level: level, isCharging: isCharging))
     }
 
     private var tone: Color {

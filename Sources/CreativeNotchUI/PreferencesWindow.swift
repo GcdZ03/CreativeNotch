@@ -342,16 +342,45 @@ final class PendingLimits {
 /// again, but Settings reopened on it some other way — still scrolls. The
 /// view clears `section` once the tint has faded; nothing here runs on its
 /// own.
+///
+/// **The scroll waits for the form's first layout.** On the very first open
+/// the request arrives before the window's form has laid out, and a
+/// `scrollTo` issued then has no rows to scroll between — the window landed
+/// at the top, the Shortcut row tinted out of sight at the bottom. The view
+/// reports its first layout through `formDidLayOut()`, and `scrollKey`
+/// changes with it, so the view's one-shot runs again once there is
+/// something to scroll. The window is built once and reused, so after that
+/// first report every later ask scrolls straight away.
 @MainActor
 @Observable
 final class PreferencesHighlight {
     private(set) var section: PreferencesSection?
     private(set) var request = 0
+    private(set) var formLaidOut = false
 
     func ask(for section: PreferencesSection) {
         self.section = section
         request &+= 1
     }
+
+    /// Called by the view once its form has a size. Idempotent: a later
+    /// layout pass is not a new request and must not re-run the scroll.
+    func formDidLayOut() {
+        guard !formLaidOut else { return }
+        formLaidOut = true
+    }
+
+    /// The section to scroll to now — `nil` until the form can be scrolled.
+    var scrollTarget: PreferencesSection? { formLaidOut ? section : nil }
+
+    /// What the view's scroll task is keyed on: a new request, or the first
+    /// layout that makes a waiting request actionable.
+    struct ScrollKey: Hashable {
+        let request: Int
+        let formLaidOut: Bool
+    }
+
+    var scrollKey: ScrollKey { ScrollKey(request: request, formLaidOut: formLaidOut) }
 
     /// Clears the tint, unless a newer request arrived while it was showing.
     func fade(request finished: Int) {
@@ -483,10 +512,12 @@ struct PreferencesView: View {
             form
                 // A one-shot per request, not a loop: scroll, wait out the
                 // tint, clear it. Keyed on the request so a second ask for
-                // the same section restarts it, and cancelled with the view.
-                .task(id: controller.highlight.request) {
+                // the same section restarts it, and on the form's first
+                // layout so an ask that arrived before it is acted on once
+                // there is something to scroll. Cancelled with the view.
+                .task(id: controller.highlight.scrollKey) {
                     let request = controller.highlight.request
-                    guard let section = controller.highlight.section else { return }
+                    guard let section = controller.highlight.scrollTarget else { return }
                     withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.3)) {
                         proxy.scrollTo(section, anchor: .center)
                     }
@@ -521,6 +552,11 @@ struct PreferencesView: View {
             }
         }
         .formStyle(.grouped)
+        // Reported after layout, with the size layout produced: the moment
+        // a `scrollTo` has rows to land on. See `PreferencesHighlight`.
+        .onGeometryChange(for: Bool.self) { $0.size.height > 0 } action: { hasSize in
+            if hasSize { controller.highlight.formDidLayOut() }
+        }
     }
 
     @ViewBuilder

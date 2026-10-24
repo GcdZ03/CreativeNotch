@@ -132,7 +132,12 @@ setting — Default, Large, Larger, a factor of 1, 1.15 or 1.3 — and one facto
 drives three things that must agree:
 
 - **The panel's frame.** `NotchGeometry.panelFrame(for:in:textScale:)` grows
-  `expandedSize` by the factor, clamped to the screen but never below 620×260.
+  `expandedSize` by the factor, never below 620×260. On a screen too small
+  for the enlarged panel the factor itself comes down — `fittedTextScale`,
+  the largest scale whose panel fits — rather than the frame being clamped
+  under full-size text, which cut the bottom row off. `AppState.textScale`
+  reads the same fitted scale back from the frame (the fit is a fixed point),
+  and that, not the raw setting, is what the layout and the fonts use.
   `AppDelegate` asks for every frame through one helper that passes the scale;
   changing the setting goes through `reposition`, so the funnel, the tracking
   rect and the hosting view follow as they do on a screen change.
@@ -149,9 +154,11 @@ drives three things that must agree:
 
 At the default every size comes back exactly, so the look is unchanged.
 `TextSizeRenderingTests` renders each size with its own frame and checks that
-nothing runs off the bottom of the panel, with a control proving the check sees
-the clipping the larger frame exists to avoid. No observer: the view reads
-`AppState.textSize` on its next draw.
+nothing runs off the bottom of the panel — on a roomy screen and on screens
+too small for Larger — with a control proving the check sees the clipping
+the larger frame exists to avoid. Semantic styles such as `.title3` are fixed
+sizes on macOS too, so `noPanelFontUsesAFixedTextStyle` keeps them out of the
+panel. No observer: the view reads `AppState.textSize` on its next draw.
 
 ## The window is always full size
 
@@ -384,8 +391,9 @@ every `didChangeScreenParameters`; pinned to the built-in display it asks on
 everything but activation, falling back to the main screen when there is no
 built-in one (clamshell). Pinned to a specific display it is stored as
 `display:<UUID>:<name>` — the UUID because display ids are not stable across
-reconnections, the name only so Settings can label it while unplugged — and
-it falls back to the built-in, then main, then first screen while that
+reconnections, the name only so Settings can label it while unplugged, and
+refreshed (`DisplayChoice.refreshingName`) whenever the list is read with that
+display connected under a new name — and it falls back to the built-in, then main, then first screen while that
 display is absent. Nothing remembers the fallback: plugging the display back
 in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
@@ -417,8 +425,10 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   SwiftUI re-resolves the style when the setting changes. A new dimmed
   white in the panel should use these, not `.white.opacity`. State never
   rests on colour or dimming alone: `PowerGaugeTone.glyph` adds a bolt while
-  charging (always) and a mark when low (under the setting), and
-  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits.
+  charging (always) and a mark when low (under the setting) — and VoiceOver
+  hears the same tone, "…, low", from `PowerGaugeTone.spokenLabel` —
+  `TimerDisplay.caption` says "paused" beside the panel's dimmed digits, and
+  the ear's timer badge draws a pause glyph ahead of its dimmed digits.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
@@ -611,11 +621,16 @@ counts a file that does not exist yet.
 `ShelfClearance` — each item and the URL `trashItem` reported for its file —
 and `restore(_:)` moves the files back out of the Trash with their original
 identity and drop time (a move keeps the creation date). Anything that cannot
-come back, because it was emptied from the Trash, is skipped and reported,
-and the rest still return. The record lives in `AppDelegate`, not the store,
-because how long the offer lasts is a UI decision; it is withdrawn by a
-one-shot `Task`, scheduled only by a clear, so nothing is pending while the
-shelf is idle.
+come back, because it was emptied from the Trash, is skipped and reported —
+under the shelf, through the same notice a failed copy uses, and to
+VoiceOver — and the rest still return. The record lives in `AppDelegate`, not
+the store, because how long the offer lasts is a UI decision; it is withdrawn
+by a one-shot `Task`, scheduled only by a clear, so nothing is pending while
+the shelf is idle. A second clear while the offer stands is merged into it
+(`ShelfClearance.merging`) and restarts the window, so one Undo brings back
+every batch. **Restoring never evicts.** The restored files are the oldest on
+the shelf, so the eviction an add runs would trash exactly what was asked
+back; the shelf may sit over its capacity until the next add enforces it.
 
 ### The drop region follows the drawn shape
 

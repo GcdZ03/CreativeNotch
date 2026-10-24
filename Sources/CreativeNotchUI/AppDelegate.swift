@@ -265,7 +265,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// seconds, the same reason `growthDelay` is.
     var shelfUndoWindow: Duration = AppDelegate.defaultShelfUndoWindow
 
-    /// What the last clear took, while it can still be undone.
+    /// What the clears made while the offer stood took, merged newest
+    /// first, while they can still be undone.
     private var pendingShelfClearance: ShelfClearance?
 
     /// The one-shot that withdraws the offer. Not a repeating timer: it is
@@ -327,8 +328,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// take, so either can be undone from the pane. Clear moves real files
     /// to the Trash; before the undo, getting one back meant finding it in
     /// Finder. A clear that fails partway still offers back what it did
-    /// take. A new clear replaces the previous offer rather than merging
-    /// with it: Undo undoes the clear just made.
+    /// take. A new clear made while an offer still stands is merged into it
+    /// and restarts the window: replacing the record instead left the first
+    /// batch in the Trash with no button pointing at it, so one Undo puts
+    /// back everything cleared since the offer appeared.
     func clearShelf() {
         guard let shelf else { return }
         let clearance: ShelfClearance
@@ -344,21 +347,25 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         offerShelfUndo(clearance)
     }
 
-    /// Puts back what the last clear took, if the offer has not lapsed.
-    /// Items that cannot come back -- emptied from the Trash in the
-    /// meantime -- are skipped by the store; the rest still return.
+    /// Puts back what the clears on offer took, if the offer has not
+    /// lapsed. Items that cannot come back -- emptied from the Trash in the
+    /// meantime -- are skipped by the store; the rest still return, and the
+    /// shelf pane says how many did not, through the same notice a failed
+    /// copy uses. A count that was only logged left a user wondering why
+    /// fewer tiles came back than went.
     func undoClearShelf() {
         guard let clearance = pendingShelfClearance else { return }
         withdrawShelfUndo()
         guard let restoration = shelf?.restore(clearance) else { return }
-        if !restoration.skipped.isEmpty {
+        if let notice = restoration.notice {
             NSLog("CreativeNotch: could not restore \(restoration.skipped.count) shelf item(s)")
+            showShelfNotice(notice)
         }
     }
 
     private func offerShelfUndo(_ clearance: ShelfClearance) {
         shelfUndoTask?.cancel()
-        pendingShelfClearance = clearance
+        pendingShelfClearance = pendingShelfClearance.map(clearance.merging) ?? clearance
         state.canUndoShelfClear = true
         shelfUndoTask = Task { @MainActor [weak self] in
             guard let window = self?.shelfUndoWindow else { return }
@@ -393,7 +400,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// failure replaces the first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
-        let notice = "Couldn't add \(item.displayName)"
+        showShelfNotice("Couldn't add \(item.displayName)")
+    }
+
+    /// Announces `notice` and puts it under the shelf until the pane has
+    /// shown it -- the one path every shelf report takes, so a failed copy
+    /// and an undo that came back short read and behave the same.
+    private func showShelfNotice(_ notice: String) {
         announce(notice)
         shelfNoticeTask?.cancel()
         shelfNoticeTask = nil
@@ -606,8 +619,20 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Re-reads the displays the "Show on" menu offers. Asked when Settings
     /// is shown and on every screen-parameter change -- the two moments the
     /// list can be stale while someone is looking at it -- so nothing polls.
+    ///
+    /// A pinned display connected under a new name has the stored name
+    /// updated and saved here too (`DisplayChoice.refreshingName`), so the
+    /// next time it is unplugged Settings names it by what it is called
+    /// now. Saved without placing the panel again: the UUID is unchanged,
+    /// so the display it picks is the same one.
     func refreshConnectedDisplays() {
-        state.connectedDisplays = screenDescriptors()
+        let screens = screenDescriptors()
+        state.connectedDisplays = screens
+        let refreshed = state.displayChoice.refreshingName(from: screens)
+        if refreshed != state.displayChoice {
+            preferencesStore.setDisplayChoice(refreshed)
+            state.displayChoice = refreshed
+        }
     }
 
     /// Builds and presents the panel. `nil` means the real thing,
@@ -1087,7 +1112,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         self.timer = timer
         wireTimerActions()
 
-        // Publishes into `AppState` for the power tab, and into the
+        // Publishes into `AppState` for the Battery tab, and into the
         // arbiter for the peek. Starting and stopping stays in
         // `applicationDidFinishLaunching` / `applicationWillTerminate`,
         // like the clipboard and media controllers — building the wiring
