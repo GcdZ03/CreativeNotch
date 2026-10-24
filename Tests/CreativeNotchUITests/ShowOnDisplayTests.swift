@@ -274,6 +274,11 @@ struct ShowOnDisplayTests {
     @Test func aPinnedDisplayIsRestoredOnTheNextLaunch() {
         let defaults = TestDefaults.isolated("show-on-pinned")
         let first = AppDelegate()
+        first.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        first.shelfTrash = TestTrash.shelf
+        first.screenDescriptors = { [] }
+        first.announce = { _ in }
         first.preferencesDefaults = defaults
         first.playChime = { _ in }
         first.screenMetrics = { _ in nil }
@@ -281,6 +286,11 @@ struct ShowOnDisplayTests {
         first.state.onSetDisplayChoice?(Self.pinned)
 
         let second = AppDelegate()
+        second.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        second.shelfTrash = TestTrash.shelf
+        second.screenDescriptors = { [] }
+        second.announce = { _ in }
         second.preferencesDefaults = defaults
         second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)
