@@ -103,7 +103,10 @@ struct PlaybackProgressView: View {
                 Spacer()
                 remainingText
             }
-            .font(.system(size: 10, weight: .medium, design: .rounded).monospacedDigit())
+            // At the panel's text size in the music column, and at one in
+            // the peek, which sets no scale (`notchTextScale`).
+            .notchFont(10, weight: .medium, design: .rounded)
+            .monospacedDigit()
             .foregroundStyle(.ink(0.5))
         }
         .onAppear(perform: run)

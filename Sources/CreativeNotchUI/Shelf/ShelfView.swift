@@ -89,7 +89,14 @@ struct ShelfView: View {
         item.isPending ? "\(item.displayName), copying" : item.displayName
     }
 
-    private let itemSize = CGSize(width: 64, height: 64)
+    @Environment(\.notchTextScale) private var textScale
+
+    /// A tile, grown with the text size so the name under it keeps its
+    /// width in characters -- and the thumbnail asked for at that size.
+    private var itemSize: CGSize {
+        let side = NotchType.length(64, scale: textScale)
+        return CGSize(width: side, height: side)
+    }
 
     var body: some View {
         content
@@ -180,9 +187,9 @@ private struct ShelfItemView: View {
                 if hovering && !item.isPending {
                     Button(action: onRemove) {
                         Image(systemName: "xmark")
-                            .font(.system(size: 8, weight: .bold))
+                            .notchFont(8, weight: .bold)
                             .foregroundStyle(.white)
-                            .frame(width: 16, height: 16)
+                            .notchFrame(width: 16, height: 16)
                             .background(Circle().fill(Color(white: 0.22)))
                             .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
                     }
@@ -195,9 +202,9 @@ private struct ShelfItemView: View {
                 if hovering && !item.isPending {
                     Button(action: onAirDrop) {
                         Image(systemName: "dot.radiowaves.left.and.right")
-                            .font(.system(size: 9, weight: .bold))
+                            .notchFont(9, weight: .bold)
                             .foregroundStyle(.white)
-                            .frame(width: 18, height: 18)
+                            .notchFrame(width: 18, height: 18)
                             .background(Circle().fill(Color.accentColor.opacity(0.9)))
                             .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
                     }
@@ -210,7 +217,7 @@ private struct ShelfItemView: View {
             .frame(width: size.width, height: size.height)
 
             Text(item.displayName)
-                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .notchFont(10, weight: .medium, design: .rounded)
                 .foregroundStyle(.ink(0.75))
                 .lineLimit(1)
                 .truncationMode(.middle)

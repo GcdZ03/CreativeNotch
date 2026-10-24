@@ -41,6 +41,20 @@ public enum PreferenceKeys {
         return choice
     }
 
+    /// How large the open panel's text is (2026-10-24), as a `TextSize` raw
+    /// value. Absent means the default, the look from before the setting.
+    public static let textSize = "display.textSize"
+
+    /// What a raw "Text size" value means, by the policy `resolveDisplayChoice`
+    /// follows: anything that names no size reads as the default and is left
+    /// in place.
+    public static func resolveTextSize(_ raw: Any?) -> TextSize {
+        guard let string = raw as? String, let size = TextSize(rawValue: string) else {
+            return .default
+        }
+        return size
+    }
+
     // The adjustable limits (2026-10-24), read by `PreferencesStore.loadLimits`
     // through the resolvers on `Limits`. Subsystem-first, like the module
     // toggles, so `defaults read` groups each with its module.

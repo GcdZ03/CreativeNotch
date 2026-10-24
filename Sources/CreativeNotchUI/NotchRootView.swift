@@ -92,6 +92,16 @@ public final class AppState {
     @ObservationIgnored
     public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
 
+    /// How large the open panel's text is (2026-10-24). Applied by
+    /// `onSetTextSize`, which also resizes the panel to fit it; the view reads
+    /// it on every draw, so a change needs nothing re-registered.
+    public internal(set) var textSize: TextSize = .default
+
+    /// Saves the size, applies it and resizes the panel in one call, so
+    /// Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTextSize: ((TextSize) -> Void)?
+
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
     public internal(set) var limits = Limits()
@@ -937,7 +947,8 @@ public struct NotchRootView: View {
                     let layout = PanelLayout.resolve(
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
-                        showsMedia: tab != .camera && app.showsMediaControls
+                        showsMedia: tab != .camera && app.showsMediaControls,
+                        textScale: app.textSize.scale
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -958,6 +969,7 @@ public struct NotchRootView: View {
                             HStack(spacing: 0) {
                                 if layout.mediaColumnWidth > 0 {
                                     MediaColumn(
+                                        width: layout.mediaColumnWidth,
                                         snapshot: app.nowPlaying,
                                         artwork: app.nowPlayingArtwork,
                                         showsControls: app.showsMediaControls,
@@ -989,6 +1001,11 @@ public struct NotchRootView: View {
                         )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
+                    // Text size (2026-10-24): every `.notchFont` and text-
+                    // holding length below reads it. Here and on the drop
+                    // target only, so the badges and the peeks above stay
+                    // the size the hardware band allows (`NotchType`).
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -1001,6 +1018,7 @@ public struct NotchRootView: View {
                             .padding(.top, 10)
                             .padding(.bottom, 20)
                     }
+                    .environment(\.notchTextScale, app.textSize.scale)
 
                 // The music peek is a mini player that grows down from the
                 // notch (spec 2026-10-15); power and timer peeks stay one

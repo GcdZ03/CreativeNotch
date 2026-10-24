@@ -50,6 +50,15 @@ public final class PreferencesStore {
         defaults.set(choice.rawValue, forKey: PreferenceKeys.showOn)
     }
 
+    /// How large the open panel's text is. Read on every call, never cached.
+    public var textSize: TextSize {
+        PreferenceKeys.resolveTextSize(defaults.object(forKey: PreferenceKeys.textSize))
+    }
+
+    public func setTextSize(_ size: TextSize) {
+        defaults.set(size.rawValue, forKey: PreferenceKeys.textSize)
+    }
+
     /// `false` removes the key rather than writing `false`, so "Show Welcome
     /// Again" leaves the domain reading exactly like a fresh install's.
     public func setHasSeenWelcome(_ seen: Bool) {

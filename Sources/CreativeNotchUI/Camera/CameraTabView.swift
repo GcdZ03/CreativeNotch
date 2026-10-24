@@ -47,7 +47,7 @@ struct CameraTabView: View {
                         if let url = Self.privacySettingsURL { NSWorkspace.shared.open(url) }
                     }
                     .buttonStyle(.plain)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .notchFont(11, weight: .semibold, design: .rounded)
                     .foregroundStyle(.ink(0.92))
                     .padding(.horizontal, 10)
                     .padding(.vertical, 4)
@@ -77,10 +77,10 @@ struct CameraTabView: View {
         // in the offscreen renderer that is black on black.
         VStack(spacing: 6) {
             Text(title)
-                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .notchFont(13, weight: .semibold, design: .rounded)
                 .foregroundStyle(.ink(0.92))
             Text(detail)
-                .font(.system(size: 11, design: .rounded))
+                .notchFont(11, design: .rounded)
                 .foregroundStyle(.ink(0.55))
                 .multilineTextAlignment(.center)
         }

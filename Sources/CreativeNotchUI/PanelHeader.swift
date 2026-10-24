@@ -86,11 +86,11 @@ struct BatteryCell: View {
                 differentiateWithoutColor: differentiateWithoutColor
             ) {
                 Image(systemName: glyph)
-                    .font(.system(size: 9, weight: .bold))
+                    .notchFont(9, weight: .bold)
                     .foregroundStyle(.ink(0.7))
             }
             Text("\(level)%")
-                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .notchFont(11, weight: .medium, design: .rounded)
                 .monospacedDigit()
                 .rollingDigits(level)
                 .foregroundStyle(.ink(0.7))

@@ -38,12 +38,20 @@ public struct PanelLayout: Equatable, Sendable {
     /// other half.
     public let trailingEarWidth: CGFloat
 
-    /// `Self.mediaColumnWidth`, or zero when the column is not shown.
+    /// `Self.mediaColumnWidth` grown with the text, or zero when the column
+    /// is not shown.
     public let mediaColumnWidth: CGFloat
 
-    public static func resolve(anchor: Anchor, panelFrame: CGRect, showsMedia: Bool) -> PanelLayout {
+    /// `textScale` is `TextSize.scale`. The column holds a title and an
+    /// artist at the panel's text size, so it grows with them; the panel
+    /// frame it is given has grown by the same factor
+    /// (`NotchGeometry.panelFrame(for:in:textScale:)`), so the pane beside it
+    /// grows too. The header does not: it is the hardware notch's band.
+    public static func resolve(
+        anchor: Anchor, panelFrame: CGRect, showsMedia: Bool, textScale: CGFloat = 1
+    ) -> PanelLayout {
         let header = anchor.rect.height
-        let media = showsMedia ? Self.mediaColumnWidth : 0
+        let media = showsMedia ? NotchType.length(Self.mediaColumnWidth, scale: textScale) : 0
         guard anchor.isNotch else {
             let half = panelFrame.width / 2
             return PanelLayout(

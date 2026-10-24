@@ -124,6 +124,15 @@ final class PreferencesController {
         state.onSetDisplayChoice?(choice)
     }
 
+    /// Text size (2026-10-24). Written through `AppState`'s verb, which saves,
+    /// applies and resizes the panel together, and read back from what
+    /// applied.
+    var textSize: TextSize { state.textSize }
+
+    func setTextSize(_ size: TextSize) {
+        state.onSetTextSize?(size)
+    }
+
     /// The adjustable limits (2026-10-24), through `AppState`'s verb like the
     /// hover behaviour: saved and applied together, read back from what
     /// applied.
@@ -419,10 +428,11 @@ struct PreferencesView: View {
 
             Section {
                 DisplayRow(controller: controller)
+                TextSizeRow(controller: controller)
             } header: {
                 Text("Display")
             } footer: {
-                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed.")
+                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
             }
 
             ForEach(PreferencesSection.allCases, id: \.self) { section in
@@ -691,6 +701,53 @@ struct DisplayRow: View {
                     .frame(width: 26, height: 26)
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.cyan)
+                    )
+            }
+        }
+    }
+}
+
+/// "Text size" (2026-10-24): how large the open panel's text is.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives.
+struct TextSizeRow: View {
+    let controller: PreferencesController
+
+    /// What each size is called in the menu. Here rather than on the Core
+    /// enum, which stores the size and knows nothing of how it is worded.
+    static func title(for size: TextSize) -> String {
+        switch size {
+        case .standard: return "Default"
+        case .large:    return "Large"
+        case .larger:   return "Larger"
+        }
+    }
+
+    var body: some View {
+        Picker(selection: Binding(
+            get: { controller.textSize },
+            set: { controller.setTextSize($0) }
+        )) {
+            ForEach(TextSize.allCases, id: \.self) { size in
+                Text(Self.title(for: size)).tag(size)
+            }
+        } label: {
+            Label {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Text size")
+                        .font(.body.weight(.medium))
+                    Text("How large the open panel's text is.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } icon: {
+                Image(systemName: "textformat.size")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 26, height: 26)
+                    .background(
+                        RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.blue)
                     )
             }
         }

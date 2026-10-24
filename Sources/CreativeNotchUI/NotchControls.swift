@@ -35,7 +35,7 @@ struct NotchButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
-                .font(.system(size: compact ? 11 : 12, weight: .semibold, design: .rounded))
+                .notchFont(compact ? 11 : 12, weight: .semibold, design: .rounded)
                 .foregroundStyle(emphasis == .prominent ? Color.black : Color.white)
                 .padding(.horizontal, compact ? 10 : 14)
                 .padding(.vertical, compact ? 5 : 7)
@@ -66,7 +66,7 @@ struct NotchFieldStyle: TextFieldStyle {
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .textFieldStyle(.plain)
-            .font(.system(size: 13, weight: .medium, design: .rounded))
+            .notchFont(13, weight: .medium, design: .rounded)
             .monospacedDigit()
             .multilineTextAlignment(.center)
             .foregroundStyle(.white)
@@ -88,9 +88,9 @@ struct NotchIconButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13, weight: .medium))
+            .notchFont(13, weight: .medium)
             .foregroundStyle(.ink(selected ? 0.95 : 0.55))
-            .frame(width: 34, height: 24)
+            .notchFrame(width: 34, height: 24)
             .background {
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
                     .fill(.hairline(selected ? 0.14 : (configuration.isPressed ? 0.10 : 0)))

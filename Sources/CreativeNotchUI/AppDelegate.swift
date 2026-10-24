@@ -701,9 +701,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Takes `ScreenMetrics` rather than an `NSScreen` so the whole path
     /// is drivable from a test with no real display attached.
     func install(metrics: ScreenMetrics) {
-        let size = NotchGeometry
-            .panelFrame(for: NotchGeometry.anchor(for: metrics), in: metrics)
-            .size
+        // Text size (2026-10-24) is read first, because it decides how large
+        // the window is built: built at the default and grown afterwards, the
+        // first frame would be the wrong size.
+        state.textSize = PreferencesStore(defaults: preferencesDefaults).textSize
+        let size = panelFrame(on: metrics).size
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
         panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
@@ -840,6 +842,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onSetDisplayChoice = { [weak self] choice in
             self?.setDisplayChoice(choice)
         }
+
+        // Text size (2026-10-24). Loaded at the top of `install`, which sized
+        // the window by it; applied at once, like "Show on".
+        state.onSetTextSize = { [weak self] size in self?.setTextSize(size) }
 
         state.onSetLimits = { [weak self] limits in self?.applyLimits(limits) }
         state.onPreviewLimits = { [weak self] limits in
@@ -1047,7 +1053,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // and the tracking rect empty -- no tracking area at all, and hover
         // silently dead. (Follow-up F1.)
         let anchor = NotchGeometry.anchor(for: metrics)
-        let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
+        let frame = panelFrame(on: metrics, anchor: anchor)
         state.setGeometry(anchor: anchor, panelFrame: frame)
         panel.setFrame(frame, display: true)
         // Seeded directly rather than through the lag: at install there is
@@ -1906,6 +1912,29 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         reposition(metrics: metrics)
     }
 
+    /// Saves and applies a new "Text size", then resizes the panel to fit it
+    /// at once (2026-10-24). Through `reposition`, the one path that changes
+    /// the panel's frame, so the funnel re-syncs the tracking rect and the
+    /// hosting view follows the window as it does on a screen change. No
+    /// observer: the view reads `state.textSize` on its next draw.
+    func setTextSize(_ size: TextSize) {
+        preferencesStore.setTextSize(size)
+        state.textSize = size
+        guard panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
+        reposition(metrics: metrics)
+    }
+
+    /// The window frame for `metrics` at the current text size. Every place
+    /// the panel is sized asks here, so a screen change, an activation and
+    /// the launch cannot disagree with the setting about how large it is.
+    private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
+        NotchGeometry.panelFrame(
+            for: anchor ?? NotchGeometry.anchor(for: metrics),
+            in: metrics,
+            textScale: state.textSize.scale
+        )
+    }
+
     /// The display arrangement changed. Internal so a test can drive it
     /// with metrics instead of a real display.
     ///
@@ -1946,7 +1975,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = NotchGeometry.anchor(for: metrics)
-        let frame = NotchGeometry.panelFrame(for: anchor, in: metrics)
+        let frame = panelFrame(on: metrics, anchor: anchor)
         // The dedupe lives in the funnel now, and the tracking rect
         // re-syncs from the geometry observer.
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
