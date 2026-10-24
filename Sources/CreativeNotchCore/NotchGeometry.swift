@@ -148,18 +148,17 @@ public enum NotchGeometry {
     ///
     /// `textScale` is `TextSize.scale` (2026-10-24): larger text needs a
     /// larger panel, so both sides grow by the factor the fonts do, through
-    /// the same `NotchType.length`. The growth is clamped to the screen, but
-    /// never below `expandedSize` -- that is what the panel has always been,
-    /// whatever the screen, and the clamp below keeps it on screen as before.
+    /// the same `NotchType.length`. On a screen too small for that, the
+    /// factor comes down to the largest the screen holds
+    /// (`fittedTextScale`), both sides together -- never below
+    /// `expandedSize`, which is what the panel has always been, whatever
+    /// the screen, and the clamp below keeps it on screen as before.
     public static func panelFrame(
         for anchor: Anchor, in m: ScreenMetrics, textScale: CGFloat = 1
     ) -> CGRect {
-        let grown = CGSize(
-            width: min(NotchType.length(expandedSize.width, scale: textScale), m.frame.width),
-            height: min(NotchType.length(expandedSize.height, scale: textScale), m.frame.height)
-        )
-        let width = max(expandedSize.width, grown.width, anchor.rect.width)
-        let height = max(expandedSize.height, grown.height)
+        let scale = fittedTextScale(textScale, within: m.frame.size)
+        let width = max(expandedSize.width, NotchType.length(expandedSize.width, scale: scale), anchor.rect.width)
+        let height = max(expandedSize.height, NotchType.length(expandedSize.height, scale: scale))
         let unclampedX = anchor.rect.midX - width / 2
         // The right bound can fall left of the left bound on a screen
         // narrower than the panel, in which case the left bound wins --
@@ -169,5 +168,48 @@ public enum NotchGeometry {
         let rightBound = max(m.frame.minX, m.frame.maxX - width)
         let x = min(max(unclampedX, m.frame.minX), rightBound)
         return CGRect(x: x, y: anchor.rect.maxY - height, width: width, height: height)
+    }
+
+    /// The text scale the open panel actually draws at: `requested`, or on
+    /// a space too small for the panel it implies, the largest scale whose
+    /// panel fits `size` -- never below one, never above `requested`.
+    ///
+    /// **Clamping only the frame clipped the text.** Larger on a small
+    /// display used to cut the panel down to the screen while every font
+    /// and text-holding length was still drawn at the full factor, so the
+    /// bottom row ran off the panel. Bringing the scale itself down keeps
+    /// the panel and its contents in proportion: the largest text that fits
+    /// rather than larger text that does not.
+    ///
+    /// Searched on a grid of thousandths, starting half a point above the
+    /// size (the slack `NotchType.length`'s rounding can take off a built
+    /// frame), so the answer is a fixed point:
+    /// asked again of the frame `panelFrame` built from it, it gives the
+    /// same scale back. That lets a view read the scale from the panel's
+    /// frame (`AppState.textScale`) and agree with the frame exactly,
+    /// without the screen's metrics being threaded through to it.
+    public static func fittedTextScale(_ requested: CGFloat, within size: CGSize) -> CGFloat {
+        func fits(_ scale: CGFloat) -> Bool {
+            NotchType.length(expandedSize.width, scale: scale) <= size.width
+                && NotchType.length(expandedSize.height, scale: scale) <= size.height
+        }
+        guard requested.isFinite, requested > 1 else { return 1 }
+        if fits(requested) { return requested }
+        // Half a point of slack: `NotchType.length` rounds, so a frame
+        // built at scale k can be up to half a point under k * expandedSize.
+        // Without the slack a search over that frame would start below k
+        // and read back a smaller scale; `fits` still rejects any start
+        // that does not actually fit.
+        let bound = min(
+            requested,
+            (size.width + 0.5) / expandedSize.width,
+            (size.height + 0.5) / expandedSize.height
+        )
+        guard bound.isFinite, bound > 1 else { return 1 }
+        var thousandths = Int((bound * 1000).rounded(.down))
+        while thousandths > 1000, !fits(CGFloat(thousandths) / 1000) {
+            thousandths -= 1
+        }
+        return max(1, CGFloat(thousandths) / 1000)
     }
 }

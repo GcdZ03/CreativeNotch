@@ -34,6 +34,20 @@ public struct ShelfClearance: Equatable, Sendable {
 
     /// Nothing was cleared, so there is nothing to offer to undo.
     public var isEmpty: Bool { entries.isEmpty }
+
+    /// This clear followed by an earlier one still on offer, as one undo.
+    ///
+    /// A second Clear inside the undo window used to replace the first's
+    /// record, so Undo brought back only the second batch and the first was
+    /// left in the Trash with no button pointing at it. Merged, one Undo
+    /// puts back everything cleared while the offer stood. `self`'s entries
+    /// come first, being the newer; `restore` re-sorts by drop time anyway,
+    /// so the order only matters for reading. An item already in `self` is
+    /// not listed twice.
+    public func merging(_ earlier: ShelfClearance) -> ShelfClearance {
+        let ids = Set(entries.map(\.item.id))
+        return ShelfClearance(entries: entries + earlier.entries.filter { !ids.contains($0.item.id) })
+    }
 }
 
 /// What `ShelfStore.restore(_:)` managed to put back.
@@ -49,5 +63,16 @@ public struct ShelfRestoration: Equatable, Sendable {
     public init(restored: [ShelfItem], skipped: [ShelfItem]) {
         self.restored = restored
         self.skipped = skipped
+    }
+
+    /// The line the shelf pane shows, and VoiceOver announces, when part of
+    /// an undo could not come back; `nil` when everything did.
+    ///
+    /// A count rather than names: an undo is of a whole clear, and a list
+    /// of names under a pane that fits one line would be cut off anyway.
+    public var notice: String? {
+        guard !skipped.isEmpty else { return nil }
+        let count = skipped.count
+        return "Couldn't restore \(count) \(count == 1 ? "item" : "items")"
     }
 }

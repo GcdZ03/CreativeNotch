@@ -67,6 +67,25 @@ public enum DisplayChoice: Hashable, Sendable {
     /// rule says not to do.
     public var followsActivation: Bool { self == .focusedWindow }
 
+    /// This choice with a pinned display's stored name brought up to date,
+    /// if that display is connected under another name now.
+    ///
+    /// The name is only for saying what is pinned while the display is
+    /// unplugged, and it is recorded when the display is picked -- so a
+    /// display renamed afterwards (in System Settings, or a monitor that
+    /// reports a new name after a firmware update) went on being called by
+    /// its old name. The UUID is what finds the display, so this never
+    /// changes *which* display is pinned. An unplugged pin keeps its name,
+    /// the only record left, and a screen reporting an empty name is not
+    /// taken as a rename.
+    public func refreshingName(from screens: [ScreenDescriptor]) -> DisplayChoice {
+        guard case .display(let uuid, let name) = self,
+              let screen = screens.first(where: { $0.uuid == uuid }),
+              !screen.name.isEmpty, screen.name != name
+        else { return self }
+        return .display(uuid: uuid, name: screen.name)
+    }
+
     /// The screen an app activation moves the notch to, or `nil` to leave it
     /// where it is.
     ///
@@ -140,8 +159,10 @@ extension DisplayChoice {
     /// The built-in display is left out of the per-display entries: it is
     /// already "Built-in display", and two entries for one screen that
     /// behave differently only when it is gone is a choice nobody can make
-    /// from the menu. A screen with no UUID is left out too, since a pin to
-    /// it could never be found again.
+    /// from the menu. This is deliberate, not a gap: `.builtIn` already is
+    /// the specific choice for the laptop screen, so no `.display` pin to a
+    /// built-in screen is ever offered. A screen with no UUID is left out
+    /// too, since a pin to it could never be found again.
     ///
     /// A pinned display that is connected is tagged with the stored choice
     /// itself, so the menu shows it selected even if its name changed since;

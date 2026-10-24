@@ -595,6 +595,71 @@ struct ShelfStoreTests {
         #expect(try String(contentsOf: restored.url, encoding: .utf8) == "original")
     }
 
+    /// **Undo must not hand back with one hand and take with the other.**
+    /// Things dropped since the clear can take the shelf over capacity once
+    /// the cleared files return. The restored files are the oldest, so the
+    /// eviction an add runs would trash exactly what the user just asked
+    /// for back. The shelf overflows instead, until the next add.
+    @Test func restoringOverCapacityKeepsEverythingUntilTheNextAdd() throws {
+        let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        let store = try ShelfStore(directory: dir, capacity: 2, maxAge: nil, trash: TestTrash.shelf)
+        let a = try store.add(.text("a"), now: t0)
+        let b = try store.add(.text("b"), now: t0.addingTimeInterval(1))
+        let clearance = try store.clear()
+        let c = try store.add(.text("c"), now: t0.addingTimeInterval(10))
+
+        let restoration = store.restore(clearance)
+
+        #expect(Set(restoration.restored.map(\.id)) == [a.id, b.id])
+        #expect(store.items.map(\.id) == [c.id, b.id, a.id])
+        for item in store.items {
+            #expect(FileManager.default.fileExists(atPath: item.url.path))
+        }
+
+        // The next add is where the capacity is enforced again, by the
+        // ordinary rule: oldest first.
+        let d = try store.add(.text("d"), now: t0.addingTimeInterval(20))
+        #expect(store.items.map(\.id) == [d.id, c.id])
+    }
+
+    /// Two clears inside the undo window are one undo: merged, both come
+    /// back, in their places in the list.
+    @Test func mergedClearancesRestoreEverythingTheyTook() throws {
+        let (store, _) = try makeStore()
+        let first = try store.add(.text("first"), now: t0)
+        let firstClear = try store.clear()
+        let second = try store.add(.text("second"), now: t0.addingTimeInterval(5))
+        let secondClear = try store.clear()
+
+        let merged = secondClear.merging(firstClear)
+        #expect(merged.entries.map(\.item.id) == [second.id, first.id])
+
+        let restoration = store.restore(merged)
+
+        #expect(restoration.skipped.isEmpty)
+        #expect(store.items.map(\.id) == [second.id, first.id])
+    }
+
+    /// Merging the same clear twice does not list an item twice.
+    @Test func mergingDoesNotDuplicateEntries() throws {
+        let (store, _) = try makeStore()
+        try store.add(.text("x"), now: t0)
+        let clearance = try store.clear()
+        #expect(clearance.merging(clearance).entries.count == 1)
+    }
+
+    /// What the pane says when part of an undo could not come back.
+    @Test func aRestorationWithSkipsHasANotice() {
+        let item = ShelfItem(id: UUID(), url: URL(fileURLWithPath: "/tmp/x"),
+                             displayName: "x", addedAt: t0)
+        #expect(ShelfRestoration(restored: [item], skipped: []).notice == nil)
+        #expect(ShelfRestoration(restored: [], skipped: [item]).notice
+                == "Couldn't restore 1 item")
+        #expect(ShelfRestoration(restored: [], skipped: [item, item]).notice
+                == "Couldn't restore 2 items")
+    }
+
     /// A clear that fails partway still hands back what it did take, so
     /// those can be undone too.
     @Test func aPartialClearStillReportsWhatItTook() throws {
