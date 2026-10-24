@@ -61,8 +61,26 @@ enum ClipboardRowModel {
         return hovering ? String(localized: "Copy", bundle: .creativeNotch) : time
     }
 
+    /// "Pinned" leads, so VoiceOver says it before the content: the pins
+    /// are the top of the list, and a VoiceOver user should hear where the
+    /// pins end as a sighted one sees the glyph stop.
     static func accessibilityLabel(entry: ClipboardEntry, time: String) -> String {
-        String(localized: "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)", bundle: .creativeNotch)
+        let label = String(localized: "Copy \(ClipboardPreview.text(for: entry.content)), added \(time)", bundle: .creativeNotch)
+        return entry.isPinned ? String(localized: "Pinned, \(label)", bundle: .creativeNotch) : label
+    }
+
+    /// What VoiceOver hears after Pin or Unpin. The row moves when pinned —
+    /// to the top — so the VoiceOver cursor is left on whatever slid into
+    /// its place, and without this nothing would say the action worked.
+    static func pinAnnouncement(pinned: Bool) -> String {
+        pinned ? String(localized: "Pinned", bundle: .creativeNotch) : String(localized: "Unpinned", bundle: .creativeNotch)
+    }
+
+    /// The pane's line when a search keeps nothing. It repeats the query, so
+    /// the reason the list is empty is on screen rather than in the field
+    /// above, where a typo is easy to miss.
+    static func noMatchesText(query: String) -> String {
+        String(localized: "No matches for “\(query.trimmingCharacters(in: .whitespacesAndNewlines))”", bundle: .creativeNotch)
     }
 
     /// One verb a row offers beyond hover.
@@ -74,6 +92,9 @@ enum ClipboardRowModel {
         /// row's own press, so it is left out of the named actions rather
         /// than offered twice.
         let isDefault: Bool
+        /// Shown greyed in the menu when `false`. Only Pin is ever disabled,
+        /// at `ClipboardStore.maxPinned`.
+        var isEnabled = true
         let perform: () -> Void
     }
 
@@ -84,16 +105,40 @@ enum ClipboardRowModel {
     /// both built from, as `ShelfView.tileActions` is, so the two cannot
     /// drift apart. Remove used to live only in the menu, which a VoiceOver
     /// user rarely opens; from here it is also in the rotor's Actions.
+    ///
+    /// At the pin limit, Pin stays in the menu, greyed, saying why, rather
+    /// than vanishing: a verb that comes and goes reads as a bug. Unpin is
+    /// never disabled — it is how the limit is got under.
     static func rowActions(
+        isPinned: Bool,
+        canPin: Bool,
         onCopy: @escaping () -> Void,
+        onTogglePin: @escaping () -> Void,
         onRemove: @escaping () -> Void
     ) -> [RowAction] {
-        [
+        let pin: RowAction = isPinned
+            ? RowAction(label: String(localized: "Unpin", bundle: .creativeNotch), symbolName: "pin.slash",
+                        isDestructive: false, isDefault: false, perform: onTogglePin)
+            : RowAction(label: canPin
+                            ? String(localized: "Pin", bundle: .creativeNotch)
+                            : String(localized: "Pin (\(ClipboardStore.maxPinned) already pinned)", bundle: .creativeNotch),
+                        symbolName: "pin",
+                        isDestructive: false, isDefault: false, isEnabled: canPin,
+                        perform: onTogglePin)
+        return [
             RowAction(label: String(localized: "Copy", bundle: .creativeNotch), symbolName: "doc.on.doc",
                       isDestructive: false, isDefault: true, perform: onCopy),
+            pin,
             RowAction(label: String(localized: "Remove", bundle: .creativeNotch), symbolName: "xmark",
                       isDestructive: true, isDefault: false, perform: onRemove),
         ]
+    }
+
+    /// The named actions VoiceOver offers: everything but the row's own
+    /// press, and nothing disabled — an accessibility action cannot be
+    /// greyed, so a disabled one would be a verb that silently did nothing.
+    static func accessibilityActions(_ actions: [RowAction]) -> [RowAction] {
+        actions.filter { !$0.isDefault && $0.isEnabled }
     }
 }
 
@@ -102,43 +147,73 @@ enum ClipboardRowModel {
 /// `now` is the single per-body instant `NotchRootView` binds, so every
 /// row's time label comes from one reading of the clock and none of them
 /// reads it again (spec §9).
+///
+/// The search field sits above the list once there is anything to search,
+/// and filters it as you type (`ClipboardSearch`). Its text lives in
+/// `AppState.clipboardQuery`, bound in here, because Esc has to read it.
+/// Pins lead the list (`ClipboardStore.entries` is already in that order);
+/// a filtered list keeps that order, so a matching pin is still on top.
 struct ClipboardView: View {
     let store: ClipboardStore
     let now: Date
+    var query: Binding<String> = .constant("")
     let onCopy: (ClipboardEntry) -> Void
+    var onTogglePin: (UUID) -> Void = { _ in }
     var onRemove: (UUID) -> Void = { _ in }
 
     var body: some View {
         if store.entries.isEmpty {
-            VStack(spacing: 6) {
-                Image(systemName: "doc.on.clipboard")
-                    .notchFont(22, weight: .medium)
-                Text("Nothing copied yet", bundle: .creativeNotch)
-                    .notchFont(12, weight: .medium, design: .rounded)
-            }
-            .foregroundStyle(.ink(0.5))
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            placeholder(symbol: "doc.on.clipboard", text: String(localized: "Nothing copied yet", bundle: .creativeNotch))
         } else {
-            ScrollView(.vertical, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 3) {
-                    ForEach(store.entries) { entry in
-                        ClipboardRow(
-                            entry: entry,
-                            time: ClipboardRowModel.timeText(entry: entry, now: now),
-                            onCopy: { onCopy(entry) },
-                            onRemove: { onRemove(entry.id) }
-                        )
-                    }
+            VStack(alignment: .leading, spacing: 8) {
+                NotchSearchField(prompt: "Search clipboard", text: query)
+
+                let shown = ClipboardSearch.filter(store.entries, query: query.wrappedValue)
+                if shown.isEmpty {
+                    placeholder(symbol: "magnifyingglass",
+                                text: ClipboardRowModel.noMatchesText(query: query.wrappedValue))
+                } else {
+                    ScrollView(.vertical, showsIndicators: false) { rows(shown) }
                 }
             }
         }
+    }
+
+    private func rows(_ shown: [ClipboardEntry]) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            ForEach(shown) { entry in
+                ClipboardRow(
+                    entry: entry,
+                    time: ClipboardRowModel.timeText(entry: entry, now: now),
+                    canPin: store.canPin,
+                    onCopy: { onCopy(entry) },
+                    onTogglePin: { onTogglePin(entry.id) },
+                    onRemove: { onRemove(entry.id) }
+                )
+            }
+        }
+    }
+
+    private func placeholder(symbol: String, text: String) -> some View {
+        VStack(spacing: 6) {
+            Image(systemName: symbol)
+                .notchFont(22, weight: .medium)
+            Text(text)
+                .notchFont(12, weight: .medium, design: .rounded)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .foregroundStyle(.ink(0.5))
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
 private struct ClipboardRow: View {
     let entry: ClipboardEntry
     let time: String
+    let canPin: Bool
     let onCopy: () -> Void
+    let onTogglePin: () -> Void
     let onRemove: () -> Void
 
     @State private var hovering = false
@@ -171,6 +246,18 @@ private struct ClipboardRow: View {
 
                 Spacer(minLength: 8)
 
+                // A pin is shown, not only ordered: the list's top rows
+                // being pins is otherwise indistinguishable from their
+                // being the latest copies. Hidden from VoiceOver, whose
+                // label already leads with "Pinned".
+                if entry.isPinned {
+                    Image(systemName: "pin.fill")
+                        .notchFont(9, weight: .semibold)
+                        .foregroundStyle(.ink(0.6))
+                        .rotationEffect(.degrees(45))
+                        .accessibilityHidden(true)
+                }
+
                 // A clock time at rest, the verb on hover, the
                 // confirmation after a click.
                 Text(ClipboardRowModel.trailingText(time: time, hovering: hovering, copied: copied))
@@ -196,6 +283,7 @@ private struct ClipboardRow: View {
                 Button(role: action.isDestructive ? .destructive : nil, action: action.perform) {
                     Label(action.label, systemImage: action.symbolName)
                 }
+                .disabled(!action.isEnabled)
             }
         }
         .onDisappear { confirmation?.cancel() }
@@ -203,14 +291,24 @@ private struct ClipboardRow: View {
         // Copy stays the button's press, VoiceOver's default action; the
         // rest of the menu is offered as named actions.
         .accessibilityActions {
-            ForEach(actions.filter { !$0.isDefault }, id: \.label) { action in
+            ForEach(ClipboardRowModel.accessibilityActions(actions), id: \.label) { action in
                 Button(action.label, action: action.perform)
             }
         }
     }
 
     private var actions: [ClipboardRowModel.RowAction] {
-        ClipboardRowModel.rowActions(onCopy: copy, onRemove: onRemove)
+        ClipboardRowModel.rowActions(
+            isPinned: entry.isPinned, canPin: canPin,
+            onCopy: copy, onTogglePin: togglePin, onRemove: onRemove)
+    }
+
+    /// Pins or unpins through the verb, then says so to VoiceOver — the row
+    /// is about to move out from under its cursor.
+    private func togglePin() {
+        let pinning = !entry.isPinned
+        onTogglePin()
+        AccessibilityNotification.Announcement(ClipboardRowModel.pinAnnouncement(pinned: pinning)).post()
     }
 
     /// Copies, then confirms on this row for a moment. The reset is a

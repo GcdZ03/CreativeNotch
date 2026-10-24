@@ -182,7 +182,9 @@ and DynamicLake (October 2026). Each fits the one rule; none is planned.
   have to be opt-in.
 - **Bluetooth and AirPods connect alerts.** Connect and disconnect are easy;
   per-device battery may need private API.
-- **Download progress**, from watching the Downloads folder.
+- ~~**Download progress**, from watching the Downloads folder.~~ Shipped
+  (2026-10-24), from file progress publishing rather than watching the
+  folder — see "Downloads" in `ARCHITECTURE.md`.
 - **Liquid Glass (macOS 26) as an option** for the open panel and the pill.
   The closed notch has to stay black to vanish into the housing.
 

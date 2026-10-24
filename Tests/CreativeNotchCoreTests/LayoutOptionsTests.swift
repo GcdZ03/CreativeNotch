@@ -1,0 +1,517 @@
+import Foundation
+import CoreGraphics
+import Testing
+@testable import CreativeNotchCore
+
+/// "Layout" in Settings (2026-10-24): the panel's width, its corners, which
+/// ear holds the tabs, the header's battery and the closed notch's badges --
+/// what a stored value means, and what each option does to the geometry.
+struct LayoutOptionsTests {
+
+    private func makeIsolatedDefaults() -> UserDefaults {
+        let suiteName = "com.gcdz.creativenotch.layout-tests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+        return defaults
+    }
+
+    /// 14" MacBook Pro: a 190×32 notch centred on a 1512-wide screen.
+    private let fourteen = ScreenMetrics(
+        frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+        safeAreaTopInset: 32, auxiliaryTopLeftWidth: 661, auxiliaryTopRightWidth: 661, menuBarHeight: 32
+    )
+
+    /// An external display: no notch, so a pill under the menu bar.
+    private let external = ScreenMetrics(
+        frame: CGRect(x: 0, y: 0, width: 1920, height: 1080),
+        safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+    )
+
+    // MARK: - The setting
+
+    /// Every default is the look from before the setting.
+    @Test func theDefaultsAreTheLookFromBeforeTheSetting() {
+        let o = LayoutOptions()
+        #expect(o == .default)
+        #expect(o.width == .standard)
+        #expect(o.corners == .standard)
+        #expect(o.tabsSide == .left)
+        #expect(o.showsBattery)
+        #expect(o.showsNowPlayingBadge)
+        #expect(o.showsTimerBadge)
+        #expect(o.showsDownloadsBadge)
+        #expect(o.hiddenBadges.isEmpty)
+        #expect(PanelWidth.standard.nominalWidth == NotchGeometry.expandedSize.width)
+        #expect(PanelCorners.standard.radius == NotchGeometry.panelCornerRadius)
+    }
+
+    @Test func theChoicesAreOrderedForTheMenus() {
+        #expect(PanelWidth.allCases == [.compact, .standard, .wide])
+        #expect(PanelCorners.allCases == [.tight, .standard, .round])
+        #expect(EarSide.allCases == [.left, .right])
+        #expect(PanelWidth.compact.nominalWidth < PanelWidth.standard.nominalWidth)
+        #expect(PanelWidth.wide.nominalWidth > PanelWidth.standard.nominalWidth)
+        #expect(PanelCorners.tight.radius < PanelCorners.standard.radius)
+        #expect(PanelCorners.round.radius > PanelCorners.standard.radius)
+    }
+
+    @Test func anEmptyDomainIsTheDefault() {
+        let defaults = makeIsolatedDefaults()
+        #expect(PreferencesStore(defaults: defaults).loadLayout() == .default)
+    }
+
+    @Test func everyOptionSurvivesAReload() {
+        let defaults = makeIsolatedDefaults()
+        var o = LayoutOptions()
+        o.width = .wide
+        o.corners = .round
+        o.tabsSide = .right
+        o.showsBattery = false
+        o.showsNowPlayingBadge = false
+        o.showsTimerBadge = false
+        o.showsDownloadsBadge = false
+        PreferencesStore(defaults: defaults).saveLayout(o)
+        #expect(PreferencesStore(defaults: defaults).loadLayout() == o)
+        #expect(defaults.string(forKey: PreferenceKeys.layoutWidth) == "wide")
+        #expect(defaults.string(forKey: PreferenceKeys.layoutCorners) == "round")
+        #expect(defaults.string(forKey: PreferenceKeys.layoutTabsSide) == "right")
+        #expect(defaults.object(forKey: PreferenceKeys.layoutShowsBattery) as? Bool == false)
+        #expect(defaults.object(forKey: PreferenceKeys.layoutShowsDownloadsBadge) as? Bool == false)
+        #expect(PreferenceKeys.layoutShowsDownloadsBadge == "layout.badge.downloads")
+    }
+
+    /// Hand-typed junk reads as the default and is left in place for
+    /// `defaults read`, the policy every other key follows.
+    @Test func aMangledStoredValueReadsAsTheDefaultAndIsNotRewritten() {
+        let defaults = makeIsolatedDefaults()
+        defaults.set("huge", forKey: PreferenceKeys.layoutWidth)
+        defaults.set(3, forKey: PreferenceKeys.layoutCorners)
+        defaults.set("middle", forKey: PreferenceKeys.layoutTabsSide)
+        defaults.set("no", forKey: PreferenceKeys.layoutShowsBattery)
+        #expect(PreferencesStore(defaults: defaults).loadLayout() == .default)
+        #expect(defaults.string(forKey: PreferenceKeys.layoutWidth) == "huge")
+        #expect(defaults.string(forKey: PreferenceKeys.layoutShowsBattery) == "no")
+    }
+
+    // MARK: - Width
+
+    /// Default is exactly the frame the panel has always had, at every text
+    /// size, on a notch and on a pill.
+    @Test func theDefaultWidthIsTheFrameFromBeforeTheSetting() {
+        for m in [fourteen, external] {
+            let anchor = NotchGeometry.anchor(for: m)
+            for size in TextSize.allCases {
+                #expect(NotchGeometry.panelFrame(for: anchor, in: m, textScale: size.scale, width: .standard)
+                        == NotchGeometry.panelFrame(for: anchor, in: m, textScale: size.scale))
+            }
+        }
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .standard).size
+                == NotchGeometry.expandedSize)
+    }
+
+    /// Wide is wider, still centred on the notch and flush with the top.
+    @Test func wideIsWiderAndStillCentredOnTheNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let frame = NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .wide)
+        #expect(frame.width == PanelWidth.wide.nominalWidth)
+        #expect(frame.height == NotchGeometry.expandedSize.height)
+        #expect(frame.midX == anchor.rect.midX)
+        #expect(frame.maxY == anchor.rect.maxY)
+    }
+
+    /// Wide grows with the text like the default does.
+    @Test func wideGrowsWithTheText() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let frame = NotchGeometry.panelFrame(
+            for: anchor, in: fourteen, textScale: TextSize.larger.scale, width: .wide
+        )
+        #expect(frame.width == NotchType.length(PanelWidth.wide.nominalWidth, scale: TextSize.larger.scale))
+        #expect(frame.height == 338)
+    }
+
+    /// On a pill there is no housing, so Compact is its nominal width.
+    @Test func compactOnAPillIsItsNominalWidth() {
+        let anchor = NotchGeometry.anchor(for: external)
+        let frame = NotchGeometry.panelFrame(for: anchor, in: external, width: .compact)
+        #expect(frame.width == PanelWidth.compact.nominalWidth)
+        #expect(frame.midX == anchor.rect.midX)
+    }
+
+    /// Beside a real notch, Compact goes no narrower than the tabs need:
+    /// with every tab showing on a 14" notch that is wider than nominal,
+    /// with four it is not.
+    @Test func compactBesideANotchKeepsRoomForTheTabs() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let five = NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .compact, tabCount: 5)
+        #expect(five.width == anchor.rect.width + 2 * PanelLayout.tabEarWidth(tabCount: 5))
+        #expect(five.width > PanelWidth.compact.nominalWidth)
+        #expect(five.width < PanelWidth.standard.nominalWidth)
+        #expect(five.midX == anchor.rect.midX)
+
+        let four = NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .compact, tabCount: 4)
+        #expect(four.width == PanelWidth.compact.nominalWidth)
+    }
+
+    /// The tabs' ear fits them, at every width, text size and tab count, on
+    /// a 14" notch -- whichever side holds them.
+    @Test func theTabsAlwaysFitTheirEarOnAFourteenInchNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in 0...Tab.allCases.count {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        #expect(layout.tabsEarWidth >= PanelLayout.tabEarWidth(tabCount: count, scale: size.scale),
+                                "\(count) tabs overflow a \(width) panel at \(size) on the \(side)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// With the calendar on, every header still fits a 14" notch: every
+    /// width, either side for the tabs, every text size, and every tab count
+    /// the calendar can be part of -- each from `TabVisibility`, so a tab
+    /// added later is counted here without editing the test. Both ears are
+    /// checked, the bar of up to six tabs and the dropper, battery and gear.
+    @Test func everyHeaderFitsAFourteenInchNotchWithTheCalendarOn() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        var counts = Set<Int>()
+        for mask in 0..<(1 << 5) {
+            var p = Preferences.allEnabled
+            p.shelf = mask & 1 != 0
+            p.clipboard = mask & 2 != 0
+            p.timer = mask & 4 != 0
+            p.power = mask & 8 != 0
+            p.camera = mask & 16 != 0
+            for hasBattery in [true, false] {
+                let tabs = TabVisibility.visible(enabled: p, hasBattery: hasBattery)
+                #expect(tabs.last == .calendar)
+                counts.insert(tabs.count)
+            }
+        }
+        #expect(counts == Set(1...Tab.allCases.count))
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in counts {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        #expect(layout.tabsEarWidth >= PanelLayout.tabEarWidth(tabCount: count, scale: size.scale),
+                                "\(count) tabs overflow a \(width) panel at \(size) on the \(side)")
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) with \(count) tabs")
+                        #expect(frame.midX == anchor.rect.midX)
+                        #expect(frame.minX >= fourteen.frame.minX && frame.maxX <= fourteen.frame.maxX)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Default is the 620pt it always was for the five tabs that ship on,
+    /// and grows only for the calendar's sixth -- to exactly what six need
+    /// beside the housing. Wide already holds six and does not move.
+    @Test func defaultGrowsOnlyForTheCalendarsSixthTab() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        for count in 0...NotchGeometry.shippedTabCount {
+            #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .standard, tabCount: count).size
+                    == NotchGeometry.expandedSize, "\(count) tabs moved Default")
+        }
+        let six = NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .standard, tabCount: 6)
+        #expect(six.width == anchor.rect.width + 2 * PanelLayout.tabEarWidth(tabCount: 6))
+        #expect(six.width == 678)
+        #expect(six.height == NotchGeometry.expandedSize.height)
+        #expect(six.midX == anchor.rect.midX)
+        #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .wide, tabCount: 6).width
+                == PanelWidth.wide.nominalWidth)
+        // Compact needs the same room for six; it cannot be narrower than
+        // Default there, only no wider.
+        #expect(NotchGeometry.panelFrame(for: anchor, in: fourteen, width: .compact, tabCount: 6).width == 678)
+    }
+
+    /// The status ear -- dropper, battery and gear -- fits whichever ear it
+    /// lands in, at every width, text size and tab count, on a 14" notch.
+    /// Compact is the one this binds: Default and Wide have room to spare.
+    @Test func theStatusItemsAlwaysFitTheirEarOnAFourteenInchNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in 0...Tab.allCases.count {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) on the \(side)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// The downloads ring is a trailing badge on the closed notch, and the
+    /// status ear -- dropper, battery and gear -- is the open header's. On a
+    /// 14" notch, at every width, text size, tab count and side for the tabs,
+    /// the closed notch with the ring stays inside the open panel, so opening
+    /// from it grows outward and never jumps; and the ring is narrower than
+    /// either ear, so whichever holds the status items has room for the ring's
+    /// band as well as for them.
+    @Test func theDownloadsBadgeFitsBesideTheStatusEarOnAFourteenInchNotch() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let badge = BadgeSlot.downloads
+        for width in PanelWidth.allCases {
+            for size in TextSize.allCases {
+                for count in 0...Tab.allCases.count {
+                    for side in EarSide.allCases {
+                        let frame = NotchGeometry.panelFrame(
+                            for: anchor, in: fourteen, textScale: size.scale, width: width, tabCount: count
+                        )
+                        let layout = PanelLayout.resolve(
+                            anchor: anchor, panelFrame: frame, showsMedia: true,
+                            textScale: size.scale, tabsSide: side
+                        )
+                        let closed = NotchShape.visibleRect(
+                            presentation: .closed, anchor: anchor, panelFrame: frame,
+                            badgeWidth: badge.width, leadingBadgeWidth: badge.leadingWidth
+                        )
+                        let open = NotchShape.visibleRect(
+                            presentation: .expanded, anchor: anchor, panelFrame: frame
+                        )
+                        #expect(open.contains(closed),
+                                "the ring leaves a \(width) panel at \(size) with \(count) tabs on the \(side)")
+                        #expect(badge.width < layout.trailingEarWidth)
+                        #expect(badge.width < layout.statusEarWidth)
+                        #expect(layout.statusEarWidth >= PanelLayout.statusEarWidth(scale: size.scale),
+                                "the status items overflow a \(width) panel at \(size) on the \(side)")
+                        // And on the screen: the ring stays clear of the
+                        // menu bar's right half, which starts past the notch.
+                        #expect(anchor.rect.maxX + badge.width <= fourteen.frame.maxX)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Compact's floor is the wider of the two ears' needs: with no tabs at
+    /// all beside a notch, the status items still set it.
+    @Test func compactKeepsRoomForTheStatusItemsWithNoTabs() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let none = NotchGeometry.nominalPanelWidth(for: anchor, width: .compact, tabCount: 0)
+        #expect(none >= anchor.rect.width + 2 * PanelLayout.statusEarWidth())
+        #expect(none == max(PanelWidth.compact.nominalWidth, anchor.rect.width + 2 * PanelLayout.statusEarWidth()))
+        // A notch wide enough that the status items, not the nominal width,
+        // decide it.
+        let wideNotch = Anchor.notch(CGRect(x: 600, y: 950, width: 300, height: 32))
+        #expect(NotchGeometry.nominalPanelWidth(for: wideNotch, width: .compact, tabCount: 0)
+                == 300 + 2 * PanelLayout.statusEarWidth())
+    }
+
+    /// The status allowance is the sum of its parts, grown with the text.
+    @Test func theStatusEarAllowanceIsItsItemsAndGaps() {
+        let parts: [CGFloat] = [12, 34, 34, 76, 10, 10, 8]
+        #expect(PanelLayout.statusEarWidth() == parts.reduce(0, +))
+        #expect(PanelLayout.statusEarWidth(scale: 1.3) > PanelLayout.statusEarWidth())
+    }
+
+    // MARK: - Text scale fitted on the chosen width
+
+    /// The fit is computed on the chosen width: on a screen that holds
+    /// Default at Larger but not Wide, Wide comes down and Default does
+    /// not, and Compact keeps it -- and the frame always holds the
+    /// nominal width at the scale it was built for.
+    @Test func theFittedScaleIsComputedOnTheChosenWidth() {
+        let larger = TextSize.larger.scale
+        // Wide enough for Default at Larger, too narrow for Wide at Larger.
+        let defaultAtLarger = NotchType.length(PanelWidth.standard.nominalWidth, scale: larger)
+        let screen = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: defaultAtLarger + 10, height: 900),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        )
+        let anchor = NotchGeometry.anchor(for: screen)
+        for width in PanelWidth.allCases {
+            let nominal = NotchGeometry.nominalPanelWidth(for: anchor, width: width)
+            let scale = NotchGeometry.fittedTextScale(larger, within: screen.frame.size, nominalWidth: nominal)
+            let frame = NotchGeometry.panelFrame(for: anchor, in: screen, textScale: larger, width: width)
+            #expect(frame.width == max(min(nominal, NotchGeometry.expandedSize.width),
+                                       NotchType.length(nominal, scale: scale)))
+            #expect(frame.height == NotchType.length(NotchGeometry.expandedSize.height, scale: scale))
+            #expect(frame.maxX <= screen.frame.maxX && frame.minX >= screen.frame.minX)
+            // A fixed point, so `AppState.textScale` reads it back off the frame.
+            #expect(NotchGeometry.fittedTextScale(larger, within: frame.size, nominalWidth: nominal) == scale,
+                    "\(width): the frame does not give its scale back")
+            switch width {
+            case .wide:     #expect(scale < larger)
+            case .standard, .compact: #expect(scale == larger)
+            }
+        }
+    }
+
+    /// Clamped to a screen narrower than the panel, never pushed off it.
+    @Test func everyWidthStaysOnASmallScreen() {
+        let small = ScreenMetrics(
+            frame: CGRect(x: 0, y: 0, width: 680, height: 400),
+            safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 24
+        )
+        let anchor = NotchGeometry.anchor(for: small)
+        for width in PanelWidth.allCases {
+            let frame = NotchGeometry.panelFrame(
+                for: anchor, in: small, textScale: TextSize.larger.scale, width: width
+            )
+            #expect(frame.minX >= small.frame.minX)
+            #expect(frame.maxX <= small.frame.maxX)
+        }
+    }
+
+    // MARK: - Which ear holds the tabs
+
+    /// Left is today's header; Right swaps the two ears' contents and
+    /// leaves their widths, and the housing between them, alone.
+    @Test func theTabsSideNamesTheEarWithoutMovingTheHousing() {
+        let anchor = NotchGeometry.anchor(for: fourteen)
+        let frame = NotchGeometry.panelFrame(for: anchor, in: fourteen)
+        let left = PanelLayout.resolve(anchor: anchor, panelFrame: frame, showsMedia: true)
+        let right = PanelLayout.resolve(anchor: anchor, panelFrame: frame, showsMedia: true, tabsSide: .right)
+        #expect(left.tabsSide == .left)
+        #expect(left.tabsEarWidth == left.leadingEarWidth)
+        #expect(left.statusEarWidth == left.trailingEarWidth)
+        #expect(right.tabsSide == .right)
+        #expect(right.tabsEarWidth == right.trailingEarWidth)
+        #expect(right.statusEarWidth == right.leadingEarWidth)
+        #expect(left.leadingEarWidth == right.leadingEarWidth)
+        #expect(left.notchGap == right.notchGap)
+        #expect(left.mediaColumnWidth == right.mediaColumnWidth)
+    }
+
+    /// Off-centre, clamped to a screen edge, the tabs still get the ear on
+    /// their side -- measured from the real notch, not the panel's centre.
+    @Test func theTabsSideFollowsTheRealNotchOnAClampedPanel() {
+        let anchor = Anchor.notch(CGRect(x: 100, y: 950, width: 190, height: 32))
+        let frame = CGRect(x: 0, y: 722, width: 620, height: 260)
+        let right = PanelLayout.resolve(anchor: anchor, panelFrame: frame, showsMedia: false, tabsSide: .right)
+        #expect(right.leadingEarWidth == 100)
+        #expect(right.tabsEarWidth == 330)
+    }
+
+    // MARK: - Corners
+
+    /// The corner style rounds the open panel only. The closed notch keeps
+    /// the hardware's radius and a peek keeps the panel's own, both being
+    /// sized into the camera housing's band.
+    @Test func theCornerStyleRoundsTheOpenPanelOnly() {
+        let notch = NotchGeometry.anchor(for: fourteen)
+        for corners in PanelCorners.allCases {
+            let open = NotchShape.cornerRadii(presentation: .expanded, anchor: notch, corners: corners)
+            #expect(open.bottomLeading == corners.radius)
+            #expect(open.bottomTrailing == corners.radius)
+            #expect(open.topLeading == 0)
+            #expect(open.topTrailing == 0)
+            for presentation in [NotchShape.Presentation.closed, .peek, .statusPeek, .mediaPeek] {
+                #expect(NotchShape.cornerRadii(presentation: presentation, anchor: notch, corners: corners)
+                        == NotchShape.cornerRadii(presentation: presentation, anchor: notch))
+            }
+        }
+    }
+
+    /// A pill's open panel rounds every corner by the style.
+    @Test func aPillsOpenPanelRoundsEveryCornerByTheStyle() {
+        let pill = NotchGeometry.anchor(for: external)
+        let r = NotchShape.cornerRadii(presentation: .expanded, anchor: pill, corners: .round)
+        #expect([r.topLeading, r.bottomLeading, r.bottomTrailing, r.topTrailing]
+                == Array(repeating: PanelCorners.round.radius, count: 4))
+        #expect(NotchShape.cornerRadii(presentation: .closed, anchor: pill, corners: .round)
+                == NotchShape.cornerRadii(presentation: .closed, anchor: pill))
+    }
+
+    @Test func theDefaultCornersAreTheRadiiFromBeforeTheSetting() {
+        let notch = NotchGeometry.anchor(for: fourteen)
+        #expect(NotchShape.cornerRadii(presentation: .expanded, anchor: notch, corners: .standard)
+                == NotchShape.cornerRadii(presentation: .expanded, anchor: notch))
+    }
+
+    // MARK: - Badges
+
+    private let now = Date(timeIntervalSinceReferenceDate: 0)
+    private var running: Countdown { Countdown(duration: 600, startingAt: now)! }
+    private let playing = TrackSnapshot(title: "Song", artist: "Artist", isPlaying: true)
+
+    @Test func aHiddenTimerBadgeGivesTheSlotToMedia() {
+        var o = LayoutOptions()
+        o.showsTimerBadge = false
+        #expect(o.hiddenBadges == [.timer])
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, hiding: o.hiddenBadges, at: now)
+                == .nowPlaying)
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: nil, hiding: o.hiddenBadges, at: now)
+                == .none)
+    }
+
+    @Test func aHiddenNowPlayingBadgeLeavesTheNotchBare() {
+        var o = LayoutOptions()
+        o.showsNowPlayingBadge = false
+        #expect(o.hiddenBadges == [.nowPlaying])
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, hiding: o.hiddenBadges, at: now)
+                == .none)
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, hiding: o.hiddenBadges, at: now)
+                == .timer)
+    }
+
+    /// A hidden downloads ring passes the slot to whatever is below it --
+    /// media -- and never above it: a countdown still outranks it.
+    @Test func aHiddenDownloadsBadgeGivesTheSlotToMedia() {
+        let summary = DownloadSummary(count: 1, percent: 42, leadingName: "a.zip")
+        var o = LayoutOptions()
+        o.showsDownloadsBadge = false
+        #expect(o.hiddenBadges == [.downloads])
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .nowPlaying)
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: nil, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .none)
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, downloads: summary,
+                                     hiding: o.hiddenBadges, at: now) == .timer)
+        // Shown, it takes the slot from media as before.
+        #expect(NotchShape.badgeSlot(countdown: nil, nowPlaying: playing, downloads: summary,
+                                     hiding: LayoutOptions().hiddenBadges, at: now) == .downloads)
+    }
+
+    /// Both hidden: nothing of the user's own grows the notch.
+    @Test func bothHiddenLeaveTheNotchBare() {
+        var o = LayoutOptions()
+        o.showsNowPlayingBadge = false
+        o.showsTimerBadge = false
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, hiding: o.hiddenBadges, at: now)
+                == .none)
+    }
+
+    /// The recording dot and the capture indicator cannot be hidden here:
+    /// the first is what explains a camera left on after the panel closed,
+    /// the second is a module of its own with its own switch.
+    @Test func theRecordingAndCaptureBadgesCannotBeHidden() {
+        let everything: Set<BadgeSlot> = [.nowPlaying, .timer, .downloads, .recording, .capture]
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, isRecording: true,
+                                     hiding: everything, at: now) == .recording)
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing,
+                                     capture: CaptureUse(microphone: true, camera: false),
+                                     hiding: everything, at: now) == .capture)
+    }
+
+    @Test func nothingHiddenIsTheRuleFromBeforeTheSetting() {
+        #expect(NotchShape.badgeSlot(countdown: running, nowPlaying: playing, hiding: [], at: now)
+                == NotchShape.badgeSlot(countdown: running, nowPlaying: playing, at: now))
+    }
+}

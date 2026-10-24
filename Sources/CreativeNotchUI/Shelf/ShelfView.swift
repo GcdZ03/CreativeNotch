@@ -15,60 +15,56 @@ import CreativeNotchCore
 /// one that calls `onAirDrop` with the file's URL.
 ///
 /// Those two buttons exist only under the pointer, so each tile also
-/// carries the same verbs, plus Show in Finder, as accessibility actions
-/// and a context menu: VoiceOver and keyboard users have no hover, and a
-/// right-click is the Mac's way to ask a thing what it can do.
+/// carries its verbs — Open, Quick Look, Show in Finder, AirDrop, Remove —
+/// as accessibility actions and a context menu: VoiceOver and keyboard
+/// users have no hover, and a right-click is the Mac's way to ask a thing
+/// what it can do. Which verbs, and in what order, is Core's
+/// (`ShelfTileVerb`).
+///
+/// A click selects a tile — a ring round it, and a line under the shelf
+/// saying what Space and a double-click do — and a double-click opens it
+/// with its default app, as in Finder. Space and ← → are the panel's keys,
+/// handled by `AppDelegate.handlePanelKey`, so they work only while the
+/// panel is key: after a click in it, or an open by tap or shortcut.
 ///
 /// A file still copying in (`ShelfItem.isPending`) shows as its icon,
 /// dimmed, under a small spinner, and VoiceOver reads it as "<name>,
-/// copying". It has no verbs and cannot be dragged: there is no file
-/// behind it yet. The spinner is the shelf's one moving part and exists
-/// only while a copy runs and the pane is on screen.
+/// copying". It has no verbs, cannot be selected and cannot be dragged:
+/// there is no file behind it yet. The spinner is the shelf's one moving
+/// part and exists only while a copy runs and the pane is on screen.
 struct ShelfView: View {
     let store: ShelfStore
+    var selection: UUID? = nil
+    var onSelect: (UUID) -> Void = { _ in }
     var onRemove: (UUID) -> Void = { _ in }
     var onAirDrop: (URL) -> Void = { _ in }
     var onReveal: (URL) -> Void = { _ in }
+    var onOpen: (UUID) -> Void = { _ in }
+    var onQuickLook: (UUID) -> Void = { _ in }
 
     /// One verb a tile offers outside hover.
     struct TileAction {
-        let label: String
-        let symbolName: String
-        let isDestructive: Bool
+        let verb: ShelfTileVerb
         let perform: () -> Void
+
+        var label: String { verb.label }
+        var symbolName: String { verb.symbolName }
+        var isDestructive: Bool { verb.isDestructive }
     }
 
-    /// The tile's verbs, in menu order: Show in Finder, AirDrop, then
-    /// Remove last, where the destructive verb sits in the title row too.
+    /// The verbs `item` offers, in menu order — none while it is still
+    /// copying in — each performing `perform(verb)`.
     ///
     /// Static, and the single list both the accessibility actions and the
     /// context menu are built from, so the two cannot drift apart and a
     /// test can check what neither exposes once rendered.
     static func tileActions(
-        onRemove: @escaping () -> Void,
-        onAirDrop: @escaping () -> Void,
-        onReveal: @escaping () -> Void
-    ) -> [TileAction] {
-        [
-            TileAction(label: String(localized: "Show in Finder", bundle: .creativeNotch), symbolName: "folder",
-                       isDestructive: false, perform: onReveal),
-            TileAction(label: String(localized: "AirDrop", bundle: .creativeNotch), symbolName: "dot.radiowaves.left.and.right",
-                       isDestructive: false, perform: onAirDrop),
-            TileAction(label: String(localized: "Remove", bundle: .creativeNotch), symbolName: "xmark",
-                       isDestructive: true, perform: onRemove),
-        ]
-    }
-
-    /// The verbs `item` offers: none while it is still copying in, since
-    /// every one of them needs the file.
-    static func tileActions(
         for item: ShelfItem,
-        onRemove: @escaping () -> Void,
-        onAirDrop: @escaping () -> Void,
-        onReveal: @escaping () -> Void
+        perform: @escaping (ShelfTileVerb) -> Void
     ) -> [TileAction] {
-        guard !item.isPending else { return [] }
-        return tileActions(onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
+        ShelfTileVerb.verbs(for: item).map { verb in
+            TileAction(verb: verb) { perform(verb) }
+        }
     }
 
     /// Whether a tile can be dragged out. A pending item's URL names a file
@@ -87,6 +83,25 @@ struct ShelfView: View {
     /// and that it is still copying while it is.
     static func tileAccessibilityLabel(for item: ShelfItem) -> String {
         item.isPending ? String(localized: "\(item.displayName), copying", bundle: .creativeNotch) : item.displayName
+    }
+
+    /// Whether `item` is drawn selected: the selection names it and it can
+    /// be selected at all. A tile that started copying after it was
+    /// selected — it cannot, but the rule is not the view's to assume —
+    /// draws no ring.
+    static func isSelected(_ item: ShelfItem, selection: UUID?) -> Bool {
+        item.id == selection && ShelfSelection.isSelectable(item)
+    }
+
+    /// The verb a tile's double-click and menu row reach.
+    private func perform(_ verb: ShelfTileVerb, on item: ShelfItem) {
+        switch verb {
+        case .open:      onOpen(item.id)
+        case .quickLook: onQuickLook(item.id)
+        case .reveal:    onReveal(item.url)
+        case .airDrop:   onAirDrop(item.url)
+        case .remove:    onRemove(item.id)
+        }
     }
 
     @Environment(\.notchTextScale) private var textScale
@@ -121,9 +136,9 @@ struct ShelfView: View {
                             let tile = ShelfItemView(
                                 item: item,
                                 size: itemSize,
-                                onRemove: { onRemove(item.id) },
-                                onAirDrop: { onAirDrop(item.url) },
-                                onReveal: { onReveal(item.url) }
+                                isSelected: Self.isSelected(item, selection: selection),
+                                onSelect: { onSelect(item.id) },
+                                perform: { perform($0, on: item) }
                             )
                             // Two branches, so a tile turning ready is a new
                             // view: its thumbnail task runs again, now that
@@ -147,25 +162,36 @@ struct ShelfView: View {
 private struct ShelfItemView: View {
     let item: ShelfItem
     let size: CGSize
-    let onRemove: () -> Void
-    let onAirDrop: () -> Void
-    let onReveal: () -> Void
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let perform: (ShelfTileVerb) -> Void
 
     @State private var image: NSImage?
     @State private var hovering = false
 
     private var actions: [ShelfView.TileAction] {
-        ShelfView.tileActions(for: item, onRemove: onRemove, onAirDrop: onAirDrop, onReveal: onReveal)
+        ShelfView.tileActions(for: item, perform: perform)
     }
+
+    private func onRemove() { perform(.remove) }
+    private func onAirDrop() { perform(.airDrop) }
 
     var body: some View {
         VStack(spacing: 6) {
             ZStack(alignment: .topTrailing) {
+                // Selected, the backing lifts and the border turns to ink —
+                // the tab bar's selected fill, and a ring Increase Contrast
+                // strengthens through `NotchInk`. No animation: a selection
+                // is a state, not an event, so there is nothing for Reduce
+                // Motion to take away.
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(.hairline(0.07))
+                    .fill(.hairline(isSelected ? 0.14 : 0.07))
                     .overlay {
                         RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(.hairline(0.06), lineWidth: 1)
+                            .strokeBorder(
+                                isSelected ? AnyShapeStyle(.ink(0.85)) : AnyShapeStyle(.hairline(0.06)),
+                                lineWidth: isSelected ? 2 : 1
+                            )
                     }
 
                 Image(nsImage: image ?? ShelfThumbnails.shared.icon(for: item.url))
@@ -183,52 +209,42 @@ private struct ShelfItemView: View {
                         .controlSize(.small)
                         .frame(width: size.width, height: size.height)
                 }
-
-                if hovering && !item.isPending {
-                    Button(action: onRemove) {
-                        Image(systemName: "xmark")
-                            .notchFont(8, weight: .bold)
-                            .foregroundStyle(.white)
-                            .notchFrame(width: 16, height: 16)
-                            .background(Circle().fill(Color(white: 0.22)))
-                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: 5, y: -5)
-                    .accessibilityLabel(String(localized: "Remove \(item.displayName)", bundle: .creativeNotch))
-                }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                if hovering && !item.isPending {
-                    Button(action: onAirDrop) {
-                        Image(systemName: "dot.radiowaves.left.and.right")
-                            .notchFont(9, weight: .bold)
-                            .foregroundStyle(.white)
-                            .notchFrame(width: 18, height: 18)
-                            .background(Circle().fill(Color.accentColor.opacity(0.9)))
-                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
-                    }
-                    .buttonStyle(.plain)
-                    .offset(x: 5, y: 5)
-                    .help(String(localized: "AirDrop", bundle: .creativeNotch))
-                    .accessibilityLabel(String(localized: "AirDrop \(item.displayName)", bundle: .creativeNotch))
-                }
             }
             .frame(width: size.width, height: size.height)
 
             Text(item.displayName)
                 .notchFont(10, weight: .medium, design: .rounded)
-                .foregroundStyle(.ink(0.75))
+                .foregroundStyle(.ink(isSelected ? 0.95 : 0.75))
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .frame(width: size.width + 8)
         }
-        // A tracking area inside the panel, alive only while the tile is.
+        // Finder's pair: a click selects, a double-click opens. The click is
+        // simultaneous rather than exclusive so selecting is immediate
+        // instead of waiting out the double-click interval, and both pass a
+        // copying tile by — it has no file to select or open.
+        .contentShape(Rectangle())
+        .onTapGesture(count: 2) {
+            guard !item.isPending else { return }
+            perform(.open)
+        }
+        .simultaneousGesture(TapGesture().onEnded {
+            guard !item.isPending else { return }
+            onSelect()
+        })
+        // The hover buttons sit in an overlay laid on *after* the gestures,
+        // not inside the view that carries them: a simultaneous gesture
+        // fires alongside any button beneath it, so a click on Remove or
+        // AirDrop would also have selected the tile it was taking away.
+        .overlay(alignment: .top) { hoverButtons }
+        // A tracking area inside the panel, alive only while the tile is —
+        // outside the overlay, so the pointer on a button is still hovering.
         .onHover { hovering = $0 }
         // One element, not a picture, a caption and two buttons that come
         // and go with the pointer: the hover buttons' verbs are its actions.
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(ShelfView.tileAccessibilityLabel(for: item))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
         .accessibilityActions {
             ForEach(actions, id: \.label) { action in
                 Button(action.label, action: action.perform)
@@ -245,6 +261,44 @@ private struct ShelfItemView: View {
             // Nothing to preview until the copy lands; the icon stands in.
             guard !item.isPending else { return }
             image = await ShelfThumbnails.shared.thumbnail(for: item, size: size)
+        }
+    }
+
+    /// Remove at the tile's top-right corner and AirDrop at its bottom-right,
+    /// over the thumbnail's square, while the pointer is on a ready tile.
+    /// The clear square is not hit-testable, so a click anywhere else on the
+    /// tile falls through to the tile's own gestures.
+    @ViewBuilder private var hoverButtons: some View {
+        if hovering && !item.isPending {
+            Color.clear
+                .frame(width: size.width, height: size.height)
+                .overlay(alignment: .topTrailing) {
+                    Button(action: onRemove) {
+                        Image(systemName: "xmark")
+                            .notchFont(8, weight: .bold)
+                            .foregroundStyle(.white)
+                            .notchFrame(width: 16, height: 16)
+                            .background(Circle().fill(Color(white: 0.22)))
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 5, y: -5)
+                    .accessibilityLabel("Remove \(item.displayName)")
+                }
+                .overlay(alignment: .bottomTrailing) {
+                    Button(action: onAirDrop) {
+                        Image(systemName: "dot.radiowaves.left.and.right")
+                            .notchFont(9, weight: .bold)
+                            .foregroundStyle(.white)
+                            .notchFrame(width: 18, height: 18)
+                            .background(Circle().fill(Color.accentColor.opacity(0.9)))
+                            .overlay(Circle().strokeBorder(.black, lineWidth: 1.5))
+                    }
+                    .buttonStyle(.plain)
+                    .offset(x: 5, y: 5)
+                    .help("AirDrop")
+                    .accessibilityLabel("AirDrop \(item.displayName)")
+                }
         }
     }
 }

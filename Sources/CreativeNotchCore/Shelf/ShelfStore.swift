@@ -423,7 +423,12 @@ public final class ShelfStore {
     /// Anything already listed again is left alone.
     ///
     /// Restoring can take the shelf over capacity if things were dropped in
-    /// the meantime; the oldest are then evicted as after any add.
+    /// the meantime, and it is **allowed to**: nothing is evicted here. The
+    /// restored items are the oldest on the shelf, so the eviction an add
+    /// runs would trash exactly the files the user just asked for back --
+    /// and evicting the newer drops instead would trash something the user
+    /// never cleared. The shelf overflows until the next add (or a copy in
+    /// flight landing), which enforces the capacity by the ordinary rule.
     @discardableResult
     public func restore(_ clearance: ShelfClearance) -> ShelfRestoration {
         var restored: [ShelfItem] = []
@@ -470,9 +475,6 @@ public final class ShelfStore {
         }
         items.append(contentsOf: restored)
         items.sort { $0.addedAt > $1.addedAt }
-        // An eviction that cannot trash keeps its item listed, so nothing
-        // is lost either way.
-        evictBeyondCapacity(sparing: nil)
         return ShelfRestoration(restored: restored, skipped: skipped)
     }
 

@@ -4,7 +4,8 @@ import Foundation
 ///
 /// Transient sources preempt ambient ones, then fall back — the same model
 /// as the iPhone Dynamic Island. Priority is drag, then a finished timer,
-/// then power, then media.
+/// then power, then a Bluetooth device, then a finished download, then
+/// downloads in progress, then media.
 ///
 /// `content(now:)` takes the time as a parameter rather than reading a
 /// clock so TTL expiry is testable without sleeping.
@@ -23,14 +24,60 @@ public struct PeekArbiter: Equatable, Sendable {
     /// appearing until someone clicked.
     public static let timerDoneTTL: TimeInterval = 600
 
+    /// Five seconds: long enough to read a file name and reach for it — the
+    /// peek is the way to its file in Finder — and short enough that a
+    /// download nobody was waiting for is gone before it is in the way.
+    public static let downloadDoneTTL: TimeInterval = 5.0
+
+    /// Shorter than power's 3 s. A Bluetooth peek is a name and one word,
+    /// and it confirms something the person just did with their own hands —
+    /// put the AirPods in, switched the speaker on — so it needs to be
+    /// readable, not lingered over. Long enough for a long device name to
+    /// be read once; short enough to be gone before it is in the way.
+    public static let bluetoothTTL: TimeInterval = 2.5
+
+    private var bluetooth: BluetoothAudioEvent?
+    private var bluetoothExpiry: TimeInterval = 0
     private var power: PowerEvent?
     private var powerExpiry: TimeInterval = 0
     private var dragActive = false
     private var nowPlaying: TrackSnapshot?
     private var timerDone: TimerCompletion?
     private var timerDoneExpiry: TimeInterval = 0
+    private var downloads: DownloadSummary?
+    private var downloadDone: DownloadCompletion?
+    private var downloadDoneExpiry: TimeInterval = 0
 
     public init() {}
+
+    /// What is downloading, or `nil`. Ambient, like now-playing: shown on
+    /// hover, never unasked.
+    public mutating func setDownloads(_ summary: DownloadSummary?) {
+        downloads = summary
+    }
+
+    /// Below power, a finished timer and a Bluetooth device, above
+    /// everything ambient: a finished download is worth a glance, but it is
+    /// neither consequential nor something the user asked to be interrupted
+    /// by, and it outlasts the short Bluetooth peek that might cover it.
+    public mutating func recordDownloadDone(_ completion: DownloadCompletion, now: TimeInterval) {
+        downloadDone = completion
+        downloadDoneExpiry = now + Self.downloadDoneTTL
+    }
+
+    /// Acknowledges the completion peek — it was clicked, or the panel opened
+    /// — so the next hover does not show it again.
+    public mutating func dismissDownloadDone() {
+        downloadDone = nil
+    }
+
+    /// Withdraws both of the downloads module's entries when it is switched
+    /// off, and nothing else's: the arbiter is a priority list, and whatever
+    /// was queued behind them is revealed (`clearPower`'s reasoning).
+    public mutating func clearDownloads() {
+        downloads = nil
+        downloadDone = nil
+    }
 
     public mutating func recordPower(_ event: PowerEvent, now: TimeInterval) {
         power = event
@@ -75,6 +122,25 @@ public struct PeekArbiter: Equatable, Sendable {
         power = nil
     }
 
+    /// Below power, above now-playing. Power is unsolicited and
+    /// consequential; a device arriving is unsolicited but expected — the
+    /// person caused it — so it yields to anything that is news to them and
+    /// outranks only a finished download (whose longer peek is still there
+    /// when this one has gone) and the ambient peeks. A newer event replaces an
+    /// older one rather than queueing: two devices in a second are one
+    /// glance's worth, and the latest is the one that is true.
+    public mutating func recordBluetooth(_ event: BluetoothAudioEvent, now: TimeInterval) {
+        bluetooth = event
+        bluetoothExpiry = now + Self.bluetoothTTL
+    }
+
+    /// Withdraws a Bluetooth peek whose module has just been switched off,
+    /// for `clearPower`'s reasons: its own module only, so whatever was
+    /// queued behind it is revealed rather than hidden.
+    public mutating func clearBluetooth() {
+        bluetooth = nil
+    }
+
     public func content(now: TimeInterval) -> PeekContent? {
         if dragActive { return .dragTarget }
         if let timerDone, now < timerDoneExpiry { return .timerDone(timerDone) }
@@ -82,6 +148,15 @@ public struct PeekArbiter: Equatable, Sendable {
         // and yields to anything, while power is unsolicited but
         // consequential.
         if let power, now < powerExpiry { return .power(power) }
+        if let bluetooth, now < bluetoothExpiry { return .bluetooth(bluetooth) }
+        // Below Bluetooth: that peek is 2.5 s confirming what the person
+        // just did with their own hands, and the 5 s completion is still
+        // there once it has gone -- the other order would swallow it whole.
+        if let downloadDone, now < downloadDoneExpiry { return .downloadDone(downloadDone) }
+        // Above now-playing in the same order the badge slot uses, so a
+        // hover over the download ring shows the download, not the track the
+        // ring took the slot from.
+        if let downloads { return .downloads(downloads) }
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil
     }
@@ -114,6 +189,10 @@ public struct PeekArbiter: Equatable, Sendable {
         switch content(now: now) {
         case .nowPlaying(let track):
             return pointerInside ? .nowPlaying(track) : nil
+        // Ambient for the same reason: kept, following the percent, while
+        // the pointer is over it; never fallen back to without it.
+        case .downloads(let summary):
+            return pointerInside ? .downloads(summary) : nil
         case .some(let next):
             return next
         case nil:

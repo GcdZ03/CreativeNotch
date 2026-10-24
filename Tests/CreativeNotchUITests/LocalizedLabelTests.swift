@@ -5,6 +5,7 @@ import CreativeNotchCore
 
 /// Labels that the localization pass reworded or reformatted (2026-10-24),
 /// pinned so the English stays what was intended.
+@MainActor
 struct LocalizedLabelTests {
 
     /// Same text as the old `String(format: "%.1f s")` in a point-decimal

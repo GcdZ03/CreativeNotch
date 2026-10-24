@@ -28,8 +28,9 @@ public enum TimerSpokenText {
         }
     }
 
-    /// The ear badge: the time, and whether it is paused, since dimming is
-    /// the only sign of that on screen.
+    /// The ear badge: the time, and whether it is paused -- on screen that
+    /// is a dimmed badge with a pause glyph, neither of which VoiceOver
+    /// can see.
     public static func remaining(_ remaining: TimeInterval, isPaused: Bool) -> String {
         let time = duration(remaining)
         return isPaused
@@ -49,6 +50,15 @@ public enum TimerSpokenText {
         return isPaused
             ? String(localized: "Paused, \(time) remaining, \(percent)% done", bundle: .creativeNotch)
             : String(localized: "\(time) remaining, \(percent)% done", bundle: .creativeNotch)
+    }
+
+    /// One countdown among several, by the duration it was set to:
+    /// "25-minute timer". The completion peek names a timer the same way.
+    public static func name(duration: TimeInterval) -> String {
+        switch parts(duration) {
+        case .minutes(let count): return String(localized: "\(count)-minute timer", bundle: .creativeNotch)
+        case .seconds(let count): return String(localized: "\(count)-second timer", bundle: .creativeNotch)
+        }
     }
 
     /// The completion peek, spoken: "25-minute timer finished", and how

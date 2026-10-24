@@ -97,10 +97,44 @@ public final class AppState {
     /// it on every draw, so a change needs nothing re-registered.
     public internal(set) var textSize: TextSize = .default
 
+    /// The scale the open panel actually draws at: `textSize.scale`, brought
+    /// down to what the panel's frame holds on a screen too small for the
+    /// full factor (`NotchGeometry.fittedTextScale`), fitted against the
+    /// nominal width the frame was built from ("Panel width",
+    /// `NotchGeometry.nominalPanelWidth`) -- the default's would read a
+    /// Compact frame as too small and shrink its text.
+    ///
+    /// Read from the frame rather than stored beside it, so the two cannot
+    /// disagree: `panelFrame` was built from the same fitted scale, and the
+    /// fit is a fixed point, so asking it of the frame gives that scale
+    /// back. Before any geometry arrives there is no frame to fit, and the
+    /// setting is used as it is.
+    public var textScale: CGFloat {
+        guard !panelFrame.isEmpty else { return textSize.scale }
+        let nominalWidth = NotchGeometry.nominalPanelWidth(
+            for: anchor,
+            width: layoutOptions.width,
+            tabCount: TabVisibility.visible(enabled: preferences, hasBattery: hasBattery).count
+        )
+        return NotchGeometry.fittedTextScale(textSize.scale, within: panelFrame.size, nominalWidth: nominalWidth)
+    }
+
     /// Saves the size, applies it and resizes the panel in one call, so
     /// Settings cannot do one without the others. Wired by `AppDelegate`.
     @ObservationIgnored
     public var onSetTextSize: ((TextSize) -> Void)?
+
+    /// The panel's width, corners, tab side, header battery and closed-notch
+    /// badges (2026-10-24). Applied by `onSetLayoutOptions`, which also
+    /// resizes the panel for a new width and re-syncs the accepted region for
+    /// a badge shown or hidden; the view reads it on every draw, so a change
+    /// needs nothing re-registered.
+    public internal(set) var layoutOptions: LayoutOptions = .default
+
+    /// Saves the options, applies them and re-places the panel in one call,
+    /// so Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetLayoutOptions: ((LayoutOptions) -> Void)?
 
     /// The displays connected when last asked, for the "Show on" menu's
     /// per-display entries. Refreshed by `onRefreshDisplays` when Settings is
@@ -111,6 +145,21 @@ public final class AppState {
     /// Re-reads `connectedDisplays`. Wired by `AppDelegate`.
     @ObservationIgnored
     public var onRefreshDisplays: (() -> Void)?
+
+    /// The Bluetooth grant as Bluetooth alerts last read it (2026-10-24), for
+    /// the Settings row's denied state. `nil` until the controller has read
+    /// it once, so a fresh `AppState` claims nothing either way.
+    public internal(set) var bluetoothAccess: BluetoothAuthorization?
+
+    /// Re-reads the grant — never prompts unless the module is on and macOS
+    /// has not been asked. Wired by `AppDelegate`; called when Settings is
+    /// shown, like `onRefreshDisplays`.
+    @ObservationIgnored
+    public var onRefreshBluetoothAccess: (() -> Void)?
+
+    /// Opens Privacy & Security › Bluetooth. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onOpenBluetoothSettings: (() -> Void)?
 
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
@@ -127,6 +176,34 @@ public final class AppState {
     /// Wired by `AppDelegate`; unwired, nothing would be taken.
     @ObservationIgnored
     public var onPreviewLimits: ((Limits) -> ShelfLimitRemoval)?
+
+    /// Whether a timer finishing behind a full-screen app also posts a
+    /// notification (2026-10-24). Applied by `onSetTimerNotifyWhenHidden`;
+    /// read by `AppDelegate.timerDidFinish` at the moment it fires.
+    public internal(set) var timerNotifyWhenHidden = true
+
+    /// Saves and applies the switch in one call, for the reason
+    /// `onSetHoverBehaviour` does both. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTimerNotifyWhenHidden: ((Bool) -> Void)?
+
+    /// What macOS allows the timer's notification, as last asked. Read when
+    /// Settings is shown (`onRefreshTimerNotices`), never polled, so the line
+    /// under the switch can say when notifications are off.
+    public internal(set) var timerNoticeAuthorization: TimerNoticeAuthorization = .allowed
+
+    /// Re-reads `timerNoticeAuthorization`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshTimerNotices: (() -> Void)?
+
+    /// Bundle identifiers whose copies clipboard history ignores
+    /// (2026-10-24). Applied by `onSetClipboardExcludedApps`; the poller asks
+    /// for it at each detected change, so an edit applies to the next copy.
+    public internal(set) var clipboardExcludedApps: [String] = []
+
+    /// Saves and applies the list in one call. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetClipboardExcludedApps: (([String]) -> Void)?
 
     /// What an observer is told about.
     public enum Change: Equatable, Sendable {
@@ -201,12 +278,83 @@ public final class AppState {
     @ObservationIgnored
     public var onRevealShelfItem: ((URL) -> Void)?
 
+    /// Opens a shelf file with its default app — a double-click on the tile,
+    /// or Open in its menu. By id rather than URL so the delegate, which
+    /// holds the store, decides whether there is a file to open yet.
+    @ObservationIgnored
+    public var onOpenShelfItem: ((UUID) -> Void)?
+
+    /// Shows a shelf file in Quick Look — Quick Look in the tile's menu.
+    /// Space reaches the same preview through `AppDelegate.handlePanelKey`.
+    @ObservationIgnored
+    public var onQuickLookShelfItem: ((UUID) -> Void)?
+
+    /// The tile Space previews and ← → move: set by a click on a tile, an
+    /// arrow key, or a preview. Observable, because the tile draws a ring
+    /// round it. A selection whose item has gone is no selection — every
+    /// reader goes through `ShelfPreview` / `ShelfSelection`, which treat it
+    /// so — and switching the shelf off clears it.
+    public internal(set) var shelfSelection: UUID?
+
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
 
     /// A row's Delete: forgets one entry, by id, like `onRemoveShelfItem`.
     @ObservationIgnored
     public var onRemoveClipboardEntry: ((UUID) -> Void)?
+
+    /// A row's Pin or Unpin, by id, like `onRemoveClipboardEntry`.
+    @ObservationIgnored
+    public var onTogglePinClipboardEntry: ((UUID) -> Void)?
+
+    /// What is typed in the clipboard pane's search field (2026-10-24).
+    ///
+    /// Here rather than in the view's `@State` because Esc has to see it:
+    /// `AppDelegate.handlePanelKey` asks `PanelKeyboard` whether Esc clears
+    /// the search or closes the panel, and a value private to a view is one
+    /// the key path cannot read. Observed — the pane filters by it.
+    ///
+    /// It lasts for one look at the history: a tab switch keeps it, and
+    /// leaving `.open` empties it (`transition(to:)`), so the next open shows
+    /// the whole list rather than a filter nobody remembers typing. Never
+    /// written down, like the history it searches.
+    public var clipboardQuery: String = ""
+
+    /// The colour picker's last few picks, newest first (2026-10-24), for the
+    /// strip's swatches and the dropper's menu. Published by
+    /// `ColorPickerController` through `AppDelegate`; empty while the module
+    /// is off. Observable: a pick changes it while the panel is on screen.
+    public internal(set) var recentColors: [SampledColor] = []
+
+    /// The colour just copied, which puts the result strip over the body --
+    /// or `nil`, which takes it away. Set by a pick or a swatch; cleared by
+    /// the strip's close button and whenever the panel leaves `.open`, so the
+    /// result belongs to the opening it was shown in. Nothing times it out.
+    public internal(set) var pickedColor: SampledColor?
+
+    /// How a pick is copied: "Copy as" in Settings. Applied by
+    /// `onSetColorFormat`; the strip prints the value in it.
+    public internal(set) var colorFormat: ColorFormat = .default
+
+    /// The header's dropper: closes the panel, shows the system loupe, and
+    /// brings the panel back with the result. A verb, like the pane's, so the
+    /// view never holds a sampler. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onPickColor: (() -> Void)?
+
+    /// A swatch's click: copies that colour again in the current format.
+    @ObservationIgnored
+    public var onCopyColor: ((SampledColor) -> Void)?
+
+    /// Saves and applies a new copy format in one call, for the reason
+    /// `onSetTextSize` does both. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetColorFormat: ((ColorFormat) -> Void)?
+
+    /// The strip's close button. The history stays; only the strip goes.
+    public func dismissColorStrip() {
+        pickedColor = nil
+    }
 
     /// The header's gear. Closes the panel, then opens Settings — Settings
     /// is an activating window, and the panel should not sit open under it.
@@ -277,14 +425,39 @@ public final class AppState {
     @ObservationIgnored
     public var onStartTimer: ((TimeInterval) -> Void)?
 
+    /// Pause, resume and cancel take the row's `RunningTimer.id`: with
+    /// several countdowns (2026-10-24) a bare verb would have to guess
+    /// which one was meant.
     @ObservationIgnored
-    public var onPauseTimer: (() -> Void)?
+    public var onPauseTimer: ((Int) -> Void)?
 
     @ObservationIgnored
-    public var onResumeTimer: (() -> Void)?
+    public var onResumeTimer: ((Int) -> Void)?
 
     @ObservationIgnored
-    public var onCancelTimer: (() -> Void)?
+    public var onCancelTimer: ((Int) -> Void)?
+
+    /// The stopwatch's one verb, applied by the delegate at its clock.
+    @ObservationIgnored
+    public var onStopwatch: ((StopwatchCommand) -> Void)?
+
+    /// The stopwatch, as a value: a start date and what it banked, never a
+    /// tick. Nothing republishes it while it runs — the digits are a
+    /// `Text(timerInterval:)` the system keeps current, and only while the
+    /// tab is on screen — so it is an ordinary `Equatable` property whose
+    /// dedupe is right: an equal stopwatch draws identically.
+    public internal(set) var stopwatch = Stopwatch()
+
+    /// Which half of the timer tab is showing. In `AppState` rather than
+    /// the view's `@State`, so reopening the panel finds the stopwatch
+    /// still in front if that is where it was left; not persisted, because
+    /// neither is anything it shows.
+    public var timerMode: TimerTabMode = .timer
+
+    /// Whether the timer tab is showing the picker for one more countdown
+    /// beside those running. Cleared when one starts and when the last
+    /// one goes, so the next countdown starts from the plain view.
+    public var isAddingTimer = false
 
     /// Whether to show the media row at all.
     ///
@@ -319,6 +492,34 @@ public final class AppState {
     /// the camera's activity-gate exemption is honest rather than silent.
     public var isRecordingClip: Bool = false
 
+    /// What is downloading, from the downloads module, or `nil`. Read by the
+    /// badge slot and the peek.
+    ///
+    /// A plain `Equatable` stored property on purpose — the opposite of
+    /// `countdown`'s box. `DownloadSummary` is quantised to whole percents,
+    /// so the equality guard `@Observable` emits is exactly what drops the
+    /// readings that would redraw the ring identically.
+    public internal(set) var downloads: DownloadSummary?
+
+    /// Whether the app may read the Downloads folder, for the Settings row's
+    /// denied state. Set by `DownloadsController` through the delegate.
+    public internal(set) var downloadsAccess: DownloadsAccess = .unknown
+
+    /// A finished download's peek was clicked: show the file in Finder.
+    /// A verb, like `onRevealShelfItem`, so the view never reaches for
+    /// `NSWorkspace`; wired by `AppDelegate`, which also acknowledges the peek.
+    @ObservationIgnored
+    public var onRevealDownload: ((DownloadCompletion) -> Void)?
+
+    /// Asks for the Downloads folder again after a refusal. Called when
+    /// Settings is shown; does nothing unless the module is on and refused.
+    @ObservationIgnored
+    public var onRecheckDownloadsAccess: (() -> Void)?
+
+    /// Opens System Settings at Files & Folders, from the denied row.
+    @ObservationIgnored
+    public var onOpenDownloadsPrivacy: (() -> Void)?
+
     /// Which modules are switched on.
     ///
     /// **The single read surface for preferences.** `ModuleSwitchboard` writes
@@ -329,14 +530,15 @@ public final class AppState {
     /// what makes a preference snapshotted into a `let` structurally
     /// impossible for the app-lifetime closures built in `install(metrics:)`.
     ///
-    /// Defaults to everything on, matching what an empty defaults domain
-    /// resolves to, so a bare `AppState` in a test behaves like a fresh
-    /// install rather than like a user who switched everything off.
+    /// Defaults to the shipped state -- everything on but the calendar,
+    /// Bluetooth alerts and downloads -- matching what an empty defaults
+    /// domain resolves to, so a bare `AppState` in a test behaves like a
+    /// fresh install rather than like a user who switched everything off.
     ///
     /// Not `@ObservationIgnored`: like `hasBattery`, `body` reads it directly
     /// and needs Observation's tracking when it is written at runtime -- which
     /// unlike `hasBattery` is the normal case here.
-    public var preferences: Preferences = .allEnabled
+    public var preferences: Preferences = .shipped
 
     /// Whether this Mac has an internal battery.
     ///
@@ -359,6 +561,31 @@ public final class AppState {
     /// Current power state, set by `PowerController`. Observable, like
     /// `nowPlaying`: a plain value the panel reads directly.
     public internal(set) var power: PowerSnapshot?
+
+    /// What the calendar pane draws, set by `CalendarController`, or `nil`
+    /// while the module is off. Observable, like `power`. Each refresh carries
+    /// its own `refreshedAt`, so a boundary refresh that read the same events
+    /// is still a new value and still redraws -- the trap `countdown`'s box
+    /// guards against, avoided in the value instead.
+    public internal(set) var calendar: CalendarSnapshot?
+
+    /// The calendar pane's verbs: ask for access, and open Privacy & Security
+    /// after a refusal. Closures, like every pane's, so the view never holds
+    /// the controller or reaches for `NSWorkspace`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRequestCalendarAccess: (() -> Void)?
+
+    @ObservationIgnored
+    public var onOpenCalendarPrivacySettings: (() -> Void)?
+
+    /// Opens Calendar, from the pane's title row.
+    @ObservationIgnored
+    public var onOpenCalendarApp: (() -> Void)?
+
+    /// Re-reads the calendar grants when Settings is shown, so its warning
+    /// follows a change made in System Settings. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshCalendarAccess: (() -> Void)?
 
 
     /// Set by `MediaController`. Observable — unlike `shelf` and
@@ -416,8 +643,13 @@ public final class AppState {
     /// the mutation unconditional again.
     /// `TimerWiringTests.aDisplayChangeWakeStillReachesTheView` is what
     /// bites a change to any of this.
+    ///
+    /// The list of every countdown (2026-10-24) rides in the same box for
+    /// the same reason: a display-change wake republishes a list equal to
+    /// the one already there.
     private struct CountdownPublication {
         var countdown: Countdown?
+        var timers: [RunningTimer] = []
     }
 
     private var countdownPublication = CountdownPublication(countdown: nil)
@@ -432,7 +664,22 @@ public final class AppState {
     /// callers and `body` see an ordinary property either way.
     public internal(set) var countdown: Countdown? {
         get { countdownPublication.countdown }
-        set { countdownPublication = CountdownPublication(countdown: newValue) }
+        set {
+            countdownPublication = CountdownPublication(
+                countdown: newValue, timers: countdownPublication.timers
+            )
+        }
+    }
+
+    /// Every running or paused countdown, in start order, for the tab's
+    /// list. `countdown` is the soonest of these, for the ear.
+    public internal(set) var timers: [RunningTimer] {
+        get { countdownPublication.timers }
+        set {
+            countdownPublication = CountdownPublication(
+                countdown: countdownPublication.countdown, timers: newValue
+            )
+        }
     }
 
     /// A list, not a single closure.
@@ -490,6 +737,7 @@ public final class AppState {
             if case .open = state {} else { openReason = reason }
         } else {
             openReason = nil
+            if !clipboardQuery.isEmpty { clipboardQuery = "" }
         }
         // One peek replacing another is a swap, not a collapse, even when the
         // new one is smaller — a battery peek giving way to a drag target.
@@ -546,6 +794,11 @@ public struct NotchRootView: View {
     /// The one now-playing cover the badge, the music peek and the panel
     /// share, so it slides between them (spec 2026-10-15).
     @Namespace private var coverSpace
+
+    /// For the calendar pane's title row: the system's calendar and locale in
+    /// the app, pinned ones in a render.
+    @Environment(\.calendar) private var calendar
+    @Environment(\.locale) private var locale
 
     /// The system's Reduce Motion setting (spec 2026-10-17). With it on,
     /// springs become one short ease, content fades rather than blurs in,
@@ -677,6 +930,8 @@ public struct NotchRootView: View {
             nowPlaying: app.nowPlaying,
             isRecording: app.isRecordingClip,
             capture: app.captureUse,
+            downloads: app.downloads,
+            hiding: app.layoutOptions.hiddenBadges,
             at: now
         )
     }
@@ -769,6 +1024,19 @@ public struct NotchRootView: View {
         PowerPeekView(event: event, bandHeight: app.anchor.rect.height)
     }
 
+    /// The downloads peek exactly as `body` builds it, for the same reason
+    /// `powerPeek(for:event:)` is static: the band height it supplies, and
+    /// the reveal verb it hands VoiceOver, are readable without a render.
+    static func downloadPeek(for app: AppState, content: DownloadPeekView.Content) -> DownloadPeekView {
+        DownloadPeekView(
+            content: content,
+            bandHeight: app.anchor.rect.height,
+            onReveal: {
+                if case .done(let completion) = content { app.onRevealDownload?(completion) }
+            }
+        )
+    }
+
     public var body: some View {
         // At most one clock read per evaluation, and none at all when the
         // instant was pinned. Everything below derives from this single
@@ -848,7 +1116,8 @@ public struct NotchRootView: View {
     private var backgroundShape: UnevenRoundedRectangle {
         let r = NotchShape.cornerRadii(
             presentation: app.state.presentation,
-            anchor: app.anchor
+            anchor: app.anchor,
+            corners: app.layoutOptions.corners
         )
         return UnevenRoundedRectangle(
             topLeadingRadius: r.topLeading,
@@ -899,6 +1168,17 @@ public struct NotchRootView: View {
                                 maxHeight: .infinity,
                                 alignment: .trailing
                             )
+                    case .downloads:
+                        if let summary = app.downloads {
+                            DownloadsBadgeView(summary: summary)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    maxHeight: .infinity,
+                                    alignment: .trailing
+                                )
+                        } else {
+                            EmptyView()
+                        }
                     case .recording:
                         RecordingBadgeView()
                             .frame(
@@ -958,7 +1238,8 @@ public struct NotchRootView: View {
                         anchor: app.anchor,
                         panelFrame: app.panelFrame,
                         showsMedia: tab != .camera && app.showsMediaControls,
-                        textScale: app.textSize.scale
+                        textScale: app.textScale,
+                        tabsSide: app.layoutOptions.tabsSide
                     )
                     VStack(spacing: 0) {
                         PanelHeader(
@@ -967,8 +1248,10 @@ public struct NotchRootView: View {
                             enabled: app.preferences,
                             hasBattery: app.hasBattery,
                             power: app.power,
+                            showsBattery: app.layoutOptions.showsBattery,
                             onSelect: { app.transition(to: .open($0)) },
-                            onSettings: { app.onOpenSettings?() }
+                            onSettings: { app.onOpenSettings?() },
+                            colorPicker: Self.colorPickerHeader(for: app)
                         )
                         // The first-run card stacks over the body, under the
                         // live header (`WelcomeCardView`). A `ZStack` rather
@@ -992,6 +1275,22 @@ public struct NotchRootView: View {
                                 openContent(for: tab, at: now)
                                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                             }
+                            // A pick's result, over the bottom of the body
+                            // (`ColorStripView`). Under the welcome card, which
+                            // is the one thing that should cover it.
+                            if let picked = app.pickedColor {
+                                ColorStripView(
+                                    picked: picked,
+                                    recent: app.recentColors,
+                                    format: app.colorFormat,
+                                    onCopy: { app.onCopyColor?($0) },
+                                    onDismiss: { app.dismissColorStrip() }
+                                )
+                                .padding(.horizontal, 12)
+                                .padding(.bottom, 10)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                                .transition(NotchMotion.content(reduceMotion: reduceMotion))
+                            }
                             // Read from `showsWelcome`, the one question the
                             // tests ask too.
                             if app.showsWelcome {
@@ -1009,13 +1308,19 @@ public struct NotchRootView: View {
                             NotchMotion.animation(growing: false, reduceMotion: reduceMotion),
                             value: app.welcomeSeen
                         )
+                        // The strip arrives with the panel's own grow spring
+                        // and leaves with the snappy one, a one-shot per pick.
+                        .animation(
+                            NotchMotion.animation(growing: app.pickedColor != nil, reduceMotion: reduceMotion),
+                            value: app.pickedColor
+                        )
                     }
                     .frame(maxHeight: .infinity, alignment: .top)
                     // Text size (2026-10-24): every `.notchFont` and text-
                     // holding length below reads it. Here and on the drop
                     // target only, so the badges and the peeks above stay
                     // the size the hardware band allows (`NotchType`).
-                    .environment(\.notchTextScale, app.textSize.scale)
+                    .environment(\.notchTextScale, app.textScale)
 
                 case .receiving:
                     // The same target the empty shelf shows, brighter, under
@@ -1028,7 +1333,7 @@ public struct NotchRootView: View {
                             .padding(.top, 10)
                             .padding(.bottom, 20)
                     }
-                    .environment(\.notchTextScale, app.textSize.scale)
+                    .environment(\.notchTextScale, app.textScale)
 
                 // The music peek is a mini player that grows down from the
                 // notch (spec 2026-10-15); power and timer peeks stay one
@@ -1041,6 +1346,18 @@ public struct NotchRootView: View {
                 // than left to `default` for that reason.
                 case .peek(.power(let event)):
                     Self.powerPeek(for: app, event: event)
+
+                // The battery peek's row, for a download in progress (on
+                // hover over its badge) and for one that just finished.
+                case .peek(.downloads(let summary)):
+                    Self.downloadPeek(for: app, content: .progress(summary))
+
+                case .peek(.downloadDone(let completion)):
+                    Self.downloadPeek(for: app, content: .done(completion))
+                // Bluetooth alerts (2026-10-24): the power peek's row shape,
+                // and its band height for the same reason.
+                case .peek(.bluetooth(let event)):
+                    BluetoothPeekView(event: event, bandHeight: app.anchor.rect.height)
 
                 case .peek(.nowPlaying(let track)):
                     // The same notch gap the power peek gets, from the same
@@ -1093,6 +1410,15 @@ public struct NotchRootView: View {
         switch app.state {
         case .open:
             app.transition(to: .closed)
+        // A finished download's peek is the way to its file: the click shows
+        // it in Finder rather than opening the panel, which has nothing about
+        // downloads in it. A completion with no file falls through to open.
+        case .peek(.downloadDone(let completion)) where completion.url != nil:
+            if let reveal = app.onRevealDownload {
+                reveal(completion)
+            } else {
+                app.transition(to: .closed)
+            }
         default:
             if let open = app.onOpenPanel {
                 open()
@@ -1134,14 +1460,23 @@ public struct NotchRootView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ShelfView(
                             store: shelf,
+                            selection: app.shelfSelection,
+                            onSelect: { app.shelfSelection = $0 },
                             onRemove: { app.onRemoveShelfItem?($0) },
                             onAirDrop: { app.onAirDropShelfItems?([$0]) },
-                            onReveal: { app.onRevealShelfItem?($0) }
+                            onReveal: { app.onRevealShelfItem?($0) },
+                            onOpen: { app.onOpenShelfItem?($0) },
+                            onQuickLook: { app.onQuickLookShelfItem?($0) }
                         )
                         // A background copy that failed after its drop was
-                        // accepted. Under the tiles rather than in the title
-                        // row, which is for verbs; gone again on its own.
-                        if let notice = app.shelfNotice {
+                        // accepted, or an Undo that could not bring every
+                        // file back — gone again once it has been on screen
+                        // for a while — else how to preview the selected
+                        // tile. Under the tiles rather than in the title
+                        // row, which is for verbs.
+                        if let notice = Self.shelfFooter(
+                            notice: app.shelfNotice, selection: app.shelfSelection, in: shelf.items
+                        ) {
                             Text(notice)
                                 .notchFont(11, weight: .medium, design: .rounded)
                                 .foregroundStyle(.ink(0.6))
@@ -1156,14 +1491,18 @@ public struct NotchRootView: View {
             if let clipboard = app.clipboard {
                 ModulePane(
                     title: tab.title,
-                    count: clipboard.entries.isEmpty
-                        ? nil : String(localized: "\(clipboard.entries.count) of \(clipboard.capacity)", bundle: .creativeNotch, comment: "Clipboard title row: entries of capacity"),
-                    actions: clipboard.entries.isEmpty ? [] : [(String(localized: "Clear", bundle: .creativeNotch), { app.onClearClipboard?() })]
+                    count: Self.clipboardCount(for: clipboard, query: app.clipboardQuery),
+                    actions: Self.clipboardActions(for: clipboard, app: app)
                 ) {
                     ClipboardView(
                         store: clipboard,
                         now: now,
+                        query: Binding(
+                            get: { app.clipboardQuery },
+                            set: { app.clipboardQuery = $0 }
+                        ),
                         onCopy: { app.onCopyClipboard?($0) },
+                        onTogglePin: { app.onTogglePinClipboardEntry?($0) },
                         onRemove: { app.onRemoveClipboardEntry?($0) }
                     )
                 }
@@ -1175,23 +1514,121 @@ public struct NotchRootView: View {
             // use. Optional-chained, so a state nobody wired (a preview,
             // a test) renders the tab and does nothing rather than
             // trapping.
-            ModulePane(title: tab.title, count: app.countdown.map(Self.durationLabel)) {
-                TimerTabView(
-                    countdown: app.countdown,
-                    now: now,
-                    presets: Self.timerPresets(app),
-                    onStart: { app.onStartTimer?($0) },
-                    onPause: { app.onPauseTimer?() },
-                    onResume: { app.onResumeTimer?() },
-                    onCancel: { app.onCancelTimer?() }
+            //
+            // The stopwatch and several countdowns (2026-10-24) live here,
+            // behind a Timer | Stopwatch switch in the title row, rather
+            // than in a tab of their own: the ear's icon row has no room to
+            // spare, and a stopwatch is a timer counting the other way.
+            let timers = Self.timerRows(app)
+            ModulePane(
+                title: tab.title,
+                count: Self.timerCount(app, rows: timers),
+                actions: Self.timerActions(app, rows: timers),
+                accessory: AnyView(
+                    NotchSegmentedControl(
+                        options: TimerTabMode.allCases.map { ($0, $0.title) },
+                        selection: app.timerMode,
+                        onSelect: { app.timerMode = $0 }
+                    )
                 )
+            ) {
+                switch app.timerMode {
+                case .timer:
+                    TimerTabView(
+                        timers: timers,
+                        now: now,
+                        presets: Self.timerPresets(app),
+                        isAdding: app.isAddingTimer,
+                        onStart: { app.onStartTimer?($0) },
+                        onPause: { app.onPauseTimer?($0) },
+                        onResume: { app.onResumeTimer?($0) },
+                        onCancel: { app.onCancelTimer?($0) }
+                    )
+                case .stopwatch:
+                    StopwatchView(
+                        stopwatch: app.stopwatch,
+                        now: now,
+                        onCommand: { app.onStopwatch?($0) }
+                    )
+                }
             }
 
         case .power:
             ModulePane(title: tab.title) {
                 PowerView(snapshot: app.power)
             }
+
+        case .calendar:
+            ModulePane(
+                title: tab.title,
+                count: CalendarText.day(now, calendar: calendar, locale: locale),
+                actions: Self.calendarActions(app)
+            ) {
+                CalendarView(
+                    snapshot: app.calendar,
+                    now: now,
+                    onRequestAccess: { app.onRequestCalendarAccess?() },
+                    onOpenPrivacySettings: { app.onOpenCalendarPrivacySettings?() }
+                )
+            }
         }
+    }
+
+    /// The calendar's title-row verb: "Open Calendar", once there is a glance
+    /// to open it from. Not offered while the pane is asking for access or
+    /// explaining a refusal, where the pane's own button is the next step.
+    static func calendarActions(_ app: AppState) -> [(label: String, perform: () -> Void)] {
+        guard case .glance = app.calendar?.pane else { return [] }
+        return [("Open Calendar", { app.onOpenCalendarApp?() })]
+    }
+
+    /// The header's dropper, or `nil` while the colour picker is switched
+    /// off. Static so a test can read what the header is handed without
+    /// rendering it, like `timerPresets`.
+    static func colorPickerHeader(for app: AppState) -> ColorPickerHeaderModel? {
+        guard app.preferences.colorPicker else { return nil }
+        return ColorPickerHeaderModel(
+            recent: app.recentColors,
+            format: app.colorFormat,
+            onPick: { app.onPickColor?() },
+            onCopy: { app.onCopyColor?($0) }
+        )
+    }
+
+    /// The countdowns the timer tab lists: `AppState.timers`, or — when only
+    /// `countdown` was set, as a render or a test does directly — that one
+    /// as a list of one, so the tab draws what the ear draws.
+    static func timerRows(_ app: AppState) -> [RunningTimer] {
+        if !app.timers.isEmpty { return app.timers }
+        return app.countdown.map { [RunningTimer(id: -1, countdown: $0)] } ?? []
+    }
+
+    /// The timer title row's count: the set duration for one countdown, as
+    /// it always was, and how many for several. On the stopwatch, the laps.
+    static func timerCount(_ app: AppState, rows: [RunningTimer]) -> String? {
+        switch app.timerMode {
+        case .stopwatch:
+            let laps = app.stopwatch.laps.count
+            return laps == 0 ? nil : "\(laps) lap\(laps == 1 ? "" : "s")"
+        case .timer:
+            switch rows.count {
+            case 0: return nil
+            case 1: return durationLabel(rows[0].countdown)
+            default: return "\(rows.count) running"
+            }
+        }
+    }
+
+    /// The timer title row's verbs: "Add" beside one or two running
+    /// countdowns, "Back" while the add picker is up, and nothing on the
+    /// stopwatch, with none running, or at `TimerSet.capacity`.
+    static func timerActions(
+        _ app: AppState, rows: [RunningTimer]
+    ) -> [(label: String, perform: () -> Void)] {
+        guard app.timerMode == .timer, !rows.isEmpty else { return [] }
+        if app.isAddingTimer { return [("Back", { app.isAddingTimer = false })] }
+        guard rows.count < TimerSet.capacity, app.onStartTimer != nil else { return [] }
+        return [("Add", { app.isAddingTimer = true })]
     }
 
     /// The timer tab's presets: the ones chosen in Settings, read from
@@ -1229,6 +1666,40 @@ public struct NotchRootView: View {
             actions.append((String(localized: "Clear", bundle: .creativeNotch), { app.onClearShelf?() }))
         }
         return actions
+    }
+
+    /// The line under the shelf's tiles: a notice (a failed copy, or an Undo
+    /// that could not bring every file back), which is news and wins; else,
+    /// while a tile is selected, how to preview and open it — the only place
+    /// Space and the double-click are written down in the panel; else
+    /// nothing.
+    static func shelfFooter(notice: String?, selection: UUID?, in items: [ShelfItem]) -> String? {
+        if let notice { return notice }
+        guard let selection, let item = items.first(where: { $0.id == selection }),
+              ShelfSelection.isSelectable(item) else { return nil }
+        return "Space to Quick Look · double-click to open"
+    }
+
+    /// The clipboard's title-row verb: "Clear", while there is something for
+    /// it to take. Pins stay through a Clear (`ClipboardStore.clear`), so a
+    /// history of pins alone offers none — a button that changed nothing
+    /// would read as broken.
+    static func clipboardActions(
+        for clipboard: ClipboardStore, app: AppState
+    ) -> [(label: String, perform: () -> Void)] {
+        clipboard.clearableCount == 0 ? [] : [(String(localized: "Clear", bundle: .creativeNotch), { app.onClearClipboard?() })]
+    }
+
+    /// "12 of 50" — the history against its size — or, while a search is
+    /// typed, "3 of 12": what the search kept of what there is. Without the
+    /// second form an empty filtered list reads as an empty history.
+    static func clipboardCount(for clipboard: ClipboardStore, query: String) -> String? {
+        guard !clipboard.entries.isEmpty else { return nil }
+        guard ClipboardSearch.isActive(query) else {
+            return String(localized: "\(clipboard.entries.count) of \(clipboard.capacity)", bundle: .creativeNotch, comment: "Clipboard title row: entries of capacity")
+        }
+        let kept = ClipboardSearch.filter(clipboard.entries, query: query).count
+        return String(localized: "\(kept) of \(clipboard.entries.count)", bundle: .creativeNotch, comment: "Clipboard title row while searching: matches of entries")
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.

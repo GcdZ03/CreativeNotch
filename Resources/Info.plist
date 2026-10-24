@@ -30,11 +30,30 @@
        indicator. -->
   <key>NSCameraUsageDescription</key><string>CreativeNotch shows the camera in the notch, so you can check your framing or take a quick photo or clip. Nothing is uploaded; captures are saved to the file shelf.</string>
 
+  <!-- Bluetooth alerts (2026-10-24). IOBluetooth and CoreBluetooth sit behind
+       the Bluetooth privacy service, and without this key macOS terminates
+       the process on first use, as it does for the camera. It is shown only
+       when the person switches Bluetooth alerts on in Settings: the module
+       ships off, and nothing touches Bluetooth until then. -->
+  <key>NSBluetoothAlwaysUsageDescription</key><string>CreativeNotch shows a brief glance in the notch when AirPods, headphones or a speaker connect or disconnect. It only listens for connections; it does not scan for or connect to anything.</string>
+
   <!-- Reaction Effects are on by default for every app on macOS, so a hand
        gesture would produce confetti in a framing mirror. This sets the
        DEFAULT only: Apple documents it as applying "until such time that the
        user makes their own selection in Control Center", so it is not a
        guarantee. -->
   <key>NSCameraReactionEffectGesturesEnabledDefault</key><false/>
+
+  <!-- The calendar glance (off by default). Asked for only when the module
+       is switched on in Settings or the pane's "Allow Access..." is pressed,
+       never at launch. The FullAccess keys are the ones macOS 14 and later
+       read for a read grant; without them the request is refused with no
+       prompt at all. -->
+  <key>NSCalendarsFullAccessUsageDescription</key><string>CreativeNotch shows your next few events in the notch when you open its calendar pane. Nothing is uploaded or stored; events are read on this Mac only while the pane is open.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>CreativeNotch shows how many of your reminders are due today in the notch's calendar pane. Nothing is uploaded or stored; reminders are read on this Mac only while the pane is open.</string>
+  <!-- The downloads module, which ships off. Asked only when it is switched
+       on in Settings, by the first read of the folder; refused, the row says
+       so and nothing is subscribed. -->
+  <key>NSDownloadsFolderUsageDescription</key><string>CreativeNotch shows the progress of your downloads in the notch. It watches the progress browsers publish for files in your Downloads folder; nothing is read beyond file names, and nothing leaves your Mac.</string>
 </dict>
 </plist>

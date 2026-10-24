@@ -39,11 +39,17 @@ struct SandboxedSeamsTests {
 
         #expect(delegate.shelfTrash.isSystem == false)
         #expect(delegate.preferencesDefaults !== UserDefaults.standard)
+        #expect(delegate.timerNotices is SilentTimerNotices)
 
         let camera = try #require(delegate.camera)
         #expect(camera.capturesDirectory == delegate.capturesDirectory)
         #expect(camera.capturesDirectory != CameraController.picturesCapturesDirectory)
         #expect(camera.capturesDirectory.standardizedFileURL.path.hasPrefix(Self.temporary))
+
+        // Bluetooth: no IOBluetooth registration and no system prompt can
+        // come from a delegate a test built.
+        #expect(delegate.bluetoothSource is SandboxBluetoothSource)
+        #expect(delegate.bluetoothAccess is SandboxBluetoothAccess)
     }
 
     /// Two delegates never share a sandbox, so one test's shelf cannot leak
@@ -70,6 +76,27 @@ struct SandboxedSeamsTests {
         #expect(delegate.shelfDirectory.path.hasSuffix("CreativeNotch/Shelf"))
         #expect(delegate.capturesDirectory == CameraController.picturesCapturesDirectory)
         #expect(delegate.capturesDirectory.lastPathComponent == "CreativeNotch")
+        // Constructing these registers nothing and prompts for nothing.
+        #expect(delegate.bluetoothSource is IOBluetoothSource)
+        #expect(delegate.bluetoothAccess is SystemBluetoothAccess)
+        // Constructed, never used: building it touches no notification center.
+        #expect(delegate.timerNotices is SystemTimerNotices)
+    }
+
+    /// Opening a shelf file and previewing it reach other apps and put a
+    /// window on screen: a bare delegate's do neither, and only the real
+    /// launch hands in `NSWorkspace` and Quick Look. Asserted as values --
+    /// nothing is opened or previewed.
+    @Test func aFreshDelegateNeitherOpensNorPreviewsShelfFiles() {
+        let delegate = AppDelegate()
+        #expect(delegate.shelfOpener.isSystem == false)
+        #expect(delegate.shelfPreview.isSystem == false)
+        #expect(delegate.shelfOpener.open(URL(fileURLWithPath: "/tmp/never-opened.txt")) == false)
+
+        delegate.configureForRealLaunch()
+        #expect(delegate.shelfOpener.isSystem)
+        #expect(delegate.shelfPreview.isSystem)
+        #expect(delegate.shelfPreview is ShelfQuickLook)
     }
 
     @Test func onlyTheSystemTrashSaysItIs() {
