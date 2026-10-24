@@ -149,16 +149,48 @@ public enum NotchGeometry {
     /// `textScale` is `TextSize.scale` (2026-10-24): larger text needs a
     /// larger panel, so both sides grow by the factor the fonts do, through
     /// the same `NotchType.length`. The growth is clamped to the screen, but
-    /// never below `expandedSize` -- that is what the panel has always been,
-    /// whatever the screen, and the clamp below keeps it on screen as before.
+    /// never below `expandedSize` (or Compact's own, narrower width) -- that
+    /// is what the panel has always been, whatever the screen, and the clamp
+    /// below keeps it on screen as before.
+    ///
+    /// `width` is "Panel width" (2026-10-24): it sets the nominal width the
+    /// text size then grows, and leaves the height alone. At `.standard` it
+    /// is `expandedSize.width`, so the default frame is the frame from before
+    /// the setting, exactly.
+    ///
+    /// `tabCount` is how many tabs the header shows (`TabVisibility`), and
+    /// only Compact reads it. Beside a real notch the housing takes the
+    /// middle of the header, and Compact goes no narrower than leaves each
+    /// ear room for that many tabs (`PanelLayout.tabEarWidth`) -- the ears
+    /// are equal because the panel is centred on the notch, and either one
+    /// may hold the tabs. Default and Wide are fixed widths that hold every
+    /// tab on every notch Apple ships, so they never depend on it, and a
+    /// module switched on or off never resizes them. Defaulted to every tab,
+    /// the widest Compact can need.
     public static func panelFrame(
-        for anchor: Anchor, in m: ScreenMetrics, textScale: CGFloat = 1
+        for anchor: Anchor,
+        in m: ScreenMetrics,
+        textScale: CGFloat = 1,
+        width option: PanelWidth = .standard,
+        tabCount: Int = Tab.allCases.count
     ) -> CGRect {
+        let nominalWidth: CGFloat
+        switch option {
+        case .compact:
+            let ears = 2 * PanelLayout.tabEarWidth(tabCount: tabCount)
+            nominalWidth = max(option.nominalWidth, (anchor.isNotch ? anchor.rect.width : 0) + ears)
+        case .standard, .wide:
+            nominalWidth = option.nominalWidth
+        }
         let grown = CGSize(
-            width: min(NotchType.length(expandedSize.width, scale: textScale), m.frame.width),
+            width: min(NotchType.length(nominalWidth, scale: textScale), m.frame.width),
             height: min(NotchType.length(expandedSize.height, scale: textScale), m.frame.height)
         )
-        let width = max(expandedSize.width, grown.width, anchor.rect.width)
+        // The floor is the default width or less: Wide is a preference that
+        // a small screen may refuse, but no option makes the panel narrower
+        // on a small screen than it has always been there.
+        let floor = min(nominalWidth, expandedSize.width)
+        let width = max(floor, grown.width, anchor.rect.width)
         let height = max(expandedSize.height, grown.height)
         let unclampedX = anchor.rect.midX - width / 2
         // The right bound can fall left of the left bound on a screen
