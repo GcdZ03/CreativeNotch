@@ -83,4 +83,30 @@ struct PreferencesStoreTests {
         #expect(PreferencesStore(defaults: defaults).load().timer == true)
         #expect(defaults.object(forKey: PreferenceKeys.enabled(.timer)) as? String == "yes")
     }
+
+    // MARK: - Timer notice and clipboard exclusions (2026-10-24)
+
+    /// Absent means on: the notification is the only thing a full-screen
+    /// user would see, and the setting is there to turn it off, not on.
+    @Test func timerNoticesAreOnInAnEmptyDomain() {
+        #expect(PreferencesStore(defaults: makeIsolatedDefaults()).timerNotifyWhenHidden)
+    }
+
+    @Test func timerNoticesSwitchedOffSurviveAReload() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setTimerNotifyWhenHidden(false)
+        #expect(defaults.object(forKey: "timer.notifyWhenHidden") as? Bool == false)
+        #expect(PreferencesStore(defaults: defaults).timerNotifyWhenHidden == false)
+    }
+
+    @Test func clipboardExclusionsAreEmptyInAnEmptyDomain() {
+        #expect(PreferencesStore(defaults: makeIsolatedDefaults()).clipboardExcludedApps == [])
+    }
+
+    @Test func clipboardExclusionsSurviveAReloadUnderTheDocumentedKey() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setClipboardExcludedApps(["com.apple.Terminal", "com.b"])
+        #expect(defaults.stringArray(forKey: "clipboard.excludedApps") == ["com.apple.Terminal", "com.b"])
+        #expect(PreferencesStore(defaults: defaults).clipboardExcludedApps == ["com.apple.Terminal", "com.b"])
+    }
 }
