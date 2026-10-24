@@ -39,6 +39,7 @@ struct SandboxedSeamsTests {
 
         #expect(delegate.shelfTrash.isSystem == false)
         #expect(delegate.preferencesDefaults !== UserDefaults.standard)
+        #expect(delegate.timerNotices is SilentTimerNotices)
 
         let camera = try #require(delegate.camera)
         #expect(camera.capturesDirectory == delegate.capturesDirectory)
@@ -70,6 +71,8 @@ struct SandboxedSeamsTests {
         #expect(delegate.shelfDirectory.path.hasSuffix("CreativeNotch/Shelf"))
         #expect(delegate.capturesDirectory == CameraController.picturesCapturesDirectory)
         #expect(delegate.capturesDirectory.lastPathComponent == "CreativeNotch")
+        // Constructed, never used: building it touches no notification center.
+        #expect(delegate.timerNotices is SystemTimerNotices)
     }
 
     @Test func onlyTheSystemTrashSaysItIs() {

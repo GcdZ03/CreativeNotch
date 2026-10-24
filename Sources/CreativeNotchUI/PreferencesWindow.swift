@@ -101,6 +101,10 @@ final class PreferencesController {
         // reused window's `.onAppear` would read the displays once per
         // process, and a monitor plugged in since would be missing.
         state.onRefreshDisplays?()
+        // Likewise for notification permission: switched off in System
+        // Settings since the last show, the line under the timer's switch
+        // has to say so.
+        state.onRefreshTimerNotices?()
         presenter(self)
     }
 
@@ -223,6 +227,46 @@ final class PreferencesController {
     /// the hold is the whole of it.
     func cancelLimits() {
         pendingLimits.change = nil
+    }
+
+    /// "Notify when hidden by a full-screen app" (2026-10-24), through
+    /// `AppState`'s verb like the hover behaviour.
+    var timerNotifyWhenHidden: Bool { state.timerNotifyWhenHidden }
+
+    func setTimerNotifyWhenHidden(_ enabled: Bool) {
+        state.onSetTimerNotifyWhenHidden?(enabled)
+    }
+
+    /// The line under that switch -- why it may do nothing -- or `nil`.
+    var timerNoticeNote: String? {
+        TimerDoneNotice.settingsNote(for: state.timerNoticeAuthorization, enabled: state.timerNotifyWhenHidden)
+    }
+
+    /// Whether macOS has refused notifications, which is when the row offers
+    /// a way to System Settings.
+    var timerNoticesDenied: Bool {
+        state.timerNotifyWhenHidden && state.timerNoticeAuthorization == .denied
+    }
+
+    /// Clipboard history's excluded apps (2026-10-24), as bundle identifiers.
+    var clipboardExcludedApps: [String] { state.clipboardExcludedApps }
+
+    /// What "+" asks for: the apps chosen in an open panel, or none when it
+    /// is cancelled. A seam so no test opens a real `NSOpenPanel`.
+    var chooseApps: () -> [String] = { ExcludedApp.chooseWithOpenPanel() }
+
+    /// "+": appends what was chosen, skipping anything already listed.
+    func addExcludedApps() {
+        let chosen = chooseApps()
+        guard !chosen.isEmpty else { return }
+        let updated = ClipboardExclusions.adding(chosen, to: state.clipboardExcludedApps)
+        guard updated != state.clipboardExcludedApps else { return }
+        state.onSetClipboardExcludedApps?(updated)
+    }
+
+    /// "−" on one row.
+    func removeExcludedApp(_ bundleID: String) {
+        state.onSetClipboardExcludedApps?(ClipboardExclusions.removing(bundleID, from: state.clipboardExcludedApps))
     }
 
     /// The hotkey controller, for the recorder row. Reached through the
@@ -367,6 +411,12 @@ struct PreferencesRow: Identifiable {
 struct PreferencesView: View {
     let controller: PreferencesController
 
+    /// Which module rows to show; `nil`, the window's own value, shows the
+    /// whole form. A subset drops the app-wide sections and every module
+    /// outside it, so the feature renders (`SettingsFeatureRenders`) show the
+    /// real rows at a legible size instead of a 2,000-point-tall form.
+    var only: Set<ModuleID>? = nil
+
     /// The highlight's fade becomes a cut under Reduce Motion, like every
     /// spring in the panel.
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -451,38 +501,13 @@ struct PreferencesView: View {
 
     private var form: some View {
         Form {
-            // First, and outside the `ForEach`: this is about the app rather
-            // than about a module, and `PreferencesSection`'s cases are module
-            // groups -- adding a case with no module rows would make the
-            // "every section has rows" test meaningless.
-            Section {
-                LaunchAtLoginRow(controller: controller.launchAtLogin)
-            } header: {
-                Text("Startup")
-            } footer: {
-                Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
-            }
+            if only == nil { appSections }
 
-            Section {
-                HoverRow(controller: controller)
-            } header: {
-                Text("Hover")
-            } footer: {
-                Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
-            }
-
-            Section {
-                DisplayRow(controller: controller)
-                TextSizeRow(controller: controller)
-            } header: {
-                Text("Display")
-            } footer: {
-                Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
-            }
-
-            ForEach(PreferencesSection.allCases, id: \.self) { section in
+            ForEach(PreferencesSection.allCases.filter { section in
+                Self.rows.contains { $0.section == section && only?.contains($0.module) != false }
+            }, id: \.self) { section in
                 Section {
-                    ForEach(Self.rows.filter { $0.section == section }) { row in
+                    ForEach(Self.rows.filter { $0.section == section && only?.contains($0.module) != false }) { row in
                         moduleRow(row)
                     }
                 } header: {
@@ -496,6 +521,38 @@ struct PreferencesView: View {
             }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder
+    private var appSections: some View {
+        // First, and outside the `ForEach`: this is about the app rather
+        // than about a module, and `PreferencesSection`'s cases are module
+        // groups -- adding a case with no module rows would make the
+        // "every section has rows" test meaningless.
+        Section {
+            LaunchAtLoginRow(controller: controller.launchAtLogin)
+        } header: {
+            Text("Startup")
+        } footer: {
+            Text("macOS owns this setting, so it is read back from the system rather than remembered here \u{2014} turning it off in System Settings turns it off here too.")
+        }
+
+        Section {
+            HoverRow(controller: controller)
+        } header: {
+            Text("Hover")
+        } footer: {
+            Text("Off, resting on the notch shows what is playing or what just changed, and a click or a two-finger swipe opens the panel. On, resting for the delay opens the panel directly.")
+        }
+
+        Section {
+            DisplayRow(controller: controller)
+            TextSizeRow(controller: controller)
+        } header: {
+            Text("Display")
+        } footer: {
+            Text("With more than one display, following the focused window moves the notch to whichever display you are working on. Built-in keeps it on the laptop screen, and uses the main display when the lid is closed. A named display keeps it there; while that display is unplugged the notch waits on the built-in display and returns when it is connected again. Larger text makes the open panel larger to fit it; the closed notch and its glances stay their size, fitted to the camera housing.")
+        }
     }
 
     @ViewBuilder
@@ -894,12 +951,14 @@ struct LimitsRows: View {
                 Picker("Remembers", selection: Self.binding(\.clipboardCapacity, on: controller)) {
                     ForEach(Limits.clipboardCapacityChoices, id: \.self) { Text("\($0) items").tag($0) }
                 }
+                ExcludedAppsRows(controller: controller)
             case .timer:
                 presets
                 Picker("Chime", selection: Self.binding(\.chime, on: controller)) {
                     ForEach(ChimeSound.allCases, id: \.self) { Text($0.rawValue).tag($0) }
                 }
                 .help("With None, a timer that finishes while the panel is open shows no peek and makes no sound.")
+                TimerNoticeRow(controller: controller)
             default:
                 EmptyView()
             }
@@ -926,5 +985,105 @@ struct LimitsRows: View {
                 .foregroundStyle(.secondary)
         }
         .help("\(Limits.presetRange.lowerBound)\u{2013}\(Limits.presetRange.upperBound) minutes each")
+    }
+}
+
+/// "Notify when hidden by a full-screen app" (2026-10-24), under the timer's
+/// chime.
+///
+/// Reads the controller rather than holding a copy, for the reason
+/// `DisplayRow` gives. The line underneath is `TimerDoneNotice.settingsNote`:
+/// nothing while notifications are allowed, when macOS will ask while it has
+/// not, and -- denied -- that the switch can do nothing until System Settings
+/// says otherwise, with the way there.
+struct TimerNoticeRow: View {
+    let controller: PreferencesController
+
+    /// System Settings → Notifications. The pane, not this app's row in it:
+    /// there is no documented URL for one app's entry.
+    static let notificationSettingsURL = URL(
+        string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension"
+    )!
+
+    static func binding(for controller: PreferencesController) -> Binding<Bool> {
+        Binding(
+            get: { controller.timerNotifyWhenHidden },
+            set: { controller.setTimerNotifyWhenHidden($0) }
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("Notify when hidden by a full-screen app", isOn: Self.binding(for: controller))
+                .toggleStyle(.checkbox)
+                .help("The notch is hidden over full-screen apps, so a timer that finishes there also posts a notification.")
+            if let note = controller.timerNoticeNote {
+                Text(note)
+                    .font(.caption)
+                    .foregroundStyle(controller.timerNoticesDenied ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if controller.timerNoticesDenied {
+                Button("Open Notification Settings") {
+                    NSWorkspace.shared.open(Self.notificationSettingsURL)
+                }
+            }
+        }
+    }
+}
+
+/// "Ignore copies from" (2026-10-24): clipboard history's excluded apps,
+/// under its capacity.
+///
+/// "+" chooses apps in an open panel on `/Applications`; "−" on a row removes
+/// that one. Empty by default, and says what that means: password-manager
+/// entries marked concealed are skipped whatever this list holds.
+struct ExcludedAppsRows: View {
+    let controller: PreferencesController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Ignore copies from")
+            let apps = controller.clipboardExcludedApps.map(ExcludedApp.init(bundleID:))
+            if apps.isEmpty {
+                Text("No apps. Everything you copy is remembered, except entries password managers mark as concealed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(apps) { app in
+                        HStack(spacing: 8) {
+                            Image(nsImage: app.icon)
+                                .resizable()
+                                .frame(width: 18, height: 18)
+                                .accessibilityHidden(true)
+                            Text(app.name)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                                .help(app.bundleID)
+                            Spacer()
+                            Button {
+                                controller.removeExcludedApp(app.bundleID)
+                            } label: {
+                                Image(systemName: "minus.circle.fill")
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.borderless)
+                            .help("Stop ignoring \(app.name)")
+                            .accessibilityLabel("Remove \(app.name)")
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+            }
+            Button {
+                controller.addExcludedApps()
+            } label: {
+                Label("Add App\u{2026}", systemImage: "plus")
+            }
+            .buttonStyle(.borderless)
+            .accessibilityLabel("Add an app to ignore")
+        }
     }
 }
