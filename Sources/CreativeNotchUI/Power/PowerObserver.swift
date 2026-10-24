@@ -159,7 +159,7 @@ public final class PowerObserver {
         // Forget what was last seen. Not tidiness: `read()` returns early on
         // `next != snapshot`, so a stale snapshot makes the immediate `read()`
         // inside a later `start()` publish nothing at all, and the re-enabled
-        // Power tab stays empty until the hardware happens to move.
+        // Battery tab stays empty until the hardware happens to move.
         snapshot = nil
     }
 

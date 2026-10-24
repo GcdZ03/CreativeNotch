@@ -82,6 +82,54 @@ struct NotchFieldStyle: TextFieldStyle {
     }
 }
 
+/// The panel's search field: `NotchFieldStyle`'s ring and fill, left-aligned
+/// text after a magnifier, and a clear button once something is typed.
+///
+/// It never asks for focus. The panel takes the keyboard only for an open
+/// somebody asked for (`PanelFocus`), and a field that grabbed first
+/// responder on appearing would turn a hover-open into exactly the
+/// keystroke theft that rule exists to prevent. A click in it makes the
+/// panel key the way any click in the panel does, and editing starts there.
+struct NotchSearchField: View {
+    let prompt: String
+    @Binding var text: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .notchFont(11, weight: .semibold)
+                .foregroundStyle(.ink(0.45))
+                .accessibilityHidden(true)
+
+            TextField("", text: $text, prompt: Text(prompt).foregroundStyle(.ink(0.4)))
+                .textFieldStyle(.plain)
+                .notchFont(12, weight: .medium, design: .rounded)
+                .foregroundStyle(.ink(0.9))
+                .accessibilityLabel(prompt)
+
+            if !text.isEmpty {
+                Button { text = "" } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .notchFont(11, weight: .semibold)
+                        .foregroundStyle(.ink(0.45))
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(.hairline(0.08))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(.hairline(0.12), lineWidth: 1)
+                }
+        }
+    }
+}
+
 /// A 34×24 icon button for the header: the tabs and the gear.
 struct NotchIconButtonStyle: ButtonStyle {
     var selected = false

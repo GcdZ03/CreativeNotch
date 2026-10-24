@@ -147,6 +147,27 @@ struct DisplayChoiceTests {
         #expect(options.last == DisplayChoice.Option(choice: renamed, name: "DELL U2720Q", isConnected: true))
     }
 
+    /// The stored name is what Settings says while the display is unplugged,
+    /// so a rename seen while it is connected is taken up: otherwise the
+    /// menu would go on naming it by what it was called when it was picked.
+    @Test func aConnectedPinTakesUpTheDisplaysCurrentName() {
+        let renamed = DisplayChoice.display(uuid: Self.dellUUID, name: "Old name")
+        #expect(renamed.refreshingName(from: [builtInMain, dell]) == pinned)
+    }
+
+    /// Nothing to take up: the same name, an unplugged pin (whose name is
+    /// the only record left), a screen with an empty name, and the general
+    /// choices all come back unchanged.
+    @Test func refreshingTheNameLeavesEverythingElseAlone() {
+        #expect(pinned.refreshingName(from: [builtInMain, dell]) == pinned)
+        let renamed = DisplayChoice.display(uuid: Self.dellUUID, name: "Old name")
+        #expect(renamed.refreshingName(from: [builtInMain, lgMain]) == renamed)
+        let nameless = ScreenDescriptor(id: 4, isBuiltIn: false, isMain: false, uuid: Self.dellUUID, name: "")
+        #expect(renamed.refreshingName(from: [nameless]) == renamed)
+        #expect(DisplayChoice.builtIn.refreshingName(from: [builtInMain, dell]) == .builtIn)
+        #expect(DisplayChoice.focusedWindow.refreshingName(from: [dell]) == .focusedWindow)
+    }
+
     @Test func screensWithoutAUUIDAreLeftOutOfTheMenu() {
         let anonymous = ScreenDescriptor(id: 9, isBuiltIn: false, isMain: true)
         #expect(DisplayChoice.options(for: [anonymous], current: .builtIn).count == 2)
