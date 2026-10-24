@@ -124,6 +124,19 @@ public enum PreferenceKeys {
     /// `ClipboardExclusions.resolve`. Absent means none.
     public static let clipboardExcludedApps = "clipboard.excludedApps"
 
+    // The updater (2026-10-24), read by `PreferencesStore`. Subsystem-first,
+    // like the limits.
+
+    /// A boolean: check for updates at launch, on wake and when Settings
+    /// opens. Read through `resolveEnabled`, so absent means on.
+    public static let updatesAutomatic = "updates.automatic"
+    /// Seconds since 1970 of the last check that got an answer.
+    public static let updatesLastCheck = "updates.lastCheck"
+    /// The `ETag` of the last full reply, sent back as `If-None-Match`.
+    public static let updatesETag = "updates.etag"
+    /// The release that reply described, JSON-encoded: a 304 has no body.
+    public static let updatesRelease = "updates.release"
+
     /// What a raw defaults value means.
     ///
     /// This is the whole compatibility surface, which is why it is a pure
