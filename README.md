@@ -297,9 +297,11 @@ Settings also holds the numbers the modules used to fix, under each module's
 switch: how many items the shelf holds (10, 20 or 50) and how long it keeps
 them (1, 7 or 30 days, or never), how many things clipboard history remembers
 (25, 50 or 100), the timer's three preset buttons (1–99 minutes each) and its
-chime, which plays once when you pick it. Changes apply at once — lowering a
-shelf limit moves the files that no longer fit to the Trash, oldest first, and
-a smaller clipboard forgets its oldest entries. With **Reduce Motion**
+chime, which plays once when you pick it. Changes apply at once, except that
+lowering a shelf limit past files already on the shelf first asks "Move N
+files from the shelf to the Trash?" — **Move to Trash** moves the files that
+no longer fit, oldest first, and **Cancel** puts the menu back and changes
+nothing. A smaller clipboard forgets its oldest entries without asking. With **Reduce Motion**
 on in System Settings, springs become a short fade and the cover and bars stay
 still. With **Increase Contrast** on, the panel's dimmed text and hairlines are
 drawn brighter (no secondary text below 70% white); the default look is
