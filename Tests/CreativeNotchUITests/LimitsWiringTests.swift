@@ -49,6 +49,36 @@ struct LimitsWiringTests {
         #expect(try #require(d.clipboard).store.capacity == 25)
     }
 
+    /// **The launch purge runs against the saved age, not the default.**
+    ///
+    /// The test above ends with `maxAge == nil` on an empty shelf, so it
+    /// still passes if `install` purges at the default seven days and only
+    /// then applies the saved limits. A shelf saved as Never or 30 days
+    /// holding an 8-day-old file is what that order would lose.
+    @Test(arguments: [ShelfExpiry.never, .thirtyDays])
+    func theLaunchPurgeKeepsWhatTheSavedExpiryKeeps(_ expiry: ShelfExpiry) throws {
+        let defaults = TestDefaults.isolated("limits-purge")
+        PreferencesStore(defaults: defaults).saveLimits(Limits(shelfExpiry: expiry))
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotchLimits-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let eightDaysAgo = Date().addingTimeInterval(-8 * 24 * 3600)
+        let old = try ShelfStore(directory: directory).add(.text("eight days old"), now: eightDaysAgo)
+
+        let d = AppDelegate()
+        d.preferencesDefaults = defaults
+        d.growthDelay = .zero
+        d.shelfDirectory = directory
+        d.playChime = { _ in }
+        d.announce = { _ in }
+        d.install(metrics: NotchedDelegate.metrics)
+
+        let shelf = try #require(d.shelf)
+        #expect(shelf.items.map(\.url.lastPathComponent) == [old.url.lastPathComponent])
+        #expect(FileManager.default.fileExists(atPath: old.url.path))
+    }
+
     // MARK: - From Settings
 
     @Test func settingsPersistsAndAppliesInOneCall() {
