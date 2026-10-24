@@ -82,6 +82,8 @@ public final class ShelfStore {
     private let directory: URL
     private let fileManager: FileManager
     private let copier: ShelfCopier
+    /// Where `trash(_:)` sends a file; the real Trash outside tests.
+    private let trashCan: ShelfTrash
 
     /// The copies in flight, by pending item. Kept so a test can wait for
     /// them; nothing ever cancels one.
@@ -96,11 +98,13 @@ public final class ShelfStore {
         fileManager: FileManager = .default,
         capacity: Int = ShelfStore.defaultCapacity,
         maxAge: TimeInterval? = ShelfStore.defaultMaxAge,
-        copier: ShelfCopier = .system
+        copier: ShelfCopier = .system,
+        trash: ShelfTrash = .system
     ) throws {
         self.directory = directory
         self.fileManager = fileManager
         self.copier = copier
+        self.trashCan = trash
         self.capacity = max(1, capacity)
         self.maxAge = maxAge
         try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -406,7 +410,7 @@ public final class ShelfStore {
 
     /// Puts back what a `clear()` took, as far as it still can.
     ///
-    /// Owned files are moved back out of the Trash -- `trashItem` reported
+    /// Owned files are moved back out of the Trash -- `ShelfTrash` reported
     /// where it put each one -- and keep their identity and drop time, so
     /// they return to the same place in the list and age from the original
     /// drop, not from the undo. A move preserves the creation date, which is
@@ -638,8 +642,6 @@ public final class ShelfStore {
     private func trash(_ item: ShelfItem) throws -> URL? {
         guard item.isOwned else { return nil }
         guard fileManager.fileExists(atPath: item.url.path) else { return nil }
-        var resulting: NSURL?
-        try fileManager.trashItem(at: item.url, resultingItemURL: &resulting)
-        return resulting as URL?
+        return try trashCan.move(item.url)
     }
 }

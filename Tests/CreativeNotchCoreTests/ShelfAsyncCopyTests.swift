@@ -60,7 +60,7 @@ struct ShelfAsyncCopyTests {
         gate.finish(source)
         await store.waitForPendingCopies()
 
-        let reopened = try ShelfStore(directory: dir)
+        let reopened = try ShelfStore(directory: dir, trash: TestTrash.shelf)
         let reloaded = try #require(reopened.items.first)
         #expect(abs(reloaded.addedAt.timeIntervalSince(t0)) < 1)
     }
@@ -166,7 +166,7 @@ struct ShelfAsyncCopyTests {
     @Test func evictionSkipsAPendingItem() throws {
         let gate = GatedCopier()
         let dir = makeDirectoryURL()
-        let store = try ShelfStore(directory: dir, capacity: 1, copier: gate.copier)
+        let store = try ShelfStore(directory: dir, capacity: 1, copier: gate.copier, trash: TestTrash.shelf)
         let source = try makeSourceFile(named: "slow.mov")
         let pending = try store.add(.file(source), now: t0)
 
@@ -225,7 +225,7 @@ struct ShelfAsyncCopyTests {
         try Data("half".utf8).write(to: stale)
         try Data("kept".utf8).write(to: dir.appendingPathComponent("kept.txt"))
 
-        let store = try ShelfStore(directory: dir)
+        let store = try ShelfStore(directory: dir, trash: TestTrash.shelf)
 
         #expect(!FileManager.default.fileExists(atPath: stale.path))
         #expect(store.items.map(\.displayName) == ["kept.txt"])
@@ -300,7 +300,7 @@ struct ShelfAsyncCopyTests {
 
     private func makeStore(_ gate: GatedCopier) throws -> (ShelfStore, URL) {
         let dir = makeDirectoryURL()
-        return (try ShelfStore(directory: dir, copier: gate.copier), dir)
+        return (try ShelfStore(directory: dir, copier: gate.copier, trash: TestTrash.shelf), dir)
     }
 
     private func makeSourceFile(named name: String, contents: String = "x") throws -> URL {

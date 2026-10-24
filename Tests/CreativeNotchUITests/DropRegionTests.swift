@@ -22,6 +22,9 @@ struct DropRegionTests {
 
     @Test func theContainerIsRegisteredForFileDrops() throws {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)
@@ -34,6 +37,9 @@ struct DropRegionTests {
     /// notch. Clicks there must pass through; drops there must not.
     @Test func aPointOutsideTheNotchIsStillInsideTheContainerBounds() throws {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.install(metrics: Self.notched)

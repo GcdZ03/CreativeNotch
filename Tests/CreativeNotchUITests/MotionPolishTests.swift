@@ -134,7 +134,7 @@ struct ShelfAirDropAllTests {
 
     private func shelf(items: Int) throws -> ShelfStore {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
-        let store = try ShelfStore(directory: dir)
+        let store = try ShelfStore(directory: dir, trash: TestTrash.shelf)
         for i in 0..<items { _ = try store.add(.text("drop \(i)"), now: Date()) }
         return store
     }

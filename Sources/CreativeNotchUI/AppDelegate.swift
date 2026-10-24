@@ -215,6 +215,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// finishes. Set it before `install(metrics:)`.
     var shelfCopier: ShelfCopier = .system
 
+    /// Where the shelf sends what it clears, evicts and purges. Overridable
+    /// so tests never move files into the user's real Trash. Set it before
+    /// `install(metrics:)`, whose launch purge already uses it.
+    var shelfTrash: ShelfTrash = .system
+
     /// How long "Couldn't add …" stays under the shelf after a background
     /// copy fails. Long enough to read a file name; it is a report, not an
     /// offer, so nothing waits on it.
@@ -328,14 +333,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.canUndoShelfClear = false
     }
 
+    /// How many shelf items the menu bar's Clear Shelf counts and acts on.
+    ///
+    /// Ready items only, as the pane's title row: `clear()` never touches a
+    /// copy in progress, so counting one would offer a Clear that does
+    /// nothing.
+    var menuShelfCount: Int { shelf?.readyItems.count ?? 0 }
+
     /// A dropped file's background copy failed after the drop was accepted.
     ///
-    /// Logged, and said under the shelf for `shelfNoticeDuration`. A second
-    /// failure replaces the first line rather than queueing behind it.
+    /// Logged, announced to VoiceOver, and said under the shelf for
+    /// `shelfNoticeDuration`. The announcement is what reaches someone whose
+    /// pane is closed or who cannot see the line: the drop already said yes,
+    /// and no view is left carrying the item. A second failure replaces the
+    /// first line rather than queueing behind it.
     func reportShelfCopyFailure(_ item: ShelfItem, _ error: any Error) {
         NSLog("CreativeNotch: shelf could not copy \(item.displayName): \(error)")
+        let notice = "Couldn't add \(item.displayName)"
+        announce(notice)
         shelfNoticeTask?.cancel()
-        state.shelfNotice = "Couldn't add \(item.displayName)"
+        state.shelfNotice = notice
         shelfNoticeTask = Task { @MainActor [weak self] in
             guard let duration = self?.shelfNoticeDuration else { return }
             try? await Task.sleep(for: duration)
@@ -427,7 +444,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let menuBar = MenuBarController(
             onShowPreferences: { [weak self] in self?.showPreferences() },
             onClearShelf: { [weak self] in self?.clearShelf() },
-            shelfCount: { [weak self] in self?.shelf?.items.count ?? 0 },
+            shelfCount: { [weak self] in self?.menuShelfCount ?? 0 },
             onClearClipboard: { [weak self] in self?.clipboard?.store.clear() },
             clipboardCount: { [weak self] in self?.clipboard?.store.entries.count ?? 0 },
             onUndoClearShelf: { [weak self] in self?.undoClearShelf() },
@@ -758,7 +775,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             directory: shelfDirectory,
             capacity: limits.shelfCapacity,
             maxAge: limits.shelfExpiry.maxAge,
-            copier: shelfCopier
+            copier: shelfCopier,
+            trash: shelfTrash
         )
         shelf?.onCopyFailed = { [weak self] item, error in
             self?.reportShelfCopyFailure(item, error)

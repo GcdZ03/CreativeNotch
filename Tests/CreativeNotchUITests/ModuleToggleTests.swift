@@ -23,6 +23,7 @@ struct ModuleToggleTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated("toggle")
         delegate.growthDelay = .zero
         delegate.shelfDirectory = FileManager.default.temporaryDirectory
@@ -192,6 +193,7 @@ struct ModuleToggleTests {
     /// preference said, and this test could not see it.
     @Test func disablingTransportControlsDoesNotLoadMediaRemote() {
         let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
         var probes = 0
         delegate.mediaRemoteAvailable = { probes += 1; return true }
         let defaults = TestDefaults.isolated("transport")

@@ -40,6 +40,9 @@ struct AppDelegateStateFunnelTests {
 
     private func makeDelegate() -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         // These tests are about the funnel, not the expand animation, so
         // the growth lag is switched off. F6 has its own suite.
@@ -269,6 +272,9 @@ struct AppDelegateStateFunnelTests {
     /// prevents would never announce itself.
     @Test func eachScreenObserverRemembersItsOwnNotificationCentre() {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
@@ -286,6 +292,9 @@ struct AppDelegateStateFunnelTests {
     /// the mismatch went unnoticed. The pairing above is the testable half.
     @Test func terminatingClearsTheScreenObservers() {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
@@ -340,6 +349,9 @@ struct PeekOwnershipTests {
 
     private func makeDelegate(clock: FakeClock) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.growthDelay = .zero
         delegate.now = { clock.value }
@@ -517,6 +529,9 @@ struct AppStateTransitionTests {
     /// than never.
     @Test func aScreenAppearingAfterLaunchBuildsThePanel() {
         let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
         var presented: [ScreenMetrics] = []
         delegate.presentPanel = { presented.append($0) }
 

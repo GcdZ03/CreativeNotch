@@ -23,6 +23,8 @@ struct ShelfPendingCopyTests {
 
     private func makeDelegate(copier: ShelfCopier = .system) -> AppDelegate {
         let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
+        delegate.announce = { _ in }
         delegate.preferencesDefaults = TestDefaults.isolated("shelf-pending")
         delegate.growthDelay = .zero
         delegate.shelfDirectory = URL(fileURLWithPath: NSTemporaryDirectory())
@@ -122,15 +124,20 @@ struct ShelfPendingCopyTests {
         let failing = ShelfCopier(copy: { _, _ in throw CopyFailed() }, availableCapacity: { _ in nil })
         let delegate = makeDelegate(copier: failing)
         delegate.shelfNoticeDuration = .milliseconds(20)
+        var spoken: [String] = []
+        delegate.announce = { spoken.append($0) }
         let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
         let shelf = try #require(delegate.shelf)
         let source = try makeSourceFile(named: "Holiday.mov")
 
         #expect(container.onDrop([.file(source)]))
+        #expect(spoken.isEmpty)
         await shelf.waitForPendingCopies()
 
         #expect(shelf.items.isEmpty)
         #expect(delegate.state.shelfNotice == "Couldn't add Holiday.mov")
+        // Announced too: the line is drawn only while the pane is open.
+        #expect(spoken == ["Couldn't add Holiday.mov"])
 
         // Awaited rather than slept past, as the undo offer's test does.
         let notice = try #require(delegate.shelfNoticeTask)
@@ -177,6 +184,39 @@ struct ShelfPendingCopyTests {
         #expect(ShelfView.tileAccessibilityLabel(for: ready) == "Big.mov")
     }
 
+    // MARK: - The menu bar
+
+    /// The menu's Clear Shelf agrees with the pane's title row: a shelf
+    /// holding only a copy in progress has nothing Clear would clear.
+    @Test func theMenuOffersNoClearWhileOnlyACopyIsInProgress() async throws {
+        let (copier, release) = heldCopier()
+        let delegate = makeDelegate(copier: copier)
+        let container = try #require(delegate.panel?.contentView as? PassthroughContainer)
+        let shelf = try #require(delegate.shelf)
+
+        #expect(container.onDrop([.file(try makeSourceFile(named: "Big.mov"))]))
+        #expect(shelf.items.count == 1)
+        #expect(delegate.menuShelfCount == 0)
+
+        let menu = MenuBarController(
+            onShowPreferences: {},
+            onClearShelf: {},
+            shelfCount: { delegate.menuShelfCount },
+            onClearClipboard: {},
+            clipboardCount: { 0 }
+        )
+        #expect(!menu.canClearShelf)
+        #expect(menu.clearShelfTitle() == "Shelf is empty")
+
+        try shelf.add(.text("ready"), now: Date())
+        #expect(delegate.menuShelfCount == 1)
+        #expect(menu.canClearShelf)
+        #expect(menu.clearShelfTitle() == "Clear Shelf (1)")
+
+        release()
+        await shelf.waitForPendingCopies()
+    }
+
     // MARK: - The title row
 
     /// AirDrop All sends only files that exist, and a shelf holding nothing
@@ -184,7 +224,7 @@ struct ShelfPendingCopyTests {
     @Test func theTitleRowActsOnlyOnReadyItems() async throws {
         let (copier, release) = heldCopier()
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("shelf-\(UUID())")
-        let store = try ShelfStore(directory: dir, copier: copier)
+        let store = try ShelfStore(directory: dir, copier: copier, trash: TestTrash.shelf)
         try store.add(.file(try makeSourceFile(named: "Big.mov")), now: Date())
 
         #expect(NotchRootView.shelfActions(for: store, app: AppState()).isEmpty)

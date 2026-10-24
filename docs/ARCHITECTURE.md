@@ -483,7 +483,9 @@ is Foundation, not AppKit, so the code that can destroy a file runs headlessly
 in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
 `CreativeNotchUI`.
 
-**Removal is always `FileManager.trashItem`.** `removeItem` appears in this
+**Removal is always `FileManager.trashItem`**, through `ShelfTrash.system`;
+tests hand the store and `AppDelegate.shelfTrash` a stand-in folder so a test
+run never fills the user's Trash. `removeItem` appears in this
 module once, in `discardPartial`, which deletes only hidden `.partial` files —
 half-finished copies that were never an item and whose original is still where
 it was dropped from. Eviction at the item cap and the age purge — 20 items and 7 days
@@ -514,11 +516,12 @@ later. An accepted file reserves its name at once and is listed as a *pending*
 `uniqueURL`. `ShelfCopier` copies it on a detached task into a hidden
 `.<uuid>.partial` in the shelf directory; back on the main actor it is renamed
 into the reserved name, stamped with the drop time, and marked ready. A
-failure deletes the partial, drops the item, and `AppDelegate` puts
-"Couldn't add <name>" under the shelf for a few seconds — withdrawn by a
-one-shot `Task`, like the clear's undo. Pending items count toward the
-capacity but are never evicted, purged, cleared, removed or pruned; they
-cannot be dragged out or AirDropped. A quit mid-copy abandons it, and the
+failure deletes the partial, drops the item, and `AppDelegate` announces
+"Couldn't add <name>" to VoiceOver and puts it under the shelf for a few
+seconds — withdrawn by a one-shot `Task`, like the clear's undo. Pending items
+count toward the capacity but are never evicted, purged, cleared, removed or
+pruned; they cannot be dragged out or AirDropped, and neither the pane's title
+row nor the menu bar's Clear Shelf counts them. A quit mid-copy abandons it, and the
 next launch deletes any `.partial` left behind. Text and image drops are
 small and stay synchronous. The copier is injectable, so tests decide when
 each copy finishes without sleeping.
