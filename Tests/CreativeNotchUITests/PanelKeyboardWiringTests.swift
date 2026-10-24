@@ -236,6 +236,33 @@ struct NotchPanelKeyTests {
         #expect(NotchPanel.panelKey(keyCode: 19, modifiers: [.command, .capsLock]) == .commandDigit(2))
     }
 
+    /// Space and the arrows, bare: the shelf's Quick Look and selection.
+    /// The arrow keys arrive with the numeric-pad and function flags set,
+    /// which are states of the keyboard, not a chord.
+    @Test func spaceAndTheArrowsDecode() {
+        #expect(NotchPanel.panelKey(keyCode: 49, modifiers: []) == .space)
+        #expect(NotchPanel.panelKey(keyCode: 123, modifiers: [.numericPad, .function]) == .arrowLeft)
+        #expect(NotchPanel.panelKey(keyCode: 124, modifiers: [.numericPad, .function]) == .arrowRight)
+    }
+
+    /// ⌘Space is Spotlight's, ⌥← is a word jump: neither is ours.
+    @Test func chordedSpaceAndArrowsAreNotOurs() {
+        #expect(NotchPanel.panelKey(keyCode: 49, modifiers: .command) == nil)
+        #expect(NotchPanel.panelKey(keyCode: 49, modifiers: .control) == nil)
+        #expect(NotchPanel.panelKey(keyCode: 123, modifiers: [.option, .numericPad, .function]) == nil)
+        #expect(NotchPanel.panelKey(keyCode: 124, modifiers: [.shift, .numericPad, .function]) == nil)
+    }
+
+    /// Space reaches the callback as a plain key-down, the way Esc does.
+    @Test func spaceIsHandedOnFromKeyDown() throws {
+        let panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 260))
+        var received: [PanelKey] = []
+        panel.onPanelKey = { received.append($0); return true }
+        let event = try #require(Self.event(keyCode: 49, characters: " ", modifiers: []))
+        panel.keyDown(with: event)
+        #expect(received == [.space])
+    }
+
     @Test func aCommandDigitIsAKeyEquivalent() throws {
         let panel = NotchPanel(contentRect: NSRect(x: 0, y: 0, width: 620, height: 260))
         var received: [PanelKey] = []

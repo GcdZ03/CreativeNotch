@@ -201,6 +201,24 @@ public final class AppState {
     @ObservationIgnored
     public var onRevealShelfItem: ((URL) -> Void)?
 
+    /// Opens a shelf file with its default app — a double-click on the tile,
+    /// or Open in its menu. By id rather than URL so the delegate, which
+    /// holds the store, decides whether there is a file to open yet.
+    @ObservationIgnored
+    public var onOpenShelfItem: ((UUID) -> Void)?
+
+    /// Shows a shelf file in Quick Look — Quick Look in the tile's menu.
+    /// Space reaches the same preview through `AppDelegate.handlePanelKey`.
+    @ObservationIgnored
+    public var onQuickLookShelfItem: ((UUID) -> Void)?
+
+    /// The tile Space previews and ← → move: set by a click on a tile, an
+    /// arrow key, or a preview. Observable, because the tile draws a ring
+    /// round it. A selection whose item has gone is no selection — every
+    /// reader goes through `ShelfPreview` / `ShelfSelection`, which treat it
+    /// so — and switching the shelf off clears it.
+    public internal(set) var shelfSelection: UUID?
+
     @ObservationIgnored
     public var onClearClipboard: (() -> Void)?
 
@@ -1134,14 +1152,21 @@ public struct NotchRootView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         ShelfView(
                             store: shelf,
+                            selection: app.shelfSelection,
+                            onSelect: { app.shelfSelection = $0 },
                             onRemove: { app.onRemoveShelfItem?($0) },
                             onAirDrop: { app.onAirDropShelfItems?([$0]) },
-                            onReveal: { app.onRevealShelfItem?($0) }
+                            onReveal: { app.onRevealShelfItem?($0) },
+                            onOpen: { app.onOpenShelfItem?($0) },
+                            onQuickLook: { app.onQuickLookShelfItem?($0) }
                         )
                         // A background copy that failed after its drop was
-                        // accepted. Under the tiles rather than in the title
-                        // row, which is for verbs; gone again on its own.
-                        if let notice = app.shelfNotice {
+                        // accepted, or how to preview the selected tile.
+                        // Under the tiles rather than in the title row,
+                        // which is for verbs.
+                        if let notice = Self.shelfFooter(
+                            notice: app.shelfNotice, selection: app.shelfSelection, in: shelf.items
+                        ) {
                             Text(notice)
                                 .notchFont(11, weight: .medium, design: .rounded)
                                 .foregroundStyle(.ink(0.6))
@@ -1229,6 +1254,17 @@ public struct NotchRootView: View {
             actions.append(("Clear", { app.onClearShelf?() }))
         }
         return actions
+    }
+
+    /// The line under the shelf's tiles: a failed copy's notice, which is
+    /// news and wins; else, while a tile is selected, how to preview and
+    /// open it — the only place Space and the double-click are written
+    /// down in the panel; else nothing.
+    static func shelfFooter(notice: String?, selection: UUID?, in items: [ShelfItem]) -> String? {
+        if let notice { return notice }
+        guard let selection, let item = items.first(where: { $0.id == selection }),
+              ShelfSelection.isSelectable(item) else { return nil }
+        return "Space to Quick Look · double-click to open"
     }
 
     /// "4 items", "1 item", or "empty" — the shelf's title-row count.

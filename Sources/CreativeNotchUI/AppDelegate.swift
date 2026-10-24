@@ -233,6 +233,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// only `configureForRealLaunch()` hands it `.system`.
     var shelfTrash: ShelfTrash
 
+    /// Opens a shelf file with its default app. Overridable, and sandboxed
+    /// by default (`ShelfOpener.inert`, which opens nothing) like
+    /// `shelfTrash`: only `configureForRealLaunch()` hands in `NSWorkspace`,
+    /// so no test can launch an app on the machine running it.
+    var shelfOpener: ShelfOpener = .inert
+
+    /// Previews shelf files. Sandboxed by default like `shelfOpener`; only
+    /// `configureForRealLaunch()` hands in Quick Look, so no test can put a
+    /// preview panel on screen.
+    var shelfPreview: ShelfPreviewing = InertShelfPreview()
+
     /// How long "Couldn't add …" stays under the shelf after a background
     /// copy fails. Long enough to read a file name; it is a report, not an
     /// offer, so nothing waits on it.
@@ -528,6 +539,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        shelfOpener = .system
+        shelfPreview = ShelfQuickLook()
     }
 
     // MARK: - Lifecycle
@@ -806,6 +819,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let panel = NotchPanel(contentRect: CGRect(origin: .zero, size: size))
         panel.onPanelKey = { [weak self] key in self?.handlePanelKey(key) ?? false }
+        panel.quickLook = shelfPreview as? ShelfQuickLook
 
         let host = HitTestingHostingView(rootView: NotchRootView(app: state))
         host.visibleRectProvider = { [weak self] in self?.acceptedRect ?? .zero }
@@ -922,6 +936,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onRemoveShelfItem = { [weak self] id in try? self?.shelf?.remove(id) }
         state.onAirDropShelfItems = { urls in ShelfAirDrop.send(urls, via: ShelfAirDrop.airDrop) }
         state.onRevealShelfItem = { url in NSWorkspace.shared.activateFileViewerSelecting([url]) }
+        state.onOpenShelfItem = { [weak self] id in self?.openShelfItem(id) }
+        state.onQuickLookShelfItem = { [weak self] id in self?.quickLookShelfItem(id) }
 
         // Open on hover (2026-10-17). Loaded here, saved and applied together
         // by the verb, like the shortcut's store.
@@ -1875,8 +1891,64 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         switch action {
         case .close:            state.transition(to: .closed)
         case .select(let tab):  state.transition(to: .open(tab))
+        case .quickLook:        return toggleShelfQuickLook()
+        case .moveShelfSelection(let step): return moveShelfSelection(by: step)
         }
         return true
+    }
+
+    // MARK: - Quick Look and Open (2026-10-24)
+
+    /// The shelf's items, or none while the module is off: `state.shelf` is
+    /// what the switchboard clears, so a switched-off shelf previews and
+    /// opens nothing even if a stale verb reaches here.
+    private var visibleShelfItems: [ShelfItem] { state.shelf?.items ?? [] }
+
+    /// Shows `id` — or, for `nil`, the selection's first ready neighbour —
+    /// in Quick Look, paging over every ready item, and selects what it
+    /// shows so the ring and the preview agree. Returns whether anything
+    /// was shown: a copying item, or a shelf with no file in it, shows
+    /// nothing (`ShelfPreview`).
+    @discardableResult
+    func quickLookShelfItem(_ id: UUID?) -> Bool {
+        let items = visibleShelfItems
+        guard let request = ShelfPreview.request(for: id, in: items) else { return false }
+        state.shelfSelection = items.first { $0.url == request.current }?.id
+        shelfPreview.show(request)
+        return true
+    }
+
+    /// Space: closes the preview if it is up, as in Finder, else previews
+    /// the selection.
+    private func toggleShelfQuickLook() -> Bool {
+        if shelfPreview.isVisible {
+            shelfPreview.close()
+            return true
+        }
+        return quickLookShelfItem(state.shelfSelection)
+    }
+
+    /// ← →. A preview that is up follows the selection — though once Quick
+    /// Look has the keyboard, its own arrows page it and these never fire.
+    private func moveShelfSelection(by step: Int) -> Bool {
+        guard let next = ShelfSelection.moved(from: state.shelfSelection, by: step, in: visibleShelfItems) else {
+            return false
+        }
+        state.shelfSelection = next
+        if shelfPreview.isVisible { quickLookShelfItem(next) }
+        return true
+    }
+
+    /// Hands the file to its default app — a tile's double-click or Open.
+    /// The app that opens it comes forward, and that activation closes the
+    /// panel through the usual `applicationDidActivate` path.
+    func openShelfItem(_ id: UUID) {
+        guard let item = visibleShelfItems.first(where: { $0.id == id }),
+              ShelfSelection.isSelectable(item) else { return }
+        state.shelfSelection = id
+        if !shelfOpener.open(item.url) {
+            NSLog("CreativeNotch: could not open shelf item \(item.displayName)")
+        }
     }
 
     private func syncDismissAffordances(for newState: NotchState) {
