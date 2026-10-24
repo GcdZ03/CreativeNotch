@@ -28,7 +28,31 @@ public enum TabVisibility {
         // Appended last for the same reason `.power` is: hiding it never
         // reorders the tabs that were already there.
         if enabled.camera { tabs.append(.camera) }
+        // Last of all, and drawn in the other ear (`trailingEar`): ⌘N counts
+        // the tabs left to right as they are drawn, so the calendar beside
+        // the battery is the last number.
+        if enabled.calendar { tabs.append(.calendar) }
         return tabs
+    }
+
+    /// The tabs the leading ear's bar draws: every visible tab but the ones
+    /// that live in the trailing ear.
+    ///
+    /// The calendar sits beside the battery because the leading ear is full.
+    /// On a 14-inch notch it is about 215pt from the panel's edge to the
+    /// camera housing, and five 34pt icons with their gaps and inset already
+    /// take 198pt -- a sixth would run under the housing. The trailing ear
+    /// holds only the battery and the gear.
+    ///
+    /// A partition of `visible`, not a second list: existence and order are
+    /// still decided once, above.
+    public static func leadingEar(enabled: Preferences, hasBattery: Bool) -> [Tab] {
+        visible(enabled: enabled, hasBattery: hasBattery).filter { !$0.livesInTrailingEar }
+    }
+
+    /// The tabs drawn in the trailing ear, beside the battery and the gear.
+    public static func trailingEar(enabled: Preferences, hasBattery: Bool) -> [Tab] {
+        visible(enabled: enabled, hasBattery: hasBattery).filter(\.livesInTrailingEar)
     }
 
     /// The tab to show when the one that was selected has just disappeared.
@@ -46,4 +70,10 @@ public enum TabVisibility {
         if tabs.contains(selected) { return selected }
         return tabs.first
     }
+}
+
+extension Tab {
+    /// Whether the header draws this tab in the trailing ear rather than in
+    /// the leading ear's bar. See `TabVisibility.leadingEar`.
+    public var livesInTrailingEar: Bool { self == .calendar }
 }

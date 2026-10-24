@@ -15,6 +15,7 @@ public extension CreativeNotchCore.Tab {
         case .power:     return "Battery"
         case .timer:     return "Timer"
         case .camera:    return "Camera"
+        case .calendar:  return "Calendar"
         }
     }
 }
@@ -55,11 +56,14 @@ struct PanelTabBar: View {
     /// That is the same shape as the `PassthroughContainer` trap recorded in
     /// ARCHITECTURE.md: each piece correct, the assembly wrong. One rule,
     /// spelled once, is the only fix that stays fixed.
+    ///
+    /// The leading ear's share of that one list: the calendar is a tab too,
+    /// but it is drawn beside the battery (`TabVisibility.leadingEar`).
     static func visible(
         enabled: Preferences,
         hasBattery: Bool
     ) -> [CreativeNotchCore.Tab] {
-        TabVisibility.visible(enabled: enabled, hasBattery: hasBattery)
+        TabVisibility.leadingEar(enabled: enabled, hasBattery: hasBattery)
     }
 
     let selected: CreativeNotchCore.Tab
@@ -70,18 +74,31 @@ struct PanelTabBar: View {
     var body: some View {
         HStack(spacing: 4) {
             ForEach(Self.visible(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
-                Button {
-                    onSelect(tab)
-                } label: {
-                    Image(systemName: tab.symbolName)
-                }
-                .buttonStyle(NotchIconButtonStyle(selected: tab == selected))
-                // An icon without a name is a regression for anyone using
-                // VoiceOver, and a tooltip is how a sighted user learns it.
-                .help(tab.title)
-                .accessibilityLabel(tab.title)
-                .accessibilityAddTraits(tab == selected ? .isSelected : [])
+                PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
             }
         }
+    }
+}
+
+/// One tab's icon button, wherever in the header it is drawn: the bar in the
+/// leading ear and the calendar in the trailing one are the same control, so
+/// they are one view.
+struct PanelTabButton: View {
+    let tab: CreativeNotchCore.Tab
+    let selected: CreativeNotchCore.Tab
+    let onSelect: (CreativeNotchCore.Tab) -> Void
+
+    var body: some View {
+        Button {
+            onSelect(tab)
+        } label: {
+            Image(systemName: tab.symbolName)
+        }
+        .buttonStyle(NotchIconButtonStyle(selected: tab == selected))
+        // An icon without a name is a regression for anyone using
+        // VoiceOver, and a tooltip is how a sighted user learns it.
+        .help(tab.title)
+        .accessibilityLabel(tab.title)
+        .accessibilityAddTraits(tab == selected ? .isSelected : [])
     }
 }

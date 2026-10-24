@@ -17,13 +17,23 @@ struct PreferencesStoreTests {
     /// Drives the real read path against a genuinely empty domain rather than
     /// re-asserting the resolution function against itself. `dev.sh --fresh`
     /// produces exactly this state, so it is the one a developer hits daily.
-    @Test func anEmptyDomainResolvesEveryModuleOn() {
+    @Test func anEmptyDomainResolvesEveryModuleToItsShippedDefault() {
         let store = PreferencesStore(defaults: makeIsolatedDefaults())
         let loaded = store.load()
         for module in ModuleID.allCases {
-            #expect(loaded[module] == true, "\(module) came up off on a fresh domain")
+            #expect(loaded[module] == module.shippedDefault, "\(module) came up wrong on a fresh domain")
         }
-        #expect(loaded == Preferences.allEnabled)
+        #expect(loaded == Preferences.shipped)
+        // The one module that ships off, read through the real path.
+        #expect(loaded.calendar == false)
+    }
+
+    /// Switched on once, the calendar stays on: an off-by-default module
+    /// must persist `true`, not merely read as absent.
+    @Test func theCalendarSwitchedOnSurvivesAReload() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setEnabled(true, for: .calendar)
+        #expect(PreferencesStore(defaults: defaults).load().calendar == true)
     }
 
     @Test func aDisabledModuleSurvivesAReload() {
@@ -36,7 +46,7 @@ struct PreferencesStoreTests {
         let reloaded = PreferencesStore(defaults: defaults).load()
         #expect(reloaded.clipboard == false)
         for module in ModuleID.allCases where module != .clipboard {
-            #expect(reloaded[module] == true, "\(module) was disturbed by disabling clipboard")
+            #expect(reloaded[module] == module.shippedDefault, "\(module) was disturbed by disabling clipboard")
         }
     }
 
@@ -49,7 +59,7 @@ struct PreferencesStoreTests {
             let loaded = store.load()
             #expect(loaded[module] == false, "\(module) did not persist as off")
             for other in ModuleID.allCases where other != module {
-                #expect(loaded[other] == true, "disabling \(module) also disabled \(other)")
+                #expect(loaded[other] == other.shippedDefault, "disabling \(module) also changed \(other)")
             }
         }
     }

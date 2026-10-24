@@ -329,14 +329,15 @@ public final class AppState {
     /// what makes a preference snapshotted into a `let` structurally
     /// impossible for the app-lifetime closures built in `install(metrics:)`.
     ///
-    /// Defaults to everything on, matching what an empty defaults domain
-    /// resolves to, so a bare `AppState` in a test behaves like a fresh
-    /// install rather than like a user who switched everything off.
+    /// Defaults to the shipped state -- everything on but the calendar --
+    /// matching what an empty defaults domain resolves to, so a bare
+    /// `AppState` in a test behaves like a fresh install rather than like a
+    /// user who switched everything off.
     ///
     /// Not `@ObservationIgnored`: like `hasBattery`, `body` reads it directly
     /// and needs Observation's tracking when it is written at runtime -- which
     /// unlike `hasBattery` is the normal case here.
-    public var preferences: Preferences = .allEnabled
+    public var preferences: Preferences = .shipped
 
     /// Whether this Mac has an internal battery.
     ///
@@ -359,6 +360,31 @@ public final class AppState {
     /// Current power state, set by `PowerController`. Observable, like
     /// `nowPlaying`: a plain value the panel reads directly.
     public internal(set) var power: PowerSnapshot?
+
+    /// What the calendar pane draws, set by `CalendarController`, or `nil`
+    /// while the module is off. Observable, like `power`. Each refresh carries
+    /// its own `refreshedAt`, so a boundary refresh that read the same events
+    /// is still a new value and still redraws -- the trap `countdown`'s box
+    /// guards against, avoided in the value instead.
+    public internal(set) var calendar: CalendarSnapshot?
+
+    /// The calendar pane's verbs: ask for access, and open Privacy & Security
+    /// after a refusal. Closures, like every pane's, so the view never holds
+    /// the controller or reaches for `NSWorkspace`. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRequestCalendarAccess: (() -> Void)?
+
+    @ObservationIgnored
+    public var onOpenCalendarPrivacySettings: (() -> Void)?
+
+    /// Opens Calendar, from the pane's title row.
+    @ObservationIgnored
+    public var onOpenCalendarApp: (() -> Void)?
+
+    /// Re-reads the calendar grants when Settings is shown, so its warning
+    /// follows a change made in System Settings. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onRefreshCalendarAccess: (() -> Void)?
 
 
     /// Set by `MediaController`. Observable — unlike `shelf` and
@@ -546,6 +572,11 @@ public struct NotchRootView: View {
     /// The one now-playing cover the badge, the music peek and the panel
     /// share, so it slides between them (spec 2026-10-15).
     @Namespace private var coverSpace
+
+    /// For the calendar pane's title row: the system's calendar and locale in
+    /// the app, pinned ones in a render.
+    @Environment(\.calendar) private var calendar
+    @Environment(\.locale) private var locale
 
     /// The system's Reduce Motion setting (spec 2026-10-17). With it on,
     /// springs become one short ease, content fades rather than blurs in,
@@ -1191,7 +1222,29 @@ public struct NotchRootView: View {
             ModulePane(title: tab.title) {
                 PowerView(snapshot: app.power)
             }
+
+        case .calendar:
+            ModulePane(
+                title: tab.title,
+                count: CalendarText.day(now, calendar: calendar, locale: locale),
+                actions: Self.calendarActions(app)
+            ) {
+                CalendarView(
+                    snapshot: app.calendar,
+                    now: now,
+                    onRequestAccess: { app.onRequestCalendarAccess?() },
+                    onOpenPrivacySettings: { app.onOpenCalendarPrivacySettings?() }
+                )
+            }
         }
+    }
+
+    /// The calendar's title-row verb: "Open Calendar", once there is a glance
+    /// to open it from. Not offered while the pane is asking for access or
+    /// explaining a refusal, where the pane's own button is the next step.
+    static func calendarActions(_ app: AppState) -> [(label: String, perform: () -> Void)] {
+        guard case .glance = app.calendar?.pane else { return [] }
+        return [("Open Calendar", { app.onOpenCalendarApp?() })]
     }
 
     /// The timer tab's presets: the ones chosen in Settings, read from

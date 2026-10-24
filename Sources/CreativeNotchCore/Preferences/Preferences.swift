@@ -20,6 +20,7 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var calendar: Bool
 
     public init(
         shelf: Bool = true,
@@ -30,7 +31,8 @@ public struct Preferences: Equatable, Sendable {
         timer: Bool = true,
         hotkey: Bool = true,
         camera: Bool = true,
-        captureIndicator: Bool = true
+        captureIndicator: Bool = true,
+        calendar: Bool = false
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -41,11 +43,17 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.calendar = calendar
     }
 
-    /// Everything on. The shipped state, and what a domain with no keys in it
-    /// resolves to.
-    public static let allEnabled = Preferences()
+    /// The shipped state, and what a domain with no keys in it resolves to:
+    /// every module on except the calendar, which needs a permission and so
+    /// waits to be asked for (`ModuleID.shippedDefault`).
+    public static let shipped = Preferences()
+
+    /// Every module on, the calendar included. Not the shipped state since
+    /// the calendar arrived; what a person who switched everything on has.
+    public static let allEnabled = Preferences(calendar: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -59,6 +67,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .calendar:      return calendar
             }
         }
         set {
@@ -72,6 +81,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .calendar:      calendar = newValue
             }
         }
     }

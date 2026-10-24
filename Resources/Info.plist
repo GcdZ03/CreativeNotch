@@ -32,5 +32,13 @@
        user makes their own selection in Control Center", so it is not a
        guarantee. -->
   <key>NSCameraReactionEffectGesturesEnabledDefault</key><false/>
+
+  <!-- The calendar glance (off by default). Asked for only when the module
+       is switched on in Settings or the pane's "Allow Access..." is pressed,
+       never at launch. The FullAccess keys are the ones macOS 14 and later
+       read for a read grant; without them the request is refused with no
+       prompt at all. -->
+  <key>NSCalendarsFullAccessUsageDescription</key><string>CreativeNotch shows your next few events in the notch when you open its calendar pane. Nothing is uploaded or stored; events are read on this Mac only while the pane is open.</string>
+  <key>NSRemindersFullAccessUsageDescription</key><string>CreativeNotch shows how many of your reminders are due today in the notch's calendar pane. Nothing is uploaded or stored; reminders are read on this Mac only while the pane is open.</string>
 </dict>
 </plist>

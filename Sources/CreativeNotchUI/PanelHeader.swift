@@ -3,6 +3,9 @@ import CreativeNotchCore
 
 /// The open panel's top band: tabs in the leading ear, battery and the gear
 /// in the trailing ear, and the camera housing black between them (spec §5.1).
+/// The calendar's tab, when it is switched on, sits in the trailing ear before
+/// the battery, because the leading ear has no room for a sixth icon
+/// (`TabVisibility.leadingEar`).
 ///
 /// Widths come from `PanelLayout`, the same function that gives the peeks
 /// their `notchGap`; this view draws three columns and decides nothing. On a
@@ -27,6 +30,9 @@ struct PanelHeader: View {
             Color.clear.frame(width: layout.notchGap)
 
             HStack(spacing: 10) {
+                ForEach(TabVisibility.trailingEar(enabled: enabled, hasBattery: hasBattery), id: \.self) { tab in
+                    PanelTabButton(tab: tab, selected: selected, onSelect: onSelect)
+                }
                 if hasBattery, let power {
                     BatteryCell(level: power.level, isCharging: power.isCharging)
                 }

@@ -33,19 +33,23 @@ struct PanelTabBarTests {
     ///
     /// Same shape as the `PassthroughContainer` trap: each piece correct, the
     /// assembly wrong.
+    ///
+    /// The bar is the leading ear's share of the Core list: the calendar is a
+    /// tab too, drawn beside the battery (`TabVisibility.leadingEar`).
     @Test func theTabBarAgreesWithTheCoreRuleForEveryCombination() {
-        for mask in 0..<32 {
+        for mask in 0..<64 {
             var preferences = Preferences.allEnabled
             preferences.shelf     = mask & 1 != 0
             preferences.clipboard = mask & 2 != 0
             preferences.timer     = mask & 4 != 0
             preferences.power     = mask & 8 != 0
             preferences.camera    = mask & 16 != 0
+            preferences.calendar  = mask & 32 != 0
 
             for hasBattery in [true, false] {
                 #expect(
                     PanelTabBar.visible(enabled: preferences, hasBattery: hasBattery)
-                    == TabVisibility.visible(enabled: preferences, hasBattery: hasBattery),
+                    == TabVisibility.leadingEar(enabled: preferences, hasBattery: hasBattery),
                     "the view disagreed with the rule at mask \(mask), hasBattery \(hasBattery)"
                 )
             }

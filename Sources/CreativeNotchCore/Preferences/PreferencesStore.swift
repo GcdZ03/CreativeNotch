@@ -22,7 +22,8 @@ public final class PreferencesStore {
         var preferences = Preferences()
         for module in ModuleID.allCases {
             preferences[module] = PreferenceKeys.resolveEnabled(
-                defaults.object(forKey: PreferenceKeys.enabled(module))
+                defaults.object(forKey: PreferenceKeys.enabled(module)),
+                shippedDefault: module.shippedDefault
             )
         }
         return preferences

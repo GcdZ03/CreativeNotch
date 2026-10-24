@@ -5,10 +5,12 @@ import Testing
 // MARK: - Existence and order
 
 @Test func theDefaultTabsAreTheUnconditionalOnesPlusPowerAndCamera() {
-    #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
+    #expect(TabVisibility.visible(enabled: .shipped, hasBattery: true)
             == [.shelf, .clipboard, .timer, .power, .camera])
-    #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: false)
+    #expect(TabVisibility.visible(enabled: .shipped, hasBattery: false)
             == [.shelf, .clipboard, .timer, .camera])
+    #expect(TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
+            == [.shelf, .clipboard, .timer, .power, .camera, .calendar])
 }
 
 /// Replaces `PanelTabBarTests.hidingThePowerTabLeavesTheOthersInPlace`, whose
@@ -17,21 +19,22 @@ import Testing
 /// removal -- checked across all 16 combinations rather than by one example,
 /// because a single case is mutation-blind.
 @Test func relativeOrderIsPreservedUnderAnyRemoval() {
-    let canonical: [Tab] = [.shelf, .clipboard, .timer, .power, .camera]
-    for mask in 0..<32 {
+    let canonical: [Tab] = [.shelf, .clipboard, .timer, .power, .camera, .calendar]
+    for mask in 0..<64 {
         var preferences = Preferences.allEnabled
         preferences.shelf     = mask & 1 != 0
         preferences.clipboard = mask & 2 != 0
         preferences.timer     = mask & 4 != 0
         preferences.power     = mask & 8 != 0
         preferences.camera    = mask & 16 != 0
+        preferences.calendar  = mask & 32 != 0
 
         let tabs = TabVisibility.visible(enabled: preferences, hasBattery: true)
         #expect(tabs == canonical.filter { tabs.contains($0) },
                 "order changed for mask \(mask): \(tabs)")
         #expect(tabs.count == [preferences.shelf, preferences.clipboard,
                                preferences.timer, preferences.power,
-                               preferences.camera].filter { $0 }.count)
+                               preferences.camera, preferences.calendar].filter { $0 }.count)
     }
 }
 
@@ -49,10 +52,10 @@ import Testing
 /// The camera is appended last, like `.power`, so hiding it never reorders the
 /// tabs that were already there.
 @Test func theCameraTabIsAppendedRatherThanInserted() {
-    var noCamera = Preferences.allEnabled
+    var noCamera = Preferences.shipped
     noCamera.camera = false
     let without = TabVisibility.visible(enabled: noCamera, hasBattery: true)
-    let with = TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
+    let with = TabVisibility.visible(enabled: .shipped, hasBattery: true)
 
     #expect(Array(with.dropLast()) == without)
     #expect(with.last == .camera)
@@ -96,4 +99,42 @@ import Testing
     var noCamera = Preferences.allEnabled
     noCamera.camera = false
     #expect(TabVisibility.fallback(from: .camera, enabled: noCamera, hasBattery: true) == .shelf)
+}
+
+// MARK: - Which ear
+
+/// The calendar lives in the trailing ear beside the battery, not in the
+/// leading ear's bar: six icons do not fit the leading ear of a 14-inch notch
+/// beside the camera housing. It is still a tab -- one list decides existence
+/// and order, and ⌘N counts it last, after the bar, left to right as drawn.
+@Test func theCalendarIsAppendedLastAndDrawnInTheTrailingEar() {
+    let all = TabVisibility.visible(enabled: .allEnabled, hasBattery: true)
+    #expect(all.last == .calendar)
+    #expect(TabVisibility.leadingEar(enabled: .allEnabled, hasBattery: true)
+            == [.shelf, .clipboard, .timer, .power, .camera])
+    #expect(TabVisibility.trailingEar(enabled: .allEnabled, hasBattery: true) == [.calendar])
+    #expect(TabVisibility.trailingEar(enabled: .shipped, hasBattery: true).isEmpty)
+}
+
+/// The two ears partition the one list: nothing drawn twice, nothing lost.
+@Test func theEarsPartitionTheVisibleTabs() {
+    for mask in 0..<64 {
+        var preferences = Preferences.allEnabled
+        preferences.shelf     = mask & 1 != 0
+        preferences.clipboard = mask & 2 != 0
+        preferences.timer     = mask & 4 != 0
+        preferences.power     = mask & 8 != 0
+        preferences.camera    = mask & 16 != 0
+        preferences.calendar  = mask & 32 != 0
+        let visible = TabVisibility.visible(enabled: preferences, hasBattery: true)
+        let leading = TabVisibility.leadingEar(enabled: preferences, hasBattery: true)
+        let trailing = TabVisibility.trailingEar(enabled: preferences, hasBattery: true)
+        #expect(leading + trailing == visible, "mask \(mask)")
+    }
+}
+
+/// A calendar switched off falls back like any tab whose module went.
+@Test func aHiddenCalendarFallsBack() {
+    #expect(TabVisibility.fallback(from: .calendar, enabled: .shipped, hasBattery: true) == .shelf)
+    #expect(TabVisibility.fallback(from: .calendar, enabled: .allEnabled, hasBattery: true) == .calendar)
 }

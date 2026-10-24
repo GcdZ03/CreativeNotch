@@ -101,6 +101,9 @@ final class PreferencesController {
         // reused window's `.onAppear` would read the displays once per
         // process, and a monitor plugged in since would be missing.
         state.onRefreshDisplays?()
+        // The calendar's grants, for the same reason: a refusal changed in
+        // System Settings since the last look must show in the row's warning.
+        state.onRefreshCalendarAccess?()
         presenter(self)
     }
 
@@ -234,6 +237,13 @@ final class PreferencesController {
     /// ignore it.
     var hasRunningCountdown: Bool { state.countdown != nil }
 
+    /// Whether the calendar is switched on over grants that let it read
+    /// nothing -- the case a switch reading "on" would lie about.
+    var calendarAccessRefused: Bool {
+        guard state.preferences.calendar, let pane = state.calendar?.pane else { return false }
+        return pane == .denied || pane == .restricted
+    }
+
     private var recorders: [ObjectIdentifier: HotKeyRecorder] = [:]
 
     /// One recorder per hotkey controller, built on first use. Held here
@@ -336,7 +346,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -398,6 +408,13 @@ struct PreferencesView: View {
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
             title: "Battery and power",
             detail: "Level, charging state and Low Power Mode. Costs almost nothing either way."
+        ),
+        PreferencesRow(
+            module: .calendar, section: .notch, symbolName: "calendar", tint: .red,
+            title: "Calendar and reminders",
+            // Required: the switch asks for two permissions, and the row says
+            // so before it is pressed rather than after.
+            detail: "Your next events and today's reminders, beside the battery. Asks for Calendars and Reminders access when you switch it on."
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -574,6 +591,11 @@ struct PreferencesView: View {
             // Required by the spec: the tab you would cancel it from is what
             // disappears, so say what happens to the countdown.
             return "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
+        case .calendar where controller.calendarAccessRefused:
+            // A switch must not read "on" over a module that can read
+            // nothing (ARCHITECTURE.md, "Why the settings surface is a
+            // window").
+            return "Calendars and Reminders access is off in System Settings, so the glance has nothing to show. Turn it on in Privacy & Security."
         default:
             return nil
         }

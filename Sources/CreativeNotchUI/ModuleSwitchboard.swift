@@ -16,7 +16,7 @@ import CreativeNotchCore
 /// activity" is right for the lifecycle verbs and wrong applied uniformly —
 /// see `setActivity(_:)` for the two modules where it is wrong and why.
 ///
-/// It starts at `.allEnabled` rather than loading from the store, so
+/// It starts at `.shipped` rather than loading from the store, so
 /// constructing a delegate performs no defaults read: `apply()` is the only
 /// thing that consults storage, and it runs from `startSubsystems()`. That is
 /// also what lets the existing fan-out suites, which never call `apply()`,
@@ -28,7 +28,7 @@ import CreativeNotchCore
 @MainActor
 final class ModuleSwitchboard {
 
-    private(set) var preferences: Preferences = .allEnabled
+    private(set) var preferences: Preferences = .shipped
     private(set) var activity: SystemActivity = .active
 
     private unowned let delegate: AppDelegate
@@ -66,6 +66,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.hotkey, for: .hotkey)
         setEnabled(preferences.camera, for: .camera)
         setEnabled(preferences.captureIndicator, for: .captureIndicator)
+        setEnabled(preferences.calendar, for: .calendar)
     }
 
     /// Stops everything, regardless of preference.
@@ -83,6 +84,7 @@ final class ModuleSwitchboard {
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
+        delegate.calendar?.stop()
         // The hotkey is deliberately absent. `stopAll()` runs only from
         // `applicationWillTerminate`, and Apple's header is explicit that the
         // system reclaims hotkey registrations when the process exits -- so a
@@ -278,6 +280,18 @@ final class ModuleSwitchboard {
             // from anywhere must keep working while the panel is closed, and
             // there is nothing running between presses to suspend.
             delegate.hotkey?.setEnabled(enabled)
+
+        case .calendar:
+            // Off stops everything the module runs -- the store-change
+            // observer, the store's connection, the boundary one-shot -- and
+            // withdraws the glance. On, a prompt only when the person switched
+            // it on (`persist` is the Settings path); the launch path applying
+            // a stored "on" asks nothing, because nothing is requested at
+            // launch.
+            //
+            // No activity axis: it reads only while its pane is open, and the
+            // pane cannot be open on a locked or sleeping screen.
+            delegate.calendar?.setEnabled(enabled, userInitiated: persist)
 
         case .shelf:
             // Nothing to stop: the shelf owns no timer, observer or process,
