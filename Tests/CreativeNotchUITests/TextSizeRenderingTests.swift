@@ -262,7 +262,7 @@ struct TextSizeRenderingTests {
         let fixed: Set<String> = [
             "CaptureBadgeView.swift", "TimerBadgeView.swift", "NowPlayingBadgeView.swift",
             "NowPlayingView.swift", "PowerPeekView.swift", "TimerDonePeekView.swift",
-            "BluetoothPeekView.swift",
+            "BluetoothPeekView.swift", "DownloadsBadgeView.swift", "DownloadPeekView.swift",
             "PreferencesWindow.swift", "LayoutRows.swift", "NotchTypeStyle.swift",
             // Only the peek's fallback label, which no state reaches.
             "NotchRootView.swift",

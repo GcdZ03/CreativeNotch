@@ -23,6 +23,7 @@ public struct Preferences: Equatable, Sendable {
     public var bluetooth: Bool
     public var calendar: Bool
     public var colorPicker: Bool
+    public var downloads: Bool
 
     public init(
         shelf: Bool = true,
@@ -36,7 +37,8 @@ public struct Preferences: Equatable, Sendable {
         captureIndicator: Bool = true,
         bluetooth: Bool = false,
         calendar: Bool = false,
-        colorPicker: Bool = true
+        colorPicker: Bool = true,
+        downloads: Bool = false
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -50,17 +52,19 @@ public struct Preferences: Equatable, Sendable {
         self.bluetooth = bluetooth
         self.calendar = calendar
         self.colorPicker = colorPicker
+        self.downloads = downloads
     }
 
     /// The shipped state, and what a domain with no keys in it resolves to:
-    /// every module on except the two that need a permission and so wait to
-    /// be asked for -- Bluetooth alerts and the calendar
+    /// every module on except the three that need a permission and so wait
+    /// to be asked for -- Bluetooth alerts, the calendar and downloads
     /// (`ModuleID.shippedDefault`).
     public static let shipped = Preferences()
 
-    /// Every module on, Bluetooth alerts and the calendar included. Not the
-    /// shipped state; what a person who switched everything on has.
-    public static let allEnabled = Preferences(bluetooth: true, calendar: true)
+    /// Every module on, Bluetooth alerts, the calendar and downloads
+    /// included. Not the shipped state; what a person who switched
+    /// everything on has.
+    public static let allEnabled = Preferences(bluetooth: true, calendar: true, downloads: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -77,6 +81,7 @@ public struct Preferences: Equatable, Sendable {
             case .bluetooth:     return bluetooth
             case .calendar:      return calendar
             case .colorPicker:   return colorPicker
+            case .downloads:     return downloads
             }
         }
         set {
@@ -93,6 +98,7 @@ public struct Preferences: Equatable, Sendable {
             case .bluetooth:     bluetooth = newValue
             case .calendar:      calendar = newValue
             case .colorPicker:   colorPicker = newValue
+            case .downloads:     downloads = newValue
             }
         }
     }

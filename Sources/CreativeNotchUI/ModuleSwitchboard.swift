@@ -69,6 +69,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.calendar, for: .calendar)
         setEnabled(preferences.colorPicker, for: .colorPicker)
         setEnabled(preferences.bluetooth, for: .bluetooth)
+        setEnabled(preferences.downloads, for: .downloads)
     }
 
     /// Stops everything, regardless of preference.
@@ -84,6 +85,7 @@ final class ModuleSwitchboard {
         delegate.bluetooth?.stop()
         delegate.timer?.cancel()
         delegate.capture?.stop()
+        delegate.downloads?.stop()
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
@@ -148,6 +150,11 @@ final class ModuleSwitchboard {
         // the controller holds its own enabled flag, and `CameraRunReason`
         // composes the two -- locking stops the preview, never a recording.
         delegate.camera?.setActivity(next)
+        // Never suspended, the power module's shape: the subscription costs
+        // nothing while nothing downloads, and suspending it would miss a
+        // download finishing behind the lock screen and leave its ring on
+        // the notch after unlock. Only the completion peek is withheld.
+        delegate.downloads?.setActivity(next)
     }
 
     /// Starts or stops one module, and is the only thing that does.
@@ -303,6 +310,15 @@ final class ModuleSwitchboard {
             // slot, the way `.power` does.
             delegate.bluetooth?.setEnabled(enabled)
             if !enabled { delegate.arbiter.clearBluetooth() }
+        case .downloads:
+            // On asks for the Downloads folder -- the read that makes macOS
+            // prompt, which is why it happens here, after the person's own
+            // click, and never at launch for a module they have not turned
+            // on. Off removes the progress subscription and every
+            // observation, and the controller publishes the badge's absence
+            // itself (`stop()`), as the capture indicator does.
+            delegate.downloads?.setEnabled(enabled)
+            if !enabled { delegate.arbiter.clearDownloads() }
 
         case .hotkey:
             // Stopping means UNREGISTERING, not ignoring the callback. A

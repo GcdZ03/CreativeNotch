@@ -22,11 +22,12 @@ import Testing
     #expect(ModuleID.bluetooth.rawValue == "bluetooth")
     #expect(ModuleID.calendar.rawValue == "calendar")
     #expect(ModuleID.colorPicker.rawValue == "color-picker")
+    #expect(ModuleID.downloads.rawValue == "downloads")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 12)
+    #expect(keys.count == 13)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -74,18 +75,18 @@ import Testing
 @Test func preferencesShipWithEverythingOnButTheCalendar() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
-        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth), "\(module)")
+        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth && module != .downloads), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault)
     }
 }
 
-/// Bluetooth alerts and the calendar are the modules that ship off: each
+/// Bluetooth alerts, the calendar and downloads are the modules that ship off: each
 /// needs a permission, and a permission is asked for when someone switches
 /// the feature on -- never at launch, and never for a feature nobody chose.
 /// Everything else needs no grant and costs nothing at rest, so it stays on.
 @Test func onlyThePermissionModulesShipOff() {
     for module in ModuleID.allCases {
-        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar), "\(module)")
+        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar && module != .downloads), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
     }
 }
@@ -94,6 +95,8 @@ import Testing
     #expect(ModuleID.calendar.shippedDefault == false)
     #expect(Preferences().calendar == false)
     #expect(Preferences().bluetooth == false)
+    #expect(ModuleID.downloads.shippedDefault == false)
+    #expect(Preferences().downloads == false)
 }
 
 @Test func theSubscriptReachesEveryModuleIndependently() {

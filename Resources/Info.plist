@@ -47,5 +47,9 @@
        prompt at all. -->
   <key>NSCalendarsFullAccessUsageDescription</key><string>CreativeNotch shows your next few events in the notch when you open its calendar pane. Nothing is uploaded or stored; events are read on this Mac only while the pane is open.</string>
   <key>NSRemindersFullAccessUsageDescription</key><string>CreativeNotch shows how many of your reminders are due today in the notch's calendar pane. Nothing is uploaded or stored; reminders are read on this Mac only while the pane is open.</string>
+  <!-- The downloads module, which ships off. Asked only when it is switched
+       on in Settings, by the first read of the folder; refused, the row says
+       so and nothing is subscribed. -->
+  <key>NSDownloadsFolderUsageDescription</key><string>CreativeNotch shows the progress of your downloads in the notch. It watches the progress browsers publish for files in your Downloads folder; nothing is read beyond file names, and nothing leaves your Mac.</string>
 </dict>
 </plist>

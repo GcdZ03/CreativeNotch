@@ -82,6 +82,9 @@ public final class PreferencesStore {
             ),
             showsTimerBadge: PreferenceKeys.resolveEnabled(
                 defaults.object(forKey: PreferenceKeys.layoutShowsTimerBadge)
+            ),
+            showsDownloadsBadge: PreferenceKeys.resolveEnabled(
+                defaults.object(forKey: PreferenceKeys.layoutShowsDownloadsBadge)
             )
         )
     }
@@ -95,6 +98,7 @@ public final class PreferencesStore {
         defaults.set(layout.showsBattery, forKey: PreferenceKeys.layoutShowsBattery)
         defaults.set(layout.showsNowPlayingBadge, forKey: PreferenceKeys.layoutShowsNowPlayingBadge)
         defaults.set(layout.showsTimerBadge, forKey: PreferenceKeys.layoutShowsTimerBadge)
+        defaults.set(layout.showsDownloadsBadge, forKey: PreferenceKeys.layoutShowsDownloadsBadge)
     }
 
     /// How a picked colour is copied. Read on every call, never cached.

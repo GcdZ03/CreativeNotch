@@ -107,6 +107,13 @@ struct LayoutRows: View {
                 symbol: "timer", tint: .orange
             )
         }
+
+        Toggle(isOn: Self.binding(\.showsDownloadsBadge, on: controller)) {
+            SettingsLabel(
+                title: "Downloads badge", detail: "The progress ring beside the closed notch.",
+                symbol: "arrow.down.circle", tint: .teal
+            )
+        }
     }
 }
 

@@ -13,6 +13,7 @@ public enum BadgeSlot: Equatable, Sendable {
     case timer
     case recording
     case capture
+    case downloads
 
     /// How far the closed notch grows for this slot.
     public var width: CGFloat {
@@ -22,6 +23,7 @@ public enum BadgeSlot: Equatable, Sendable {
         case .timer:      return NotchGeometry.timerBadgeWidth
         case .recording:  return NotchGeometry.recordingBadgeWidth
         case .capture:    return NotchGeometry.captureBadgeWidth
+        case .downloads:  return NotchGeometry.downloadsBadgeWidth
         }
     }
 
@@ -34,7 +36,7 @@ public enum BadgeSlot: Equatable, Sendable {
     /// ever needs the left again is one decision rather than a second rule.
     public var leadingWidth: CGFloat {
         switch self {
-        case .none, .nowPlaying, .timer, .recording, .capture: return 0
+        case .none, .nowPlaying, .timer, .recording, .capture, .downloads: return 0
         }
     }
 }
@@ -149,15 +151,15 @@ public enum NotchShape {
     /// nothing else to explain it; this badge is the explanation, and it
     /// cannot be the thing that yields to a track starting.
     ///
-    /// Below it, a running or paused timer owns the slot; media takes it back
-    /// when the timer finishes or is cancelled. Paused *media* shows nothing:
-    /// the badge answers "is something playing".
+    /// Below it, a running or paused timer owns the slot, then downloads in
+    /// progress; media takes it back when both are done. Paused *media*
+    /// shows nothing: the badge answers "is something playing".
     ///
     /// `hidden` is the badges switched off in Settings (2026-10-24,
     /// `LayoutOptions.hiddenBadges`). A hidden badge is passed over as if it
     /// had nothing to show, so the next one down takes the slot. It is
-    /// consulted for the timer and media only: the recording dot is the
-    /// camera exemption's explanation, above, and the capture indicator is a
+    /// consulted for the timer, downloads and media only: the recording dot
+    /// is the camera exemption's explanation, above, and the capture indicator is a
     /// module whose whole output is this badge, with its own switch -- hiding
     /// either here would be a second, quieter way to lose a privacy signal.
     public static func badgeSlot(
@@ -165,6 +167,7 @@ public enum NotchShape {
         nowPlaying: TrackSnapshot?,
         isRecording: Bool = false,
         capture: CaptureUse = .none,
+        downloads: DownloadSummary? = nil,
         hiding hidden: Set<BadgeSlot> = [],
         at now: Date
     ) -> BadgeSlot {
@@ -177,6 +180,10 @@ public enum NotchShape {
         // own capture, which is the more specific claim about the same fact.
         if capture.isAnythingCapturing { return .capture }
         if !hidden.contains(.timer), let countdown, !countdown.hasFinished(at: now) { return .timer }
+        // Below a countdown, which is a deadline the user set; above a
+        // playing track, which is already on the speakers. The ring is the
+        // only place a download's progress shows without opening anything.
+        if !hidden.contains(.downloads), downloads != nil { return .downloads }
         if !hidden.contains(.nowPlaying), nowPlaying?.isPlaying == true { return .nowPlaying }
         return .none
     }

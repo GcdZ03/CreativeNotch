@@ -59,7 +59,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All twelve modules are built, and every one of them can be switched off.**
+**The foundation is complete. All thirteen modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -93,6 +93,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Timer notification over full-screen apps** — a banner where the notch is hidden | Done |
 | ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
+| ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -266,7 +267,7 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and four things ask later.**
+**Nothing is asked for at launch, and five things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
@@ -274,7 +275,7 @@ is registered with the window server rather than a monitor. Quick Look and
 Open on the shelf use the system's own viewers on files the shelf already
 holds, so they ask for nothing either. The colour picker uses
 `NSColorSampler`, the system's own loupe, which hands back only the pixel
-you click and so needs no Screen Recording permission. Nine of the twelve
+you click and so needs no Screen Recording permission. Nine of the thirteen
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -297,6 +298,15 @@ prompting at launch. Grant one and not the other and it shows what it can.
 Refuse both and the pane says so, with **Open Privacy Settings**; Settings
 warns under its switch too. Events and reminders are read on your Mac, only
 while the pane is open, and kept nowhere.
+
+**Downloads asks for the Downloads folder**, and it ships switched off for
+that reason, like Bluetooth alerts and the calendar. macOS asks
+("CreativeNotch would like to access files in your Downloads folder") when
+you switch it on in Settings — never at launch. It watches the progress browsers publish for files there,
+the way Finder draws its progress bars, and reads nothing but file names.
+Refuse, and the Settings row says it cannot see downloads, with a button to
+System Settings › Privacy & Security › Files & Folders; nothing is watched
+until you allow it.
 
 **Notifications, for the timer only.** The notch is hidden over full-screen
 apps, so a timer that finishes there posts a "Timer done" notification. macOS
@@ -392,12 +402,16 @@ it back.
 | Pick a colour | It is on the clipboard as hex (`#3A7BD5`), or as RGB, HSL or a SwiftUI `Color(…)` — Settings → Colour picker → **Copy as**. A strip along the bottom of the panel shows the swatch and the value until you close the panel or press its ×; VoiceOver says the colour's name and value |
 | Click a swatch in the strip | Copies that colour again, in the current format; the strip keeps your last five picks, in memory only |
 | Right-click the eyedropper | The same recent colours, as a menu, without picking a new one |
+| Switch Downloads on in Settings | macOS asks once whether CreativeNotch may read your Downloads folder; refuse and the row says so, with a button to Privacy & Security |
+| Download something in Safari | A ring right of the notch fills with the download's progress; with several at once it shows their combined progress and how many |
+| Hover the ring | A row drops below the notch: the file's name (or "3 downloads"), a bar and the percentage |
+| A download finishes | "Downloaded *name*" drops below the notch for five seconds, also spoken by VoiceOver; click it to show the file in Finder |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard (pins stay), Show Welcome Again, Quit |
 | Settings → Layout → **Panel width** | Compact, Default or Wide; the open panel resizes at once, still centred on the notch |
 | Settings → Layout → **Corners** | Tight, Default or Round bottom corners on the open panel; the closed notch keeps the camera housing's curve |
 | Settings → Layout → **Tabs** → **Right** | Swaps the ears: the tabs move right of the camera, the eyedropper, the battery and the gear left |
 | Settings → Layout → **Battery in the header** off | Drops the level from beside the gear; the Battery tab and the charger glance stay |
-| Settings → Layout → **Now-playing badge** / **Timer badge** off | Keeps that badge from beside the closed notch; a finished timer still chimes and drops its glance |
+| Settings → Layout → **Now-playing badge** / **Timer badge** / **Downloads badge** off | Keeps that badge from beside the closed notch; a finished timer still chimes and drops its glance, and a finished download still peeks |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
 300 ms dwell is deliberate, because the notch sits directly on that path. If you

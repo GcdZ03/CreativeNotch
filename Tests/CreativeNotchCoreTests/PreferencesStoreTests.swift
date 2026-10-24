@@ -27,6 +27,7 @@ struct PreferencesStoreTests {
         // The modules that ship off, read through the real path.
         #expect(loaded.calendar == false)
         #expect(loaded.bluetooth == false)
+        #expect(loaded.downloads == false, "downloads came up on, and would prompt at launch")
     }
 
     /// Switched on once, the calendar stays on: an off-by-default module
@@ -35,6 +36,13 @@ struct PreferencesStoreTests {
         let defaults = makeIsolatedDefaults()
         PreferencesStore(defaults: defaults).setEnabled(true, for: .calendar)
         #expect(PreferencesStore(defaults: defaults).load().calendar == true)
+    }
+
+    /// Off by default is not off for good: switched on, it stays on.
+    @Test func downloadsSwitchedOnSurviveAReload() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setEnabled(true, for: .downloads)
+        #expect(PreferencesStore(defaults: defaults).load().downloads == true)
     }
 
     @Test func aDisabledModuleSurvivesAReload() {

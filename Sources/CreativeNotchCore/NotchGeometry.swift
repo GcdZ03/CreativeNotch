@@ -99,6 +99,15 @@ public enum NotchGeometry {
     /// would resize the closed notch mid-call.
     public static let captureBadgeWidth: CGFloat = 40
 
+    /// How far the downloads badge extends past the trailing edge.
+    ///
+    /// A 14pt progress ring and, with more than one download, a count up to
+    /// "9+" beside it — 6pt, the ring, 3pt, the count, 8pt. The timer's width,
+    /// and fixed for the timer's reason: a slot that grew when a second
+    /// download started would re-run the drawn/hit-test/hover sync for a
+    /// change nobody asked for.
+    public static let downloadsBadgeWidth: CGFloat = 44
+
     /// Approximates the radius of the hardware notch's bottom corners.
     ///
     /// The closed panel covers the notch's bounding box, but the cutout

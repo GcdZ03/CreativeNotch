@@ -25,26 +25,29 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case bluetooth
     case calendar
     case colorPicker = "color-picker"
+    case downloads
 
     /// What an absent key means for this module.
     ///
-    /// On for every module but two. **The calendar and Bluetooth alerts ship
-    /// off** because neither can work without asking for something: the
-    /// calendar's glance needs the Calendars and Reminders grants, and
-    /// Bluetooth alerts need Bluetooth access. A permission prompt belongs to
-    /// the moment someone switches the feature on, never to a launch, and
-    /// never to a feature nobody chose (see Permissions in
-    /// `ARCHITECTURE.md`). Every other module either needs no grant or, like
-    /// the camera, asks only when its tab is opened -- and costs nothing at
-    /// rest.
+    /// On for every module but three. **The calendar, Bluetooth alerts and
+    /// downloads ship off** because none can work without asking for
+    /// something: the calendar's glance needs the Calendars and Reminders
+    /// grants, Bluetooth alerts need Bluetooth access, and the downloads
+    /// ring needs the Downloads folder. A permission prompt belongs to the
+    /// moment someone switches the feature on, never to a launch, and never
+    /// to a feature nobody chose (see Permissions in `ARCHITECTURE.md`):
+    /// switched on in Settings, the prompt follows the person's own click and
+    /// the row beside it says why. Every other module either needs no grant
+    /// or, like the camera, asks only when its tab is opened -- and costs
+    /// nothing at rest.
     ///
     /// Read by `PreferencesStore.load` through `resolveEnabled`'s
     /// `shippedDefault`, so "absent" is still decided in one function -- and
     /// a mistyped value reads as off too.
     public var shippedDefault: Bool {
         switch self {
-        case .bluetooth, .calendar: return false
-        default:                    return true
+        case .bluetooth, .calendar, .downloads: return false
+        default:                                return true
         }
     }
 }

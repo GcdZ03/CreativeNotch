@@ -45,10 +45,11 @@ on `SystemActivity`, which is anything but `.active` when the machine is
 asleep, the screen is locked, the display is asleep (the energy saver
 timeout, a lid closed on an external display), or this session has been
 switched away from by fast user switching. A dark display reads as
-`.asleep` and a switched-away session as `.locked`. **The gate has five
+`.asleep` and a switched-away session as `.locked`. **The gate has six
 consumers, joining it in three different ways** — the clipboard poller and
-the media helper are suspended outside `.active`; the power module is never
-suspended, because a notification-driven source costs nothing idle; and the
+the media helper are suspended outside `.active`; the power and downloads
+modules are never suspended, because a notification-driven source costs
+nothing idle, and only withhold their peeks; and the
 timer and the camera split: the timer's *redraws* are gated while its
 *deadline* never is, and the camera's *preview* stops outside `.active`
 while a *recording* in progress carries on. Joining the gate does not have
@@ -165,9 +166,9 @@ panel. No observer: the view reads `AppState.textSize` on its next draw.
 
 ### Layout options
 
-Settings → Layout (`LayoutOptions`, Core, 2026-10-24) is six options saved and
-applied as one value: panel width, corner style, which ear holds the tabs, the
-header's battery cell, and the now-playing and timer badges. They are settings
+Settings → Layout (`LayoutOptions`, Core, 2026-10-24) is seven options saved
+and applied as one value: panel width, corner style, which ear holds the tabs,
+the header's battery cell, and the now-playing, timer and downloads badges. They are settings
 rather than a module because they run nothing — no observer, no timer, nothing
 for a switch to stop — and every default is the geometry and look from before
 the setting. Each lands in the one Core function that already owned the fact:
@@ -212,8 +213,8 @@ the setting. Each lands in the one Core function that already owned the fact:
   because `AppDelegate.currentBadgeSlot` and the view ask the same function,
   the drawn, hit-test and hover rects still agree. `setLayoutOptions` re-syncs
   the accepted region itself: hiding a badge changes the closed shape without
-  a state or geometry change, so no funnel event would. Only the timer and
-  media badges can be hidden. The recording dot is the camera exemption's
+  a state or geometry change, so no funnel event would. Only the timer,
+  downloads and media badges can be hidden. The recording dot is the camera exemption's
   explanation, and the capture indicator is a module whose whole output is
   that badge, with its own switch.
 
@@ -398,11 +399,13 @@ panel leaves `.open` (`syncKeyWindow`), never on a tab switch.
 
 ### Peek arbitration
 
-One slot, five competitors. `PeekArbiter` resolves them: **drag > finished
-timer > power > Bluetooth > now-playing**. Transient content preempts ambient
-content and then falls back, the same model as the iPhone Dynamic Island.
-Power has a 3 s TTL, a Bluetooth device 2.5 s and a finished timer 600 s; a
-drag has none and lasts until cleared.
+One slot, seven competitors. `PeekArbiter` resolves them: **drag > finished
+timer > power > Bluetooth > finished download > downloads in progress >
+now-playing**. Transient content preempts ambient content and then falls back,
+the same model as the iPhone Dynamic Island. Power has a 3 s TTL, a Bluetooth
+device 2.5 s, a finished download 5 s and a finished timer 600 s; a drag has
+none and lasts until cleared, and downloads in progress, like now-playing, are
+ambient and end when the downloads do.
 
 Power sits above now-playing for a reason: now-playing is ambient wallpaper
 and yields to anything, while power is unsolicited but consequential. A
@@ -410,14 +413,19 @@ finished timer outranks both, because being interrupted by it is exactly what
 the user asked for. A Bluetooth device arriving sits between power and
 now-playing: unsolicited, but caused by the person's own hands — they just put
 the AirPods in — so it yields to anything that is news to them, and its TTL is
-the shortest because it confirms rather than informs.
+the shortest because it confirms rather than informs. It does sit above a
+finished download, which is news but not consequential: the Bluetooth peek
+goes first and the longer completion is still there once it has gone, where
+the other order would hide the Bluetooth peek entirely. Downloads in progress
+sit above now-playing in the badge slot's order, so a hover over the ring
+shows the download and not the track the ring took the slot from.
 
 **Differing TTLs mean the re-evaluation delay has to follow the content.**
 With one TTL in the app, `AppDelegate` could re-read the arbiter after a
 single fixed delay. A long peek re-checked too early finds the arbiter still
 returning it, transitions to the state it is already in, and is never looked
 at again — the notch stays open until something unrelated moves it. So
-`AppDelegate.reevaluationDelay(for:power:timerDone:bluetooth:)` picks the delay, and
+`AppDelegate.reevaluationDelay(for:power:timerDone:bluetooth:downloadDone:)` picks the delay, and
 `reevaluatePeek` reschedules when what it reveals is itself transient. It
 terminates because every transient source strictly expires; ambient content
 is never rescheduled, which is what stops this being a timer that runs for
@@ -551,9 +559,10 @@ holding the observer weakly. Do the same for any new C callback.
 
 ## Permissions
 
-**Nothing is requested at launch. Three modules need a grant to work at all:
-the camera, the calendar glance and Bluetooth alerts; the timer asks for one
-optional extra.** The file shelf's drag detection and drop target work through
+**Nothing is requested at launch. Four modules need a grant to work at all:
+the camera, the calendar glance, Bluetooth alerts and downloads (the
+Downloads folder, asked when it is switched on; see "Downloads"); the timer
+asks for one optional extra.** The file shelf's drag detection and drop target work through
 AppKit's own drag events, clipboard needs nothing, and the global shortcut
 goes through the window server rather than a monitor. The colour picker uses
 `NSColorSampler`, which returns only the clicked pixel and so needs no Screen
@@ -1235,9 +1244,89 @@ a place, and the ear has no room for a seventh icon.
   holds sandbox versions that register nothing and never prompt, and only
   `configureForRealLaunch()` hands it the real ones.
 
+## Downloads
+
+The progress of a download in the notch, from the same mechanism Finder
+draws its progress bars from: `Progress.addSubscriber(forFileURL:
+withPublishingHandler:)` on the Downloads folder. A browser publishes an
+`NSProgress` for the file it is writing — Safari does for every download —
+and the system calls the handler when one appears and the returned
+unpublishing handler when it goes; key-value observation of its unit counts
+reports the movement between. **No polling, and with nothing downloading
+nothing runs at all.** The second module after power that needs no
+exception to the one rule.
+
+### What runs, and how often
+
+`FileProgressSource` (UI) owns the subscription; `ProgressRelay` copies
+numbers out of each `Progress` off the main actor and forwards a reading only
+when its **whole percent** changes. A browser can report every chunk it
+writes; the main thread wakes at most a hundred times per download however
+fast the bytes arrive — the timer's "display granularity is the redraw
+schedule", applied to bytes. The hop to the main queue happens under the
+relay's lock, so a change cannot overtake the publish it follows. Finder
+copying a file *into* Downloads publishes a progress too; anything whose
+`fileOperationKind` is not downloading — or, with no kind stated, whose file
+lacks a browser's partial extension — is not watched at all.
+
+Every judgement is pure, in Core: `DownloadTracker` turns `DownloadEvent`s
+into a `DownloadSummary` (count, byte-weighted aggregate percent over the
+downloads whose length is known, the first-started name) and decides
+completion. A file progress has no "finished" callback — unpublished means
+finished, cancelled or abandoned alike — so a download completes when it was
+not cancelled and either reached its total or, published on a partial file
+(`.download`, `.crdownload`, `.part`…), was renamed to its final name. A
+progress published on the final name itself gets no rename fallback: that file
+exists for the whole download. The summary is quantised, and `AppState.downloads`
+is a plain `Equatable` stored property **on purpose** — the opposite of
+`countdown`'s box — so the equality guard `@Observable` emits drops readings
+that would redraw the ring identically.
+
+### Where it shows
+
+A ring in the trailing ear (`BadgeSlot.downloads`, 44pt, fixed for the
+timer's reason), below the recording, capture and timer badges and above a
+playing track: the track is already on the speakers, and the ring is the only
+place a download's progress shows without opening anything. Hovering it shows
+the battery peek's row (`.statusPeek`) with the name, a bar and the
+percentage — ambient, like the music peek: kept while the pointer is on it,
+never fallen back to without it, never announced. A finished download is a
+transient peek (`downloadDoneTTL`, five seconds) ranked below a finished
+timer, power and a Bluetooth device — the 2.5 s Bluetooth peek goes first and
+the completion is still there after it; it is announced, and clicking it (`NotchRootView.handleTap`,
+or VoiceOver's activate) shows the file in Finder. No tab: the ear bar has no
+room, and there is nothing to do with a download in progress but watch it.
+Settings → Layout → **Downloads badge** hides the ring
+(`LayoutOptions.showsDownloadsBadge`, in `hiddenBadges`) and the slot falls to
+the track; the module keeps watching and the completion still peeks. The ring
+is narrower than either header ear at every width, side and text size on a
+14" notch, so the closed notch with it stays inside the open panel
+(`LayoutOptionsTests`).
+
+### Permission, and why it ships off
+
+Reading the Downloads folder is a TCC prompt (`NSDownloadsFolderUsageDescription`).
+`ModuleID.shippedDefault` is `false` for it, as for the calendar and Bluetooth
+alerts, so a fresh install asks nothing; switching it on runs one directory read off the main actor —
+which is what makes macOS ask, and which waits on the answer — and only a
+successful read subscribes. Refused, `DownloadsAccess.denied` puts a warning
+and an "Open Privacy Settings…" button under the switch rather than letting
+it read "on" over a module that sees nothing; showing Settings asks again, so
+a grant made in System Settings takes when the person comes back to look.
+
+**Not suspended by the activity gate**, the power module's shape: the
+subscription costs nothing idle, and suspending it would miss a download
+finishing behind the lock screen and leave its ring on the notch after
+unlock. The completion peek is what the gate withholds. Off cancels a pending
+access check, removes the subscription and every observation, forgets the
+tracker and publishes the badge's absence; a callback already in flight
+after that publishes nothing. `revealInFinder`, `openDownloadsPrivacySettings`
+and `downloadsDirectory` are sandboxed seams, made real only by
+`configureForRealLaunch()`.
+
 ## Preferences
 
-Twelve switches. **Switching a module off stops what it runs**, rather than
+Thirteen switches. **Switching a module off stops what it runs**, rather than
 hiding it — which is the only reason this module was worth building. A
 preference that removes the feature and leaves the cost running is strictly
 worse than no preference, because the user pays for something they explicitly
@@ -1319,10 +1408,10 @@ value of the wrong type reads as absent and is **not** rewritten: someone who
 ran `defaults write … -string yes` gets working software and keeps the evidence
 of what they typed.
 
-**Two modules ship off: the calendar and Bluetooth alerts**, because each
-needs a permission and switching it on is what asks. That is
+**Three modules ship off: the calendar, Bluetooth alerts and downloads**,
+because each needs a permission and switching it on is what asks. That is
 `ModuleID.shippedDefault`, passed as `resolveEnabled`'s `shippedDefault` by
-`PreferencesStore.load`, so absent and mistyped both read off for those two
+`PreferencesStore.load`, so absent and mistyped both read off for those three
 keys and on for the rest — "absent" is still decided in one place.
 `Preferences.shipped` is what an empty domain loads; `.allEnabled` means every
 switch on, which is not the shipped state.
