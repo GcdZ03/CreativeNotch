@@ -64,6 +64,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// production wiring is this line and nothing else.
     var playChime: () -> Void = TimerChime.play
 
+    /// Speaks a peek to VoiceOver, behind an injection point like
+    /// `playChime`, so a test can count what would be said.
+    ///
+    /// Gated on VoiceOver being on. An announcement with no screen reader
+    /// listening is harmless, but `isVoiceOverEnabled` is a cached property
+    /// AppKit keeps current by notification — reading it costs nothing —
+    /// and skipping the post keeps an accessibility message from being
+    /// built and sent on every peek for the people who will never hear it.
+    ///
+    /// AppKit's announcement rather than SwiftUI's
+    /// `AccessibilityNotification.Announcement` (which `ClipboardRow` posts
+    /// from inside a view): this file is AppKit-only, and the announcement
+    /// has to name an element — `NSApp`, since a peek can appear while the
+    /// panel is not key and no window of this agent app is focused.
+    var announce: (String) -> Void = { text in
+        guard NSWorkspace.shared.isVoiceOverEnabled else { return }
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: text,
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
+    }
+
     /// Whether MediaRemote is loadable, behind a seam.
     ///
     /// In the shape of `playChime` and `now`, and for a sharper reason than
@@ -1341,8 +1367,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         guard let content = arbiter.content(now: now) else { return }
-        state.transition(to: .peek(content))
+        applyPeek(content)
         schedulePeekReevaluation(for: content)
+    }
+
+    /// Puts `content` in the peek slot and tells VoiceOver, if it is news.
+    ///
+    /// Both paths into `.peek` — a new peek and a re-check of the showing
+    /// one — come through here, so neither can show a peek without it being
+    /// heard. Whether it is news is `PeekAnnouncement`'s call: a re-check
+    /// re-applies the same peek, and the now-playing peek is re-applied on
+    /// every pause and seek, and none of that is spoken.
+    private func applyPeek(_ content: PeekContent) {
+        let previous: PeekContent?
+        if case .peek(let showing) = state.state { previous = showing } else { previous = nil }
+        state.transition(to: .peek(content))
+        if let text = PeekAnnouncement.announcement(showing: content, replacing: previous) {
+            announce(text)
+        }
     }
 
     /// Re-reads the arbiter once the showing content's TTL is expected to
@@ -1410,7 +1452,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let content = arbiter.content(
             now: self.now(), replacing: showing, pointerInside: state.isHovering
         ) {
-            state.transition(to: .peek(content))
+            applyPeek(content)
             // Something transient may still be live underneath the one that
             // just lapsed — a power peek recorded while a finished timer held
             // the slot is revealed when that one goes. Without this the

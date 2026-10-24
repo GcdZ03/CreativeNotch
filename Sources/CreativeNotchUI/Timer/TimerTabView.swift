@@ -68,6 +68,21 @@ struct TimerTabView: View {
         isPaused ? 0.75 : digitsOpacity(isPaused: false) * 0.55
     }
 
+    /// What VoiceOver reads for the countdown: the time left in words and
+    /// the bar as a percentage, from the same `now` both are drawn from.
+    ///
+    /// It changes only when the view redraws, which is when the digits
+    /// change — once a minute above a minute — so VoiceOver is never handed
+    /// a value more often than the screen is, and reads the current one
+    /// whenever the cursor lands on it.
+    static func accessibilityValue(_ countdown: Countdown, at now: Date) -> String {
+        TimerSpokenText.value(
+            remaining: countdown.remaining(at: now),
+            isPaused: countdown.isPaused,
+            fraction: trackFraction(countdown, at: now)
+        )
+    }
+
     private var idle: some View {
         VStack(spacing: 14) {
             HStack(spacing: 8) {
@@ -150,6 +165,12 @@ struct TimerTabView: View {
                     .font(.system(size: 16, weight: .medium, design: .rounded))
                     .foregroundStyle(.ink(Self.captionOpacity(isPaused: countdown.isPaused)))
             }
+            // One element, "Timer", whose value is the digits, "left" and
+            // the bar below said as a sentence — `25m` read aloud is "25 m",
+            // and dimming is invisible to VoiceOver.
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Timer")
+            .accessibilityValue(Self.accessibilityValue(countdown, at: now))
 
             // Redraws exactly when the digits do: same `now`, no clock of
             // its own.
@@ -162,6 +183,7 @@ struct TimerTabView: View {
                 }
             }
             .frame(width: 220, height: 4)
+            // Spoken as part of the countdown's value, so not a second stop.
             .accessibilityHidden(true)
 
             HStack(spacing: 8) {

@@ -24,8 +24,19 @@ struct NowPlayingBadgeView: View {
     /// The artwork's width over its height, from `AppState`.
     var aspect: CGFloat? = nil
     var coverNamespace: Namespace.ID? = nil
+    /// The track the cover belongs to, for VoiceOver only. The badge draws
+    /// nothing from it — its redraws stay the artwork's and nothing else's —
+    /// but "Now playing" alone tells a VoiceOver user less than the cover
+    /// tells everyone else.
+    var track: TrackSnapshot? = nil
 
     private let tile: CGFloat = 22
+
+    /// The peek's own sentence (`PeekAnnouncement.nowPlaying`), or just
+    /// "Now playing" before a title has arrived.
+    var accessibilityText: String {
+        track.map(PeekAnnouncement.nowPlaying) ?? "Now playing"
+    }
 
     var body: some View {
         content
@@ -35,7 +46,7 @@ struct NowPlayingBadgeView: View {
             .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
             .nowPlayingCover(in: coverNamespace)
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Now playing")
+            .accessibilityLabel(accessibilityText)
     }
 
     /// A glyph, not a blank tile, when there is no artwork.

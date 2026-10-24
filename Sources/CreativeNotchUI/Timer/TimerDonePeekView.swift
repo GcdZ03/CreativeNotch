@@ -13,6 +13,11 @@ struct TimerDonePeekView: View {
 
     private var detail: String { TimerCompletionText.detail(for: completion) }
 
+    /// The spoken completion, the same words VoiceOver is sent when this
+    /// peek appears (`PeekAnnouncement`) — "25m · finished 5m ago" read
+    /// aloud is letters and a dot.
+    var accessibilityText: String { TimerSpokenText.completion(completion) }
+
     var body: some View {
         if notchGap > 0 {
             HStack(spacing: 0) {
@@ -27,12 +32,12 @@ struct TimerDonePeekView: View {
                     .padding(.leading, 10)
             }
             .accessibilityElement(children: .combine)
-            .accessibilityLabel("Timer finished. \(detail)")
+            .accessibilityLabel(accessibilityText)
         } else {
             label("Timer · \(detail)", weight: .medium, opacity: 0.9)
                 .padding(.horizontal, 14)
                 .accessibilityElement(children: .combine)
-                .accessibilityLabel("Timer finished. \(detail)")
+                .accessibilityLabel(accessibilityText)
         }
     }
 

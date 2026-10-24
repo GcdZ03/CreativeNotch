@@ -88,3 +88,37 @@ struct ClipboardRowModelTests {
         #expect(ClipboardRowModel.copiedAnnouncement == "Copied")
     }
 }
+
+/// A row's verbs outside hover and the right-click menu.
+///
+/// Remove was reachable only from the context menu, which VoiceOver users
+/// rarely open, so it is now an accessibility action too — built from the
+/// same list as the menu, as `ShelfView.tileActions` is for a shelf tile.
+/// Copy stays the row's press, its default action, and so is not repeated
+/// as a named one.
+struct ClipboardRowActionsTests {
+
+    @Test func theMenuOffersCopyThenRemove() {
+        let actions = ClipboardRowModel.rowActions(onCopy: {}, onRemove: {})
+        #expect(actions.map(\.label) == ["Copy", "Remove"])
+        #expect(actions.map(\.symbolName) == ["doc.on.doc", "xmark"])
+        #expect(actions.map(\.isDestructive) == [false, true])
+    }
+
+    /// Copy is what pressing the row does; VoiceOver's action list carries
+    /// only what the press does not.
+    @Test func voiceOverIsOfferedRemoveAsANamedAction() {
+        let actions = ClipboardRowModel.rowActions(onCopy: {}, onRemove: {})
+        #expect(actions.filter { !$0.isDefault }.map(\.label) == ["Remove"])
+    }
+
+    @Test func eachActionPerformsItsOwnVerb() {
+        var calls: [String] = []
+        let actions = ClipboardRowModel.rowActions(
+            onCopy: { calls.append("copy") },
+            onRemove: { calls.append("remove") }
+        )
+        for action in actions { action.perform() }
+        #expect(calls == ["copy", "remove"])
+    }
+}
