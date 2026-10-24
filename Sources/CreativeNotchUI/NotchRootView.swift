@@ -856,7 +856,8 @@ public struct NotchRootView: View {
                         if let countdown = app.countdown {
                             TimerBadgeView(
                                 text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
-                                isPaused: countdown.isPaused
+                                isPaused: countdown.isPaused,
+                                remaining: countdown.remaining(at: now)
                             )
                             .frame(
                                 maxWidth: .infinity,
