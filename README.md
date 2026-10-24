@@ -84,6 +84,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **AirDrop from the shelf** — one file, or the whole shelf | Done |
 | ✅ **Motion** — direction-aware springs, rolling digits, a haptic on open, and Reduce Motion | Done |
 | ✅ **One notch while switching Spaces** — the panel sits above the desktop swipe | Done |
+| ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
 
 The file shelf is the first working module. Drag a file onto the notch and
 it opens to receive; drop it and the file is copied into the shelf; drag it
@@ -208,11 +209,11 @@ immediately.
 
 ### Permissions
 
-**Nothing is asked for at launch, and one module asks later.**
+**Nothing is asked for at launch, and two modules ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history needs no permission, and the global shortcut
-is registered with the window server rather than a monitor. Eight of the nine
+is registered with the window server rather than a monitor. Eight of the ten
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -220,6 +221,15 @@ time the camera tab actually runs — not at launch, and never if you do not
 open that tab. Deny it and the camera module reports itself denied rather
 than showing you the black frames a denied camera vends; everything else
 carries on unaffected.
+
+**Downloads asks for the Downloads folder**, and it is the one module that
+ships switched off for that reason. macOS asks ("CreativeNotch would like to
+access files in your Downloads folder") when you switch it on in Settings —
+never at launch. It watches the progress browsers publish for files there,
+the way Finder draws its progress bars, and reads nothing but file names.
+Refuse, and the Settings row says it cannot see downloads, with a button to
+System Settings › Privacy & Security › Files & Folders; nothing is watched
+until you allow it.
 
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
@@ -287,6 +297,10 @@ it back.
 | Pause it | The countdown dims and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
 | Sleep through the deadline | It fires on wake and says how late it was |
+| Switch Downloads on in Settings | macOS asks once whether CreativeNotch may read your Downloads folder; refuse and the row says so, with a button to Privacy & Security |
+| Download something in Safari | A ring right of the notch fills with the download's progress; with several at once it shows their combined progress and how many |
+| Hover the ring | A row drops below the notch: the file's name (or "3 downloads"), a bar and the percentage |
+| A download finishes | "Downloaded *name*" drops below the notch for five seconds, also spoken by VoiceOver; click it to show the file in Finder |
 | Menu bar icon | Settings…, Clear Shelf (and Undo Clear Shelf, for six seconds after), Clear Clipboard, Show Welcome Again, Quit |
 
 A quick cursor pass on the way to the menu bar does **not** trigger it — the
