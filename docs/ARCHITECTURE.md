@@ -526,7 +526,12 @@ in CI. Only thumbnails (QuickLook) and icons (`NSWorkspace`) need
 
 **Removal is always `FileManager.trashItem`**, through `ShelfTrash.system`;
 tests hand the store and `AppDelegate.shelfTrash` a stand-in folder so a test
-run never fills the user's Trash. `removeItem` appears in this
+run never fills the user's Trash. **The delegate is sandboxed by default:** a
+bare `AppDelegate()` gets a temporary shelf folder, a stand-in Trash, a private
+`UserDefaults` suite and a temporary captures folder, and only
+`configureForRealLaunch()` — the first line of `applicationDidFinishLaunching`
+— points them at Application Support, `.system`, `.standard` and
+`~/Pictures/CreativeNotch` (`SandboxedSeamsTests`). `removeItem` appears in this
 module once, in `discardPartial`, which deletes only hidden `.partial` files —
 half-finished copies that were never an item and whose original is still where
 it was dropped from. Eviction at the item cap and the age purge — 20 items and 7 days

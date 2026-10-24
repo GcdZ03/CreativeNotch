@@ -40,7 +40,14 @@ final class CameraController {
     ///
     /// The shelf still shows them, as references it does not own, so they are
     /// as draggable as anything else and nothing auto-deletes them.
-    var capturesDirectory: URL = FileManager.default
+    ///
+    /// The app's delegate always assigns this from its own
+    /// `capturesDirectory`, which is sandboxed until the real launch points
+    /// it here; see `AppDelegate.configureForRealLaunch()`.
+    var capturesDirectory: URL = CameraController.picturesCapturesDirectory
+
+    /// `~/Pictures/CreativeNotch/`, the real home of captures.
+    static let picturesCapturesDirectory: URL = FileManager.default
         .urls(for: .picturesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("CreativeNotch")
     /// Every capture still waiting on its delegate, keyed by its destination.

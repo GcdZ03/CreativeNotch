@@ -152,13 +152,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Overridable so tests never read or write the real
     /// `com.gcdz.creativenotch` domain.
     ///
-    /// **Required, not a convenience.** Once the activity fan-out routes
+    /// **Defaults to a private, uniquely named suite, not `.standard`** --
+    /// see `configureForRealLaunch()`. A suite that forgets to set it gets an
+    /// empty domain of its own, never the developer's real one.
+    ///
+    /// **Setting it is still required, not a convenience.** Once the activity fan-out routes
     /// through the switchboard, a wiring suite reading the developer's real
     /// defaults means a developer who switched media off in the actual app
     /// makes `lockingStopsTheMediaHelper` fail on their machine and nowhere
     /// else. Set it before `install(metrics:)`, exactly as `shelfDirectory`
     /// and `growthDelay` are.
-    var preferencesDefaults: UserDefaults = .standard
+    var preferencesDefaults: UserDefaults
 
     /// Reads and writes the module toggles. Built in `install(metrics:)` from
     /// `preferencesDefaults`, so the seam above is the only thing a test has
@@ -178,6 +182,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The camera. Internal rather than private so the switchboard and the
     /// tests can reach its lifecycle, like every other controller.
     private(set) var camera: CameraController?
+
+    /// Where the camera saves captures, handed to it in `install(metrics:)`.
+    /// Sandboxed by default like `shelfDirectory`; the real
+    /// `~/Pictures/CreativeNotch/` is set by `configureForRealLaunch()`.
+    var capturesDirectory: URL
 
     /// The global hotkey. Internal rather than private so the switchboard and
     /// the tests can reach its lifecycle, like every other controller.
@@ -204,9 +213,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - Shelf
 
     /// Overridable so tests do not write into the real Application Support.
-    var shelfDirectory: URL = FileManager.default
-        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("CreativeNotch/Shelf")
+    ///
+    /// Defaults to a folder under this delegate's own temporary sandbox; the
+    /// real one is `realShelfDirectory`, set by `configureForRealLaunch()`.
+    var shelfDirectory: URL
 
     private(set) var shelf: ShelfStore?
 
@@ -218,7 +228,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Where the shelf sends what it clears, evicts and purges. Overridable
     /// so tests never move files into the user's real Trash. Set it before
     /// `install(metrics:)`, whose launch purge already uses it.
-    var shelfTrash: ShelfTrash = .system
+    ///
+    /// Defaults to a stand-in folder in this delegate's temporary sandbox;
+    /// only `configureForRealLaunch()` hands it `.system`.
+    var shelfTrash: ShelfTrash
 
     /// How long "Couldn't add …" stays under the shelf after a background
     /// copy fails. Long enough to read a file name; it is a report, not an
@@ -467,11 +480,63 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// should be running while the notch is idle.
     var isWatchingForOutsideClicks: Bool { outsideClickToken != nil }
 
-    public override init() { super.init() }
+    public override init() {
+        let sandbox = FileManager.default.temporaryDirectory
+            .appendingPathComponent("CreativeNotch-\(UUID().uuidString)", isDirectory: true)
+        let suiteName = "com.gcdz.creativenotch.sandbox.\(UUID().uuidString)"
+        sandboxSuiteName = suiteName
+        preferencesDefaults = UserDefaults(suiteName: suiteName)!
+        shelfDirectory = sandbox.appendingPathComponent("Shelf", isDirectory: true)
+        shelfTrash = .folder(sandbox.appendingPathComponent("Trash", isDirectory: true))
+        capturesDirectory = sandbox.appendingPathComponent("Captures", isDirectory: true)
+        super.init()
+    }
+
+    /// The sandbox suite `preferencesDefaults` starts as, dropped again when
+    /// the delegate goes: a test run builds hundreds of delegates, and each
+    /// would otherwise leave an empty domain behind. Harmless after
+    /// `configureForRealLaunch()`, which never wrote to it.
+    private let sandboxSuiteName: String
+
+    deinit {
+        UserDefaults().removePersistentDomain(forName: sandboxSuiteName)
+    }
+
+    // MARK: - Real-world locations
+
+    /// The shelf's real storage, `~/Library/Application Support/CreativeNotch/Shelf`.
+    static let realShelfDirectory: URL = FileManager.default
+        .urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        .appendingPathComponent("CreativeNotch/Shelf")
+
+    /// Points every seam that reaches the user's own data at the real thing:
+    /// the preferences domain, the shelf's folder, the Trash, and the
+    /// captures folder.
+    ///
+    /// **Why the defaults are sandboxed instead.** Each of these seams once
+    /// defaulted to the real location, and staying off it was something every
+    /// test had to remember: a suite that built an `AppDelegate()` and forgot
+    /// one opened the user's real shelf at `install(metrics:)` and ran its
+    /// launch purge into the user's real Trash. Now a fresh delegate reaches
+    /// nothing outside a temporary folder and a private defaults suite, and
+    /// the real app opts in here, once, before anything is built --
+    /// `applicationDidFinishLaunching` calls this first, and nothing else
+    /// does. A new seam of this kind belongs in this method, with a sandboxed
+    /// default.
+    func configureForRealLaunch() {
+        preferencesDefaults = .standard
+        shelfDirectory = Self.realShelfDirectory
+        shelfTrash = .system
+        capturesDirectory = CameraController.picturesCapturesDirectory
+    }
 
     // MARK: - Lifecycle
 
     public func applicationDidFinishLaunching(_ notification: Notification) {
+        // Before anything reads a preference or builds the shelf: every
+        // real-world seam defaults to a sandbox until this runs.
+        configureForRealLaunch()
+
         // With no screen at all, the screen-parameter observer builds the
         // panel when one appears (`screenParametersDidChange`). The choice is
         // read before `install` exists to load it, because it decides which
@@ -794,6 +859,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // capture was saved and never listed. Reading late also follows a
         // shelf rebuilt later, the same as the title-row verbs below.
         let camera = CameraController(shelf: { [weak self] in self?.shelf })
+        camera.capturesDirectory = capturesDirectory
         camera.onStateChange = { [weak self] next in
             self?.state.cameraState = next
             if case .recording = next {
