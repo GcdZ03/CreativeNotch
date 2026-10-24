@@ -104,6 +104,13 @@ final class UpdateController {
     @ObservationIgnored private(set) var checkTask: Task<Void, Never>?
     /// The install in flight, if any. Internal so a test can await it.
     @ObservationIgnored private(set) var installTask: Task<Void, Never>?
+    /// The withdrawal of a reported check failure, if one is showing.
+    /// Internal so a test can await it.
+    @ObservationIgnored private(set) var failureNoticeTask: Task<Void, Never>?
+    /// How long a manual check's failure stays before the status settles
+    /// back to what the record says. A test shortens it.
+    @ObservationIgnored var failureNoticeDuration: Duration = UpdateController.defaultFailureNoticeDuration
+    static let defaultFailureNoticeDuration: Duration = .seconds(8)
     /// Whether anyone asked for the check in flight. Only then is a failure
     /// reported; otherwise nobody is told, because nobody asked.
     @ObservationIgnored private var reportsFailure = false
@@ -154,7 +161,8 @@ final class UpdateController {
         guard !status.isBusy else { return false }
 
         reportsFailure = trigger == .manual
-        status = .checking
+        withdrawFailureNotice()
+        status = .checking(offer: UpdateStatus.offer(record: record, currentVersion: environment.currentVersion))
         let headers = UpdateEndpoint.headers(version: environment.currentVersion, etag: record.conditionalETag)
         let fetcher = environment.fetcher
         checkTask = Task { [weak self] in
@@ -171,16 +179,46 @@ final class UpdateController {
         let record = store.loadUpdateRecord().applying(result, at: environment.now())
         store.saveUpdateRecord(record)
         if case .failed(let failure) = result, reports {
-            status = .checkFailed(failure)
+            status = .checkFailed(failure, offer: UpdateStatus.offer(record: record, currentVersion: environment.currentVersion))
+            scheduleFailureWithdrawal()
         } else {
             status = .settled(record: record, currentVersion: environment.currentVersion)
         }
+    }
+
+    /// A manual check's failure is said briefly, then the status settles
+    /// back to the record's — an update already on offer included. A
+    /// one-shot per failure, like the shelf's notice and Settings'
+    /// highlight, not a schedule: it runs once, only after someone asked,
+    /// and a new check or an install cancels it.
+    private func scheduleFailureWithdrawal() {
+        failureNoticeTask?.cancel()
+        let duration = failureNoticeDuration
+        failureNoticeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: duration)
+            guard !Task.isCancelled else { return }
+            self?.settleAfterFailure()
+        }
+    }
+
+    /// The end of a failure notice: back to the record's resting status.
+    /// Internal so a test can run it without waiting.
+    func settleAfterFailure() {
+        failureNoticeTask = nil
+        guard case .checkFailed = status else { return }
+        status = .settled(record: store.loadUpdateRecord(), currentVersion: environment.currentVersion)
+    }
+
+    private func withdrawFailureNotice() {
+        failureNoticeTask?.cancel()
+        failureNoticeTask = nil
     }
 
     /// Cancels a check in flight, at quit. An install is not cancelled: it
     /// ends by quitting the app itself.
     func stop() {
         checkTask?.cancel()
+        withdrawFailureNotice()
     }
 
     func setAutomatic(_ enabled: Bool) {
@@ -197,6 +235,7 @@ final class UpdateController {
         guard installTask == nil, checkTask == nil,
               let release = status.installableRelease,
               eligibility.canInstall else { return }
+        withdrawFailureNotice()
         status = .installing(release, .downloading)
         let installer = environment.installer
         let bundle = environment.bundleURL

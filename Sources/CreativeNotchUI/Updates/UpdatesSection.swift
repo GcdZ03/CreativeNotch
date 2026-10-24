@@ -92,6 +92,9 @@ struct UpdatesSection: View {
             if status.installableRelease != nil, eligibility.canInstall {
                 Button(String(localized: "Update Now", bundle: .creativeNotch)) { controller.installUpdate() }
                     .keyboardShortcut(.defaultAction)
+                    // Kept through a check, so it does not blink out while
+                    // Settings asks; just not pressable until the answer.
+                    .disabled(status.isBusy)
             }
             Button(String(localized: "Check Now", bundle: .creativeNotch)) { controller.check(.manual) }
                 .disabled(status.isBusy)

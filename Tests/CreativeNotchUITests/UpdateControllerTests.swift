@@ -61,7 +61,7 @@ struct UpdateControllerTests {
         let fetcher = FakeReleaseFetcher([FakeReleaseFetcher.ok()])
         let controller = make(fetcher)
         #expect(controller.check(.launch))
-        #expect(controller.status == .checking)
+        #expect(controller.status == .checking(offer: nil))
         await settle(controller)
         #expect(controller.status == .available(UpdateFakes.release()))
         #expect(await fetcher.count == 1)
@@ -178,10 +178,10 @@ struct UpdateControllerTests {
         let controller = make(FakeReleaseFetcher([nil, FakeReleaseFetcher.rateLimited]))
         controller.check(.manual)
         await settle(controller)
-        #expect(controller.status == .checkFailed(.offline))
+        #expect(controller.status == .checkFailed(.offline, offer: nil))
         controller.check(.manual)
         await settle(controller)
-        #expect(controller.status == .checkFailed(.rateLimited))
+        #expect(controller.status == .checkFailed(.rateLimited, offer: nil))
     }
 
     /// Asked for while an automatic check is in flight, the answer is
@@ -191,7 +191,55 @@ struct UpdateControllerTests {
         controller.check(.launch)
         controller.check(.manual)
         await settle(controller)
-        #expect(controller.status == .checkFailed(.offline))
+        #expect(controller.status == .checkFailed(.offline, offer: nil))
+    }
+
+    /// The reviewer's case (2026-10-25): 0.13.0 is known, the user checks
+    /// offline. The offer stays through the check and its failure — menu
+    /// item, "Update Now", notes — and the failure is said briefly, then
+    /// the status settles back to the offer.
+    @Test func aFailedManualCheckKeepsAKnownUpdateAndThenSettles() async {
+        let controller = make(FakeReleaseFetcher([FakeReleaseFetcher.ok(), nil]))
+        controller.check(.launch)
+        await settle(controller)
+        let release = UpdateFakes.release()
+        #expect(controller.status == .available(release))
+
+        controller.failureNoticeDuration = .seconds(3_600)
+        controller.check(.manual)
+        #expect(controller.status == .checking(offer: release))
+        #expect(controller.status.release == release, "the menu item stays while it asks")
+        await settle(controller)
+        #expect(controller.status == .checkFailed(.offline, offer: release))
+        #expect(controller.status.installableRelease == release, "Update Now stays through the failure")
+        controller.openReleaseNotes()
+        #expect(effects.opened == [release.notesURL])
+
+        #expect(controller.failureNoticeTask != nil, "the failure is withdrawn later, once")
+        controller.settleAfterFailure()
+        #expect(controller.status == .available(release), "back to the offer once the failure has been said")
+    }
+
+    /// With nothing on offer, a failure settles back to what the record
+    /// says, and a new check cancels a pending withdrawal.
+    @Test func aFailureNoticeSettlesAndANewCheckCancelsIt() async {
+        let controller = make(FakeReleaseFetcher([nil, nil]))
+        controller.failureNoticeDuration = .zero
+        controller.check(.manual)
+        await settle(controller)
+        await controller.failureNoticeTask?.value
+        #expect(controller.status == .notChecked, "the scheduled withdrawal really runs")
+        #expect(controller.failureNoticeTask == nil)
+
+        controller.failureNoticeDuration = .seconds(3_600)
+        controller.check(.manual)
+        await settle(controller)
+        let pending = controller.failureNoticeTask
+        #expect(pending != nil)
+        controller.stop()
+        #expect(controller.failureNoticeTask == nil)
+        await pending?.value
+        #expect(controller.status == .checkFailed(.offline, offer: nil), "a cancelled withdrawal changes nothing")
     }
 
     // MARK: - Restoring

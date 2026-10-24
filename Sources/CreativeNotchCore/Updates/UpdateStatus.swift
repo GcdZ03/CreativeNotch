@@ -59,12 +59,17 @@ public enum UpdateInstallFailure: Error, Equatable, Sendable {
 /// can never both be true, and so the line under the version is a pure
 /// function of it — testable here, with fixed dates, rather than in a
 /// SwiftUI body.
+///
+/// A check — in flight, or failed and being reported — carries the update
+/// already on offer, if any (2026-10-25), so asking again never hides it:
+/// "Update to v…", "Update Now" and the release notes stay while the
+/// answer is awaited, and stay through a failure to get one.
 public enum UpdateStatus: Equatable, Sendable {
     case notChecked
-    case checking
+    case checking(offer: Release?)
     case upToDate(checkedAt: Date)
     case available(Release)
-    case checkFailed(UpdateCheckFailure)
+    case checkFailed(UpdateCheckFailure, offer: Release?)
     case installing(Release, UpdatePhase)
     case installFailed(Release, UpdateInstallFailure)
     case relaunching(Release)
@@ -73,11 +78,17 @@ public enum UpdateStatus: Equatable, Sendable {
     /// and what a quiet failure falls back to. A cached release that is not
     /// newer — the one just installed — reads as up to date.
     public static func settled(record: UpdateRecord, currentVersion: String) -> UpdateStatus {
-        if let release = UpdateAvailability.newer(record.release, than: currentVersion) {
+        if let release = offer(record: record, currentVersion: currentVersion) {
             return .available(release)
         }
         if let lastCheck = record.lastCheck { return .upToDate(checkedAt: lastCheck) }
         return .notChecked
+    }
+
+    /// The newer release a record knows of, if any: what a check carries
+    /// while it runs, and through its failure.
+    public static func offer(record: UpdateRecord, currentVersion: String) -> Release? {
+        UpdateAvailability.newer(record.release, than: currentVersion)
     }
 
     /// A check or an install is under way, so neither can start.
@@ -95,17 +106,23 @@ public enum UpdateStatus: Equatable, Sendable {
         case .available(let release), .installing(let release, _),
              .installFailed(let release, _), .relaunching(let release):
             return release
-        case .notChecked, .checking, .upToDate, .checkFailed:
+        case .checking(let offer), .checkFailed(_, let offer):
+            return offer
+        case .notChecked, .upToDate:
             return nil
         }
     }
 
-    /// The release "Update Now" would install: one on offer, or offered
-    /// again after a failed attempt, and only with both of its assets.
+    /// The release "Update Now" would install: one on offer, offered again
+    /// after a failed attempt, or still on offer through a check — and only
+    /// with both of its assets. During a check the button stays, disabled
+    /// by `isBusy`, rather than vanishing for the second the request takes.
     public var installableRelease: Release? {
         switch self {
         case .available(let release), .installFailed(let release, _):
             return release.isInstallable ? release : nil
+        case .checking(let offer?), .checkFailed(_, let offer?):
+            return offer.isInstallable ? offer : nil
         default:
             return nil
         }
@@ -133,11 +150,11 @@ public enum UpdateStatus: Equatable, Sendable {
         case .available(let release):
             let version = release.version?.description ?? release.tag
             return String(localized: "Version \(version) is available", bundle: .creativeNotch)
-        case .checkFailed(.offline):
+        case .checkFailed(.offline, _):
             return String(localized: "Couldn't check for updates. Check your connection and try again.", bundle: .creativeNotch)
-        case .checkFailed(.rateLimited):
+        case .checkFailed(.rateLimited, _):
             return String(localized: "Couldn't check for updates: GitHub asked to wait. Try again later.", bundle: .creativeNotch)
-        case .checkFailed(.unexpected):
+        case .checkFailed(.unexpected, _):
             return String(localized: "Couldn't check for updates", bundle: .creativeNotch)
         case .installing(_, .downloading):
             return String(localized: "Downloading\u{2026}", bundle: .creativeNotch)

@@ -175,6 +175,21 @@ struct UpdateWiringTests {
         #expect(delegate.menuAvailableUpdate == "0.13.0")
     }
 
+    /// "Update to v…" survives asking again: it stays while a check is out
+    /// and through a manual check that fails (2026-10-25).
+    @Test func theMenusUpdateItemSurvivesAFailedCheck() async {
+        let delegate = delegate(FakeReleaseFetcher([FakeReleaseFetcher.ok(), nil]))
+        delegate.updates.check(.manual)
+        await delegate.updates.checkTask?.value
+        delegate.updates.failureNoticeDuration = .seconds(3_600)
+        delegate.updates.check(.manual)
+        #expect(delegate.menuAvailableUpdate == "0.13.0", "while checking")
+        await delegate.updates.checkTask?.value
+        #expect(delegate.updates.status == .checkFailed(.offline, offer: UpdateFakes.release()))
+        #expect(delegate.menuAvailableUpdate == "0.13.0", "after the check failed")
+        delegate.updates.stop()
+    }
+
     // MARK: - Settings
 
     @Test func theUpdatesSectionIsNotAModuleGroup() {

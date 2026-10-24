@@ -131,7 +131,7 @@ struct UpdateScheduleTests {
     @Test func statusLines() {
         let line = { (status: UpdateStatus) in status.line(now: Self.now, locale: Self.english) }
         #expect(line(.notChecked) == "Not checked yet")
-        #expect(line(.checking) == "Checking\u{2026}")
+        #expect(line(.checking(offer: nil)) == "Checking\u{2026}")
         #expect(line(.upToDate(checkedAt: Self.now.addingTimeInterval(-300))) == "Up to date \u{2014} checked 5 minutes ago")
         #expect(line(.upToDate(checkedAt: Self.now.addingTimeInterval(-26 * Self.hour))) == "Up to date \u{2014} checked yesterday")
         #expect(line(.available(Self.release)) == "Version 0.13.0 is available")
@@ -139,9 +139,9 @@ struct UpdateScheduleTests {
         #expect(line(.installing(Self.release, .verifying)) == "Verifying\u{2026}")
         #expect(line(.installing(Self.release, .installing)) == "Installing\u{2026}")
         #expect(line(.relaunching(Self.release)) == "Restarting\u{2026}")
-        #expect(line(.checkFailed(.offline)).hasPrefix("Couldn't check for updates"))
-        #expect(line(.checkFailed(.rateLimited)).hasPrefix("Couldn't check for updates"))
-        #expect(line(.checkFailed(.unexpected)) == "Couldn't check for updates")
+        #expect(line(.checkFailed(.offline, offer: nil)).hasPrefix("Couldn't check for updates"))
+        #expect(line(.checkFailed(.rateLimited, offer: Self.release)).hasPrefix("Couldn't check for updates"))
+        #expect(line(.checkFailed(.unexpected, offer: nil)) == "Couldn't check for updates")
         #expect(line(.installFailed(Self.release, .checksumMismatch)).hasPrefix("Couldn't update:"))
     }
 
@@ -152,7 +152,7 @@ struct UpdateScheduleTests {
     }
 
     @Test func busyStates() {
-        #expect(UpdateStatus.checking.isBusy)
+        #expect(UpdateStatus.checking(offer: nil).isBusy)
         #expect(UpdateStatus.installing(Self.release, .verifying).isBusy)
         #expect(UpdateStatus.relaunching(Self.release).isBusy)
         #expect(!UpdateStatus.available(Self.release).isBusy)
@@ -165,11 +165,39 @@ struct UpdateScheduleTests {
     @Test func whichStatesOfferAnInstall() {
         #expect(UpdateStatus.available(Self.release).installableRelease == Self.release)
         #expect(UpdateStatus.installFailed(Self.release, .moveFailed).installableRelease == Self.release)
-        #expect(UpdateStatus.checking.installableRelease == nil)
+        #expect(UpdateStatus.checking(offer: nil).installableRelease == nil)
         #expect(UpdateStatus.installing(Self.release, .downloading).installableRelease == nil)
         let bare = Release(tag: "v0.13.0", notesURL: Self.release.notesURL, archiveURL: nil, checksumURL: nil)
         #expect(UpdateStatus.available(bare).installableRelease == nil, "no assets, nothing to install")
         #expect(UpdateStatus.available(bare).release == bare, "but still announced, with notes")
+    }
+
+    /// A check, in flight or failed, keeps the update already on offer
+    /// (2026-10-25): the menu item, "Update Now" and the notes do not vanish
+    /// because the Mac is offline or Settings is asking again. In flight
+    /// the offer is busy, so "Update Now" shows but cannot start.
+    @Test func aCheckKeepsTheUpdateOnOffer() {
+        let checking = UpdateStatus.checking(offer: Self.release)
+        #expect(checking.release == Self.release)
+        #expect(checking.installableRelease == Self.release)
+        #expect(checking.isBusy)
+        let failed = UpdateStatus.checkFailed(.offline, offer: Self.release)
+        #expect(failed.release == Self.release)
+        #expect(failed.installableRelease == Self.release)
+        #expect(!failed.isBusy)
+        #expect(UpdateStatus.checkFailed(.offline, offer: nil).release == nil)
+        #expect(UpdateStatus.checkFailed(.offline, offer: nil).installableRelease == nil)
+        let bare = Release(tag: "v0.13.0", notesURL: Self.release.notesURL, archiveURL: nil, checksumURL: nil)
+        #expect(UpdateStatus.checkFailed(.offline, offer: bare).installableRelease == nil)
+        #expect(UpdateStatus.checkFailed(.offline, offer: bare).release == bare)
+    }
+
+    /// The offer is the record's release when it is newer than this copy.
+    @Test func theOfferComesFromTheRecord() {
+        let record = UpdateRecord(lastCheck: Self.now, etag: "e", release: Self.release)
+        #expect(UpdateStatus.offer(record: record, currentVersion: "0.12.0") == Self.release)
+        #expect(UpdateStatus.offer(record: record, currentVersion: "0.13.0") == nil)
+        #expect(UpdateStatus.offer(record: UpdateRecord(), currentVersion: "0.12.0") == nil)
     }
 
     @Test func everyFailureHasAReason() {
