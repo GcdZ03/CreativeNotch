@@ -61,6 +61,10 @@ public enum PeekContent: Equatable, Sendable {
     case nowPlaying(TrackSnapshot)
     case timerDone(TimerCompletion)
     case power(PowerEvent)
+    /// Downloads in progress: ambient, shown on hover over their badge.
+    case downloads(DownloadSummary)
+    /// A download that has just finished: transient, shown unasked.
+    case downloadDone(DownloadCompletion)
 }
 
 /// The one state the panel is ever in.
@@ -75,6 +79,10 @@ public enum NotchState: Equatable, Sendable {
         case .closed:            return .closed
         case .peek(.nowPlaying): return .mediaPeek
         case .peek(.power):      return .statusPeek
+        // The battery's row, reused: an icon, the words, a bar and a number
+        // is exactly what a download needs too, and a name is too long for
+        // the one-line ears.
+        case .peek(.downloads), .peek(.downloadDone): return .statusPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }

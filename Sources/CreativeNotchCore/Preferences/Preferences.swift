@@ -20,6 +20,7 @@ public struct Preferences: Equatable, Sendable {
     public var hotkey: Bool
     public var camera: Bool
     public var captureIndicator: Bool
+    public var downloads: Bool
 
     public init(
         shelf: Bool = true,
@@ -30,7 +31,8 @@ public struct Preferences: Equatable, Sendable {
         timer: Bool = true,
         hotkey: Bool = true,
         camera: Bool = true,
-        captureIndicator: Bool = true
+        captureIndicator: Bool = true,
+        downloads: Bool = true
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -41,11 +43,22 @@ public struct Preferences: Equatable, Sendable {
         self.hotkey = hotkey
         self.camera = camera
         self.captureIndicator = captureIndicator
+        self.downloads = downloads
     }
 
-    /// Everything on. The shipped state, and what a domain with no keys in it
-    /// resolves to.
+    /// Everything on. What a bare `AppState` and the switchboard start from
+    /// before `apply()` has read anything, so a test that builds a delegate
+    /// gets every module's wiring without having to switch it on.
     public static let allEnabled = Preferences()
+
+    /// What a domain with no keys in it resolves to: everything on except the
+    /// modules that ship off (`ModuleID.shippedDefault`). The two differ only
+    /// in downloads, whose permission prompt must follow a click.
+    public static let shipped: Preferences = {
+        var preferences = Preferences()
+        for module in ModuleID.allCases { preferences[module] = module.shippedDefault }
+        return preferences
+    }()
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -59,6 +72,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        return hotkey
             case .camera:        return camera
             case .captureIndicator: return captureIndicator
+            case .downloads:     return downloads
             }
         }
         set {
@@ -72,6 +86,7 @@ public struct Preferences: Equatable, Sendable {
             case .hotkey:        hotkey = newValue
             case .camera:        camera = newValue
             case .captureIndicator: captureIndicator = newValue
+            case .downloads:     downloads = newValue
             }
         }
     }

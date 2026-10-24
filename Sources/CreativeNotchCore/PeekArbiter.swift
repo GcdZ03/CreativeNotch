@@ -23,14 +23,50 @@ public struct PeekArbiter: Equatable, Sendable {
     /// appearing until someone clicked.
     public static let timerDoneTTL: TimeInterval = 600
 
+    /// Five seconds: long enough to read a file name and reach for it — the
+    /// peek is the way to its file in Finder — and short enough that a
+    /// download nobody was waiting for is gone before it is in the way.
+    public static let downloadDoneTTL: TimeInterval = 5.0
+
     private var power: PowerEvent?
     private var powerExpiry: TimeInterval = 0
     private var dragActive = false
     private var nowPlaying: TrackSnapshot?
     private var timerDone: TimerCompletion?
     private var timerDoneExpiry: TimeInterval = 0
+    private var downloads: DownloadSummary?
+    private var downloadDone: DownloadCompletion?
+    private var downloadDoneExpiry: TimeInterval = 0
 
     public init() {}
+
+    /// What is downloading, or `nil`. Ambient, like now-playing: shown on
+    /// hover, never unasked.
+    public mutating func setDownloads(_ summary: DownloadSummary?) {
+        downloads = summary
+    }
+
+    /// Below power and a finished timer, above everything ambient: a
+    /// finished download is worth a glance, but it is neither consequential
+    /// nor something the user asked to be interrupted by.
+    public mutating func recordDownloadDone(_ completion: DownloadCompletion, now: TimeInterval) {
+        downloadDone = completion
+        downloadDoneExpiry = now + Self.downloadDoneTTL
+    }
+
+    /// Acknowledges the completion peek — it was clicked, or the panel opened
+    /// — so the next hover does not show it again.
+    public mutating func dismissDownloadDone() {
+        downloadDone = nil
+    }
+
+    /// Withdraws both of the downloads module's entries when it is switched
+    /// off, and nothing else's: the arbiter is a priority list, and whatever
+    /// was queued behind them is revealed (`clearPower`'s reasoning).
+    public mutating func clearDownloads() {
+        downloads = nil
+        downloadDone = nil
+    }
 
     public mutating func recordPower(_ event: PowerEvent, now: TimeInterval) {
         power = event
@@ -82,6 +118,11 @@ public struct PeekArbiter: Equatable, Sendable {
         // and yields to anything, while power is unsolicited but
         // consequential.
         if let power, now < powerExpiry { return .power(power) }
+        if let downloadDone, now < downloadDoneExpiry { return .downloadDone(downloadDone) }
+        // Above now-playing in the same order the badge slot uses, so a
+        // hover over the download ring shows the download, not the track the
+        // ring took the slot from.
+        if let downloads { return .downloads(downloads) }
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil
     }
@@ -114,6 +155,10 @@ public struct PeekArbiter: Equatable, Sendable {
         switch content(now: now) {
         case .nowPlaying(let track):
             return pointerInside ? .nowPlaying(track) : nil
+        // Ambient for the same reason: kept, following the percent, while
+        // the pointer is over it; never fallen back to without it.
+        case .downloads(let summary):
+            return pointerInside ? .downloads(summary) : nil
         case .some(let next):
             return next
         case nil:

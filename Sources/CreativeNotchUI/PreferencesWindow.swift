@@ -101,6 +101,11 @@ final class PreferencesController {
         // reused window's `.onAppear` would read the displays once per
         // process, and a monitor plugged in since would be missing.
         state.onRefreshDisplays?()
+        // The same boundary, for the same reason: someone refused the
+        // Downloads folder, allowed it in System Settings, and came back
+        // here to see whether it took. Reads nothing unless the module is on
+        // and was refused.
+        state.onRecheckDownloadsAccess?()
         presenter(self)
     }
 
@@ -234,6 +239,16 @@ final class PreferencesController {
     /// ignore it.
     var hasRunningCountdown: Bool { state.countdown != nil }
 
+    /// Whether the downloads module is on but cannot read the folder, which
+    /// is what makes its row warn rather than read "on" over a module that
+    /// sees nothing.
+    var downloadsAccess: DownloadsAccess { state.downloadsAccess }
+
+    /// The denied row's button: System Settings at Files & Folders.
+    func openDownloadsPrivacy() {
+        state.onOpenDownloadsPrivacy?()
+    }
+
     private var recorders: [ObjectIdentifier: HotKeyRecorder] = [:]
 
     /// One recorder per hotkey controller, built on first use. Held here
@@ -336,7 +351,7 @@ enum PreferencesSection: CaseIterable {
     var footer: String? {
         switch self {
         case .notch:
-            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it."
+            return "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening."
         case .music:
             return "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
         case .camera:
@@ -398,6 +413,13 @@ struct PreferencesView: View {
             module: .power, section: .notch, symbolName: "battery.100percent", tint: .green,
             title: "Battery and power",
             detail: "Level, charging state and Low Power Mode. Costs almost nothing either way."
+        ),
+        PreferencesRow(
+            module: .downloads, section: .notch, symbolName: "arrow.down.circle", tint: .teal,
+            title: "Downloads",
+            // Says what the switch will ask for before it asks: the read
+            // is a macOS prompt, and this is the "why" that prompt lacks.
+            detail: "Progress of Safari and other downloads, beside the closed notch. Asks to read your Downloads folder."
         ),
         PreferencesRow(
             module: .mediaMetadata, section: .music, symbolName: "music.note", tint: .pink,
@@ -498,8 +520,10 @@ struct PreferencesView: View {
         .formStyle(.grouped)
     }
 
+    /// Internal rather than private so the feature renders can draw one
+    /// row in its real form, warning and all, without the whole window.
     @ViewBuilder
-    private func moduleRow(_ row: PreferencesRow) -> some View {
+    func moduleRow(_ row: PreferencesRow) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Toggle(isOn: Binding(
                 get: { controller.isEnabled(row.module) },
@@ -545,6 +569,12 @@ struct PreferencesView: View {
                     .foregroundStyle(.orange)
                     .padding(.leading, 36)
             }
+
+            if Self.offersPrivacySettings(row.module, controller: controller) {
+                Button("Open Privacy Settings\u{2026}") { controller.openDownloadsPrivacy() }
+                    .controlSize(.small)
+                    .padding(.leading, 36)
+            }
         }
         // The row a "Set Shortcut…" was pressed for, tinted with the
         // accent until it fades, so the eye lands on it in a long form.
@@ -574,9 +604,19 @@ struct PreferencesView: View {
             // Required by the spec: the tab you would cancel it from is what
             // disappears, so say what happens to the countdown.
             return "A countdown is running. Switching the timer off removes the tab you would cancel it from — it will finish and chime."
+        case .downloads where controller.isEnabled(.downloads):
+            // The one module that can be switched on and see nothing: the
+            // switch must not read "on" over a refusal without saying so.
+            return controller.downloadsAccess.warning
         default:
             return nil
         }
+    }
+
+    /// Whether the row offers the way to fix its warning: only downloads,
+    /// only while on and refused.
+    static func offersPrivacySettings(_ module: ModuleID, controller: PreferencesController) -> Bool {
+        module == .downloads && controller.isEnabled(.downloads) && controller.downloadsAccess == .denied
     }
 }
 

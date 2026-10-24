@@ -319,6 +319,34 @@ public final class AppState {
     /// the camera's activity-gate exemption is honest rather than silent.
     public var isRecordingClip: Bool = false
 
+    /// What is downloading, from the downloads module, or `nil`. Read by the
+    /// badge slot and the peek.
+    ///
+    /// A plain `Equatable` stored property on purpose — the opposite of
+    /// `countdown`'s box. `DownloadSummary` is quantised to whole percents,
+    /// so the equality guard `@Observable` emits is exactly what drops the
+    /// readings that would redraw the ring identically.
+    public internal(set) var downloads: DownloadSummary?
+
+    /// Whether the app may read the Downloads folder, for the Settings row's
+    /// denied state. Set by `DownloadsController` through the delegate.
+    public internal(set) var downloadsAccess: DownloadsAccess = .unknown
+
+    /// A finished download's peek was clicked: show the file in Finder.
+    /// A verb, like `onRevealShelfItem`, so the view never reaches for
+    /// `NSWorkspace`; wired by `AppDelegate`, which also acknowledges the peek.
+    @ObservationIgnored
+    public var onRevealDownload: ((DownloadCompletion) -> Void)?
+
+    /// Asks for the Downloads folder again after a refusal. Called when
+    /// Settings is shown; does nothing unless the module is on and refused.
+    @ObservationIgnored
+    public var onRecheckDownloadsAccess: (() -> Void)?
+
+    /// Opens System Settings at Files & Folders, from the denied row.
+    @ObservationIgnored
+    public var onOpenDownloadsPrivacy: (() -> Void)?
+
     /// Which modules are switched on.
     ///
     /// **The single read surface for preferences.** `ModuleSwitchboard` writes
@@ -329,9 +357,10 @@ public final class AppState {
     /// what makes a preference snapshotted into a `let` structurally
     /// impossible for the app-lifetime closures built in `install(metrics:)`.
     ///
-    /// Defaults to everything on, matching what an empty defaults domain
-    /// resolves to, so a bare `AppState` in a test behaves like a fresh
-    /// install rather than like a user who switched everything off.
+    /// Defaults to everything on, so a bare `AppState` in a test behaves like
+    /// a fresh install rather than like a user who switched everything off.
+    /// (An empty domain resolves to `Preferences.shipped`, which differs only
+    /// in downloads; `ModuleSwitchboard.apply()` writes the real value.)
     ///
     /// Not `@ObservationIgnored`: like `hasBattery`, `body` reads it directly
     /// and needs Observation's tracking when it is written at runtime -- which
@@ -677,6 +706,7 @@ public struct NotchRootView: View {
             nowPlaying: app.nowPlaying,
             isRecording: app.isRecordingClip,
             capture: app.captureUse,
+            downloads: app.downloads,
             at: now
         )
     }
@@ -767,6 +797,19 @@ public struct NotchRootView: View {
     /// anchor's real height.
     static func powerPeek(for app: AppState, event: PowerEvent) -> PowerPeekView {
         PowerPeekView(event: event, bandHeight: app.anchor.rect.height)
+    }
+
+    /// The downloads peek exactly as `body` builds it, for the same reason
+    /// `powerPeek(for:event:)` is static: the band height it supplies, and
+    /// the reveal verb it hands VoiceOver, are readable without a render.
+    static func downloadPeek(for app: AppState, content: DownloadPeekView.Content) -> DownloadPeekView {
+        DownloadPeekView(
+            content: content,
+            bandHeight: app.anchor.rect.height,
+            onReveal: {
+                if case .done(let completion) = content { app.onRevealDownload?(completion) }
+            }
+        )
     }
 
     public var body: some View {
@@ -899,6 +942,17 @@ public struct NotchRootView: View {
                                 maxHeight: .infinity,
                                 alignment: .trailing
                             )
+                    case .downloads:
+                        if let summary = app.downloads {
+                            DownloadsBadgeView(summary: summary)
+                                .frame(
+                                    maxWidth: .infinity,
+                                    maxHeight: .infinity,
+                                    alignment: .trailing
+                                )
+                        } else {
+                            EmptyView()
+                        }
                     case .recording:
                         RecordingBadgeView()
                             .frame(
@@ -1042,6 +1096,14 @@ public struct NotchRootView: View {
                 case .peek(.power(let event)):
                     Self.powerPeek(for: app, event: event)
 
+                // The battery peek's row, for a download in progress (on
+                // hover over its badge) and for one that just finished.
+                case .peek(.downloads(let summary)):
+                    Self.downloadPeek(for: app, content: .progress(summary))
+
+                case .peek(.downloadDone(let completion)):
+                    Self.downloadPeek(for: app, content: .done(completion))
+
                 case .peek(.nowPlaying(let track)):
                     // The same notch gap the power peek gets, from the same
                     // named function: the bars in its top band must start
@@ -1093,6 +1155,15 @@ public struct NotchRootView: View {
         switch app.state {
         case .open:
             app.transition(to: .closed)
+        // A finished download's peek is the way to its file: the click shows
+        // it in Finder rather than opening the panel, which has nothing about
+        // downloads in it. A completion with no file falls through to open.
+        case .peek(.downloadDone(let completion)) where completion.url != nil:
+            if let reveal = app.onRevealDownload {
+                reveal(completion)
+            } else {
+                app.transition(to: .closed)
+            }
         default:
             if let open = app.onOpenPanel {
                 open()

@@ -32,5 +32,10 @@
        user makes their own selection in Control Center", so it is not a
        guarantee. -->
   <key>NSCameraReactionEffectGesturesEnabledDefault</key><false/>
+
+  <!-- The downloads module, which ships off. Asked only when it is switched
+       on in Settings, by the first read of the folder; refused, the row says
+       so and nothing is subscribed. -->
+  <key>NSDownloadsFolderUsageDescription</key><string>CreativeNotch shows the progress of your downloads in the notch. It watches the progress browsers publish for files in your Downloads folder; nothing is read beyond file names, and nothing leaves your Mac.</string>
 </dict>
 </plist>

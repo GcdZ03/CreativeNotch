@@ -192,6 +192,43 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the tests can reach its lifecycle, like every other controller.
     private(set) var hotkey: HotKeyController?
 
+    // MARK: - Downloads
+
+    /// The downloads module. Internal rather than private so the switchboard
+    /// and the tests can reach its lifecycle, like every other controller.
+    private(set) var downloads: DownloadsController?
+
+    /// The folder whose file progress the downloads module watches.
+    /// Sandboxed by default like `shelfDirectory` -- a folder that does not
+    /// exist, so even a real access probe finds nothing and asks nobody --
+    /// and pointed at `~/Downloads` only by `configureForRealLaunch()`.
+    var downloadsDirectory: URL
+
+    /// Where download progress comes from. The real subscriber by default;
+    /// a test hands in a fake that plays events. Set it before
+    /// `install(metrics:)`, which builds the controller with it.
+    var makeDownloadSource: () -> DownloadProgressSource = { FileProgressSource() }
+
+    /// Whether the Downloads folder can be read, behind a seam: the real
+    /// read is what makes macOS ask, and no test may make macOS ask.
+    var probeDownloadsAccess: DownloadsController.AccessProbe = DownloadsController.readsFolder
+
+    /// Shows a finished download in Finder. **Inert until
+    /// `configureForRealLaunch()`**, like the real Trash: a test that clicks
+    /// a completion peek on a bare delegate opens no Finder window.
+    var revealInFinder: (URL) -> Void = { _ in }
+
+    /// Opens System Settings at Files & Folders, from the denied row. Inert
+    /// until `configureForRealLaunch()`, for `revealInFinder`'s reason.
+    var openDownloadsPrivacySettings: () -> Void = {}
+
+    /// How long a finished-download peek occupies the slot before this
+    /// re-checks the arbiter. Mirrors `PeekArbiter.downloadDoneTTL`.
+    public static let defaultDownloadDoneTTLDelay: Duration = .seconds(5)
+
+    /// Overridable for the reason `powerTTLDelay` is.
+    var downloadDoneTTLDelay: Duration = AppDelegate.defaultDownloadDoneTTLDelay
+
     /// The settings window's controller, built on first use by
     /// `showPreferences()`.
     private(set) var preferences: PreferencesController?
@@ -489,6 +526,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = sandbox.appendingPathComponent("Shelf", isDirectory: true)
         shelfTrash = .folder(sandbox.appendingPathComponent("Trash", isDirectory: true))
         capturesDirectory = sandbox.appendingPathComponent("Captures", isDirectory: true)
+        downloadsDirectory = sandbox.appendingPathComponent("Downloads", isDirectory: true)
         super.init()
     }
 
@@ -528,7 +566,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         shelfDirectory = Self.realShelfDirectory
         shelfTrash = .system
         capturesDirectory = CameraController.picturesCapturesDirectory
+        downloadsDirectory = Self.realDownloadsDirectory
+        revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
+        openDownloadsPrivacySettings = {
+            guard let url = AppDelegate.filesAndFoldersSettings else { return }
+            NSWorkspace.shared.open(url)
+        }
     }
+
+    /// The user's Downloads folder, resolved by `FileManager` rather than
+    /// spelled as a path, so a relocated home folder is followed.
+    static var realDownloadsDirectory: URL {
+        FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+    }
+
+    /// System Settings, Privacy & Security, Files & Folders.
+    static let filesAndFoldersSettings = URL(
+        string: "x-apple.systempreferences:com.apple.preference.security?Privacy_FilesAndFolders"
+    )
 
     // MARK: - Lifecycle
 
@@ -883,6 +938,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onTrigger = { [weak self] in self?.toggleFromHotKey() }
         self.hotkey = hotkey
 
+        // Constructed here, started by the switchboard -- and only when the
+        // module is switched on, since it ships off. Building a panel must
+        // not read the Downloads folder: that read is a privacy prompt.
+        let downloads = DownloadsController(
+            folder: downloadsDirectory,
+            source: makeDownloadSource(),
+            probeAccess: probeDownloadsAccess
+        )
+        downloads.onSummary = { [weak self] summary in self?.downloadsDidChange(summary) }
+        downloads.onCompleted = { [weak self] completion in self?.downloadDidComplete(completion) }
+        downloads.onAccess = { [weak self] access in self?.state.downloadsAccess = access }
+        self.downloads = downloads
+        state.onRevealDownload = { [weak self] completion in self?.revealDownload(completion) }
+        state.onRecheckDownloadsAccess = { [weak self] in self?.downloads?.recheckAccess() }
+        state.onOpenDownloadsPrivacy = { [weak self] in self?.openDownloadsPrivacySettings() }
+
         // The limits chosen in Settings (2026-10-24), loaded before the
         // stores are built so the launch purge runs against the chosen age:
         // purging against the default would trash files a "30 days" shelf
@@ -1199,8 +1270,39 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             nowPlaying: state.nowPlaying,
             isRecording: state.isRecordingClip,
             capture: state.captureUse,
+            downloads: state.downloads,
             at: Date()
         )
+    }
+
+    /// What is downloading changed -- at most once per whole percent.
+    ///
+    /// Internal so a test can drive the real publish path without a source.
+    /// The re-sync is not optional, for `nowPlayingDidChange`'s reason: the
+    /// badge changes the closed notch's width and the funnel does not fire
+    /// for it. The re-evaluation keeps a downloads peek on screen following
+    /// the percent, and turns it into the completion when the last one ends.
+    func downloadsDidChange(_ summary: DownloadSummary?) {
+        state.downloads = summary
+        arbiter.setDownloads(summary)
+        syncTrackingRect()
+        reevaluatePeek()
+    }
+
+    /// A download finished. Recorded and then *asked* about, like a power
+    /// event: whether it shows is the arbiter's call, and a peek that shows
+    /// is announced by `applyPeek`.
+    func downloadDidComplete(_ completion: DownloadCompletion) {
+        arbiter.recordDownloadDone(completion, now: self.now())
+        presentPeek()
+    }
+
+    /// The completion peek was clicked: acknowledged, closed, and the file
+    /// shown in Finder.
+    func revealDownload(_ completion: DownloadCompletion) {
+        arbiter.dismissDownloadDone()
+        if case .peek(.downloadDone) = state.state { state.transition(to: .closed) }
+        if let url = completion.url { revealInFinder(url) }
     }
 
     /// What is playing changed.
@@ -1670,15 +1772,18 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     static func reevaluationDelay(
         for content: PeekContent,
         power: Duration,
-        timerDone: Duration
+        timerDone: Duration,
+        downloadDone: Duration = AppDelegate.defaultDownloadDoneTTLDelay
     ) -> Duration {
         switch content {
-        case .power:     return power
-        case .timerDone: return timerDone
-        // `.nowPlaying` and `.dragTarget` have no expiry of their own —
-        // they end when the track stops or the drag does. The delay is
-        // irrelevant for them; `reevaluatePeek` does not reschedule.
-        case .nowPlaying, .dragTarget:
+        case .power:        return power
+        case .timerDone:    return timerDone
+        case .downloadDone: return downloadDone
+        // `.nowPlaying`, `.downloads` and `.dragTarget` have no expiry of
+        // their own — they end when the track stops, the downloads finish or
+        // the drag does. The delay is irrelevant for them; `reevaluatePeek`
+        // does not reschedule.
+        case .nowPlaying, .downloads, .dragTarget:
             return power
         }
     }
@@ -1687,7 +1792,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let delay = Self.reevaluationDelay(
             for: content,
             power: powerTTLDelay,
-            timerDone: timerDoneTTLDelay
+            timerDone: timerDoneTTLDelay,
+            downloadDone: downloadDoneTTLDelay
         )
 
         peekTTLTask?.cancel()
@@ -1722,8 +1828,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // content reached here simply stays until its own source
             // changes.
             switch content {
-            case .power, .timerDone: schedulePeekReevaluation(for: content)
-            case .nowPlaying, .dragTarget: break
+            case .power, .timerDone, .downloadDone: schedulePeekReevaluation(for: content)
+            case .nowPlaying, .downloads, .dragTarget: break
             }
         } else {
             state.transition(to: .closed)
@@ -1899,6 +2005,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // which is the same argument that put the outside-click monitor
         // in this method.
         arbiter.dismissTimerDone()
+        // A finished download too: opening the panel is having seen it.
+        arbiter.dismissDownloadDone()
 
         // Already armed -- switching tabs must not stack monitors.
         guard outsideClickToken == nil else { return }

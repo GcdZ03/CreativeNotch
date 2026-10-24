@@ -21,4 +21,22 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case hotkey
     case camera
     case captureIndicator = "capture-indicator"
+    case downloads
+
+    /// What an absent key means for this module.
+    ///
+    /// On for every module but one. **Downloads ships off**, because reading
+    /// the Downloads folder is a privacy prompt, and a module that prompts on
+    /// a fresh install's first launch is the prompt-with-no-stated-reason the
+    /// architecture refuses: switched on in Settings, the prompt follows the
+    /// person's own click and the row beside it says why.
+    ///
+    /// Read by `PreferencesStore.load` through `resolveEnabled`, so "absent"
+    /// is still decided in one function — this only supplies its default.
+    public var shippedDefault: Bool {
+        switch self {
+        case .downloads: return false
+        default:         return true
+        }
+    }
 }

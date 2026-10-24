@@ -33,6 +33,10 @@ public enum PeekAnnouncement {
             return PowerLabel.spoken(for: event)
         case .nowPlaying(let track):
             return nowPlaying(track)
+        case .downloads(let summary):
+            return summary.spoken
+        case .downloadDone(let completion):
+            return completion.text
         }
     }
 
@@ -64,8 +68,14 @@ public enum PeekAnnouncement {
     /// a re-check that finds the same power peek still live is not news, a
     /// finished timer replacing it is, and so is the power peek revealed
     /// when the timer's lapses.
+    ///
+    /// The downloads peek is never spoken, for the music peek's reason: it
+    /// too is shown only under the pointer, and it is re-applied each time
+    /// the percent moves. The finished download is the news, and it is a
+    /// transient like the others.
     public static func announcement(showing content: PeekContent, replacing previous: PeekContent?) -> String? {
         guard content != previous else { return nil }
+        if case .downloads = content { return nil }
         if case .nowPlaying(let next) = content {
             guard case .nowPlaying(let shown)? = previous,
                   next.title != shown.title || next.artist != shown.artist

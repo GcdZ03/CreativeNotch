@@ -13,6 +13,7 @@ public enum BadgeSlot: Equatable, Sendable {
     case timer
     case recording
     case capture
+    case downloads
 
     /// How far the closed notch grows for this slot.
     public var width: CGFloat {
@@ -22,6 +23,7 @@ public enum BadgeSlot: Equatable, Sendable {
         case .timer:      return NotchGeometry.timerBadgeWidth
         case .recording:  return NotchGeometry.recordingBadgeWidth
         case .capture:    return NotchGeometry.captureBadgeWidth
+        case .downloads:  return NotchGeometry.downloadsBadgeWidth
         }
     }
 
@@ -34,7 +36,7 @@ public enum BadgeSlot: Equatable, Sendable {
     /// ever needs the left again is one decision rather than a second rule.
     public var leadingWidth: CGFloat {
         switch self {
-        case .none, .nowPlaying, .timer, .recording, .capture: return 0
+        case .none, .nowPlaying, .timer, .recording, .capture, .downloads: return 0
         }
     }
 }
@@ -150,6 +152,7 @@ public enum NotchShape {
         nowPlaying: TrackSnapshot?,
         isRecording: Bool = false,
         capture: CaptureUse = .none,
+        downloads: DownloadSummary? = nil,
         at now: Date
     ) -> BadgeSlot {
         if isRecording { return .recording }
@@ -161,6 +164,10 @@ public enum NotchShape {
         // own capture, which is the more specific claim about the same fact.
         if capture.isAnythingCapturing { return .capture }
         if let countdown, !countdown.hasFinished(at: now) { return .timer }
+        // Below a countdown, which is a deadline the user set; above a
+        // playing track, which is already on the speakers. The ring is the
+        // only place a download's progress shows without opening anything.
+        if downloads != nil { return .downloads }
         if nowPlaying?.isPlaying == true { return .nowPlaying }
         return .none
     }
