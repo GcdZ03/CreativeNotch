@@ -79,8 +79,11 @@ pass. CI fails on **any** compiler warning, tests included.
 Every word the app shows or speaks — panel text, Settings, the menu bar,
 VoiceOver labels and announcements — comes from one String Catalog,
 [`Sources/CreativeNotchCore/Localizable.xcstrings`](Sources/CreativeNotchCore/Localizable.xcstrings).
-The camera permission prompt, which macOS reads from the app itself, has its
-own: [`Resources/InfoPlist.xcstrings`](Resources/InfoPlist.xcstrings).
+The permission prompts (camera, Bluetooth, Calendars, Reminders, the
+Downloads folder), which macOS reads from the app itself, have their own:
+[`Resources/InfoPlist.xcstrings`](Resources/InfoPlist.xcstrings). A new
+`…UsageDescription` in `Resources/Info.plist` goes there too, with the same
+English; `LocalizationTests` fails until it does.
 
 **Writing a string.** In Core or the UI alike:
 
@@ -117,8 +120,8 @@ JSON beside an existing one such as `"%lld items"`.
    under each string's `"localizations"` in the JSON.
 2. Translate every string, including each plural's forms for that language
    (Xcode lists the categories the language needs — Russian has four).
-3. Add the same language to `Resources/InfoPlist.xcstrings` (at least the
-   camera prompt). This is what switches the app's language, not a side
+3. Add the same language to `Resources/InfoPlist.xcstrings` (every
+   permission prompt in it). This is what switches the app's language, not a side
    step: macOS chooses a nested bundle's language — and the strings live in
    one — only from the languages the main app bundle has `.lproj` folders
    for, and the main bundle's folders are compiled from this catalog. A

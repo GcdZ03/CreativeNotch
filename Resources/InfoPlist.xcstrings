@@ -1,6 +1,30 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "NSBluetoothAlwaysUsageDescription" : {
+      "comment" : "The Bluetooth permission prompt, shown when Bluetooth alerts are switched on. Must match Resources/Info.plist, which LocalizationTests checks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch shows a brief glance in the notch when AirPods, headphones or a speaker connect or disconnect. It only listens for connections; it does not scan for or connect to anything."
+          }
+        }
+      }
+    },
+    "NSCalendarsFullAccessUsageDescription" : {
+      "comment" : "The Calendars permission prompt, shown when the calendar is switched on. Must match Resources/Info.plist, which LocalizationTests checks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch shows your next few events in the notch when you open its calendar pane. Nothing is uploaded or stored; events are read on this Mac only while the pane is open."
+          }
+        }
+      }
+    },
     "NSCameraUsageDescription" : {
       "comment" : "The camera permission prompt. Must match Resources/Info.plist, which LocalizationTests checks.",
       "extractionState" : "manual",
@@ -9,6 +33,30 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "CreativeNotch shows the camera in the notch, so you can check your framing or take a quick photo or clip. Nothing is uploaded; captures are saved to the file shelf."
+          }
+        }
+      }
+    },
+    "NSDownloadsFolderUsageDescription" : {
+      "comment" : "The Downloads folder permission prompt, shown when downloads are switched on. Must match Resources/Info.plist, which LocalizationTests checks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch shows the progress of your downloads in the notch. It watches the progress browsers publish for files in your Downloads folder; nothing is read beyond file names, and nothing leaves your Mac."
+          }
+        }
+      }
+    },
+    "NSRemindersFullAccessUsageDescription" : {
+      "comment" : "The Reminders permission prompt, shown when the calendar is switched on. Must match Resources/Info.plist, which LocalizationTests checks.",
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CreativeNotch shows how many of your reminders are due today in the notch's calendar pane. Nothing is uploaded or stored; reminders are read on this Mac only while the pane is open."
           }
         }
       }

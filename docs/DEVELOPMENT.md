@@ -149,7 +149,7 @@ Plugins/
                               otherwise ships it raw and unreadable.
 Resources/
   media-helper.pl             what the helper runs. Ships inside the bundle.
-  InfoPlist.xcstrings         the camera permission prompt, translatable.
+  InfoPlist.xcstrings         the permission prompts, translatable.
 Tests/
   CreativeNotchCoreTests/     the pure logic, headless and fast
   CreativeNotchUITests/       the views, the delegate and the wiring

@@ -46,7 +46,7 @@ if [ ! -f "$STRINGS_BUNDLE/en.lproj/Localizable.strings" ]; then
   exit 1
 fi
 cp -R "$STRINGS_BUNDLE" "$APP/Contents/Resources/"
-# The permission prompt is read by macOS from the app's own .lproj folders,
+# The permission prompts are read by macOS from the app's own .lproj folders,
 # not from Core's bundle, so its catalog is compiled straight into them.
 xcrun xcstringstool compile "$ROOT/Resources/InfoPlist.xcstrings" \
   --output-directory "$APP/Contents/Resources" >/dev/null
