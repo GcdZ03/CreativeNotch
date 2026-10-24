@@ -142,12 +142,12 @@ struct ClipboardStoreTests {
     /// evict anything: promotion moves, it does not add.
     @Test func promotionNeverEvicts() {
         let store = ClipboardStore()
-        for i in 0..<ClipboardStore.capacity {
+        for i in 0..<ClipboardStore.defaultCapacity {
             store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
         }
         store.record(.text("entry 0"), now: date(999))
 
-        #expect(store.entries.count == ClipboardStore.capacity)
+        #expect(store.entries.count == ClipboardStore.defaultCapacity)
         #expect(store.entries.first?.content == .text("entry 0"))
         #expect(store.entries.contains { $0.content == .text("entry 1") })
     }
@@ -155,28 +155,80 @@ struct ClipboardStoreTests {
     // MARK: - Capacity
 
     @Test func theCapacityIsWhatTheSpecSays() {
-        #expect(ClipboardStore.capacity == 50)
+        #expect(ClipboardStore.defaultCapacity == 50)
+        #expect(ClipboardStore().capacity == Limits.defaultClipboardCapacity)
+    }
+
+    // MARK: - Changing the size (2026-10-24)
+
+    /// Shrinking trims the oldest at once, rather than waiting for the next
+    /// copy to notice the ring is over.
+    @Test func shrinkingTrimsTheOldest() {
+        let store = ClipboardStore()
+        for i in 0..<50 {
+            store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
+        }
+
+        store.setCapacity(25)
+
+        #expect(store.capacity == 25)
+        #expect(store.entries.count == 25)
+        #expect(store.entries.first?.content == .text("entry 49"))
+        #expect(store.entries.last?.content == .text("entry 25"))
+    }
+
+    @Test func growingKeepsEverythingAndMakesRoom() {
+        let store = ClipboardStore(capacity: 25)
+        for i in 0..<30 {
+            store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
+        }
+        #expect(store.entries.count == 25)
+
+        store.setCapacity(100)
+        for i in 30..<130 {
+            store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
+        }
+        #expect(store.entries.count == 100)
+    }
+
+    /// A ring of nothing would forget what was just copied.
+    @Test func theCapacityIsAtLeastOne() {
+        let store = ClipboardStore(capacity: 0)
+        store.record(.text("kept"), now: date(0))
+        #expect(store.entries.map(\.content) == [.text("kept")])
+    }
+
+    /// The byte budget is not a setting: it still holds at the largest size.
+    @Test func theByteBudgetHoldsAtTheLargestSize() {
+        let store = ClipboardStore(capacity: 100)
+        let nineMB = 9_000_000
+        for i in 0..<20 {
+            var bytes = Data(repeating: 0, count: nineMB)
+            bytes[0] = UInt8(i)
+            store.record(.image(bytes, ext: "png"), now: date(TimeInterval(i)))
+        }
+        #expect(store.totalBytes <= ClipboardStore.maxTotalBytes)
     }
 
     @Test func theOldestEntryIsEvictedBeyondCapacity() {
         let store = ClipboardStore()
-        for i in 0...ClipboardStore.capacity {
+        for i in 0...ClipboardStore.defaultCapacity {
             store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
         }
 
-        #expect(store.entries.count == ClipboardStore.capacity)
-        #expect(store.entries.first?.content == .text("entry \(ClipboardStore.capacity)"))
+        #expect(store.entries.count == ClipboardStore.defaultCapacity)
+        #expect(store.entries.first?.content == .text("entry \(ClipboardStore.defaultCapacity)"))
         #expect(store.entries.contains { $0.content == .text("entry 0") } == false)
         #expect(store.entries.last?.content == .text("entry 1"))
     }
 
     @Test func theRingStaysAtCapacityUnderSustainedLoad() {
         let store = ClipboardStore()
-        for i in 0..<(ClipboardStore.capacity * 3) {
+        for i in 0..<(ClipboardStore.defaultCapacity * 3) {
             store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
         }
 
-        #expect(store.entries.count == ClipboardStore.capacity)
+        #expect(store.entries.count == ClipboardStore.defaultCapacity)
     }
 
     // MARK: - The byte budget
@@ -223,11 +275,11 @@ struct ClipboardStoreTests {
     /// by the count cap exactly as before.
     @Test func aTextOnlyRingIsUnaffectedByTheBudget() {
         let store = ClipboardStore()
-        for i in 0..<ClipboardStore.capacity {
+        for i in 0..<ClipboardStore.defaultCapacity {
             store.record(.text("entry \(i)"), now: date(TimeInterval(i)))
         }
 
-        #expect(store.entries.count == ClipboardStore.capacity)
+        #expect(store.entries.count == ClipboardStore.defaultCapacity)
     }
 
     /// The entry just copied is never the one evicted. It cannot happen

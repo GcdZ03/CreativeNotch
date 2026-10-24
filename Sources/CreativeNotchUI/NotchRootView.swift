@@ -1081,7 +1081,7 @@ public struct NotchRootView: View {
                 ModulePane(
                     title: "Clipboard",
                     count: clipboard.entries.isEmpty
-                        ? nil : "\(clipboard.entries.count) of \(ClipboardStore.capacity)",
+                        ? nil : "\(clipboard.entries.count) of \(clipboard.capacity)",
                     actions: clipboard.entries.isEmpty ? [] : [("Clear", { app.onClearClipboard?() })]
                 ) {
                     ClipboardView(
