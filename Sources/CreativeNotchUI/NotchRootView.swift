@@ -92,6 +92,16 @@ public final class AppState {
     @ObservationIgnored
     public var onSetDisplayChoice: ((DisplayChoice) -> Void)?
 
+    /// How large the open panel's text is (2026-10-24). Applied by
+    /// `onSetTextSize`, which also resizes the panel to fit it; the view reads
+    /// it on every draw, so a change needs nothing re-registered.
+    public internal(set) var textSize: TextSize = .default
+
+    /// Saves the size, applies it and resizes the panel in one call, so
+    /// Settings cannot do one without the others. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetTextSize: ((TextSize) -> Void)?
+
     /// The shelf's, clipboard's and timer's adjustable numbers (2026-10-24).
     /// Applied by `onSetLimits`; the timer tab draws its presets from here.
     public internal(set) var limits = Limits()
