@@ -306,6 +306,13 @@ drawn brighter (no secondary text below 70% white); the default look is
 unchanged. The battery shows a bolt while charging, and with **Differentiate
 Without Color** on, a "!" when low as well as the yellow.
 
+For bigger text, Settings → Display → **Text size** → **Large** or **Larger**
+draws the open panel's text 15% or 30% larger and grows the panel to fit it
+(up to 806×338 on a 14" MacBook Pro, never past the screen). It applies at
+once. macOS's own Text Size setting covers only Apple's apps, so this one is
+separate. The closed notch's badges and the glances that drop from it keep
+their size: they have to fit beside the camera housing and the menu bar.
+
 With **VoiceOver** on, each peek is announced as it appears — the charger or
 Low Power Mode change with the battery level, a finished timer, and the track
 when the music player drops down or the song changes under it (never a pause

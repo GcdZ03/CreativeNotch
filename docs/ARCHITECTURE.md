@@ -102,8 +102,9 @@ invariant the peek geometry relies on.
 Inside the expanded rect, `PanelLayout.resolve(anchor:panelFrame:showsMedia:)`
 — pure, in Core — is the one place the panel is split up: a header as tall
 as the anchor whose middle column is the camera housing, and below it a
-fixed 212pt media column beside the module pane. Tabs live in the leading
-ear, battery and the settings gear in the trailing ear, and nothing is drawn
+fixed 212pt media column (grown with the text size) beside the module pane.
+Tabs live in the leading ear, battery and the settings gear in the trailing
+ear, and nothing is drawn
 behind the housing, the same rule every peek already follows. On a pill the
 gap is zero and the two ears are halves.
 
@@ -120,10 +121,41 @@ shadow would be clipped on three sides, and making room means insetting
 inner hairline on the expanded shape does the edge's job instead, and the
 closed notch gets none so it still vanishes into the housing.
 
+### Text size
+
+macOS gives a third-party app no Dynamic Type to follow: SwiftUI's
+`dynamicTypeSize` reads `.large` whatever System Settings says, and its Text
+Size pane lists Apple's apps only. So "Text size" (`TextSize`, Core) is an app
+setting — Default, Large, Larger, a factor of 1, 1.15 or 1.3 — and one factor
+drives three things that must agree:
+
+- **The panel's frame.** `NotchGeometry.panelFrame(for:in:textScale:)` grows
+  `expandedSize` by the factor, clamped to the screen but never below 620×260.
+  `AppDelegate` asks for every frame through one helper that passes the scale;
+  changing the setting goes through `reposition`, so the funnel, the tracking
+  rect and the hosting view follow as they do on a screen change.
+- **The layout.** `PanelLayout.resolve(…, textScale:)` grows the media column.
+  The header does not grow: it is the hardware notch's band.
+- **The fonts and text-holding frames.** `.notchFont` and `.notchFrame` size by
+  `NotchType` (pure, in Core) from a `notchTextScale` environment value that
+  `NotchRootView` sets on the open panel and the drop target **only**. A view
+  shared with a peek — the transport buttons, the progress bar — therefore
+  draws at the setting in the panel and at 1 in the peek without knowing which
+  it is in. The badges and the peeks keep plain `.system(size:)` fonts: they
+  are sized into the hardware band and into fixed `visibleRect` peeks, and
+  `everyPanelFontGoesThroughTheTypeScale` keeps every other file on the helper.
+
+At the default every size comes back exactly, so the look is unchanged.
+`TextSizeRenderingTests` renders each size with its own frame and checks that
+nothing runs off the bottom of the panel, with a control proving the check sees
+the clipping the larger frame exists to avoid. No observer: the view reads
+`AppState.textSize` on its next draw.
+
 ## The window is always full size
 
 `NotchPanel` is a borderless, non-activating `NSPanel` sized to the fully
-expanded bounds (620×260) at all times. Content animates inside it. That
+expanded bounds (620×260, larger with a larger text size) at all times.
+Content animates inside it. That
 avoids window-resize jank, but it means a large transparent rectangle sits
 permanently under your menu bar.
 
