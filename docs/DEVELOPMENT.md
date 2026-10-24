@@ -181,6 +181,19 @@ So, for every test you add:
 If you cannot make a test fail, it is not protecting anything — either
 rewrite it or rename it to describe what it actually checks.
 
+### Feature renders
+
+The PNGs under `docs/assets/features/` are drawn by opt-in suites from the
+real views, offscreen, and are skipped in a normal run so it never rewrites
+a committed file. Regenerate one with, for example:
+
+```sh
+CREATIVENOTCH_RENDER_DOCS=1 swift test --filter ShelfQuickLookRenders
+```
+
+They go through an `NSHostingView` in a window that is never ordered in,
+rather than `ImageRenderer`, which does not draw `ScrollView` content.
+
 ## Never sleep in a test
 
 There is no `Task.sleep` anywhere in the suite, and there should not be.

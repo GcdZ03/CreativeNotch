@@ -301,8 +301,11 @@ only while it is key, so `NotchPanel` handles them itself (`keyDown`,
 `PanelKey` to `AppDelegate.handlePanelKey`, which asks `PanelKeyboard` (Core)
 what it means and makes the same `transition(to:)` a click would. ⌘N counts
 the tabs `TabVisibility` says are drawn, so a switched-off module never leaves
-a gap in the numbering. Neither key does anything unless the state is `.open`
-— Esc never tears down a drop target mid-drag.
+a gap in the numbering. No key does anything unless the state is `.open`
+— Esc never tears down a drop target mid-drag. Space and ← → are decoded the
+same way and answered only on the shelf tab (Quick Look and the selection,
+below); anywhere else they are passed on, and a text field that is editing —
+the timer's minutes — consumes them before the window sees them.
 
 ### Who gets the keyboard
 
@@ -602,6 +605,38 @@ and the rest still return. The record lives in `AppDelegate`, not the store,
 because how long the offer lasts is a UI decision; it is withdrawn by a
 one-shot `Task`, scheduled only by a clear, so nothing is pending while the
 shelf is idle.
+
+### Quick Look and Open
+
+A click on a tile selects it (`AppState.shelfSelection`, drawn as a ring), a
+double-click opens it with its default app, and Space previews the selection
+in the system's `QLPreviewPanel` — also reachable as Open and Quick Look in
+the tile's menu and VoiceOver actions. Which verbs a tile offers, in what
+order, and what a preview pages through are pure Core (`ShelfTileVerb`,
+`ShelfPreview`, `ShelfSelection`): the preview is handed **every ready item**,
+starting at the chosen one, so Quick Look's own arrows walk the shelf; a file
+still copying in is never selected, previewed or opened.
+
+**Nothing runs until asked.** No panel is created to answer whether one is
+up (`sharedPreviewPanelExists()` first), and there is no observer: Quick Look
+pages and closes itself. Its controller is found two ways, because the notch
+panel is non-activating — through the key window's responder chain
+(`NotchPanel.acceptsPreviewPanelControl`), and handed over directly before
+the preview is ordered front, since on a hover-open the notch panel is not
+key and once the preview is key the chain it walks is its own. The preview
+outlives the notch panel closing behind it — the pointer leaving for the
+preview starts the usual grace — and our own app activating is already
+ignored by the dismissal path. Space reaches the panel only while it is key,
+so after a hover-open it goes to the app underneath: a click in the panel
+makes it key first.
+
+Both are seams on `AppDelegate`, sandboxed by default like the Trash:
+`shelfOpener` is `.inert` and `shelfPreview` an `InertShelfPreview` until
+`configureForRealLaunch()` hands in `NSWorkspace.open` and `ShelfQuickLook`,
+so no test can launch an app or put a preview on screen
+(`SandboxedSeamsTests`). Switching the shelf off closes a preview of its
+files and forgets the selection. No permission: both are the system's own
+viewers, reading files the shelf already holds.
 
 ### The drop region follows the drawn shape
 
