@@ -107,6 +107,36 @@ struct ShelfLimitPreviewTests {
         #expect(removed.message.contains("1 linked item also leaves the shelf"))
     }
 
+    /// One linked item, removed only for its age: singular, and the reason
+    /// is its age, not a full shelf.
+    @Test func oneOldLinkedItemIsDescribedAsOldAndSingular() {
+        let listed = items(agedDays: [0, 3], owned: false)
+        let removed = ShelfStore.removals(from: listed, capacity: 50, maxAge: day, now: t0)
+        #expect(removed.count == 1)
+        #expect(removed.expiredCount == 1)
+        #expect(removed.title == "Remove 1 item from the shelf?")
+        #expect(removed.message == "It is older than the shelf will now keep files. Its file stays where it is.")
+    }
+
+    @Test func severalOldFilesAreDescribedAsOld() {
+        let removed = ShelfStore.removals(from: items(agedDays: [0, 3, 4]), capacity: 50, maxAge: day, now: t0)
+        #expect(removed.message == "They are older than the shelf will now keep files.")
+    }
+
+    @Test func aCapacityRemovalIsDescribedAsTooMany() {
+        let removed = ShelfStore.removals(from: items(agedDays: [0, 1, 2], owned: false), capacity: 1, maxAge: nil, now: t0)
+        #expect(removed.expiredCount == 0)
+        #expect(removed.message == "The new limit is lower than what the shelf holds now. Their files stay where they are.")
+    }
+
+    /// An item past both limits counts once, as a capacity removal.
+    @Test func bothReasonsTogetherSayBoth() {
+        let removed = ShelfStore.removals(from: items(agedDays: [0, 1, 5, 6]), capacity: 3, maxAge: 4 * day, now: t0)
+        #expect(removed.count == 2)
+        #expect(removed.expiredCount == 1)
+        #expect(removed.message.hasPrefix("Some no longer fit under the new limit, and the rest are older"))
+    }
+
     // MARK: - Copies still in flight
 
     /// A pending item counts toward the capacity, as eviction counts it, so

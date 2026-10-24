@@ -250,6 +250,99 @@ struct LimitsWiringTests {
         #expect(d.preferencesStore.loadLimits().shelfCapacity == 10)
     }
 
+    /// **An item the current limits already condemn asks nothing.** The
+    /// purge runs only at launch and after an add, so a file can be past the
+    /// expiry and still listed. A clipboard change, or a raised shelf limit,
+    /// must apply without a shelf question -- with the shelf row hidden there
+    /// would be no dialog to answer it, and the change would be held forever.
+    @Test func anAlreadyExpiredItemDoesNotHoldAnUnrelatedChange() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        // Added "nine days ago" and purged at that time, so still listed.
+        try shelf.add(.text("nine days old"), now: Date().addingTimeInterval(-9 * 24 * 3600))
+        #expect(shelf.items.count == 1)
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.clipboardCapacity = 25
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.clipboardCapacity == 25)
+        #expect(shelf.items.count == 1, "the clipboard's change does not touch the shelf")
+
+        limits.shelfCapacity = 50
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.shelfCapacity == 50)
+    }
+
+    /// The same for a file that refuses the Trash: it stays listed past the
+    /// expiry, and must not bring the question back on every change.
+    @Test func aStuckExpiredFileDoesNotAskAgain() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        let stuck = try shelf.add(.text("two days old"), now: Date().addingTimeInterval(-2 * 24 * 3600))
+        trash.refuse(stuck.url)
+        let c = controller(d)
+
+        var limits = d.state.limits
+        limits.shelfExpiry = .oneDay
+        c.setLimits(limits)
+        c.confirmLimits(try #require(c.pendingLimits.change))
+        #expect(shelf.items.map(\.id) == [stuck.id])
+
+        limits.shelfCapacity = 10
+        c.setLimits(limits)
+        #expect(c.pendingLimits.change == nil)
+        #expect(d.state.limits.shelfCapacity == 10)
+    }
+
+    /// **Confirm never takes more than the dialog counted.** Files dropped
+    /// while the question is up change what the lowered capacity evicts; the
+    /// change is asked about again with the new count, and nothing moves
+    /// until that is confirmed.
+    @Test func confirmingAfterTheShelfChangedAsksAgain() throws {
+        let trash = SandboxTrash()
+        let d = NotchedDelegate.make(shelfTrash: trash.shelf)
+        let shelf = try #require(d.shelf)
+        try fill(shelf, count: 20)
+        let c = controller(d)
+        let presented = LimitsRows.confirming(c)
+
+        LimitsRows.binding(\.shelfCapacity, on: c).wrappedValue = 10
+        let shown = try #require(c.pendingLimits.change)
+        #expect(presented.wrappedValue)
+        #expect(shown.removal.count == 10)
+
+        // Three drops while the dialog is open; the full shelf evicts its
+        // own three oldest, which is the add's rule, not the change's.
+        for i in 0..<3 {
+            try shelf.add(.text("late \(i)"), now: Date().addingTimeInterval(100 + Double(i)))
+        }
+        let trashedBefore = trash.trashed.count
+        let listedBefore = shelf.items
+
+        c.confirmLimits(shown)
+
+        let asked = try #require(c.pendingLimits.change, "the grown removal should be asked about")
+        #expect(asked.removal != shown.removal)
+        #expect(shelf.items == listedBefore)
+        #expect(trash.trashed.count == trashedBefore)
+        #expect(d.state.limits.shelfCapacity == 20)
+
+        // SwiftUI reporting the old dialog's dismissal after the action must
+        // not drop the new question.
+        presented.wrappedValue = false
+        #expect(c.pendingLimits.change == asked)
+
+        c.confirmLimits(asked)
+        #expect(c.pendingLimits.change == nil)
+        #expect(shelf.items.count == 10)
+        #expect(trash.trashed.count == trashedBefore + asked.removal.trashedCount)
+    }
+
     private func fill(_ shelf: ShelfStore, count: Int) throws {
         for i in 0..<count {
             try shelf.add(.text("item \(i)"), now: Date().addingTimeInterval(Double(i)))

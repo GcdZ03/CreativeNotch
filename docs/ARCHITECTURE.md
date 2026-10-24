@@ -558,11 +558,15 @@ later. An accepted file reserves its name at once and is listed as a *pending*
 `.<uuid>.partial` in the shelf directory; back on the main actor it is renamed
 into the reserved name, stamped with the drop time, and marked ready. A
 failure deletes the partial, drops the item, and `AppDelegate` announces
-"Couldn't add <name>" to VoiceOver and puts it under the shelf for a few
-seconds — withdrawn by a one-shot `Task`, like the clear's undo. Pending items
+"Couldn't add <name>" to VoiceOver and puts it under the shelf. The line
+stays until the shelf pane has shown it for a few seconds — withdrawn by a
+one-shot `Task` that runs only while the state is `.open(.shelf)` and is
+cancelled (keeping the line) when the pane is left — because the long copy
+this path exists for is the one the panel closes during. Pending items
 count toward the capacity but are never evicted, purged, cleared, removed or
-pruned; they cannot be dragged out or AirDropped, and neither the pane's title
-row nor the menu bar's Clear Shelf counts them. A quit mid-copy abandons it, and the
+pruned; they cannot be dragged out or AirDropped. The pane's title row counts
+them, since their tiles are on screen, but its AirDrop All and Clear verbs and
+the menu bar's Clear Shelf act on, and count, ready items only. A quit mid-copy abandons it, and the
 next launch deletes any `.partial` left behind. Text and image drops are
 small and stay synchronous. The copier is injectable, so tests decide when
 each copy finishes without sleeping.
@@ -1002,18 +1006,27 @@ rewritten, and a `String` is never parsed. `Limits` also normalises itself on
 every write, so a preset typed as 500 in Settings is stored and shown as 99.
 
 A change goes through `AppState.onSetLimits` → `AppDelegate.applyLimits`, which
-saves and applies in one call: the live `ShelfStore` evicts and purges at once
-by its usual trash-before-drop rules, the clipboard ring trims its oldest
+saves and applies in one call: when a shelf limit changed, the live
+`ShelfStore` evicts and purges at once by its usual trash-before-drop rules
+(any other change leaves the shelf alone), the clipboard ring trims its oldest
 entries, and the timer tab draws its presets from `AppState`. Nothing waits for
 a relaunch, and nothing is scheduled — each store acts once, on the change.
 
 **Except a change that would trash shelf files, which is asked about first.**
-`PreferencesController.setLimits` calls `AppState.onPreviewLimits` before
-anything else; a non-empty `ShelfLimitRemoval` is held in `PendingLimits`
-instead of applied, and the shelf rows show a confirmation dialog whose
-wording comes from the removal (linked captures are "removed", never "moved
-to the Trash"). Confirm applies the held value through the same
-`onSetLimits`; Cancel, or dismissing the dialog, drops it — nothing was
+`PreferencesController.setLimits` asks only when a shelf limit changed: it
+previews both the new and the current limits through
+`AppState.onPreviewLimits`, and a change whose `ShelfLimitRemoval` names any
+item the current limits would not already take is held in `PendingLimits`
+instead of applied. (The purge runs only at launch and after an add, and a
+file that refuses the Trash stays listed, so the shelf can hold items already
+condemned; counting those would ask on every clipboard or chime change.) The
+shelf rows show a confirmation dialog whose wording comes from the removal
+(linked captures are "removed", never "moved to the Trash"; an expiry change
+says the files are too old rather than that the shelf is too full). Confirm
+previews again, and if the list moved while the dialog was up so the change
+would now take a file the dialog never counted, holds the change again with
+the new count instead of applying it; otherwise it applies the held value
+through the same `onSetLimits`. Cancel, or dismissing the dialog, drops it — nothing was
 saved or applied, and the picker, which shows the held value while the
 question is up, moves back to the applied one. There is no Undo after a
 confirmed change: the pane's six-second offer and the menu bar's "Undo Clear

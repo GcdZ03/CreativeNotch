@@ -13,6 +13,7 @@ final class SandboxTrash: @unchecked Sendable {
     let root: URL
     private let bin: URL
     private(set) var trashed: [URL] = []
+    private var refused: Set<String> = []
 
     init() {
         root = FileManager.default.temporaryDirectory
@@ -29,7 +30,13 @@ final class SandboxTrash: @unchecked Sendable {
         ShelfTrash { url in try self.move(url) }
     }
 
+    /// Stands in for a locked file: moving `url` throws from now on.
+    func refuse(_ url: URL) { refused.insert(url.standardizedFileURL.path) }
+
     private func move(_ url: URL) throws -> URL {
+        guard !refused.contains(url.standardizedFileURL.path) else {
+            throw CocoaError(.fileWriteNoPermission)
+        }
         let destination = bin.appendingPathComponent("\(UUID().uuidString)-\(url.lastPathComponent)")
         try FileManager.default.moveItem(at: url, to: destination)
         trashed.append(destination)

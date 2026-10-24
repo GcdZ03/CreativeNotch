@@ -537,12 +537,14 @@ public final class ShelfStore {
             evicted.insert(item.id)
             excess -= 1
         }
+        var expiredOnly = 0
         let removed = items.filter { item in
             guard !item.isPending else { return false }
             let expired = maxAge.map { now.timeIntervalSince(item.addedAt) > $0 } ?? false
+            if expired, !evicted.contains(item.id) { expiredOnly += 1 }
             return evicted.contains(item.id) || expired
         }
-        return ShelfLimitRemoval(items: removed)
+        return ShelfLimitRemoval(items: removed, expiredCount: expiredOnly)
     }
 
     /// Drops items whose file no longer exists, returning what went.
@@ -708,8 +710,15 @@ public struct ShelfLimitRemoval: Equatable, Sendable {
     /// In list order, newest first.
     public let items: [ShelfItem]
 
-    public init(items: [ShelfItem]) {
+    /// How many of `items` go only because they are older than the expiry,
+    /// rather than because the shelf is over its capacity. The reason the
+    /// confirmation gives depends on it: "lower than what the shelf holds"
+    /// explains nothing about a file that is merely old.
+    public let expiredCount: Int
+
+    public init(items: [ShelfItem], expiredCount: Int = 0) {
         self.items = items
+        self.expiredCount = min(max(0, expiredCount), items.count)
     }
 
     /// Nothing would go, so the change applies without asking.
@@ -730,11 +739,20 @@ public struct ShelfLimitRemoval: Equatable, Sendable {
     }
 
     public var message: String {
-        var message = "The new limit is lower than what the shelf holds now."
+        var message: String
+        if expiredCount == 0 {
+            message = "The new limit is lower than what the shelf holds now."
+        } else if expiredCount == count {
+            message = count == 1
+                ? "It is older than the shelf will now keep files."
+                : "They are older than the shelf will now keep files."
+        } else {
+            message = "Some no longer fit under the new limit, and the rest are older than the shelf will now keep files."
+        }
         if trashedCount > 0, linkedCount > 0 {
             message += " \(Self.plural(linkedCount, "linked item")) also \(linkedCount == 1 ? "leaves" : "leave") the shelf, but \(linkedCount == 1 ? "its file stays" : "their files stay") where \(linkedCount == 1 ? "it is" : "they are")."
         } else if trashedCount == 0 {
-            message += " Their files stay where they are."
+            message += count == 1 ? " Its file stays where it is." : " Their files stay where they are."
         }
         return message
     }

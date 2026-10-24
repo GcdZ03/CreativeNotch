@@ -167,21 +167,54 @@ final class PreferencesController {
     /// raising a limit, the clipboard, the presets, the chime — applies as
     /// before, because a question asked about nothing is one people learn to
     /// click through.
+    ///
+    /// "Would take something" means more than the limits in force already
+    /// take. The shelf purges only at launch and after an add, and a file
+    /// that refuses the Trash stays listed, so the shelf can hold items the
+    /// current limits have already condemned. Those are not this change's
+    /// doing: counting them would raise the question on every Limits change
+    /// — the clipboard's, the chime's, a raised capacity — and, with the
+    /// shelf row hidden, hold a change no dialog is there to answer.
     func setLimits(_ limits: Limits) {
-        let removal = state.onPreviewLimits?(limits) ?? ShelfLimitRemoval(items: [])
-        if removal.isEmpty {
+        if let removal = addedRemoval(limits) {
+            pendingLimits.change = PendingLimits.Change(limits: limits, removal: removal)
+        } else {
             pendingLimits.change = nil
             state.onSetLimits?(limits)
-        } else {
-            pendingLimits.change = PendingLimits.Change(limits: limits, removal: removal)
         }
+    }
+
+    /// What applying `limits` would take off the shelf, when that includes
+    /// anything the current limits would not already take; `nil` when the
+    /// change can apply without asking. A change that leaves both shelf
+    /// limits alone never asks.
+    private func addedRemoval(_ limits: Limits) -> ShelfLimitRemoval? {
+        let current = state.limits
+        guard limits.shelfCapacity != current.shelfCapacity || limits.shelfExpiry != current.shelfExpiry,
+              let preview = state.onPreviewLimits else { return nil }
+        let removal = preview(limits)
+        let alreadyDue = Set(preview(current).items.map(\.id))
+        return removal.items.allSatisfy { alreadyDue.contains($0.id) } ? nil : removal
     }
 
     /// "Move to Trash": applies the held change. Takes the change rather
     /// than reading `pendingLimits`, so it applies what the dialog showed
     /// even if SwiftUI dismissed the dialog — clearing the hold — before
     /// running the button's action.
+    ///
+    /// Measured again first: drops, finished copies and the clock all move
+    /// while the dialog is up, and applying re-runs eviction and the purge
+    /// on the list as it is now. If that would now take a file the dialog
+    /// never counted (and the current limits would not take anyway), the
+    /// change is held again with the new count instead of applied, so what
+    /// was confirmed is never less than what goes.
     func confirmLimits(_ change: PendingLimits.Change) {
+        let shown = Set(change.removal.items.map(\.id))
+        if let fresh = addedRemoval(change.limits),
+           !fresh.items.allSatisfy({ shown.contains($0.id) }) {
+            pendingLimits.change = PendingLimits.Change(limits: change.limits, removal: fresh)
+            return
+        }
         pendingLimits.change = nil
         state.onSetLimits?(change.limits)
     }
@@ -809,11 +842,29 @@ struct LimitsRows: View {
     /// any way other than the destructive button — Cancel, Escape — is a
     /// cancel, so the held change is dropped and the picker reverts. Static,
     /// like `binding`, so a test can drive it without rendering.
+    ///
+    /// A dismissal cancels only the change the dialog was showing. When
+    /// "Move to Trash" finds the count has grown, `confirmLimits` holds the
+    /// change again with the new count; if SwiftUI reports the dismissal
+    /// after that action, it must not drop the new question unasked.
     static func confirming(_ controller: PreferencesController) -> Binding<Bool> {
-        Binding(
-            get: { controller.pendingLimits.change != nil },
-            set: { presented in if !presented { controller.cancelLimits() } }
+        let shown = ShownChange()
+        return Binding(
+            get: {
+                shown.change = controller.pendingLimits.change
+                return shown.change != nil
+            },
+            set: { presented in
+                guard !presented else { return }
+                let held = controller.pendingLimits.change
+                if shown.change == nil || held == shown.change { controller.cancelLimits() }
+            }
         )
+    }
+
+    /// The change the presentation binding last reported as up.
+    private final class ShownChange {
+        var change: PendingLimits.Change?
     }
 
     var body: some View {
