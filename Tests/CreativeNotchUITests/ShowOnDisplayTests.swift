@@ -113,14 +113,14 @@ struct ShowOnDisplayTests {
         let defaults = TestDefaults.isolated("show-on")
         let first = AppDelegate()
         first.preferencesDefaults = defaults
-        first.playChime = {}
+        first.playChime = { _ in }
         first.screenMetrics = { _ in nil }
         first.install(metrics: NotchedDelegate.metrics)
         first.state.onSetDisplayChoice?(.builtIn)
 
         let second = AppDelegate()
         second.preferencesDefaults = defaults
-        second.playChime = {}
+        second.playChime = { _ in }
         second.install(metrics: NotchedDelegate.metrics)
         #expect(second.state.displayChoice == .builtIn)
     }

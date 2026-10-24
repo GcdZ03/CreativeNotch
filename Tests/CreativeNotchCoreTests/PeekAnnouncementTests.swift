@@ -78,11 +78,11 @@ struct PeekAnnouncementTests {
 
     /// Pause, play and seek all republish the snapshot into a showing peek.
     /// The track is the same track; nothing is said.
-    @Test func metadataUpdatesToTheShowingTrackAreSilent() throws {
+    @Test func metadataUpdatesToTheShowingTrackAreSilent() {
         var paused = song
         paused.isPlaying = false
         var seeked = song
-        seeked.position = try #require(PlaybackPosition(elapsed: 90, duration: 300, anchoredAt: Date()))
+        seeked.position = PlaybackPosition(elapsed: 90, duration: 300, anchoredAt: Date())!
         #expect(PeekAnnouncement.announcement(showing: .nowPlaying(paused), replacing: .nowPlaying(song)) == nil)
         #expect(PeekAnnouncement.announcement(showing: .nowPlaying(seeked), replacing: .nowPlaying(song)) == nil)
     }
