@@ -33,6 +33,28 @@ struct ProgressRelayTests {
         return progress
     }
 
+    /// What a subscriber is actually handed for another process's progress
+    /// (measured 2026-10-25 against Safari and Chrome): the typed accessors
+    /// answer `nil`, and the file and the operation are only in `userInfo`.
+    private final class SubscriberSideProgress: Progress, @unchecked Sendable {
+        override var fileURL: URL? { get { nil } set {} }
+        override var fileOperationKind: Progress.FileOperationKind? { get { nil } set {} }
+    }
+
+    private func subscriberSide(
+        total: Int64 = 1_000,
+        kind: Progress.FileOperationKind = .downloading,
+        url: URL
+    ) -> Progress {
+        let progress = SubscriberSideProgress(parent: nil, userInfo: [
+            .fileURLKey: url as NSURL,
+            .fileOperationKindKey: kind.rawValue,
+        ])
+        progress.totalUnitCount = total
+        progress.kind = .file
+        return progress
+    }
+
     private func relay() -> (ProgressRelay, Recorder) {
         let recorder = Recorder()
         return (ProgressRelay(deliver: { recorder.record($0) }), recorder)
@@ -53,6 +75,35 @@ struct ProgressRelayTests {
         #expect(reading.fileURL == file)
         #expect(reading.completed == 420)
         #expect(reading.total == 1_000)
+    }
+
+    /// A browser's download as a subscriber really receives it: nothing in
+    /// the typed accessors, everything in `userInfo`. It is still a download,
+    /// read with its file — the bug that hid every real download in v0.13.0.
+    @Test func aDownloadDescribedOnlyInUserInfoIsWatched() {
+        let (relay, recorder) = relay()
+        let chrome = URL(fileURLWithPath: "/nonexistent/Downloads/Unconfirmed 60380.crdownload")
+        let p = subscriberSide(url: chrome)
+        p.completedUnitCount = 420
+
+        let handler = relay.published(p)
+
+        #expect(handler != nil)
+        #expect(relay.observedCount == 1)
+        guard case .published(_, let reading)? = recorder.events.first else {
+            Issue.record("nothing published"); return
+        }
+        #expect(reading.fileURL == chrome)
+        #expect(reading.completed == 420)
+    }
+
+    /// The same shape for a Finder copy stays out: the operation in
+    /// `userInfo` says copying.
+    @Test func aCopyDescribedOnlyInUserInfoIsNotWatched() {
+        let (relay, recorder) = relay()
+        let handler = relay.published(subscriberSide(kind: .copying, url: URL(fileURLWithPath: "/x/a.zip")))
+        #expect(handler == nil)
+        #expect(recorder.events.isEmpty)
     }
 
     /// Finder copying a file into Downloads publishes a progress too. It is

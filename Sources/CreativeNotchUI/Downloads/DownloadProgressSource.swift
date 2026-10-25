@@ -96,9 +96,9 @@ final class ProgressRelay: @unchecked Sendable {
     /// the system calls when it is unpublished, or `nil` for one that is not
     /// a download (Finder copying a file in) and is not watched at all.
     func published(_ progress: Progress) -> Progress.UnpublishingHandler? {
-        let fileURL = progress.fileURL
+        let fileURL = Self.fileURL(of: progress)
         guard DownloadName.isDownload(
-            operationKind: progress.fileOperationKind?.rawValue, fileURL: fileURL
+            operationKind: Self.operationKind(of: progress), fileURL: fileURL
         ) else { return nil }
 
         let id = DownloadID()
@@ -166,9 +166,39 @@ final class ProgressRelay: @unchecked Sendable {
             || next.fileURL != last.fileURL
     }
 
+    /// The file a progress is about, from `fileURL` or else from `userInfo`.
+    ///
+    /// **Not `progress.fileURL` alone.** For another process's progress — a
+    /// browser's download, which is the only kind this ever sees — the object
+    /// the subscriber is handed answers `nil` from `fileURL` and
+    /// `fileOperationKind`, while the same values sit in `userInfo` (measured
+    /// against Safari and Chrome on macOS 26, 2026-10-25). Reading only the
+    /// accessors filtered out every real download in v0.13.0.
+    static func fileURL(of progress: Progress) -> URL? {
+        if let url = progress.fileURL { return url }
+        switch progress.userInfo[.fileURLKey] {
+        case let url as URL: return url
+        case let url as NSURL: return url as URL
+        case let string as String where string.hasPrefix("file:"): return URL(string: string)
+        case let path as String: return URL(fileURLWithPath: path)
+        default: return nil
+        }
+    }
+
+    /// The operation a progress describes, from `fileOperationKind` or else
+    /// from `userInfo`, for the same reason as `fileURL(of:)`.
+    static func operationKind(of progress: Progress) -> String? {
+        if let kind = progress.fileOperationKind { return kind.rawValue }
+        switch progress.userInfo[.fileOperationKindKey] {
+        case let kind as Progress.FileOperationKind: return kind.rawValue
+        case let kind as String: return kind
+        default: return nil
+        }
+    }
+
     static func reading(of progress: Progress) -> DownloadReading {
         DownloadReading(
-            fileURL: progress.fileURL,
+            fileURL: fileURL(of: progress),
             completed: progress.completedUnitCount,
             total: progress.totalUnitCount,
             isCancelled: progress.isCancelled
