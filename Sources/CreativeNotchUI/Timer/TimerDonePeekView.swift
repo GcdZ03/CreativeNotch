@@ -13,6 +13,16 @@ struct TimerDonePeekView: View {
 
     private var detail: String { TimerCompletionText.detail(for: completion) }
 
+    /// "Timer done", not "Timer": beside the length alone, "Timer" read as
+    /// a timer's name rather than one that had finished — most of all when
+    /// the peek appears late, after a full-screen app hid the notch.
+    var title: String { String(localized: "Timer done", bundle: .creativeNotch, comment: "Finished-timer peek, beside the notch") }
+
+    /// The one-line form for a notchless display: "Timer done · 25m".
+    var singleLine: String {
+        String(localized: "Timer done · \(detail)", bundle: .creativeNotch, comment: "Finished-timer peek without a notch: Timer done · 25m")
+    }
+
     /// The spoken completion, the same words VoiceOver is sent when this
     /// peek appears (`PeekAnnouncement`) — "25m · finished 5m ago" read
     /// aloud is letters and a dot.
@@ -21,7 +31,7 @@ struct TimerDonePeekView: View {
     var body: some View {
         if notchGap > 0 {
             HStack(spacing: 0) {
-                label(String(localized: "Timer", bundle: .creativeNotch), weight: .semibold, opacity: 0.95)
+                label(title, weight: .semibold, opacity: 0.95)
                     .frame(maxWidth: .infinity, alignment: .trailing)
                     .padding(.trailing, 10)
 
@@ -34,7 +44,7 @@ struct TimerDonePeekView: View {
             .accessibilityElement(children: .combine)
             .accessibilityLabel(accessibilityText)
         } else {
-            label(String(localized: "Timer · \(detail)", bundle: .creativeNotch, comment: "Finished-timer peek without a notch: Timer · 25m"), weight: .medium, opacity: 0.9)
+            label(singleLine, weight: .medium, opacity: 0.9)
                 .padding(.horizontal, 14)
                 .accessibilityElement(children: .combine)
                 .accessibilityLabel(accessibilityText)
