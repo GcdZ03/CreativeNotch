@@ -110,6 +110,21 @@ struct NotifiedTimerPeekWiringTests {
         #expect(isTimerPeek(delegate.state.state))
     }
 
+    /// Banners off: macOS accepts the notice and shows nothing, so the
+    /// peek is still the only thing the user will see.
+    @Test func bannersOffKeepTheLongPeek() async throws {
+        let (delegate, notices, clock) = makeDelegate(authorization: .bannersOff)
+        delegate.applyFullScreen(true)
+        delegate.timerDidFinish(try finished())
+        #expect(notices.posted.count == 1)
+
+        clock.now += 60
+        delegate.applyFullScreen(false)
+        clock.now += PeekArbiter.notifiedTimerDoneTTL + 1
+        await delegate.peekTTLTask?.value
+        #expect(isTimerPeek(delegate.state.state))
+    }
+
     @Test func notificationsSwitchedOffKeepTheLongPeek() async throws {
         let (delegate, notices, clock) = makeDelegate()
         delegate.state.onSetTimerNotifyWhenHidden?(false)

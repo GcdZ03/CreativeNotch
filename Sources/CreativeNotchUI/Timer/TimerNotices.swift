@@ -42,7 +42,8 @@ final class SilentTimerNotices: TimerNoticeCenter {
     /// Answers at once, and as macOS would: accepted only when allowed.
     func post(_ notice: TimerDoneNotice, delivered: @escaping @MainActor @Sendable (Bool) -> Void) {
         posted.append(notice)
-        delivered(status == .allowed)
+        // Same rule as the real center: accepted unless denied, seen only as a banner.
+        delivered(TimerDoneNotice.bannerWasSeen(accepted: status != .denied, authorization: status))
     }
     func authorization() async -> TimerNoticeAuthorization { status }
 }
@@ -98,9 +99,16 @@ final class SystemTimerNotices: NSObject, TimerNoticeCenter, UNUserNotificationC
         // hops rather than assuming the main actor (the Bluetooth callbacks'
         // lesson). The error is reduced to a Bool before the hop: it is not
         // Sendable, and whether it exists is all the caller is owed.
+        //
+        // Accepted is then checked against the alert style: with banners off
+        // macOS takes the request and shows nothing, and the late peek must
+        // not be cut short for a banner nobody saw.
         center.add(request) { error in
             let accepted = error == nil
-            Task { @MainActor in delivered(accepted) }
+            Task { @MainActor in
+                let authorization = Self.authorization(of: await center.notificationSettings())
+                delivered(TimerDoneNotice.bannerWasSeen(accepted: accepted, authorization: authorization))
+            }
         }
     }
 
