@@ -3674,11 +3674,23 @@
       }
     },
     "Timer done" : {
+      "comment" : "Finished-timer peek, beside the notch",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "Timer done"
+          }
+        }
+      }
+    },
+    "Timer done · %@" : {
+      "comment" : "Finished-timer peek without a notch: Timer done · 25m",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timer done · %@"
           }
         }
       }
@@ -3689,17 +3701,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Timer paused, %@ remaining"
-          }
-        }
-      }
-    },
-    "Timer · %@" : {
-      "comment" : "Finished-timer peek without a notch: Timer · 25m",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Timer · %@"
           }
         }
       }
