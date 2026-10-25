@@ -113,4 +113,14 @@ public struct TimerDoneNotice: Equatable, Sendable {
         case .bannersOff:              return .bannersOff
         }
     }
+
+    /// Whether a posted notice reached the user as a banner, which is what
+    /// lets the late peek be brief. Accepted is not enough: with the alert
+    /// style set to None macOS accepts the request and shows nothing
+    /// (`.bannersOff`), and then the peek is still the only signal.
+    public static func bannerWasSeen(
+        accepted: Bool, authorization: TimerNoticeAuthorization
+    ) -> Bool {
+        accepted && authorization == .allowed
+    }
 }

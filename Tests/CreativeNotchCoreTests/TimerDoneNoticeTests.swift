@@ -111,4 +111,15 @@ struct TimerDoneNoticeTests {
         #expect(TimerDoneNotice.settingsWarning(for: .denied, enabled: false) == nil)
         #expect(TimerDoneNotice.settingsWarning(for: .bannersOff, enabled: false) == nil)
     }
+
+    /// The late peek is cut short only for a banner the user could see.
+    /// With the style set to None macOS accepts the request and shows
+    /// nothing — exactly the case #68 warns about — so that is not "seen".
+    @Test func onlyAnAcceptedBannerThatCanShowCountsAsSeen() {
+        #expect(TimerDoneNotice.bannerWasSeen(accepted: true, authorization: .allowed))
+        #expect(!TimerDoneNotice.bannerWasSeen(accepted: true, authorization: .bannersOff))
+        #expect(!TimerDoneNotice.bannerWasSeen(accepted: false, authorization: .allowed))
+        #expect(!TimerDoneNotice.bannerWasSeen(accepted: true, authorization: .denied))
+        #expect(!TimerDoneNotice.bannerWasSeen(accepted: true, authorization: .notDetermined))
+    }
 }

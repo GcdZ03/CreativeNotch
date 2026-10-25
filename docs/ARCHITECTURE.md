@@ -408,7 +408,9 @@ One slot, seven competitors. `PeekArbiter` resolves them: **drag > finished
 timer > power > Bluetooth > finished download > downloads in progress >
 now-playing**. Transient content preempts ambient content and then falls back,
 the same model as the iPhone Dynamic Island. Power has a 3 s TTL, a Bluetooth
-device 2.5 s, a finished download 5 s and a finished timer 600 s; a drag has
+device 2.5 s, a finished download 5 s and a finished timer 600 s — or 5 s
+from when it is shown, if a banner already announced it (below, "Over a
+full-screen app it posts a notification"); a drag has
 none and lasts until cleared, and downloads in progress, like now-playing, are
 ambient and end when the downloads do.
 
@@ -1186,6 +1188,19 @@ one-shot fires, with no trigger: a notification queued for the deadline would
 be a second copy of it, to be cancelled on every pause and cancel. One
 identifier, so a second finish replaces the first banner. The switch is
 `timer.notifyWhenHidden`, absent meaning on.
+
+**The late peek is then brief.** The peek is still recorded, and appears when
+the notch comes back. If macOS *accepted* the banner (`post`'s `delivered`
+callback — denied or switched off, nothing is reported), the arbiter marks the
+completion notified (`timerDoneWasNotified`), and the first time the peek is
+actually on screen (`timerDoneWasShown`, from `applyPeek` with the notch on
+screen or from `applyFullScreen(false)`) it shortens to
+`PeekArbiter.notifiedTimerDoneTTL`, 5 s, and the re-check is a one-shot for
+that. The clock starts at the showing, not the finish, or a stay of more than
+5 s in the full-screen app would mean the peek never appeared; it only ever
+shortens the 600 s backstop. A timer that finishes with the notch on screen,
+or whose banner went nowhere, keeps the full lifetime: there the peek is the
+only alert. Opening the panel still clears it at once.
 
 ### The trap that nearly shipped
 

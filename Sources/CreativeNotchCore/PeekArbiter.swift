@@ -24,6 +24,23 @@ public struct PeekArbiter: Equatable, Sendable {
     /// appearing until someone clicked.
     public static let timerDoneTTL: TimeInterval = 600
 
+    /// How long a finished-timer peek lasts once shown, when a banner has
+    /// already announced that completion (2026-10-25).
+    ///
+    /// Behind a full-screen app the peek lands in an ordered-out window, so
+    /// Notification Center carries the alert. The peek waiting on the way
+    /// back is then a reminder of news already delivered, not the alert
+    /// itself, and lingering ten minutes for it would be the same news held
+    /// over the power and now-playing peeks. Five seconds is
+    /// `downloadDoneTTL`'s glance: long enough to read "25m done", short
+    /// enough to be gone before it is in the way.
+    ///
+    /// It counts from when the peek is *shown*, never from the finish: a
+    /// stay of more than five seconds in the full-screen app would otherwise
+    /// mean the peek never appeared. And it only ever shortens
+    /// `timerDoneTTL`'s backstop, never extends it.
+    public static let notifiedTimerDoneTTL: TimeInterval = 5.0
+
     /// Five seconds: long enough to read a file name and reach for it — the
     /// peek is the way to its file in Finder — and short enough that a
     /// download nobody was waiting for is gone before it is in the way.
@@ -44,6 +61,8 @@ public struct PeekArbiter: Equatable, Sendable {
     private var nowPlaying: TrackSnapshot?
     private var timerDone: TimerCompletion?
     private var timerDoneExpiry: TimeInterval = 0
+    private var timerDoneNotified = false
+    private var timerDoneShown = false
     private var downloads: DownloadSummary?
     private var downloadDone: DownloadCompletion?
     private var downloadDoneExpiry: TimeInterval = 0
@@ -98,10 +117,46 @@ public struct PeekArbiter: Equatable, Sendable {
     public mutating func recordTimerFinished(_ completion: TimerCompletion, now: TimeInterval) {
         timerDone = completion
         timerDoneExpiry = now + Self.timerDoneTTL
+        timerDoneNotified = false
+        timerDoneShown = false
+    }
+
+    /// Notification Center accepted a banner for `completion`, so the peek
+    /// is no longer the only thing telling the user.
+    ///
+    /// Ignored for anything but the completion in the slot -- a newer one
+    /// replaced it, and that banner says nothing about the newer timer -- and
+    /// once the peek has been shown. The second case is the notch coming
+    /// back within the instant macOS took to answer: the peek is already in
+    /// front of the user as the alert, and cutting it short on the strength
+    /// of a banner that arrived second would make it vanish mid-read.
+    public mutating func timerDoneWasNotified(_ completion: TimerCompletion) {
+        guard timerDone == completion, !timerDoneShown else { return }
+        timerDoneNotified = true
+    }
+
+    /// The finished-timer peek is on screen. For a notified completion this
+    /// starts `notifiedTimerDoneTTL`; for any other it changes nothing.
+    ///
+    /// Only the first showing counts. Every re-check re-applies the same
+    /// peek and lands here again; restarting the clock each time would keep
+    /// it for as long as the re-checks kept coming, which is forever.
+    public mutating func timerDoneWasShown(now: TimeInterval) {
+        guard timerDone != nil, now < timerDoneExpiry, !timerDoneShown else { return }
+        timerDoneShown = true
+        if timerDoneNotified {
+            timerDoneExpiry = min(timerDoneExpiry, now + Self.notifiedTimerDoneTTL)
+        }
+    }
+
+    /// Whether the finished-timer peek is on its brief `notifiedTimerDoneTTL`
+    /// rather than `timerDoneTTL` -- what the re-check is scheduled for.
+    public var timerDoneIsBrief: Bool {
+        timerDone != nil && timerDoneNotified && timerDoneShown
     }
 
     /// Acknowledges the completion peek, clearing it immediately rather
-    /// than waiting out `timerDoneTTL`.
+    /// than waiting out `timerDoneTTL` -- or `notifiedTimerDoneTTL`.
     public mutating func dismissTimerDone() {
         timerDone = nil
     }
