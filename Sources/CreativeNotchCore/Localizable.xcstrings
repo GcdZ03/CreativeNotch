@@ -766,6 +766,16 @@
         }
       }
     },
+    "Banners are off for CreativeNotch, so timer notifications only go to Notification Center." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Banners are off for CreativeNotch, so timer notifications only go to Notification Center."
+          }
+        }
+      }
+    },
     "Battery" : {
       "localizations" : {
         "en" : {

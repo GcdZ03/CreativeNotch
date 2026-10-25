@@ -56,6 +56,7 @@ struct TimerDoneNoticeTests {
         #expect(TimerDoneNotice.shouldRequestAuthorization(enabled: true, authorization: .notDetermined))
         #expect(TimerDoneNotice.shouldRequestAuthorization(enabled: true, authorization: .allowed) == false)
         #expect(TimerDoneNotice.shouldRequestAuthorization(enabled: true, authorization: .denied) == false)
+        #expect(TimerDoneNotice.shouldRequestAuthorization(enabled: true, authorization: .bannersOff) == false)
         #expect(TimerDoneNotice.shouldRequestAuthorization(enabled: false, authorization: .notDetermined) == false)
     }
 
@@ -78,5 +79,36 @@ struct TimerDoneNoticeTests {
         #expect(TimerDoneNotice.settingsNote(for: .allowed, enabled: true) == nil)
         #expect(TimerDoneNotice.settingsNote(for: .denied, enabled: false) == nil)
         #expect(TimerDoneNotice.settingsNote(for: .notDetermined, enabled: false) == nil)
+    }
+
+    /// Allowed but with the alert style set to None (found 2026-10-25): every
+    /// notice goes straight to Notification Center, so a banner never shows.
+    /// The note says where they went, rather than that nothing was sent.
+    @Test func bannersOffIsExplainedUnderTheSwitch() throws {
+        let note = try #require(TimerDoneNotice.settingsNote(for: .bannersOff, enabled: true))
+        #expect(note.contains("Banners"))
+        #expect(note.contains("Notification Center"))
+        #expect(TimerDoneNotice.settingsNote(for: .bannersOff, enabled: false) == nil)
+    }
+
+    // MARK: - When Settings warns
+
+    /// Denied and banners-off both mean the switch cannot do what it says,
+    /// and both are fixed in the same System Settings pane.
+    @Test func deniedAndBannersOffAreWarnings() {
+        #expect(TimerDoneNotice.settingsWarning(for: .denied, enabled: true) == .denied)
+        #expect(TimerDoneNotice.settingsWarning(for: .bannersOff, enabled: true) == .bannersOff)
+    }
+
+    /// Undecided is a plain note, not a warning: macOS will ask in time.
+    @Test func allowedOrUndecidedIsNoWarning() {
+        #expect(TimerDoneNotice.settingsWarning(for: .allowed, enabled: true) == nil)
+        #expect(TimerDoneNotice.settingsWarning(for: .notDetermined, enabled: true) == nil)
+    }
+
+    /// Switched off, nothing would be posted anyway, so nothing to warn of.
+    @Test func switchedOffIsNoWarning() {
+        #expect(TimerDoneNotice.settingsWarning(for: .denied, enabled: false) == nil)
+        #expect(TimerDoneNotice.settingsWarning(for: .bannersOff, enabled: false) == nil)
     }
 }

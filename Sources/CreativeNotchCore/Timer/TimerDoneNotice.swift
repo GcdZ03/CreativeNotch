@@ -2,12 +2,32 @@ import Foundation
 
 /// Whether macOS lets this app post notifications, as far as the timer cares.
 ///
-/// Three cases rather than `UNAuthorizationStatus`'s five: provisional and
+/// Four cases rather than `UNAuthorizationStatus`'s five: provisional and
 /// ephemeral both deliver, and Core cannot name a UserNotifications type.
 public enum TimerNoticeAuthorization: Equatable, Sendable {
     case notDetermined
     case denied
     case allowed
+    /// Allowed, but with the alert style in System Settings › Notifications
+    /// set to None (2026-10-25). Posting still succeeds -- every notice goes
+    /// to Notification Center -- yet no banner ever shows, which over a
+    /// full-screen app is the same as nothing. Found in hands-on testing:
+    /// the code was right and the user saw nothing until the style was
+    /// Banners. Folded in here rather than kept as a second value because it
+    /// is one more answer to the question this type asks: will the user see
+    /// the notice?
+    case bannersOff
+}
+
+/// Why the Settings row should warn -- an orange note and a button to System
+/// Settings › Notifications -- rather than just inform.
+///
+/// Both cases are "the switch reads on and cannot do what it says", and both
+/// are fixed in the same pane, so the row treats them alike; they differ only
+/// in the sentence (`TimerDoneNotice.settingsNote`).
+public enum TimerNoticeSettingsWarning: Equatable, Sendable {
+    case denied
+    case bannersOff
 }
 
 /// The notification a finished timer posts when its peek cannot be seen
@@ -75,6 +95,22 @@ public struct TimerDoneNotice: Equatable, Sendable {
             return String(localized: "macOS asks whether CreativeNotch may notify you the first time you start a timer.", bundle: .creativeNotch)
         case .denied:
             return String(localized: "Notifications are off for CreativeNotch in System Settings, so a timer that finishes behind a full-screen app will only chime.", bundle: .creativeNotch)
+        case .bannersOff:
+            return String(localized: "Banners are off for CreativeNotch, so timer notifications only go to Notification Center.", bundle: .creativeNotch)
+        }
+    }
+
+    /// Whether that line is a warning, and which: `nil` while the switch is
+    /// off (nothing would be posted anyway), allowed, or undecided (macOS will
+    /// ask in time, so the note only informs).
+    public static func settingsWarning(
+        for authorization: TimerNoticeAuthorization, enabled: Bool
+    ) -> TimerNoticeSettingsWarning? {
+        guard enabled else { return nil }
+        switch authorization {
+        case .allowed, .notDetermined: return nil
+        case .denied:                  return .denied
+        case .bannersOff:              return .bannersOff
         }
     }
 }
