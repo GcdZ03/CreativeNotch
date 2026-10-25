@@ -44,5 +44,6 @@ dist/
 # Editors
 .vscode/
 
-# /brag-slim output (video, frames, scripts); only the poster is committed
+# /brag-slim output (video, frames, scripts); only the poster and the web-sized
+# video (docs/assets/launch.mp4) are committed
 brag-output*/
