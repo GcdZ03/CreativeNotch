@@ -120,6 +120,17 @@ struct ClipboardSearchPinWiringTests {
         #expect(NotchPanel.editingAction(characters: "q", modifiers: .command) == nil)
     }
 
+    /// A ⌘V an automation tool or a password manager sends arrives through
+    /// the window server with bit 29 set, a flag AppKit has no name for. It
+    /// is still ⌘V — the same rule `panelKey` keeps for ⌘1…⌘N.
+    @Test func anUnnamedFlagDoesNotStopAnEditingChord() {
+        let unnamed = NSEvent.ModifierFlags(rawValue: 1 << 29)
+        #expect(NotchPanel.editingAction(characters: "v", modifiers: [.command, unnamed]) == #selector(NSText.paste(_:)))
+        #expect(NotchPanel.editingAction(characters: "z", modifiers: [.command, unnamed]) == Selector(("undo:")))
+        #expect(NotchPanel.editingAction(characters: "v", modifiers: unnamed) == nil, "still typing without ⌘")
+        #expect(NotchPanel.editingAction(characters: "v", modifiers: [.command, .option, unnamed]) == nil)
+    }
+
     // MARK: - Pins
 
     @Test func installingWiresThePinHandler() {

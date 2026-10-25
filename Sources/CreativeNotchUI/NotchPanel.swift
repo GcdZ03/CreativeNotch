@@ -119,9 +119,10 @@ public final class NotchPanel: NSPanel {
     /// editor is first responder, so the chords mean nothing anywhere else
     /// in the panel.
     static func editingAction(characters: String?, modifiers: NSEvent.ModifierFlags) -> Selector? {
-        let chord = modifiers
-            .intersection(.deviceIndependentFlagsMask)
-            .subtracting([.capsLock, .numericPad, .function])
+        // Only ⇧ ⌃ ⌥ ⌘ make a chord, as in `panelKey`: subtracting the known
+        // keyboard states left bit 29 in, which a ⌘V sent by an automation
+        // tool carries, and it stopped matching.
+        let chord = modifiers.intersection([.shift, .control, .option, .command])
         guard chord == .command, let character = characters?.lowercased() else { return nil }
         switch character {
         case "x": return #selector(NSText.cut(_:))
