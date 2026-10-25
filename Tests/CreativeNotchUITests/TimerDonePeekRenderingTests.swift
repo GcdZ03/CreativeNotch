@@ -38,6 +38,15 @@ struct TimerDonePeekRenderingTests {
         #expect(Render.differs(onTime, late))
     }
 
+    /// "Timer | 1m" read as a timer's name, not a timer that had finished
+    /// (2026-10-25, seen after a full-screen app hid the notch). The peek
+    /// says so in words, in both layouts.
+    @Test func thePeekSaysTheTimerIsDone() {
+        let peek = TimerDonePeekView(completion: TimerCompletion(duration: 60, lateness: 0))
+        #expect(peek.title == "Timer done")
+        #expect(peek.singleLine == "Timer done · 1m")
+    }
+
     /// Rendered directly, not through the root view: switching the anchor
     /// also changes the panel *shape*, so a root-view comparison would
     /// differ regardless of whether the gap was honoured.
