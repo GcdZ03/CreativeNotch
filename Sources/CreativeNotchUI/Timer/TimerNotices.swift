@@ -18,7 +18,9 @@ protocol TimerNoticeCenter: AnyObject {
     /// denied: the chime and VoiceOver have already said it.
     func post(_ notice: TimerDoneNotice)
 
-    /// What macOS currently allows, for the line under the Settings switch.
+    /// What macOS currently allows, for the line under the Settings switch --
+    /// including whether banners are off (`.bannersOff`). Only reads; it
+    /// never prompts.
     func authorization() async -> TimerNoticeAuthorization
 }
 
@@ -93,7 +95,11 @@ final class SystemTimerNotices: NSObject, TimerNoticeCenter, UNUserNotificationC
         switch settings.authorizationStatus {
         case .notDetermined: return .notDetermined
         case .denied:        return .denied
-        default:             return .allowed
+        default:
+            // Allowed with the alert style at None delivers every notice to
+            // Notification Center and never as a banner -- over a full-screen
+            // app, the same as nothing. Read only; nothing here prompts.
+            return settings.alertStyle == .none ? .bannersOff : .allowed
         }
     }
 

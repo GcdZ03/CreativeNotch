@@ -105,4 +105,12 @@ struct SettingsFeatureRenders {
         try render(controller, height: 470, to: "settings-denied")
         _ = delegate
     }
+
+    /// Allowed with the alert style at None (2026-10-25): notices only reach
+    /// Notification Center, and the row says so with the same way there.
+    @Test func renderTheBannersOffState() throws {
+        let (delegate, controller) = makeController(authorization: .bannersOff, excluded: ["com.apple.Terminal"])
+        try render(controller, height: 470, to: "settings-banners-off")
+        _ = delegate
+    }
 }

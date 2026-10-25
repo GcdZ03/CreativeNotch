@@ -292,10 +292,11 @@ final class PreferencesController {
         TimerDoneNotice.settingsNote(for: state.timerNoticeAuthorization, enabled: state.timerNotifyWhenHidden)
     }
 
-    /// Whether macOS has refused notifications, which is when the row offers
-    /// a way to System Settings.
-    var timerNoticesDenied: Bool {
-        state.timerNotifyWhenHidden && state.timerNoticeAuthorization == .denied
+    /// Whether that line is a warning -- notifications refused, or allowed
+    /// with banners off -- which is when the row turns it orange and offers a
+    /// way to System Settings.
+    var timerNoticeWarning: TimerNoticeSettingsWarning? {
+        TimerDoneNotice.settingsWarning(for: state.timerNoticeAuthorization, enabled: state.timerNotifyWhenHidden)
     }
 
     /// Clipboard history's excluded apps (2026-10-24), as bundle identifiers.
@@ -1287,8 +1288,9 @@ struct LimitsRows: View {
 /// Reads the controller rather than holding a copy, for the reason
 /// `DisplayRow` gives. The line underneath is `TimerDoneNotice.settingsNote`:
 /// nothing while notifications are allowed, when macOS will ask while it has
-/// not, and -- denied -- that the switch can do nothing until System Settings
-/// says otherwise, with the way there.
+/// not, and -- denied, or allowed with the alert style at None -- that the
+/// switch cannot do what it says until System Settings says otherwise, with
+/// the way there (`TimerDoneNotice.settingsWarning`).
 struct TimerNoticeRow: View {
     let controller: PreferencesController
 
@@ -1313,10 +1315,10 @@ struct TimerNoticeRow: View {
             if let note = controller.timerNoticeNote {
                 Text(note)
                     .font(.caption)
-                    .foregroundStyle(controller.timerNoticesDenied ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(controller.timerNoticeWarning != nil ? AnyShapeStyle(.orange) : AnyShapeStyle(.secondary))
                     .fixedSize(horizontal: false, vertical: true)
             }
-            if controller.timerNoticesDenied {
+            if controller.timerNoticeWarning != nil {
                 Button(String(localized: "Open Notification Settings", bundle: .creativeNotch)) {
                     NSWorkspace.shared.open(Self.notificationSettingsURL)
                 }

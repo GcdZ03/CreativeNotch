@@ -360,8 +360,10 @@ asks whether CreativeNotch may notify you the first time you *start* a timer —
 not at launch, and never if you switch off Settings → Timer → **Notify when
 hidden by a full-screen app** first. Say no and the timer chimes and VoiceOver
 announces it, exactly as before; Settings says notifications are off and links
-to System Settings → Notifications. Sounds are not requested: the app plays its
-own chime.
+to System Settings → Notifications. If notifications are allowed but the
+alert style there is **None**, every notice goes quietly to Notification Center
+and no banner shows; Settings says so, with the same link — choose **Banners**
+to see them. Sounds are not requested: the app plays its own chime.
 
 The wording of every permission prompt above is in
 `Resources/InfoPlist.xcstrings`, so it is translated with everything else;
