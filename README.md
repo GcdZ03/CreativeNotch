@@ -23,10 +23,9 @@
 </p>
 <p align="center"><sub>Rendered offscreen by the test suite's renderer on a stand-in wallpaper, not a screenshot — the layout is exact, the desktop is not.</sub></p>
 
-<p align="center">
-  <a href="docs/assets/launch.mp4"><img src="docs/assets/brag-poster.jpg" width="300" alt="Launch video poster: the open clipboard tab, searching cafe and finding café kitsuné at 7:30, over the words search your clipboard, accents and all. Click to play the 25 second video."></a>
-</p>
-<p align="center"><sub><a href="docs/assets/launch.mp4">▶ The v0.14 launch video</a> (25s, with sound). Every view of the app in it is a real render from the app's own code; the songs, files, clipboard text, calendar and wallpaper are stand-ins.</sub></p>
+https://github.com/user-attachments/assets/368c8f11-84fe-4dec-aa86-9deefde1b3f7
+
+<p align="center"><sub>The v0.14 launch video (25s, with sound). Every view of the app in it is a real render from the app's own code; the songs, files, clipboard text, calendar and wallpaper are stand-ins.</sub></p>
 
 ---
 
