@@ -16,7 +16,13 @@ protocol TimerNoticeCenter: AnyObject {
 
     /// Shows the banner, or quietly does nothing if notifications are
     /// denied: the chime and VoiceOver have already said it.
-    func post(_ notice: TimerDoneNotice)
+    ///
+    /// `delivered` is told, on the main actor, whether macOS accepted it.
+    /// The delegate needs the answer, not just the attempt: an accepted
+    /// banner makes the finished-timer peek a brief reminder, while a denied
+    /// one leaves the peek as the only thing the user will see, so it must
+    /// keep its full lifetime (`PeekArbiter.notifiedTimerDoneTTL`).
+    func post(_ notice: TimerDoneNotice, delivered: @escaping @MainActor @Sendable (Bool) -> Void)
 
     /// What macOS currently allows, for the line under the Settings switch.
     func authorization() async -> TimerNoticeAuthorization
@@ -31,7 +37,11 @@ final class SilentTimerNotices: TimerNoticeCenter {
     var status: TimerNoticeAuthorization = .notDetermined
 
     func prepare() { prepareCount += 1 }
-    func post(_ notice: TimerDoneNotice) { posted.append(notice) }
+    /// Answers at once, and as macOS would: accepted only when allowed.
+    func post(_ notice: TimerDoneNotice, delivered: @escaping @MainActor @Sendable (Bool) -> Void) {
+        posted.append(notice)
+        delivered(status == .allowed)
+    }
     func authorization() async -> TimerNoticeAuthorization { status }
 }
 
@@ -73,15 +83,23 @@ final class SystemTimerNotices: NSObject, TimerNoticeCenter, UNUserNotificationC
         }
     }
 
-    func post(_ notice: TimerDoneNotice) {
-        guard let center else { return }
+    func post(_ notice: TimerDoneNotice, delivered: @escaping @MainActor @Sendable (Bool) -> Void) {
+        guard let center else { delivered(false); return }
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.body = notice.body
         let request = UNNotificationRequest(identifier: notice.identifier, content: content, trigger: nil)
         // Denied, this fails, and that is the whole of the denied path: the
         // chime and the announcement went out before this was called.
-        center.add(request) { _ in }
+        //
+        // The handler runs on a queue of UserNotifications' choosing, so it
+        // hops rather than assuming the main actor (the Bluetooth callbacks'
+        // lesson). The error is reduced to a Bool before the hop: it is not
+        // Sendable, and whether it exists is all the caller is owed.
+        center.add(request) { error in
+            let accepted = error == nil
+            Task { @MainActor in delivered(accepted) }
+        }
     }
 
     func authorization() async -> TimerNoticeAuthorization {

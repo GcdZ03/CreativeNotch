@@ -439,7 +439,7 @@ it back.
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
 | Pause it | The countdown dims, shows a pause symbol beside the notch, and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |
-| Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer |
+| Let it finish while a full-screen app hides the notch | It chimes, and a "Timer done" notification says which timer finished; switch it off under Settings → Timer. Back at the desktop the notch peeks for 5 seconds as a reminder (with notifications off, it stays until you click it) |
 | Sleep through the deadline | It fires on wake and says how late it was |
 | Switch on Calendar and reminders in Settings | Asks for Calendars and Reminders access, then adds a calendar icon as the last tab. Six tabs need more room beside the camera than the 620pt panel has, so at Default it widens to fit them (678pt on a 14" MacBook Pro) |
 | Click the calendar icon | The next three events of today and tomorrow, each with its calendar's colour and when — "Now, until 9:30", "in 28 min", "12:30–13:30", "Tomorrow 10:00", "All day" — and how many reminders are due or overdue. **Open Calendar** in the title row opens Calendar |

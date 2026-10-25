@@ -178,6 +178,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// wait out ten minutes.
     var timerDoneTTLDelay: Duration = AppDelegate.defaultTimerDoneTTLDelay
 
+    /// How long a finished-timer peek occupies the slot once shown, when a
+    /// banner already announced it. Mirrors
+    /// `PeekArbiter.notifiedTimerDoneTTL`, and starts when the peek is put
+    /// on screen -- the notch back from a full-screen app -- not when the
+    /// timer finished.
+    public static let defaultNotifiedTimerDoneTTLDelay: Duration = .milliseconds(5000)
+
+    /// Overridable for the reason `powerTTLDelay` is.
+    var notifiedTimerDoneTTLDelay: Duration = AppDelegate.defaultNotifiedTimerDoneTTLDelay
+
     /// Exposed so tests can await the real re-evaluation instead of
     /// sleeping and hoping, exactly like `graceTask`.
     private(set) var peekTTLTask: Task<Void, Never>?
@@ -1802,8 +1812,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // window. A notification is the one alert that shows there; it is
         // added to the chime and the announcement, never in place of them,
         // so a denied permission leaves exactly what there was before.
+        //
+        // A banner macOS accepted is also news for the arbiter: the peek the
+        // user meets on the way back is then a reminder, and goes after a
+        // glance (`PeekArbiter.notifiedTimerDoneTTL`). Denied, nothing is
+        // reported and the peek keeps its full lifetime -- it is the only
+        // thing they will see.
         if TimerDoneNotice.shouldPost(notchOnScreen: isNotchOnScreen, enabled: state.timerNotifyWhenHidden) {
-            timerNotices.post(TimerDoneNotice(completion: completion))
+            timerNotices.post(TimerDoneNotice(completion: completion)) { [weak self] accepted in
+                guard accepted else { return }
+                self?.arbiter.timerDoneWasNotified(completion)
+            }
         }
         // When no peek carries it -- the panel is open, the module is off, a
         // drag holds the slot -- VoiceOver is told here instead. With the
@@ -1974,6 +1993,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             state.transition(to: .closed)
         }
         setPanelShown(!isFullScreen)
+        // A timer that finished while hidden left its peek in the ordered-out
+        // window, and this is the moment it is actually seen. If a banner
+        // already told the user, that starts its brief window -- so the
+        // re-check is rescheduled for it, or it would wait out the long one.
+        if !isFullScreen, case .peek(.timerDone(let completion)) = state.state {
+            arbiter.timerDoneWasShown(now: now())
+            schedulePeekReevaluation(for: .timerDone(completion))
+        }
     }
 
     // MARK: - Haptics
@@ -2192,6 +2219,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let text = PeekAnnouncement.announcement(showing: content, replacing: previous) {
             announce(text)
         }
+        // Here because every path into `.peek` passes through, and the
+        // arbiter's brief window must start when the peek is *seen*. Behind
+        // a full-screen app the window is ordered out and nothing is seen;
+        // the notch coming back starts it instead (`applyFullScreen`).
+        if case .timerDone = content, isNotchOnScreen {
+            arbiter.timerDoneWasShown(now: now())
+        }
     }
 
     /// Re-reads the arbiter once the showing content's TTL is expected to
@@ -2218,11 +2252,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         power: Duration,
         timerDone: Duration,
         bluetooth: Duration = AppDelegate.defaultBluetoothTTLDelay,
-        downloadDone: Duration = AppDelegate.defaultDownloadDoneTTLDelay
+        downloadDone: Duration = AppDelegate.defaultDownloadDoneTTLDelay,
+        timerDoneIsBrief: Bool = false,
+        notifiedTimerDone: Duration = AppDelegate.defaultNotifiedTimerDoneTTLDelay
     ) -> Duration {
         switch content {
         case .power:        return power
-        case .timerDone:    return timerDone
+        // Brief only once the arbiter says so: notified, and shown.
+        case .timerDone:    return timerDoneIsBrief ? notifiedTimerDone : timerDone
         case .bluetooth:    return bluetooth
         case .downloadDone: return downloadDone
         // `.nowPlaying`, `.downloads` and `.dragTarget` have no expiry of
@@ -2240,7 +2277,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             power: powerTTLDelay,
             timerDone: timerDoneTTLDelay,
             bluetooth: bluetoothTTLDelay,
-            downloadDone: downloadDoneTTLDelay
+            downloadDone: downloadDoneTTLDelay,
+            timerDoneIsBrief: arbiter.timerDoneIsBrief,
+            notifiedTimerDone: notifiedTimerDoneTTLDelay
         )
 
         peekTTLTask?.cancel()
