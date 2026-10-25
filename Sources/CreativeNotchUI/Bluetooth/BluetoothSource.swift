@@ -76,21 +76,24 @@ final class IOBluetoothSource: NSObject, BluetoothSource {
         )
     }
 
-    // `nonisolated` + `assumeIsolated` for the reason `ARCHITECTURE.md`
-    // gives under Concurrency: IOBluetooth delivers on the run loop the
-    // registration was made on, which is the main one, because `start()` is
-    // main-actor isolated. The device is read into a `Sendable` value
-    // before crossing, and looked up again by address on the main actor,
-    // so no IOBluetooth object crosses the isolation boundary.
+    // **Hopped, not assumed.** The callbacks are `nonisolated` because
+    // IOBluetooth does *not* deliver on the run loop the registration was
+    // made on: on macOS 26 a connect arrives on IOBluetooth's own
+    // coordinator queue, by way of CoreBluetooth. `assumeIsolated` there
+    // trapped and quit the app the moment AirPods connected (2026-10-25),
+    // so each callback reads the device into a `Sendable` value where it
+    // lands and hops to the main queue with it. The device is looked up
+    // again by address on the main actor, so no IOBluetooth object crosses.
     @objc nonisolated private func deviceConnected(
         _ notification: IOBluetoothUserNotification, device: IOBluetoothDevice
     ) {
         let info = Self.info(device)
-        MainActor.assumeIsolated {
+        Self.deliverOnMain { [weak self] in
+            guard let self else { return }
             if let device = IOBluetoothDevice(addressString: info.address) {
-                watchDisconnect(of: device)
+                self.watchDisconnect(of: device)
             }
-            onConnect?(info)
+            self.onConnect?(info)
         }
     }
 
@@ -100,10 +103,19 @@ final class IOBluetoothSource: NSObject, BluetoothSource {
         // One disconnect per registration: the next connect registers anew.
         notification.unregister()
         let info = Self.info(device)
-        MainActor.assumeIsolated {
-            disconnectNotifications[info.address] = nil
-            onDisconnect?(info)
+        Self.deliverOnMain { [weak self] in
+            guard let self else { return }
+            self.disconnectNotifications[info.address] = nil
+            self.onDisconnect?(info)
         }
+    }
+
+    /// Runs `work` on the main actor from whatever queue IOBluetooth called
+    /// back on. `DispatchQueue.main` rather than a `Task`: callbacks from one
+    /// queue then reach the main queue in the order they happened, so a
+    /// disconnect cannot overtake the connect before it.
+    nonisolated static func deliverOnMain(_ work: @escaping @MainActor @Sendable () -> Void) {
+        DispatchQueue.main.async { MainActor.assumeIsolated { work() } }
     }
 
     nonisolated private static func pairedConnected() -> [IOBluetoothDevice] {
