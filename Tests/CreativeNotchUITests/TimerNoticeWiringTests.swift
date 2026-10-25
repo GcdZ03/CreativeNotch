@@ -146,6 +146,40 @@ struct TimerNoticeWiringTests {
         #expect(delegate.state.timerNoticeAuthorization == .denied)
     }
 
+    /// Allowed with the alert style at None reads back as its own state, so
+    /// Settings can say the banners are off (2026-10-25).
+    @Test func bannersOffIsReadBackForSettings() async {
+        let (delegate, notices) = makeDelegate()
+        notices.status = .bannersOff
+        await delegate.refreshTimerNoticeAuthorization()
+        #expect(delegate.state.timerNoticeAuthorization == .bannersOff)
+    }
+
+    /// The controller hands the row the warning that decides the orange note
+    /// and the System Settings button: denied and banners-off both get them.
+    @Test func theControllerWarnsForDeniedAndBannersOff() async {
+        let (delegate, notices) = makeDelegate()
+        let controller = PreferencesController(
+            switchboard: delegate.switchboard,
+            state: delegate.state,
+            launchAtLogin: delegate.launchAtLogin,
+            presenter: { _ in }
+        )
+        notices.status = .bannersOff
+        await delegate.refreshTimerNoticeAuthorization()
+        #expect(controller.timerNoticeWarning == .bannersOff)
+        #expect(controller.timerNoticeNote?.contains("Notification Center") == true)
+
+        notices.status = .denied
+        await delegate.refreshTimerNoticeAuthorization()
+        #expect(controller.timerNoticeWarning == .denied)
+
+        notices.status = .allowed
+        await delegate.refreshTimerNoticeAuthorization()
+        #expect(controller.timerNoticeWarning == nil)
+        #expect(controller.timerNoticeNote == nil)
+    }
+
     /// The sandboxed default reaches nothing: a fresh delegate's notices are
     /// silent, and only the real launch points them at the system.
     @Test func aFreshDelegatesNoticesAreSilent() {
