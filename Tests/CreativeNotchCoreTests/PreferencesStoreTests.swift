@@ -118,6 +118,21 @@ struct PreferencesStoreTests {
         #expect(store.load().bluetooth == true)
     }
 
+    // MARK: - Keep clear of app menus (2026-10-26)
+
+    /// Off until switched on: switching it on is what asks for Accessibility
+    /// access, and nobody should meet that prompt without asking for it.
+    @Test func keepingClearOfMenusIsOffInAnEmptyDomain() {
+        #expect(PreferencesStore(defaults: makeIsolatedDefaults()).pillClearsMenus == false)
+    }
+
+    @Test func keepingClearOfMenusSwitchedOnSurvivesAReloadUnderTheDocumentedKey() {
+        let defaults = makeIsolatedDefaults()
+        PreferencesStore(defaults: defaults).setPillClearsMenus(true)
+        #expect(PreferencesStore(defaults: defaults).pillClearsMenus)
+        #expect(defaults.object(forKey: "display.pillClearsMenus") as? Bool == true)
+    }
+
     // MARK: - Timer notice and clipboard exclusions (2026-10-24)
 
     /// Absent means on: the notification is the only thing a full-screen

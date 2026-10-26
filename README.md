@@ -315,7 +315,7 @@ installer. Re-running the installer line above always works too.
 
 ### Permissions
 
-**Nothing is asked for at launch, and five things ask later.**
+**Nothing is asked for at launch, and six things ask later.**
 
 The file shelf's drag detection and drop target work through AppKit's own
 drag events, clipboard history (search and pins included) needs no permission, and the global shortcut
@@ -367,6 +367,19 @@ alert style there is **None**, every notice goes quietly to Notification Center
 and no banner shows; Settings says so, with the same link — choose **Banners**
 to see them. Sounds are not requested: the app plays its own chime.
 
+**Keep clear of app menus asks for Accessibility** when you switch it on in
+Settings → Display — it ships off, so a fresh install never sees this prompt.
+On a display without a notch, the pill sits in the middle of the menu bar,
+where a long app menu bar can reach; with this on, the pill moves right of the
+menus of the app in front. Reading where another app's menus are is what
+needs Accessibility. It is read once each time you switch apps, never polled,
+and used for nothing else. Without it the pill stays centred, and the Settings
+row says so in orange with an **Open Accessibility Settings** button; once
+allowed there, it applies from the next app you switch to. Because releases
+are ad-hoc signed, an update can leave the switch in System Settings looking
+on while macOS no longer honours it: remove CreativeNotch from the list with
+**−** and switch this setting off and on again.
+
 The wording of every permission prompt above is in
 `Resources/InfoPlist.xcstrings`, so it is translated with everything else;
 that adds no permission.
@@ -374,7 +387,7 @@ that adds no permission.
 Accessibility *used* to be required, prompted on first launch, for the system
 HUD's keypress detection. That module has been removed and the requirement
 went with it — so unlike before, starting the app grants nothing and asks
-nothing.
+nothing. It is asked for now only by **Keep clear of app menus**, above.
 
 ### Uninstalling
 
@@ -423,7 +436,7 @@ it back.
 | Clear the shelf | The files go to the Trash, and **Undo** takes Clear's place in the title row for six seconds to put them back. Clearing again inside those six seconds adds to the same Undo, which brings back everything cleared; restored files are kept even if the shelf goes over its limit until the next drop, and any that could not come back (emptied from the Trash meanwhile) are reported under the shelf as "Couldn't restore N items", also spoken by VoiceOver |
 | Switch to the Clipboard tab | Shows what you have copied, newest first, with the time each was copied; pinned entries sit above the rest |
 | Type in the clipboard's search field | Narrows the list to entries containing every word you type, ignoring case and accents; the title row counts what is kept, and closing the panel clears the search. The field takes the keyboard only when you click it, or when you opened the panel by clicking the notch or with the shortcut — never on a hover-open |
-| Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you — it has no Accessibility permission |
+| Click a clipboard entry | Copies it back to the clipboard, ready for you to paste with ⌘V; the row says "Copied ✓" for a moment. CreativeNotch never pastes for you |
 | Right-click a clipboard entry | Copy; Pin, to keep it at the top (up to ten), or Unpin; or Remove to forget just that one. Clear in the title row forgets everything but the pins. VoiceOver offers Pin and Remove as actions on the row, whose press is Copy, and reads a pinned row as "Pinned" |
 | Settings → Clipboard history → **Ignore copies from** → **Add App…** | Copies made in that app (or that declare it as their source) are never recorded; − beside an app takes it off the list. Empty until you add one |
 | Click it again | Closes it |
@@ -555,6 +568,12 @@ the display as "(not connected)" so you can see it is still chosen — then
 returns as soon as you plug it back in. Connecting or disconnecting a display
 moves it at once.
 
+On a display without a notch, the pill sits in the menu bar and, with nothing
+to show, is a small capsule; a badge — the timer, what is playing — widens it
+just enough to fit. Some apps' menus still reach the middle of the menu bar on
+a narrow display: Settings → Display → **Keep clear of app menus** moves the
+pill right of them (it needs Accessibility; see Permissions).
+
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 
 ---
@@ -582,7 +601,8 @@ Xcode opens `Package.swift` directly — there is no project file to maintain.
 designated requirement is the hash of the code, so macOS treats every rebuild
 as a different app and any permission you granted is revoked. Nothing in the
 app requires a permission today, but the camera re-prompts on every rebuild
-without this. A one-time local certificate fixes it, and `bundle.sh` picks it
+without this, and Accessibility, for **Keep clear of app menus**, stops
+working. A one-time local certificate fixes it, and `bundle.sh` picks it
 up from your keychain by name from then on:
 
 ```bash

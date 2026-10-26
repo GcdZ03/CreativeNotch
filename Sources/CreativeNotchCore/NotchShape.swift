@@ -225,19 +225,28 @@ public enum NotchShape {
             // far right, so the space immediately beside the notch is
             // nearly always empty, and the left ear holds the app menus.
             //
-            // A pill is not grown. There is no camera housing to avoid —
-            // the pill is drawn black and its closed rect shows nothing at
-            // all today, so the badge simply renders inside it. Growing it
-            // would put an asymmetric stub on a floating rounded widget
-            // for no reason, exactly as `.peek` leaves the pill's centred
-            // slab alone.
+            // A pill has no camera housing, so it is not grown to one side:
+            // it *is* the badge. Idle it shows nothing, so it is a small
+            // capsule at the anchor's centre, `pillIdleWidth`; with a badge
+            // it is the badge's width, about the same centre (2026-10-26).
+            // In the menu bar, the full empty 180pt covered app menus on a
+            // narrow display.
             //
             // Non-positive is "no badge" — see the doc comment above.
             //
             // Media is the one exception to "trailing only": its cover
             // takes a leading ear while the equalizer takes the trailing
             // one (spec 2026-10-15, "Reversed after the fact").
-            guard anchor.isNotch else { return local }
+            guard anchor.isNotch else {
+                let badge = max(badgeWidth, 0) + max(leadingBadgeWidth, 0)
+                let width = max(NotchGeometry.pillIdleWidth, badge)
+                return CGRect(
+                    x: local.midX - width / 2,
+                    y: local.minY,
+                    width: width,
+                    height: local.height
+                )
+            }
             let trailing = max(badgeWidth, 0)
             let leading = max(leadingBadgeWidth, 0)
             return CGRect(

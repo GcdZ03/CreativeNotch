@@ -146,6 +146,29 @@ public final class AppState {
     @ObservationIgnored
     public var onRefreshDisplays: (() -> Void)?
 
+    /// Whether the pill moves clear of the frontmost app's menus
+    /// (2026-10-26). Applied by `onSetPillClearsMenus`.
+    public internal(set) var pillClearsMenus = false
+
+    /// Saves and applies the switch, places the pill again, and -- switched
+    /// on without Accessibility access -- asks for it. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetPillClearsMenus: ((Bool) -> Void)?
+
+    /// Whether macOS lets the app read other apps' menus, as last read: when
+    /// Settings is shown, when the switch is turned on, and on each app
+    /// switch while it is on. Never polled.
+    public internal(set) var accessibilityTrusted = false
+
+    /// Re-reads `accessibilityTrusted`. Wired by `AppDelegate`; called when
+    /// Settings is shown, like `onRefreshDisplays`.
+    @ObservationIgnored
+    public var onRefreshAccessibility: (() -> Void)?
+
+    /// Opens Privacy & Security › Accessibility. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onOpenAccessibilitySettings: (() -> Void)?
+
     /// The Bluetooth grant as Bluetooth alerts last read it (2026-10-24), for
     /// the Settings row's denied state. `nil` until the controller has read
     /// it once, so a fresh `AppState` claims nothing either way.
@@ -1135,7 +1158,8 @@ public struct NotchRootView: View {
     /// exactly the divergence `theReservedWidthAndTheDrawnContentComeFrom
     /// OneClockRead` exists to catch.
     private func shape(badge slot: BadgeSlot, at now: Date) -> some View {
-        backgroundShape
+        let badgeAlignment: Alignment = app.anchor.isNotch ? .trailing : .center
+        return backgroundShape
             .fill(.black)
             // The edge, since there is no shadow (spec §4): a window exactly
             // the size of its shape has nowhere to cast one. Expanded only —
@@ -1149,10 +1173,11 @@ public struct NotchRootView: View {
             .overlay {
                 Group { switch app.state {
                 case .closed:
-                    // Trailing-aligned, so it lands exactly in the region
-                    // `visibleRect` grew for it on a notch — and inside
-                    // the pill's own trailing edge on a notchless Mac,
-                    // where nothing grew because nothing had to.
+                    // Trailing-aligned on a notch, so it lands exactly in
+                    // the region `visibleRect` grew for it. Centred on a
+                    // pill, which `visibleRect` sized to the badge about its
+                    // centre -- a badge narrower than the idle capsule, the
+                    // recording dot, would otherwise sit off to one side.
                     //
                     // The timer outranks media here for the same reason it
                     // outranks it in `NotchShape.badgeSlot`: one rule,
@@ -1166,7 +1191,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                     case .downloads:
                         if let summary = app.downloads {
@@ -1174,7 +1199,7 @@ public struct NotchRootView: View {
                                 .frame(
                                     maxWidth: .infinity,
                                     maxHeight: .infinity,
-                                    alignment: .trailing
+                                    alignment: badgeAlignment
                                 )
                         } else {
                             EmptyView()
@@ -1184,7 +1209,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                     case .timer:
                         if let countdown = app.countdown {
@@ -1196,7 +1221,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                         } else {
                             EmptyView()
@@ -1220,7 +1245,7 @@ public struct NotchRootView: View {
                         }
                         .padding(.leading, 6)
                         .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
                     case .none:
                         EmptyView()
                     }

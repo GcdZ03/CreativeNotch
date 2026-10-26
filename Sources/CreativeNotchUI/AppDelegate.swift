@@ -135,6 +135,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     var bluetoothSource: BluetoothSource = SandboxBluetoothSource()
     var bluetoothAccess: BluetoothAccess = SandboxBluetoothAccess()
 
+    /// Reads the frontmost app's menus for "Keep clear of app menus"
+    /// (2026-10-26). A sandbox that is never trusted and reads nothing, so no
+    /// test can show the Accessibility prompt; `configureForRealLaunch()`
+    /// hands it the real one.
+    var appMenuReader: AppMenuReader = SandboxAppMenuReader()
+
+    /// How far from its display's left edge the frontmost app's menus reach,
+    /// as last read (`AppMenus.end`); 0 while the setting is off. Every
+    /// placement reads it through `anchor(for:)`.
+    private(set) var appMenusEnd: CGFloat = 0
+
+    /// The last other app to come forward, so switching the setting on --
+    /// with Settings, this app, in front -- measures the app the user was
+    /// in rather than waiting for the next switch.
+    private var lastActivePID: pid_t?
+
     /// Opens Privacy & Security › Bluetooth, for the Settings row's denied
     /// state. A seam because opening System Settings from a test would put
     /// an app in front of the person running the suite; it does nothing
@@ -802,6 +818,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // happen only once Bluetooth alerts are switched on.
         bluetoothSource = IOBluetoothSource()
         bluetoothAccess = SystemBluetoothAccess()
+        // Building it asks for nothing: the prompt is `requestTrust()`, and
+        // only switching "Keep clear of app menus" on calls it.
+        appMenuReader = SystemAppMenuReader()
         openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
         downloadsDirectory = Self.realDownloadsDirectory
         revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
@@ -1362,6 +1381,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         state.onRefreshDisplays = { [weak self] in self?.refreshConnectedDisplays() }
 
+        // Keep clear of app menus (2026-10-26). Loaded like "Show on", and
+        // applied at once: the pill moves, or comes back to the centre.
+        state.pillClearsMenus = preferencesStore.pillClearsMenus
+        state.accessibilityTrusted = appMenuReader.isTrusted
+        state.onSetPillClearsMenus = { [weak self] enabled in self?.setPillClearsMenus(enabled) }
+        state.onRefreshAccessibility = { [weak self] in
+            guard let self else { return }
+            self.state.accessibilityTrusted = self.appMenuReader.isTrusted
+        }
+        state.onOpenAccessibilitySettings = { [weak self] in
+            self?.openExternalURL(SystemAppMenuReader.settingsURL)
+        }
+
         // Text size (2026-10-24). Loaded at the top of `install`, which sized
         // the window by it; applied at once, like "Show on".
         state.onSetTextSize = { [weak self] size in self?.setTextSize(size) }
@@ -1649,7 +1681,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // delegating to the deduping path left the new panel unpositioned
         // and the tracking rect empty -- no tracking area at all, and hover
         // silently dead. (Follow-up F1.)
-        let anchor = NotchGeometry.anchor(for: metrics)
+        let anchor = anchor(for: metrics)
         let frame = panelFrame(on: metrics, anchor: anchor)
         state.setGeometry(anchor: anchor, panelFrame: frame)
         panel.setFrame(frame, display: true)
@@ -2650,7 +2682,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 if let pid = app?.processIdentifier {
                     self.applicationDidActivate(pid: pid)
                 }
-                self.activeApplicationDidChange()
+                self.activeApplicationDidChange(pid: app?.processIdentifier)
             }
         }, NSWorkspace.shared.notificationCenter))
     }
@@ -2659,11 +2691,69 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// display. Following focus, the panel goes with it; pinned, it stays
     /// and the screen list is not even read -- an app switch is not a
     /// reason to look.
-    func activeApplicationDidChange() {
-        guard state.displayChoice.followsActivation,
-              let metrics = activationScreenMetrics(state.displayChoice)
-        else { return }
+    ///
+    /// With "Keep clear of app menus" on, the app that came forward (`pid`)
+    /// has its menus read first, and the pill is placed again for them --
+    /// pinned too, since the menus are what changed. Placed again only when
+    /// the reach changed, so a pinned switch between apps with the same
+    /// menus does no more than before.
+    func activeApplicationDidChange(pid: pid_t? = nil) {
+        let menusMoved = pid.map(refreshAppMenus(for:)) ?? false
+        if state.displayChoice.followsActivation {
+            if let metrics = activationScreenMetrics(state.displayChoice) { reposition(metrics: metrics) }
+        } else if menusMoved, let metrics = screenMetrics(state.displayChoice) {
+            reposition(metrics: metrics)
+        }
+    }
+
+    /// Reads the menus of `pid`, the app that just came forward, and keeps
+    /// how far they reach. Returns whether that changed.
+    ///
+    /// This app coming forward -- Settings -- is not the app whose menus are
+    /// on the bar the user cares about, so it is skipped. Off, or without
+    /// Accessibility access, nothing is read. An app with nothing to read (no
+    /// menu bar, or no answer in `SystemAppMenuReader.messagingTimeout`)
+    /// says nothing about where menus are, so the last reach stands.
+    @discardableResult
+    func refreshAppMenus(for pid: pid_t) -> Bool {
+        guard pid != ProcessInfo.processInfo.processIdentifier else { return false }
+        lastActivePID = pid
+        guard state.pillClearsMenus else { return false }
+        state.accessibilityTrusted = appMenuReader.isTrusted
+        guard state.accessibilityTrusted, let end = appMenuReader.menusEnd(of: pid), end != appMenusEnd else {
+            return false
+        }
+        appMenusEnd = end
+        return true
+    }
+
+    /// Saves and applies "Keep clear of app menus" (2026-10-26), then places
+    /// the pill by it at once.
+    ///
+    /// Switched on, it asks for Accessibility access when macOS has not given
+    /// it -- the only place the prompt is shown -- and measures the app that
+    /// was in front before Settings. Switched off, the pill goes back to the
+    /// centre.
+    func setPillClearsMenus(_ enabled: Bool) {
+        preferencesStore.setPillClearsMenus(enabled)
+        state.pillClearsMenus = enabled
+        if enabled {
+            if !appMenuReader.isTrusted { appMenuReader.requestTrust() }
+            state.accessibilityTrusted = appMenuReader.isTrusted
+            if let pid = lastActivePID { refreshAppMenus(for: pid) }
+        } else {
+            appMenusEnd = 0
+        }
+        guard panel != nil, let metrics = screenMetrics(state.displayChoice) else { return }
         reposition(metrics: metrics)
+    }
+
+    /// The anchor on `metrics`, clear of the frontmost app's menus while
+    /// "Keep clear of app menus" is on. Every placement asks here, so the
+    /// launch, a screen change, an activation and a setting cannot disagree
+    /// about where the pill goes.
+    private func anchor(for metrics: ScreenMetrics) -> Anchor {
+        NotchGeometry.anchor(for: metrics, menusEnd: state.pillClearsMenus ? appMenusEnd : 0)
     }
 
     /// A display was connected, disconnected or rearranged: place the panel
@@ -2756,7 +2846,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// activation and the launch cannot disagree with the settings about how
     /// large it is.
     private func panelFrame(on metrics: ScreenMetrics, anchor: Anchor? = nil) -> CGRect {
-        let anchor = anchor ?? NotchGeometry.anchor(for: metrics)
+        let anchor = anchor ?? self.anchor(for: metrics)
         placedNominalWidth = nominalPanelWidth(for: anchor)
         return NotchGeometry.panelFrame(
             for: anchor,
@@ -2806,7 +2896,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// rule that state transitions are the only thing that triggers one.
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
-        let anchor = NotchGeometry.anchor(for: metrics)
+        let anchor = anchor(for: metrics)
         let frame = panelFrame(on: metrics, anchor: anchor)
         // The dedupe lives in the funnel now, and the tracking rect
         // re-syncs from the geometry observer.

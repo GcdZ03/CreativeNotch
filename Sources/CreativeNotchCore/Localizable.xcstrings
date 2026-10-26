@@ -616,6 +616,16 @@
         }
       }
     },
+    "Accessibility access is off for CreativeNotch, so the pill stays centred. Allow it in System Settings › Privacy & Security › Accessibility; it applies from the next app you switch to." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Accessibility access is off for CreativeNotch, so the pill stays centred. Allow it in System Settings › Privacy & Security › Accessibility; it applies from the next app you switch to."
+          }
+        }
+      }
+    },
     "Add" : {
       "localizations" : {
         "en" : {
@@ -1915,6 +1925,16 @@
         }
       }
     },
+    "Keep clear of app menus" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keep clear of app menus"
+          }
+        }
+      }
+    },
     "Keeps files for" : {
       "localizations" : {
         "en" : {
@@ -2445,6 +2465,16 @@
         }
       }
     },
+    "On a display without a notch, moves the pill right of the menus of the app in front when they reach under it. Needs Accessibility access." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On a display without a notch, moves the pill right of the menus of the app in front when they reach under it. Needs Accessibility access."
+          }
+        }
+      }
+    },
     "On battery" : {
       "localizations" : {
         "en" : {
@@ -2471,6 +2501,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Open"
+          }
+        }
+      }
+    },
+    "Open Accessibility Settings" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Accessibility Settings"
           }
         }
       }

@@ -119,13 +119,14 @@ struct NowPlayingBadgeShapeTests {
 
     // MARK: - A notchless Mac
 
-    /// A pill has no camera housing to draw around and no menu bar
-    /// underneath it, and its closed rect currently shows nothing at all —
-    /// so the badge renders inside it and the geometry does not move.
-    @Test func aPillIsNotGrownByTheBadge() {
+    /// A pill has no camera housing to draw around, so the badge is the
+    /// pill: the idle capsule widens to the badge, about the same centre,
+    /// rather than growing an ear to one side.
+    @Test func aPillWidensToTheBadgeAboutItsCentre() {
         let badged = closed(pill, badgeWidth: NotchGeometry.nowPlayingBadgeWidth)
-        #expect(badged == closed(pill, badgeWidth: 0))
-        #expect(badged == CGRect(x: 75, y: 204, width: 180, height: 32))
+        let idle = closed(pill, badgeWidth: 0)
+        #expect(badged.midX == idle.midX)
+        #expect(badged == CGRect(x: 131, y: 204, width: NotchGeometry.nowPlayingBadgeWidth, height: 32))
     }
 
     // MARK: - Who takes the slot, and how wide it then is

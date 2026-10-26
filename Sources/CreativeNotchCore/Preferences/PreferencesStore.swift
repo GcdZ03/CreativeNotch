@@ -51,6 +51,19 @@ public final class PreferencesStore {
         defaults.set(choice.rawValue, forKey: PreferenceKeys.showOn)
     }
 
+    /// Whether the pill moves clear of the frontmost app's menus. Read on
+    /// every call, never cached; off unless switched on, and a hand-typed
+    /// string reads as off and is left in place.
+    public var pillClearsMenus: Bool {
+        PreferenceKeys.resolveEnabled(
+            defaults.object(forKey: PreferenceKeys.pillClearsMenus), shippedDefault: false
+        )
+    }
+
+    public func setPillClearsMenus(_ enabled: Bool) {
+        defaults.set(enabled, forKey: PreferenceKeys.pillClearsMenus)
+    }
+
     /// How large the open panel's text is. Read on every call, never cached.
     public var textSize: TextSize {
         PreferenceKeys.resolveTextSize(defaults.object(forKey: PreferenceKeys.textSize))
