@@ -35,9 +35,40 @@ private let external = ScreenMetrics(
     guard case .pill(let r) = NotchGeometry.anchor(for: external) else {
         Issue.record("expected .pill"); return
     }
-    #expect(r.size == NotchGeometry.pillSize)
+    #expect(r.width == NotchGeometry.pillSize.width)
     #expect(r.midX == external.frame.midX)
-    #expect(r.maxY == 1440 - 24 - NotchGeometry.pillTopGap)
+    #expect(r.maxY == 1440 - NotchGeometry.pillMenuBarInset)
+    #expect(r.height == 24 - 2 * NotchGeometry.pillMenuBarInset)
+}
+
+/// The reported bug (2026-10-26): the pill hung 8pt below the menu bar, so
+/// on an external display it covered the top of every maximised window -- a
+/// browser's tab strip first. It now sits inside the menu bar, the band no
+/// window reaches, at the 24pt bar of older macOS and the 30pt one of macOS 26.
+@Test func thePillNeverReachesBelowTheMenuBar() {
+    for bar: CGFloat in [24, 30, 37] {
+        var m = external
+        m.menuBarHeight = bar
+        guard case .pill(let r) = NotchGeometry.anchor(for: m) else {
+            Issue.record("expected .pill"); return
+        }
+        #expect(r.minY >= m.frame.maxY - bar)
+        #expect(r.maxY <= m.frame.maxY)
+        #expect(r.height > 0)
+    }
+}
+
+/// An auto-hidden menu bar measures 0, leaving no band to sit in: the pill
+/// keeps its old place, a gap below the top edge at its full size.
+@Test func withNoMenuBarThePillHangsBelowTheTopEdge() {
+    var m = external
+    m.menuBarHeight = 0
+    guard case .pill(let r) = NotchGeometry.anchor(for: m) else {
+        Issue.record("expected .pill"); return
+    }
+    #expect(r.size == NotchGeometry.pillSize)
+    #expect(r.midX == m.frame.midX)
+    #expect(r.maxY == 1440 - NotchGeometry.pillTopGap)
 }
 
 @Test func zeroAuxiliaryWidthsFallBackToPill() {

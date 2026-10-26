@@ -119,7 +119,7 @@ public enum NotchShape {
     ) -> CornerRadii {
         let panel = presentation == .expanded ? corners.radius : NotchGeometry.panelCornerRadius
         guard anchor.isNotch else {
-            // A pill floats below the menu bar with nothing to merge into.
+            // A pill floats in the menu bar with nothing to merge into.
             let r = panel
             return CornerRadii(topLeading: r, bottomLeading: r, bottomTrailing: r, topTrailing: r)
         }

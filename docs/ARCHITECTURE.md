@@ -88,7 +88,7 @@ The panel attaches to an `Anchor`, which is one of two things:
 ```swift
 enum Anchor {
     case notch(CGRect)   // real hardware
-    case pill(CGRect)    // synthesised, centred under the menu bar
+    case pill(CGRect)    // synthesised, centred in the menu bar
 }
 ```
 
@@ -102,6 +102,11 @@ into whichever anchor they are given and never ask which kind it is.
 
 Notably, CreativeNotch does **not** paint a fake black notch on notchless
 Macs. That is the specific thing reviewers criticise in comparable apps.
+The pill floats inside the menu bar, inset from both its edges, rather than
+hanging from the screen edge. It used to hang 8pt below the menu bar, where a
+maximised window starts, and covered a browser's tab strip on every external
+display (2026-10-26). With the menu bar auto-hidden there is no band to sit
+in, and it keeps that old place.
 
 **Coordinates are bottom-left origin, y increasing upward.** `frame.maxY` is
 the top of the screen. A notch rect sits at `y = frame.maxY - inset` with

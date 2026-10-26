@@ -202,8 +202,8 @@ until you click the dropper, and it needs no permission.
   on — but no Intel binary is published. Ad-hoc signing is applied either
   way; on Apple Silicon it is mandatory, since an unsigned `arm64` binary
   will not launch at all.
-- A physical notch is **not** required. Notchless Macs get a pill centred
-  under the menu bar with identical behaviour.
+- A physical notch is **not** required. Notchless Macs and external
+  displays get a pill centred in the menu bar with identical behaviour.
 - To build: **Xcode 26+** (or just the Command Line Tools — no `.xcodeproj`
   is used).
 
