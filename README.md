@@ -544,7 +544,12 @@ The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
 
 With more than one display, the notch follows the display with the focused
-window, moving whenever you switch to an app on another one. To keep it in one
+window, moving when you switch to an app on another one or switch desktops. A
+window spread across two displays counts as on the one holding most of it.
+Moving between two windows of the same app on different displays (two Chrome
+windows, say) does not move it until the next app switch: macOS announces
+that change only to apps with Accessibility access, and the notch does not
+watch your clicks instead. To keep it in one
 place, Settings → Display → **Show on** → **Built-in display** pins it to the
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
 display instead. **Show on** also lists each connected external display by

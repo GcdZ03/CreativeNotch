@@ -4,10 +4,11 @@ import Foundation
 /// Which display the notch lives on: "Show on" in Settings (2026-10-24).
 ///
 /// **Following focus is the default** because it is what the app did before
-/// the setting existed: the panel follows `NSScreen.main`, the screen with the
-/// key window, and is placed again on every app activation. On one display
-/// that is invisible; on several it makes the pill hop to whichever display
-/// was clicked last, which is what pinning is for.
+/// the setting existed: the panel follows the focused window, and is placed
+/// again whenever focus may have moved -- an app coming forward or a Space
+/// switch (`screenOnFocusChange`). On one display that is
+/// invisible; on several it makes the pill hop to whichever display was
+/// clicked last, which is what pinning is for.
 ///
 /// **A specific display is remembered by its UUID, not its display id.** The
 /// `CGDirectDisplayID` is the window server's number for a display *this
@@ -61,10 +62,10 @@ public enum DisplayChoice: Hashable, Sendable {
         }
     }
 
-    /// Whether another app coming forward is a reason to place the panel
-    /// again. Pinned, it is not: the pinned display is the same display
-    /// whichever app is frontmost, and asking on every Cmd-Tab is work the
-    /// rule says not to do.
+    /// Whether focus moving -- another app coming forward, a Space switch --
+    /// is a reason to place the panel again. Pinned, it is not: the pinned
+    /// display is the same display wherever focus is, and asking on every
+    /// Cmd-Tab is work the rule says not to do.
     public var followsActivation: Bool { self == .focusedWindow }
 
     /// This choice with a pinned display's stored name brought up to date,
@@ -86,18 +87,25 @@ public enum DisplayChoice: Hashable, Sendable {
         return .display(uuid: uuid, name: screen.name)
     }
 
-    /// The screen an app activation moves the notch to, or `nil` to leave it
+    /// The screen a change of focus moves the notch to, or `nil` to leave it
     /// where it is.
     ///
-    /// Stricter than `screen(in:)`: with no main screen (an accessory app
-    /// with no key window came forward) the activation says nothing about
-    /// where focus is, so it does not fall back to the first screen. That is
-    /// what the app did before the setting -- it repositioned on activation
-    /// only when `NSScreen.main` existed -- while the launch and a screen
-    /// change, which must put the panel somewhere, keep the fallback.
-    public func screenOnActivation(in screens: [ScreenDescriptor]) -> CGDirectDisplayID? {
-        guard followsActivation, let main = screens.first(where: \.isMain) else { return nil }
-        return main.id
+    /// Focus is where the frontmost app's frontmost window is
+    /// (`FocusedWindow.frame`): the screen holding most of it. Not
+    /// `NSScreen.main`, which lags an app switch and put the notch on the
+    /// screen just left (2026-10-26).
+    ///
+    /// With no such window -- an accessory app, or Finder showing only the
+    /// desktop -- there is no news about where focus is, so the notch stays,
+    /// as it did when there was no main screen. Stricter than `screen(in:)`,
+    /// which must put the panel somewhere at launch and on a screen change
+    /// and so falls back to the first screen.
+    public func screenOnFocusChange(in screens: [ScreenDescriptor], focusedWindow: CGRect?) -> CGDirectDisplayID? {
+        guard followsActivation, let window = focusedWindow,
+              let screen = screens.max(by: { $0.overlap(with: window) < $1.overlap(with: window) }),
+              screen.overlap(with: window) > 0
+        else { return nil }
+        return screen.id
     }
 }
 
@@ -207,15 +215,25 @@ public struct ScreenDescriptor: Equatable, Sendable {
     public var uuid: String?
     /// `NSScreen.localizedName`, for the menu.
     public var name: String
+    /// `NSScreen.frame`, in AppKit's global space: what a focused window is
+    /// matched against.
+    public var frame: CGRect
 
     public init(
         id: CGDirectDisplayID, isBuiltIn: Bool, isMain: Bool,
-        uuid: String? = nil, name: String = ""
+        uuid: String? = nil, name: String = "", frame: CGRect = .zero
     ) {
         self.id = id
         self.isBuiltIn = isBuiltIn
         self.isMain = isMain
         self.uuid = uuid
         self.name = name
+        self.frame = frame
+    }
+
+    /// How much of `rect` lies on this screen, as an area.
+    func overlap(with rect: CGRect) -> CGFloat {
+        let shared = frame.intersection(rect)
+        return shared.isNull ? 0 : shared.width * shared.height
     }
 }

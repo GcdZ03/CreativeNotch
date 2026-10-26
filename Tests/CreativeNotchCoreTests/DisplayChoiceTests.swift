@@ -187,23 +187,53 @@ struct DisplayChoiceTests {
         #expect(!pinned.followsActivation)
     }
 
-    /// An activation names a screen only when there is a main one: with no
-    /// key window (an accessory app coming forward) there is no news about
-    /// where focus is, and before the setting the panel stayed where it was
-    /// rather than falling back to the menu-bar display.
-    @Test func anActivationWithNoMainScreenChoosesNothing() {
-        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [builtIn, externalMain]) == 2)
-        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [builtInMain, external]) == 1)
-        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: [external, builtIn]) == nil)
-        #expect(DisplayChoice.focusedWindow.screenOnActivation(in: []) == nil)
+    // MARK: - Focus changes
+
+    /// The desk the bug was found on (2026-10-26), in AppKit's space: the
+    /// built-in display at the origin, a landscape display above it and a
+    /// portrait one to its right.
+    private let desk = [
+        ScreenDescriptor(id: 1, isBuiltIn: true, isMain: false, frame: CGRect(x: 0, y: 0, width: 1512, height: 982)),
+        ScreenDescriptor(id: 2, isBuiltIn: false, isMain: false, frame: CGRect(x: -408, y: 982, width: 1920, height: 1080)),
+        ScreenDescriptor(id: 3, isBuiltIn: false, isMain: true, frame: CGRect(x: 1512, y: 69, width: 1080, height: 1920)),
+    ]
+
+    /// The reported bug: an app came forward with its window on the built-in
+    /// display while `NSScreen.main` still named the portrait one, the app
+    /// before it's. The window decides, not the main screen.
+    @Test func focusGoesToTheScreenHoldingTheFocusedWindow() {
+        let builtInWindow = CGRect(x: 0, y: 55, width: 1512, height: 894)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: builtInWindow) == 1)
+        let landscapeWindow = CGRect(x: -408, y: 982, width: 1920, height: 1050)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: landscapeWindow) == 2)
     }
 
-    /// Pinned, an activation never names a screen, main or not.
-    @Test func aPinnedActivationChoosesNothing() {
-        #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtIn, externalMain]) == nil)
-        #expect(DisplayChoice.builtIn.screenOnActivation(in: [builtInMain, external]) == nil)
-        #expect(pinned.screenOnActivation(in: [builtInMain, dell]) == nil)
-        #expect(pinned.screenOnActivation(in: [builtIn, dellMain]) == nil)
+    /// A window across two displays is on the one holding most of it.
+    @Test func aWindowAcrossTwoScreensIsOnTheOneHoldingMostOfIt() {
+        // 1080 wide: 980 of it on the landscape display, 100 below on the
+        // built-in one.
+        let straddling = CGRect(x: 147, y: 882, width: 1080, height: 1004)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: straddling) == 2)
+        let mostlyBuiltIn = CGRect(x: 147, y: 200, width: 1080, height: 1000)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: mostlyBuiltIn) == 1)
+    }
+
+    /// No window to go by -- an accessory app, or Finder with only the
+    /// desktop -- is no news about focus, so nothing is chosen and the notch
+    /// stays. Not the main screen, and not the first. Nor is a window off
+    /// every screen.
+    @Test func withNoWindowOnAScreenNothingIsChosen() {
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: nil) == nil)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: [], focusedWindow: nil) == nil)
+        let nowhere = CGRect(x: 5000, y: 5000, width: 100, height: 100)
+        #expect(DisplayChoice.focusedWindow.screenOnFocusChange(in: desk, focusedWindow: nowhere) == nil)
+    }
+
+    /// Pinned, a focus change never names a screen.
+    @Test func aPinnedFocusChangeChoosesNothing() {
+        let window = CGRect(x: -408, y: 982, width: 1920, height: 1050)
+        #expect(DisplayChoice.builtIn.screenOnFocusChange(in: desk, focusedWindow: window) == nil)
+        #expect(pinned.screenOnFocusChange(in: desk, focusedWindow: window) == nil)
     }
 
     // MARK: - Persistence

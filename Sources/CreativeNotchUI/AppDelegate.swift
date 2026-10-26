@@ -871,8 +871,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The metrics of the screen "Show on" picks, or `nil` with no screen.
     ///
-    /// The launch, a screen change, an activation and the preference itself
-    /// all ask here, so the choice is made in one place. `NSScreen.main` is
+    /// The launch, a screen change and the preference itself all ask here, so the choice is made in one place. `NSScreen.main` is
     /// the screen holding the key window, and an accessory app launching may
     /// have none -- the panel was once never built, for the whole session --
     /// so the rule falls back to any screen (`DisplayChoice.screen(in:)`).
@@ -881,13 +880,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         NSScreen.chosen(by: choice)?.metrics
     }
 
-    /// The metrics of the screen an app activation moves the panel to, or
-    /// `nil` to leave it where it is (`DisplayChoice.screenOnActivation`).
-    /// Separate from `screenMetrics` because an activation with no main
-    /// screen is no news about focus and must not fall back to the first
-    /// screen the way the launch does. Injected for the same reason.
-    var activationScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
-        NSScreen.chosenOnActivation(by: choice)?.metrics
+    /// The metrics of the screen a change of focus moves the panel to, or
+    /// `nil` to leave it where it is (`DisplayChoice.screenOnFocusChange`).
+    /// Separate from `screenMetrics` because an app with no window is no
+    /// news about focus and must not fall back to the first screen the way
+    /// the launch does. Injected for the same reason.
+    var focusScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
+        NSScreen.chosenOnFocusChange(by: choice)?.metrics
     }
 
     /// The connected displays, for the "Show on" menu. Injected so a test
@@ -2653,6 +2652,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.activeApplicationDidChange()
             }
         }, NSWorkspace.shared.notificationCenter))
+
+        // Another desktop on a display can bring forward another window of
+        // the app already in front, which is no app switch.
+        observers.append((NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.activeSpaceDidChangeNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.activeSpaceDidChange() }
+        }, NSWorkspace.shared.notificationCenter))
     }
 
     /// Another app came forward, so the focused window may be on another
@@ -2660,8 +2668,26 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// and the screen list is not even read -- an app switch is not a
     /// reason to look.
     func activeApplicationDidChange() {
+        focusMayHaveMoved()
+    }
+
+    /// Another Space came forward on some display, perhaps with another
+    /// window of the same app in front -- no app switch says so.
+    func activeSpaceDidChange() {
+        focusMayHaveMoved()
+    }
+
+    /// Following focus, places the panel on the focused window's screen. A
+    /// change that lands on the screen it is already on moves nothing:
+    /// `reposition` drops an equal geometry.
+    ///
+    /// Clicking between two windows of one app on different displays is no
+    /// app switch and no Space change, so it is not seen here: no
+    /// notification reports it without Accessibility, and a global click
+    /// monitor is what this app does not install (CONTRIBUTING).
+    private func focusMayHaveMoved() {
         guard state.displayChoice.followsActivation,
-              let metrics = activationScreenMetrics(state.displayChoice)
+              let metrics = focusScreenMetrics(state.displayChoice)
         else { return }
         reposition(metrics: metrics)
     }

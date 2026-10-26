@@ -12,12 +12,40 @@ extension NSScreen {
         picked(by: choice.screen(in:))
     }
 
-    /// The screen an app activation moves the panel to, by
-    /// `DisplayChoice.screenOnActivation(in:)`: `nil` when pinned, or when
-    /// there is no main screen, so the panel stays where it is.
+    /// The screen a change of focus moves the panel to, by
+    /// `DisplayChoice.screenOnFocusChange`: `nil` when pinned, or when the
+    /// frontmost app has no window to go by, so the panel stays where it is.
+    ///
+    /// Pinned, the window list is not even read.
     @MainActor
-    static func chosenOnActivation(by choice: DisplayChoice) -> NSScreen? {
-        picked(by: choice.screenOnActivation(in:))
+    static func chosenOnFocusChange(by choice: DisplayChoice) -> NSScreen? {
+        guard choice.followsActivation else { return nil }
+        let window = focusedWindowFrame
+        return picked { choice.screenOnFocusChange(in: $0, focusedWindow: window) }
+    }
+
+    /// The frontmost app's frontmost window, in AppKit's global space, read
+    /// from the window server's list (`FocusedWindow.frame`). One read is a
+    /// few milliseconds and asks for no permission: bounds, owners and levels
+    /// are readable without Screen Recording, only titles are not.
+    @MainActor
+    private static var focusedWindowFrame: CGRect? {
+        guard let pid = NSWorkspace.shared.frontmostApplication?.processIdentifier,
+              let primary = screens.first,
+              let list = CGWindowListCopyWindowInfo(
+                  [.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID
+              ) as? [[String: Any]]
+        else { return nil }
+        let windows = list.compactMap { info -> FocusedWindow.Entry? in
+            guard let owner = info[kCGWindowOwnerPID as String] as? Int32,
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  let boundsInfo = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: boundsInfo)
+            else { return nil }
+            let alpha = info[kCGWindowAlpha as String] as? Double ?? 1
+            return FocusedWindow.Entry(pid: owner, layer: layer, alpha: alpha, bounds: bounds)
+        }
+        return FocusedWindow.frame(of: pid, in: windows, primaryHeight: primary.frame.maxY)
     }
 
     @MainActor
@@ -36,7 +64,7 @@ extension NSScreen {
             screen.displayID.map {
                 ScreenDescriptor(
                     id: $0, isBuiltIn: CGDisplayIsBuiltin($0) != 0, isMain: screen == main,
-                    uuid: uuid(of: $0), name: screen.localizedName
+                    uuid: uuid(of: $0), name: screen.localizedName, frame: screen.frame
                 )
             }
         }
