@@ -280,10 +280,12 @@ struct AppDelegateStateFunnelTests {
         delegate.observeScreenChanges()
 
         let centers = delegate.screenObserverCenters
-        #expect(centers.count == 2)
+        #expect(centers.count == 3)
         #expect(centers[0] === NotificationCenter.default)
         #expect(centers[1] === NSWorkspace.shared.notificationCenter)
         #expect(centers[1] !== NotificationCenter.default)
+        // The active Space changing is a workspace notification too.
+        #expect(centers[2] === NSWorkspace.shared.notificationCenter)
     }
 
     /// Note the limit: that removal uses the *right* centre cannot be
@@ -298,10 +300,31 @@ struct AppDelegateStateFunnelTests {
         delegate.preferencesDefaults = TestDefaults.isolated()
         delegate.install(metrics: Self.notched)
         delegate.observeScreenChanges()
-        #expect(delegate.screenObserverCenters.count == 2)
+        #expect(delegate.screenObserverCenters.count == 3)
 
         delegate.applicationWillTerminate(Notification(name: .init("terminate")))
         #expect(delegate.screenObserverCenters.isEmpty)
+    }
+
+    /// The Space observer listens for the active Space changing, and asks
+    /// where focus is: another desktop can bring forward another window of
+    /// the app already in front (2026-10-26).
+    @Test func aSpaceChangeIsObserved() {
+        let delegate = AppDelegate()
+        delegate.shelfDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("shelf-\(UUID().uuidString)")
+        delegate.shelfTrash = TestTrash.shelf
+        delegate.preferencesDefaults = TestDefaults.isolated()
+        var asked = 0
+        delegate.focusScreenMetrics = { _ in asked += 1; return nil }
+        delegate.install(metrics: Self.notched)
+        delegate.observeScreenChanges()
+        defer { delegate.applicationWillTerminate(Notification(name: .init("terminate"))) }
+
+        NSWorkspace.shared.notificationCenter.post(
+            name: NSWorkspace.activeSpaceDidChangeNotification, object: NSWorkspace.shared
+        )
+        #expect(asked == 1)
     }
 
     // MARK: - Repositioning (M3)

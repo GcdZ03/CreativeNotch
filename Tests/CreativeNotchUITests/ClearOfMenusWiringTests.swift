@@ -50,7 +50,7 @@ struct ClearOfMenusWiringTests {
         reader.isTrusted = trusted
         d.appMenuReader = reader
         d.screenMetrics = { _ in Self.portrait }
-        d.activationScreenMetrics = { _ in Self.portrait }
+        d.focusScreenMetrics = { _ in Self.portrait }
         d.state.onSetDisplayChoice?(choice)
         if on { d.state.onSetPillClearsMenus?(true) }
         reader.reads.removeAll()

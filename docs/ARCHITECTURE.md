@@ -503,11 +503,24 @@ exists, since without it the omission above already does the job.
 
 **Which display.** "Show on" (`DisplayChoice`, Core) picks the screen from a
 list of `ScreenDescriptor`s — id, `CGDisplayIsBuiltin`, whether it is
-`NSScreen.main`, the persistent UUID from `CGDisplayCreateUUIDFromDisplayID`
-and `localizedName` — read fresh each time it is asked. Following the focused
-window (the default) asks on launch, on every `didActivateApplication` and on
-every `didChangeScreenParameters`; pinned to the built-in display it asks on
-everything but activation, falling back to the main screen when there is no
+`NSScreen.main`, the persistent UUID from `CGDisplayCreateUUIDFromDisplayID`,
+`localizedName` and the frame — read fresh each time it is asked. Following the
+focused window (the default) asks on launch and on every
+`didChangeScreenParameters`, and whenever focus may have moved: every
+`didActivateApplication` and every `activeSpaceDidChange`. Focus is the
+frontmost app's frontmost ordinary window, read from
+`CGWindowListCopyWindowInfo` (`FocusedWindow`; bounds and owners need no
+permission) and placed on the screen holding most of it
+(`screenOnFocusChange`) — not `NSScreen.main`, which names the previous app's
+screen when `didActivateApplication` arrives and left the notch one switch
+behind (2026-10-26). An app with no window leaves the notch where it is. A
+focus change that lands on the same screen costs one window-list read, about
+4ms; `reposition` drops the equal geometry. Clicking between two windows of
+one app on different displays is neither notification, so the notch waits for
+the next one: Accessibility's focused-window notification would report it,
+at the cost of a permission, and a global click monitor — which would too —
+is what this project does not install. Pinned to the
+built-in display it asks on everything but focus changes, falling back to the main screen when there is no
 built-in one (clamshell). Pinned to a specific display it is stored as
 `display:<UUID>:<name>` — the UUID because display ids are not stable across
 reconnections, the name only so Settings can label it while unplugged, and
@@ -517,8 +530,7 @@ display is absent. Nothing remembers the fallback: plugging the display back
 in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
 re-read when Settings is shown and on that same notification, never polled.
-Changing the setting repositions at once. All of it rides the two observers
-that already existed. Moving to another display goes through `reposition`,
+Changing the setting repositions at once. Moving to another display goes through `reposition`,
 which re-checks full screen there.
 
 ## Motion and input
@@ -1626,8 +1638,8 @@ allowed, and this is the case it had in mind.
 `RegisterEventHotKey` hands the combination to the window server, which
 delivers an event only when that combination is pressed. Nothing runs in
 between, and it needs no permission at all because it never sees any key
-but the one it registered. `MediaKeyMonitor` remains the project's one admitted
-always-installed monitor.
+but the one it registered. `MediaKeyMonitor`, once the project's one admitted
+always-installed monitor, went with the system HUD; none is installed now.
 
 ### `OSStatus` cannot tell you a combination is taken
 

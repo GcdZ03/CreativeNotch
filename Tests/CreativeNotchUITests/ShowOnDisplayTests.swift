@@ -28,7 +28,7 @@ struct ShowOnDisplayTests {
             asked.choices.append(choice)
             return choice == .builtIn ? NotchedDelegate.metrics : Self.external
         }
-        d.activationScreenMetrics = { choice in
+        d.focusScreenMetrics = { choice in
             asked.choices.append(choice)
             return choice == .builtIn ? nil : Self.external
         }
@@ -57,14 +57,33 @@ struct ShowOnDisplayTests {
         #expect(asked.choices.isEmpty)
     }
 
-    /// An activation with no main screen (an accessory app with no key
-    /// window) leaves the panel where it is, as it did before the setting --
-    /// it does not fall back to the menu-bar display the way the launch does.
-    @Test func anActivationWithNoMainScreenLeavesThePanelAlone() {
+    /// An activation with no window to go by (an accessory app) leaves the
+    /// panel where it is, as it did before the setting -- it does not fall
+    /// back to the menu-bar display the way the launch does.
+    @Test func anActivationWithNoWindowLeavesThePanelAlone() {
         let (d, _) = makeDelegate()
-        d.activationScreenMetrics = { _ in nil }
+        d.focusScreenMetrics = { _ in nil }
         d.activeApplicationDidChange()
         #expect(d.currentAnchor.isNotch)
+    }
+
+    // MARK: - Focus moving without an app switch (2026-10-26)
+
+    /// Another Space on a display can bring forward another window of the
+    /// app already in front: following focus, the panel goes with it.
+    @Test func aSpaceChangeFollowingFocusMovesThePanel() {
+        let (d, asked) = makeDelegate()
+        d.activeSpaceDidChange()
+        #expect(asked.choices == [.focusedWindow])
+        #expect(d.currentAnchor.isNotch == false)
+    }
+
+    /// Pinned, a Space change neither moves it nor asks.
+    @Test func pinnedSpaceChangesLeaveThePanelAlone() {
+        let (d, asked) = makeDelegate(choice: .builtIn)
+        d.activeSpaceDidChange()
+        #expect(d.currentAnchor.isNotch)
+        #expect(asked.choices.isEmpty)
     }
 
     // MARK: - Screen changes
@@ -143,9 +162,9 @@ struct ShowOnDisplayTests {
             default: return nil
             }
         }
-        d.activationScreenMetrics = { choice in
+        d.focusScreenMetrics = { choice in
             plugs.activationsAsked += 1
-            return choice.screenOnActivation(in: plugs.screens) == nil ? nil : Self.external
+            return choice.followsActivation ? Self.external : nil
         }
         return (d, plugs)
     }
