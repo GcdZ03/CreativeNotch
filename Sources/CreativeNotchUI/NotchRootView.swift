@@ -1135,7 +1135,8 @@ public struct NotchRootView: View {
     /// exactly the divergence `theReservedWidthAndTheDrawnContentComeFrom
     /// OneClockRead` exists to catch.
     private func shape(badge slot: BadgeSlot, at now: Date) -> some View {
-        backgroundShape
+        let badgeAlignment: Alignment = app.anchor.isNotch ? .trailing : .center
+        return backgroundShape
             .fill(.black)
             // The edge, since there is no shadow (spec §4): a window exactly
             // the size of its shape has nowhere to cast one. Expanded only —
@@ -1149,10 +1150,11 @@ public struct NotchRootView: View {
             .overlay {
                 Group { switch app.state {
                 case .closed:
-                    // Trailing-aligned, so it lands exactly in the region
-                    // `visibleRect` grew for it on a notch — and inside
-                    // the pill's own trailing edge on a notchless Mac,
-                    // where nothing grew because nothing had to.
+                    // Trailing-aligned on a notch, so it lands exactly in
+                    // the region `visibleRect` grew for it. Centred on a
+                    // pill, which `visibleRect` sized to the badge about its
+                    // centre -- a badge narrower than the idle capsule, the
+                    // recording dot, would otherwise sit off to one side.
                     //
                     // The timer outranks media here for the same reason it
                     // outranks it in `NotchShape.badgeSlot`: one rule,
@@ -1166,7 +1168,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                     case .downloads:
                         if let summary = app.downloads {
@@ -1174,7 +1176,7 @@ public struct NotchRootView: View {
                                 .frame(
                                     maxWidth: .infinity,
                                     maxHeight: .infinity,
-                                    alignment: .trailing
+                                    alignment: badgeAlignment
                                 )
                         } else {
                             EmptyView()
@@ -1184,7 +1186,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                     case .timer:
                         if let countdown = app.countdown {
@@ -1196,7 +1198,7 @@ public struct NotchRootView: View {
                             .frame(
                                 maxWidth: .infinity,
                                 maxHeight: .infinity,
-                                alignment: .trailing
+                                alignment: badgeAlignment
                             )
                         } else {
                             EmptyView()
@@ -1220,7 +1222,7 @@ public struct NotchRootView: View {
                         }
                         .padding(.leading, 6)
                         .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .trailing)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
                     case .none:
                         EmptyView()
                     }

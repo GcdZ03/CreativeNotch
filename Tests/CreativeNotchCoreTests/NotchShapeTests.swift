@@ -80,14 +80,45 @@ private let pillAnchor = Anchor.pill(
 
 // MARK: - Gap 2: .pill anchor
 
-@Test func pillClosedVisibleRectMatchesThePillAnchor() {
+/// An idle pill shows nothing, so it is a small capsule at the anchor's
+/// centre rather than the anchor's full 180pt: in the menu bar, the full
+/// width covered app menus on a narrow display (2026-10-26).
+@Test func anIdlePillIsASmallCapsuleAtTheAnchorsCentre() {
     let r = NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel)
-    #expect(r == CGRect(x: 85, y: 204, width: 180, height: 32))
+    #expect(r == CGRect(x: 155, y: 204, width: NotchGeometry.pillIdleWidth, height: 32))
+    #expect(r.midX == 175)      // the anchor's own centre, 85 + 90
+}
+
+/// A badge widens the pill to the badge, centred, and no further.
+@Test func aBadgeWidensThePillToTheBadgeAlone() {
+    let r = NotchShape.visibleRect(
+        presentation: .closed, anchor: pillAnchor, panelFrame: panel,
+        badgeWidth: NotchGeometry.nowPlayingBadgeWidth
+    )
+    #expect(r.width == NotchGeometry.nowPlayingBadgeWidth)
+    #expect(r.midX == 175)
+    #expect(r.height == 32)
+}
+
+/// A badge narrower than the idle capsule does not shrink it.
+@Test func aNarrowBadgeKeepsTheIdleWidth() {
+    let r = NotchShape.visibleRect(
+        presentation: .closed, anchor: pillAnchor, panelFrame: panel,
+        badgeWidth: NotchGeometry.recordingBadgeWidth
+    )
+    #expect(r.width == NotchGeometry.pillIdleWidth)
 }
 
 @Test func pillClickInsideIsCaptured() {
-    let p = CGPoint(x: 150, y: 220) // inside (85-265, 204-236)
+    let p = CGPoint(x: 175, y: 220) // inside (155-195, 204-236)
     #expect(NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel).contains(p))
+}
+
+/// Where the old full-width pill was, but the idle capsule is not: a click
+/// there reaches the menu bar underneath.
+@Test func aClickOnTheOldPillWidthPassesThrough() {
+    let p = CGPoint(x: 100, y: 220)
+    #expect(!NotchShape.visibleRect(presentation: .closed, anchor: pillAnchor, panelFrame: panel).contains(p))
 }
 
 @Test func pillClickOutsideIsNotCaptured() {

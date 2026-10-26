@@ -9,6 +9,11 @@ public enum NotchGeometry {
     /// so it reads as floating in the bar rather than as a notch hung from
     /// the screen's edge.
     public static let pillMenuBarInset: CGFloat = 2
+    /// How wide the closed pill is with nothing to show: a small capsule at
+    /// the pill's centre (2026-10-26). The full `pillSize.width`, empty,
+    /// covered app menus on a narrow display. A badge widens it to the
+    /// badge's own width (`NotchShape.visibleRect`).
+    public static let pillIdleWidth: CGFloat = 40
     public static let peekSize = CGSize(width: 320, height: 44)
 
     /// How far the peek extends past each side of a physical notch.
