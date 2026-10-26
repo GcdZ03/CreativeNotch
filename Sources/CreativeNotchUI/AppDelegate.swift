@@ -821,6 +821,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Building it asks for nothing: the prompt is `requestTrust()`, and
         // only switching "Keep clear of app menus" on calls it.
         appMenuReader = SystemAppMenuReader()
+        // Asks for nothing: it watches only once Accessibility is allowed,
+        // which "Keep clear of app menus" is what asks for.
+        windowFocusWatcher = SystemWindowFocusWatcher()
         openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
         downloadsDirectory = Self.realDownloadsDirectory
         revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
@@ -907,6 +910,40 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     var focusScreenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
         NSScreen.chosenOnFocusChange(by: choice)?.metrics
     }
+
+    /// Hears focus move inside the frontmost app -- between two of its
+    /// windows, or a window moved -- where no app switch says so
+    /// (2026-10-27). A sandbox that never watches until
+    /// `configureForRealLaunch()`, so no test registers with a real app.
+    var windowFocusWatcher: WindowFocusWatcher = SandboxWindowFocusWatcher()
+
+    /// The frontmost app at launch, before any switch has said which it is.
+    /// Injected so a test can name one.
+    var frontmostApplicationPID: () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+
+    /// The app whose windows focus is followed through: the last to come
+    /// forward, or `nil` while this app is in front -- its own Settings
+    /// window is not one to follow.
+    private var focusedAppPID: pid_t?
+
+    /// How long after a change of focus it is looked at once more.
+    ///
+    /// An app brought forward by a click on one of its windows can be
+    /// announced before that window is raised: once, on a three-display desk,
+    /// the window list still had the app's previous window in front when
+    /// `didActivateApplication` arrived, and the clicked one half a second
+    /// later (2026-10-26). The second look catches that. It also gathers a
+    /// drag: `AXWindowMoved` arrives many times a second while a window is
+    /// dragged, and is read once now and once more when this has passed.
+    public static let defaultFocusSettleDelay: Duration = .milliseconds(300)
+
+    /// Overridable so tests can await it instead of waiting.
+    var focusSettleDelay: Duration = AppDelegate.defaultFocusSettleDelay
+
+    /// The second look, while one is due. Exposed so tests can await it, as
+    /// `graceTask` is. A one-shot after a change the user made, like the
+    /// dismiss grace: nothing is scheduled while focus stays where it is.
+    private(set) var focusSettleTask: Task<Void, Never>?
 
     /// The connected displays, for the "Show on" menu. Injected so a test
     /// can plug and unplug displays without a real one.
@@ -1092,6 +1129,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         fixedSpace?.tearDown()
         fixedSpace = nil
         removeScreenObservers()
+        windowFocusWatcher.stop()
+        focusSettleTask?.cancel()
+        focusSettleTask = nil
         switchboard.stopAll()
         activity.stop()
         updates.stop()
@@ -2693,6 +2733,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.activeSpaceDidChange() }
         }, NSWorkspace.shared.notificationCenter))
+
+        // The app in front at launch has not come forward, so no switch
+        // names it.
+        focusedAppPID = frontmostApplicationPID().flatMap {
+            $0 == ProcessInfo.processInfo.processIdentifier ? nil : $0
+        }
+        syncFocusWatch()
     }
 
     /// Another app came forward, so the focused window may be on another
@@ -2707,8 +2754,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// menus does no more than before.
     func activeApplicationDidChange(pid: pid_t? = nil) {
         let menusMoved = pid.map(refreshAppMenus(for:)) ?? false
+        if let pid {
+            focusedAppPID = pid == ProcessInfo.processInfo.processIdentifier ? nil : pid
+        }
+        syncFocusWatch()
         if state.displayChoice.followsActivation {
             focusMayHaveMoved()
+            settleFocus(restarting: true)
         } else if menusMoved, let metrics = screenMetrics(state.displayChoice) {
             reposition(metrics: metrics)
         }
@@ -2717,17 +2769,54 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Another Space came forward on some display, perhaps with another
     /// window of the same app in front -- no app switch says so.
     func activeSpaceDidChange() {
+        guard state.displayChoice.followsActivation else { return }
         focusMayHaveMoved()
+        settleFocus(restarting: true)
+    }
+
+    /// The frontmost app said another of its windows took focus or one
+    /// moved (`WindowFocusWatcher`). Read at once unless a second look is
+    /// already due, which then reads for it: a drag says so many times a
+    /// second, and is read about three times a second, not at that rate.
+    func focusedAppWindowsDidChange() {
+        guard state.displayChoice.followsActivation, focusSettleTask == nil else { return }
+        focusMayHaveMoved()
+        settleFocus(restarting: false)
+    }
+
+    /// Following focus, watches the app in front for focus moving among its
+    /// own windows; pinned, or with this app in front, watches nothing.
+    /// Asked on every switch, so access allowed in System Settings meanwhile
+    /// takes effect at the next one.
+    private func syncFocusWatch() {
+        guard state.displayChoice.followsActivation, let pid = focusedAppPID else {
+            windowFocusWatcher.stop()
+            return
+        }
+        windowFocusWatcher.watch(pid: pid) { [weak self] in self?.focusedAppWindowsDidChange() }
+    }
+
+    /// Looks at focus once more after `focusSettleDelay`. An app switch or a
+    /// Space change starts the wait again, so the look comes after the last
+    /// of them; a window notification leaves a wait already running alone.
+    private func settleFocus(restarting: Bool) {
+        if restarting {
+            focusSettleTask?.cancel()
+        } else if focusSettleTask != nil {
+            return
+        }
+        let delay = focusSettleDelay
+        focusSettleTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: delay)
+            guard let self, !Task.isCancelled else { return }
+            self.focusSettleTask = nil
+            self.focusMayHaveMoved()
+        }
     }
 
     /// Following focus, places the panel on the focused window's screen. A
     /// change that lands on the screen it is already on moves nothing:
     /// `reposition` drops an equal geometry.
-    ///
-    /// Clicking between two windows of one app on different displays is no
-    /// app switch and no Space change, so it is not seen here: no
-    /// notification reports it without Accessibility, and a global click
-    /// monitor is what this app does not install (CONTRIBUTING).
     private func focusMayHaveMoved() {
         guard state.displayChoice.followsActivation,
               let metrics = focusScreenMetrics(state.displayChoice)
@@ -2804,6 +2893,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     func setDisplayChoice(_ choice: DisplayChoice) {
         preferencesStore.setDisplayChoice(choice)
         state.displayChoice = choice
+        syncFocusWatch()
+        if !choice.followsActivation {
+            focusSettleTask?.cancel()
+            focusSettleTask = nil
+        }
         guard panel != nil, let metrics = screenMetrics(choice) else { return }
         reposition(metrics: metrics)
     }

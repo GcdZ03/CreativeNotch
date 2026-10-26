@@ -372,8 +372,9 @@ Settings → Display — it ships off, so a fresh install never sees this prompt
 On a display without a notch, the pill sits in the middle of the menu bar,
 where a long app menu bar can reach; with this on, the pill moves right of the
 menus of the app in front. Reading where another app's menus are is what
-needs Accessibility. It is read once each time you switch apps, never polled,
-and used for nothing else. Without it the pill stays centred, and the Settings
+needs Accessibility. It is read once each time you switch apps, never polled.
+Once allowed, the same access also lets the notch follow you between two
+windows of one app (see Display below). Without it the pill stays centred, and the Settings
 row says so in orange with an **Open Accessibility Settings** button; once
 allowed there, it applies from the next app you switch to. Because releases
 are ad-hoc signed, an update can leave the switch in System Settings looking
@@ -560,9 +561,12 @@ With more than one display, the notch follows the display with the focused
 window, moving when you switch to an app on another one or switch desktops. A
 window spread across two displays counts as on the one holding most of it.
 Moving between two windows of the same app on different displays (two Chrome
-windows, say) does not move it until the next app switch: macOS announces
-that change only to apps with Accessibility access, and the notch does not
-watch your clicks instead. To keep it in one
+windows, by click or ⌘\`), or dragging the window you are in onto another
+display, moves it only if CreativeNotch has Accessibility access: macOS
+announces those changes to such apps alone, and the notch does not watch your
+clicks instead. The access is the one **Keep clear of app menus** asks for
+(see Permissions); the notch never asks for it on its own account. Without
+it, the notch catches up at your next app switch. To keep it in one
 place, Settings → Display → **Show on** → **Built-in display** pins it to the
 laptop screen; with the lid closed, or on a Mac without one, it uses the main
 display instead. **Show on** also lists each connected external display by
@@ -606,8 +610,8 @@ Xcode opens `Package.swift` directly — there is no project file to maintain.
 designated requirement is the hash of the code, so macOS treats every rebuild
 as a different app and any permission you granted is revoked. Nothing in the
 app requires a permission today, but the camera re-prompts on every rebuild
-without this, and Accessibility, for **Keep clear of app menus**, stops
-working. A one-time local certificate fixes it, and `bundle.sh` picks it
+without this, and Accessibility, for **Keep clear of app menus** and following
+focus between one app's windows, stops working. A one-time local certificate fixes it, and `bundle.sh` picks it
 up from your keychain by name from then on:
 
 ```bash
