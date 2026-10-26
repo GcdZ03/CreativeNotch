@@ -515,11 +515,29 @@ permission) and placed on the screen holding most of it
 screen when `didActivateApplication` arrives and left the notch one switch
 behind (2026-10-26). An app with no window leaves the notch where it is. A
 focus change that lands on the same screen costs one window-list read, about
-4ms; `reposition` drops the equal geometry. Clicking between two windows of
-one app on different displays is neither notification, so the notch waits for
-the next one: Accessibility's focused-window notification would report it,
-at the cost of a permission, and a global click monitor — which would too —
-is what this project does not install. Pinned to the
+4ms; `reposition` drops the equal geometry.
+
+Focus moving inside the frontmost app — clicking or ⌘\` between two of its
+windows, or its window dragged or scripted onto another display — is neither
+notification. Only Accessibility reports it: `WindowFocusWatcher` puts an
+`AXObserver` on the app in front for `AXFocusedWindowChanged` and
+`AXWindowMoved` (both arrive on the application element, so one registration
+covers every window it has or opens; measured against Chrome 2026-10-27), and
+re-registers on each switch. It needs the grant "Keep clear of app menus" asks
+for and never asks itself; without it nothing is watched and the notch
+catches up at the next switch. It is the app's own notification, nothing runs
+between them, and it is not the global click monitor this project declines.
+Pinned, or with this app in front, nothing is watched.
+
+Every change of focus is looked at once more after `focusSettleDelay`
+(300ms), a one-shot like the dismiss grace. An app brought forward by a click
+on one of its windows was once announced before that window was raised —
+the list still had its previous window in front at `didActivateApplication`
+and the clicked one half a second later — and the second look catches it.
+The same wait gathers a drag: `AXWindowMoved` arrives many times a second, so
+a notification is read at once only when no look is due, and the due look
+reads for the rest. An app switch or Space change restarts the wait; nothing
+is scheduled while focus stays put. Pinned to the
 built-in display it asks on everything but focus changes, falling back to the main screen when there is no
 built-in one (clamshell). Pinned to a specific display it is stored as
 `display:<UUID>:<name>` — the UUID because display ids are not stable across
