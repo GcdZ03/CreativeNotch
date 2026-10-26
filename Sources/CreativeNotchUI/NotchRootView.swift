@@ -146,6 +146,29 @@ public final class AppState {
     @ObservationIgnored
     public var onRefreshDisplays: (() -> Void)?
 
+    /// Whether the pill moves clear of the frontmost app's menus
+    /// (2026-10-26). Applied by `onSetPillClearsMenus`.
+    public internal(set) var pillClearsMenus = false
+
+    /// Saves and applies the switch, places the pill again, and -- switched
+    /// on without Accessibility access -- asks for it. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onSetPillClearsMenus: ((Bool) -> Void)?
+
+    /// Whether macOS lets the app read other apps' menus, as last read: when
+    /// Settings is shown, when the switch is turned on, and on each app
+    /// switch while it is on. Never polled.
+    public internal(set) var accessibilityTrusted = false
+
+    /// Re-reads `accessibilityTrusted`. Wired by `AppDelegate`; called when
+    /// Settings is shown, like `onRefreshDisplays`.
+    @ObservationIgnored
+    public var onRefreshAccessibility: (() -> Void)?
+
+    /// Opens Privacy & Security › Accessibility. Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onOpenAccessibilitySettings: (() -> Void)?
+
     /// The Bluetooth grant as Bluetooth alerts last read it (2026-10-24), for
     /// the Settings row's denied state. `nil` until the controller has read
     /// it once, so a fresh `AppState` claims nothing either way.

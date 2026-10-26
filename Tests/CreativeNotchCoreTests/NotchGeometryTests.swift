@@ -58,6 +58,59 @@ private let external = ScreenMetrics(
     }
 }
 
+// MARK: - Keeping clear of app menus (2026-10-26)
+
+// A portrait external display: narrow enough that an app's menus reach past
+// its centre.
+private let portrait = ScreenMetrics(
+    frame: CGRect(x: 1512, y: 69, width: 1080, height: 1920),
+    safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0,
+    menuBarHeight: 30
+)
+
+private func pill(_ m: ScreenMetrics, menusEnd: CGFloat) -> CGRect? {
+    guard case .pill(let r) = NotchGeometry.anchor(for: m, menusEnd: menusEnd) else { return nil }
+    return r
+}
+
+/// Menus that end short of the closed pill leave it centred.
+@Test func shortMenusLeaveThePillCentred() {
+    #expect(pill(portrait, menusEnd: 300)?.midX == portrait.frame.midX)
+    #expect(pill(portrait, menusEnd: 0)?.midX == portrait.frame.midX)
+}
+
+/// The reported case: menus reaching past the centre. The pill moves right
+/// until even its widest closed shape -- the idle capsule or any badge --
+/// starts `pillMenuGap` past the last menu.
+@Test func longMenusPushThePillJustPastThem() throws {
+    for end: CGFloat in [500, 560, 650] {
+        let r = try #require(pill(portrait, menusEnd: end))
+        let widestLeft = r.midX - NotchGeometry.pillClosedMaxWidth / 2
+        #expect(widestLeft == portrait.frame.minX + end + NotchGeometry.pillMenuGap)
+    }
+}
+
+/// Every badge fits inside the width the pill keeps clear for.
+@Test func theClearedWidthHoldsEveryBadge() {
+    let slots: [BadgeSlot] = [.nowPlaying, .timer, .recording, .capture, .downloads]
+    for slot in slots {
+        #expect(slot.width + slot.leadingWidth <= NotchGeometry.pillClosedMaxWidth)
+    }
+    #expect(NotchGeometry.pillIdleWidth <= NotchGeometry.pillClosedMaxWidth)
+}
+
+/// Menus too long to clear stop the pill where the open panel still fits on
+/// the display around it, rather than at the edge where it would be cut off.
+@Test func menusTooLongToClearStopThePillWhereThePanelStillFits() throws {
+    let r = try #require(pill(portrait, menusEnd: 1000))
+    #expect(r.midX == portrait.frame.maxX - NotchGeometry.expandedSize.width / 2)
+}
+
+/// A real notch is where the hardware is; the menus never move it.
+@Test func menusNeverMoveARealNotch() {
+    #expect(NotchGeometry.anchor(for: notched, menusEnd: 900) == NotchGeometry.anchor(for: notched))
+}
+
 /// An auto-hidden menu bar measures 0, leaving no band to sit in: the pill
 /// keeps its old place, a gap below the top edge at its full size.
 @Test func withNoMenuBarThePillHangsBelowTheTopEdge() {

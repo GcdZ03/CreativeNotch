@@ -14,6 +14,16 @@ public enum NotchGeometry {
     /// covered app menus on a narrow display. A badge widens it to the
     /// badge's own width (`NotchShape.visibleRect`).
     public static let pillIdleWidth: CGFloat = 40
+    /// The space "Keep clear of app menus" leaves between the end of the
+    /// frontmost app's menus and the closed pill (2026-10-26).
+    public static let pillMenuGap: CGFloat = 12
+    /// The widest the closed pill gets: the idle capsule, or the widest
+    /// badge. Keeping clear of the menus keeps clear for this, so a badge
+    /// appearing never grows the pill back over them.
+    public static let pillClosedMaxWidth: CGFloat = max(
+        pillIdleWidth, nowPlayingBadgeWidth, timerBadgeWidth,
+        recordingBadgeWidth, captureBadgeWidth, downloadsBadgeWidth
+    )
     public static let peekSize = CGSize(width: 320, height: 44)
 
     /// How far the peek extends past each side of a physical notch.
@@ -151,7 +161,11 @@ public enum NotchGeometry {
     /// one band at the top that no window reaches. With no menu bar measured
     /// -- auto-hidden -- there is no such band, and the pill keeps its old
     /// size and place below the top edge.
-    public static func anchor(for m: ScreenMetrics) -> Anchor {
+    ///
+    /// `menusEnd` is how far from the display's left edge the frontmost
+    /// app's menus reach (`AppMenus.end`), or 0 to centre the pill as
+    /// always -- see `pillCentreX`. A real notch never moves.
+    public static func anchor(for m: ScreenMetrics, menusEnd: CGFloat = 0) -> Anchor {
         let auxWidth = m.auxiliaryTopLeftWidth + m.auxiliaryTopRightWidth
         if m.safeAreaTopInset > 0, auxWidth > 0, auxWidth < m.frame.width {
             return .notch(CGRect(
@@ -161,21 +175,43 @@ public enum NotchGeometry {
                 height: m.safeAreaTopInset
             ))
         }
+        let centreX = pillCentreX(in: m.frame, menusEnd: menusEnd)
         let inBarHeight = m.menuBarHeight - 2 * pillMenuBarInset
         if inBarHeight > 0 {
             return .pill(CGRect(
-                x: m.frame.midX - pillSize.width / 2,
+                x: centreX - pillSize.width / 2,
                 y: m.frame.maxY - pillMenuBarInset - inBarHeight,
                 width: pillSize.width,
                 height: inBarHeight
             ))
         }
         return .pill(CGRect(
-            x: m.frame.midX - pillSize.width / 2,
+            x: centreX - pillSize.width / 2,
             y: m.frame.maxY - m.menuBarHeight - pillTopGap - pillSize.height,
             width: pillSize.width,
             height: pillSize.height
         ))
+    }
+
+    /// Where along the top the pill's centre goes: the display's centre, or,
+    /// when the frontmost app's menus reach under the closed pill, just right
+    /// of them (2026-10-26).
+    ///
+    /// On a display with no notch, macOS lays the menus out knowing nothing
+    /// of the pill, and on a narrow one a long menu bar ran under it. Moved,
+    /// the widest closed shape (`pillClosedMaxWidth`) starts `pillMenuGap`
+    /// past the last menu, so neither the idle capsule nor a badge covers
+    /// one.
+    ///
+    /// It goes no further right than leaves room for the open panel centred
+    /// on it (`expandedSize`): past that, `panelFrame` would clamp the panel
+    /// to the edge and the glances centred on the pill would be cut off.
+    /// Menus too long to clear are rare enough that covering the last of
+    /// them is the better failure.
+    static func pillCentreX(in frame: CGRect, menusEnd: CGFloat) -> CGFloat {
+        let clear = frame.minX + menusEnd + pillMenuGap + pillClosedMaxWidth / 2
+        let furthest = max(frame.midX, frame.maxX - expandedSize.width / 2)
+        return min(max(frame.midX, clear), furthest)
     }
 
     /// The window frame. Always the fully-expanded size so the window never
