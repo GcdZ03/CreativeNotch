@@ -108,6 +108,31 @@ maximised window starts, and covered a browser's tab strip on every external
 display (2026-10-26). With the menu bar auto-hidden there is no band to sit
 in, and it keeps that old place.
 
+In the menu bar, the pill shares the bar with the app's menus, which macOS lays
+out from the left edge knowing nothing of it. Two things keep it off them
+(2026-10-26):
+
+- **Idle, it is small.** A closed pill with no badge shows nothing, so
+  `NotchShape.visibleRect` makes it `pillIdleWidth` (40pt) at the anchor's
+  centre, and a badge widens it to the badge's own width about that centre.
+  The anchor stays 180pt wide: the open panel and the glances size from it,
+  and the drawn shape, hit test and hover rect all shrink together because
+  all three read `visibleRect`.
+- **Keep clear of app menus** (Settings → Display, off by default) moves the
+  anchor. On each app switch, `SystemAppMenuReader` reads the frames of the
+  frontmost app's menu-bar items through Accessibility, `AppMenus.end` turns
+  them into how far the menus reach from the display's left edge, and
+  `NotchGeometry.anchor(for:menusEnd:)` puts the pill's centre where its widest
+  closed shape (`pillClosedMaxWidth`, the idle capsule or any badge) starts
+  `pillMenuGap` past the last menu, no further right than leaves the open
+  panel whole. `AppDelegate.anchor(for:)` is the one place a placement asks,
+  so the launch, a screen change, an activation and a setting agree. The
+  widths are summed rather than the last edge read: measured on a notched
+  display, menus that overflow carry on right of the camera, and that gap is
+  not on the display with the pill. Switching it on is the only place the
+  Accessibility prompt is shown; the reader in tests is a sandbox that is
+  never trusted.
+
 **Coordinates are bottom-left origin, y increasing upward.** `frame.maxY` is
 the top of the screen. A notch rect sits at `y = frame.maxY - inset` with
 height `inset`, so its own `maxY` is flush with the screen top — an

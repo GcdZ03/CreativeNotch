@@ -118,6 +118,10 @@ final class PreferencesController {
         // reused window's `.onAppear` would read the displays once per
         // process, and a monitor plugged in since would be missing.
         state.onRefreshDisplays?()
+        // The same boundary: macOS posts nothing when Accessibility is
+        // allowed in System Settings, so coming back here is when to look,
+        // for the "Keep clear of app menus" warning. Reading never prompts.
+        state.onRefreshAccessibility?()
         // The same boundary, for the same reason: macOS posts nothing when
         // Bluetooth is allowed in System Settings, so coming back here is
         // the moment to look. Reading never prompts.
@@ -163,6 +167,24 @@ final class PreferencesController {
 
     func setDisplayChoice(_ choice: DisplayChoice) {
         state.onSetDisplayChoice?(choice)
+    }
+
+    /// Keep clear of app menus (2026-10-26). Written through `AppState`'s
+    /// verb, which saves, asks for Accessibility access if it is missing, and
+    /// places the pill again; read back from what applied.
+    var pillClearsMenus: Bool { state.pillClearsMenus }
+
+    func setPillClearsMenus(_ enabled: Bool) {
+        state.onSetPillClearsMenus?(enabled)
+    }
+
+    /// Whether the switch is on but macOS has not allowed reading other
+    /// apps' menus -- the one state in which it silently does nothing unless
+    /// this window says why.
+    var isMissingAccessibility: Bool { state.pillClearsMenus && !state.accessibilityTrusted }
+
+    func openAccessibilitySettings() {
+        state.onOpenAccessibilitySettings?()
     }
 
     /// Text size (2026-10-24). Written through `AppState`'s verb, which saves,
@@ -713,6 +735,7 @@ struct PreferencesView: View {
 
         Section {
             DisplayRow(controller: controller)
+            ClearOfMenusRow(controller: controller)
             TextSizeRow(controller: controller)
         } header: {
             Text("Display", bundle: .creativeNotch)
@@ -1052,6 +1075,59 @@ struct DisplayRow: View {
                     .background(
                         RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.cyan)
                     )
+            }
+        }
+    }
+}
+
+/// "Keep clear of app menus" (2026-10-26): on a display with no notch, the
+/// pill moves right of the frontmost app's menus when they reach under it.
+///
+/// Reading another app's menus needs Accessibility access, which switching
+/// this on asks for. Left unsaid, a refusal would read as a switch that does
+/// nothing -- the Bluetooth row's rule -- so it says so and offers the one
+/// place it can be changed.
+struct ClearOfMenusRow: View {
+    let controller: PreferencesController
+
+    static let missingAccessMessage = String(localized: "Accessibility access is off for CreativeNotch, so the pill stays centred. Allow it in System Settings › Privacy & Security › Accessibility; it applies from the next app you switch to.", bundle: .creativeNotch)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: Binding(
+                get: { controller.pillClearsMenus },
+                set: { controller.setPillClearsMenus($0) }
+            )) {
+                Label {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Keep clear of app menus", bundle: .creativeNotch)
+                            .font(.body.weight(.medium))
+                        Text("On a display without a notch, moves the pill right of the menus of the app in front when they reach under it. Needs Accessibility access.", bundle: .creativeNotch)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                } icon: {
+                    Image(systemName: "menubar.rectangle")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 26, height: 26)
+                        .background(
+                            RoundedRectangle(cornerRadius: 7, style: .continuous).fill(Color.indigo)
+                        )
+                }
+            }
+            if controller.isMissingAccessibility {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(Self.missingAccessMessage)
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button(String(localized: "Open Accessibility Settings", bundle: .creativeNotch)) {
+                        controller.openAccessibilitySettings()
+                    }
+                }
+                .padding(.leading, 36)
             }
         }
     }

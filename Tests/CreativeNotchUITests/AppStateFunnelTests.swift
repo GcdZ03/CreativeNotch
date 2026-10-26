@@ -189,9 +189,9 @@ struct AppStateFunnelTests {
     @Test func theDrawnRectTracksAnOffCentreAnchor() {
         let offset = Anchor.pill(CGRect(x: 415, y: 926, width: 180, height: 30))
         let drawn = NotchRootView.drawnRect(state: .closed, anchor: offset, panelFrame: panel)
-        #expect(drawn.minX == 0)                      // anchor.minX - panel.minX
-        #expect(drawn.width == 180)
-        // Centring would have put it at (620 - 180) / 2 == 220.
-        #expect(drawn.minX != 220)
+        #expect(drawn.midX == 90)                     // anchor.midX - panel.minX
+        #expect(drawn.width == NotchGeometry.pillIdleWidth)
+        // Centring would have put it at (620 - 40) / 2 == 290.
+        #expect(drawn.minX != 290)
     }
 }

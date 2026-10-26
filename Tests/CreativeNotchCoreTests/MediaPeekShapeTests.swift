@@ -85,14 +85,16 @@ struct MediaPeekShapeTests {
         #expect(6 + widest + 5 + 18 + 6 == NotchGeometry.nowPlayingBadgeWidth)
     }
 
-    /// A pill has no housing to avoid, so neither ear grows it.
-    @Test func aPillIgnoresTheLeadingEar() {
+    /// A pill has no housing to avoid, so neither ear grows it to one
+    /// side: both count toward the badge's width, about the pill's centre.
+    @Test func aPillGrowsAboutItsCentreForBothEars() {
         let plain = NotchShape.visibleRect(presentation: .closed, anchor: pill, panelFrame: panel)
         let badged = NotchShape.visibleRect(
             presentation: .closed, anchor: pill, panelFrame: panel,
             badgeWidth: 34, leadingBadgeWidth: 34
         )
-        #expect(badged == plain)
+        #expect(badged.width == 68)
+        #expect(badged.midX == plain.midX)
     }
 
     // MARK: - The music peek is its own presentation

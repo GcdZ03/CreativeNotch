@@ -41,6 +41,11 @@ public enum PreferenceKeys {
         return choice
     }
 
+    /// Whether the pill moves clear of the frontmost app's menus (2026-10-26).
+    /// Absent means off: switching it on is what asks for Accessibility
+    /// access.
+    public static let pillClearsMenus = "display.pillClearsMenus"
+
     /// How large the open panel's text is (2026-10-24), as a `TextSize` raw
     /// value. Absent means the default, the look from before the setting.
     public static let textSize = "display.textSize"
