@@ -2,9 +2,10 @@ import CoreGraphics
 
 /// Where the panel attaches on a given screen.
 ///
-/// `.notch` is real hardware. `.pill` is synthesised below the menu bar on
-/// notchless Macs and external displays — deliberately *not* a fake black
-/// notch, which is the thing reviewers single out as jarring in NotchNook.
+/// `.notch` is real hardware. `.pill` is synthesised inside the menu bar on
+/// notchless Macs and external displays, inset from its edges — deliberately
+/// *not* a fake black notch hung from the screen edge, which is the thing
+/// reviewers single out as jarring in NotchNook.
 public enum Anchor: Equatable, Sendable {
     case notch(CGRect)
     case pill(CGRect)

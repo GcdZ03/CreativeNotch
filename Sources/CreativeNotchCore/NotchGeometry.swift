@@ -1,8 +1,14 @@
 import CoreGraphics
 
 public enum NotchGeometry {
+    /// The pill's width, and its height where there is no menu bar to sit in.
     public static let pillSize = CGSize(width: 180, height: 32)
+    /// The pill's gap below the top edge where there is no menu bar to sit in.
     public static let pillTopGap: CGFloat = 8
+    /// How far the pill stands in from the menu bar's top and bottom edges,
+    /// so it reads as floating in the bar rather than as a notch hung from
+    /// the screen's edge.
+    public static let pillMenuBarInset: CGFloat = 2
     public static let peekSize = CGSize(width: 320, height: 44)
 
     /// How far the peek extends past each side of a physical notch.
@@ -132,6 +138,14 @@ public enum NotchGeometry {
 
     /// Resolves the anchor for a screen. Real notch when the hardware has
     /// one, a synthesised pill otherwise.
+    ///
+    /// The pill sits inside the menu bar, centred, inset from both its edges
+    /// (2026-10-26). It used to hang `pillTopGap` below the menu bar, where
+    /// a maximised window's top is: on an external display it covered a
+    /// browser's tab strip, in every app, all the time. The menu bar is the
+    /// one band at the top that no window reaches. With no menu bar measured
+    /// -- auto-hidden -- there is no such band, and the pill keeps its old
+    /// size and place below the top edge.
     public static func anchor(for m: ScreenMetrics) -> Anchor {
         let auxWidth = m.auxiliaryTopLeftWidth + m.auxiliaryTopRightWidth
         if m.safeAreaTopInset > 0, auxWidth > 0, auxWidth < m.frame.width {
@@ -140,6 +154,15 @@ public enum NotchGeometry {
                 y: m.frame.maxY - m.safeAreaTopInset,
                 width: m.frame.width - auxWidth,
                 height: m.safeAreaTopInset
+            ))
+        }
+        let inBarHeight = m.menuBarHeight - 2 * pillMenuBarInset
+        if inBarHeight > 0 {
+            return .pill(CGRect(
+                x: m.frame.midX - pillSize.width / 2,
+                y: m.frame.maxY - pillMenuBarInset - inBarHeight,
+                width: pillSize.width,
+                height: inBarHeight
             ))
         }
         return .pill(CGRect(
