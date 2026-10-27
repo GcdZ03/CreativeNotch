@@ -106,7 +106,8 @@ The pill floats inside the menu bar, inset from both its edges, rather than
 hanging from the screen edge. It used to hang 8pt below the menu bar, where a
 maximised window starts, and covered a browser's tab strip on every external
 display (2026-10-26). With the menu bar auto-hidden there is no band to sit
-in, and it keeps that old place.
+in, and it keeps that old place; going between the two, the shape morphs
+rather than jumping (see Motion and input).
 
 In the menu bar, the pill shares the bar with the app's menus, which macOS lays
 out from the left edge knowing nothing of it. Two things keep it off them
@@ -585,7 +586,7 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   measured, one step of the window's bounds with its alpha at 1 throughout.
   `PanelMove` (Core) now decides how each new geometry is reached: the same
   geometry stays, a move on the display the panel is on is placed at once (or
-  slid, below), and a move to another display is a `DisplayHandoff` — the window fades out
+  slid, or morphed, below), and a move to another display is a `DisplayHandoff` — the window fades out
   (0.08s), moves while invisible, and fades in (0.18s) with its content
   dropping 6pt out of the top edge. Under Reduce Motion it fades without the
   drop. "The same display" is the destination's frame overlapping the window
@@ -634,10 +635,67 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   window on its frame exactly. Full screen is re-checked as for any move, so a
   display narrowing under the pill still counts as a screen change. A real notch never slides (it would leave the
   camera), nor a pill whose window the display's edge stops while the pill
-  goes on. Under Reduce Motion the pill is placed at once, as before: a fade
+  goes on (that one morphs, below). Under Reduce Motion the pill is placed at once, as before: a fade
   would blink it out and back in the one place on every switch. The slider is
   a seam like the fader: `InstantPanelSlider` by default, the animated one
   from `configureForRealLaunch`, a fake in `PanelSlideWiringTests`.
+- **On its own display the shape morphs (2026-10-28).** The anchor changing on
+  the display the panel is on snapped too. Reading `NotchGeometry.anchor` and
+  every caller of `reposition`, four kinds of change reach it, and only some
+  change the anchor: the notch becoming a pill, or back, when the built-in
+  switches to a mode without the notch's band (the one way a notched display
+  stops reporting its notch); the pill going between the menu bar and 8pt below
+  the top when the measured menu bar comes or goes (auto-hide switched, or
+  "Displays have separate Spaces" taking a secondary display's menu bar away);
+  "Keep clear of app menus" moving the pill where the display's edge stops its
+  window; and Settings -- text size, panel width, a tab coming or going --
+  which keep the anchor and grow the window around it. `PanelMove.reshaping`
+  decides them all. The same anchor is placed at once: closed, the shape does
+  not move on screen at all (measured: the capsule pixel-identical in every
+  frame across three text sizes, the window one step each), and open, the
+  content is laid out at its new size at once and a slab growing around it
+  would show it spilling out. A notch becoming another notch is placed at
+  once: the hardware does not move. Otherwise the shape as drawn now is
+  carried into the new window at the same place on its display, measured from
+  the display's top centre (a mode change moves the top, and `shownDisplay`
+  remembers which display the shape was placed on). If that is where the new
+  shape is drawn, nothing on screen moved and it is placed at once (the
+  1920/1680 mode flip still steps the window once, as before); if the new
+  window holds it, it is an `AnchorMorph`; and if not -- the notch is flush
+  with the top and the pill's window hangs 2pt lower, the pill coming down out
+  of the menu bar starts above its new window, the open panel moved at all --
+  it fades out and back in on the spot (`DisplayHandoff.onTheSpot`, 0.08s and
+  0.15s, no drop) through the trip's own steps. A morph places the window at
+  once, as before, and sets `AppState.morph` in the same `setGeometry`, so
+  `NotchRootView` draws the first frame in the moved window where the old
+  shape was and a keyframe animator eases it (cubic ease-out, never past the
+  end, 0.25s like the slide) to the new one; nothing is animated once it is
+  there (measured: 0.00s of CPU over 10s after one). The accepted region and
+  the hover rect are what the old and new shapes share until the morph is
+  over -- every eased step covers that -- then the new shape at once.
+  Interruptions: a state change ends the morph and leaves the shape and the
+  region to its spring; a second change halfway morphs from where the shape
+  has got to (`mediaTime`, on the curve the view draws); a slide during a
+  morph keeps it, and a morph during a slide starts from where the window has
+  slid to, not the slide's end; a morph that calls a fade off fades the window
+  back in on the spot while the region stays the shared one until the morph
+  ends, and a morph whose time is up during a fade leaves the region empty
+  until the fade-in is over; a fresh panel ends any morph; a morph counter
+  makes a replaced one's completion do nothing. Under Reduce Motion a change
+  of shape fades on the spot, and the same pill keeping clear of the menus is
+  placed at once, as when it slides. The morpher is a seam like the fader:
+  `InstantPanelMorpher` by default, `AnimatedPanelMorpher` (one block on the
+  main queue per morph) from `configureForRealLaunch`, a fake in
+  `AnchorMorphWiringTests`. Measured with the menu bar or the notch faked away
+  in a scratch build (no system setting may be changed for it): the pill rising
+  into the menu bar morphed in 8-10 frames over ~200ms at 60Hz, the pill
+  becoming the notch in 25-26 frames over ~240ms at 120Hz, never outside the
+  two shapes, and the fades on the spot settled in 220-250ms. In 1 of 23
+  morphs at 60Hz the window's move reached the screen one frame before
+  SwiftUI's commit, showing the old layout 6pt up for that frame: the window
+  server takes a move at once and the content at the next commit, which any
+  placement that moves the window and changes its layout shares (none in 40
+  snaps on the branch before this one).
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
