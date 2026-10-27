@@ -23,9 +23,10 @@ public final class SystemActivityObserver {
     private var tokens: [(token: NSObjectProtocol, center: NotificationCenter)] = []
 
     /// Internal rather than private so the lifecycle is provable.
-    /// `VolumeObserver`, `BrightnessObserver` and `MediaKeyMonitor` each
-    /// shipped a `stop()` that forgot one of the things `start()`
-    /// registered, and each was caught by a count like this.
+    /// The system HUD's `VolumeObserver`, `BrightnessObserver` and
+    /// `MediaKeyMonitor`, since removed with it, each shipped a `stop()`
+    /// that forgot one of the things `start()` registered, and each was
+    /// caught by a count like this.
     var tokenCount: Int { tokens.count }
 
     public init() {}

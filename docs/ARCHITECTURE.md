@@ -2368,7 +2368,8 @@ enough, and cost the arbiter nothing.
 
 Ad-hoc signing still applies: every release has a new code identity, so
 macOS may ask again for permissions after an update — the camera's
-re-prompt, see `ROADMAP.md` — whichever way it was installed.
+re-prompt, and Accessibility silently lapsing, see `ROADMAP.md` — whichever
+way it was installed.
 
 ## Deliberately absent
 

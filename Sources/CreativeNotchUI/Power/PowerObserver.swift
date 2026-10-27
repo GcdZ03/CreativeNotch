@@ -78,11 +78,11 @@ public final class PowerObserver {
 
     /// Internal rather than private so the lifecycle is provable.
     ///
-    /// `VolumeObserver`, `BrightnessObserver` and `MediaKeyMonitor` each
-    /// shipped a `stop()` that forgot one of the things `start()`
-    /// registered, and every one was caught by a count like this rather
-    /// than by reading the code. This observer registers two different
-    /// *kinds* of thing — a `CFRunLoopSource` and a notification token —
+    /// The system HUD's `VolumeObserver`, `BrightnessObserver` and
+    /// `MediaKeyMonitor`, since removed with it, each shipped a `stop()`
+    /// that forgot one of the things `start()` registered, and every one
+    /// was caught by a count like this rather than by reading the code.
+    /// This observer registers two different *kinds* of thing — a `CFRunLoopSource` and a notification token —
     /// which is exactly the asymmetry that produced those bugs.
     var registrationCount: Int {
         (source == nil ? 0 : 1) + (lowPowerToken == nil ? 0 : 1)

@@ -725,9 +725,10 @@ half has nothing of ours to exclude at all.
 
 Underneath all of it sits one decision that is not about any single module.
 CreativeNotch is **ad-hoc signed**, so its identity changes on every build —
-which is why a camera grant re-prompts on every update and why downloads need
-`xattr -dr`. A signing identity would remove both at once. That is a
-distribution decision, and it now gates no module.
+which is why a camera grant re-prompts on every update, why an Accessibility
+grant stops working after one, and why downloads need `xattr -dr`. A signing
+identity would remove all three at once. That is a distribution decision,
+and it now gates no module.
 
 Full analysis, including which need feasibility spikes first, is in
 [`docs/ROADMAP.md`](docs/ROADMAP.md).
