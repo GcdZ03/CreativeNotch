@@ -550,7 +550,7 @@ The Settings menu's per-display entries come from `AppState.connectedDisplays`,
 re-read when Settings is shown and on that same notification, never polled.
 Changing the setting repositions at once. Moving to another display goes through `reposition`,
 which fades the panel across (see Motion and input) and re-checks full screen
-once it has arrived there.
+once it has moved there, before it fades in.
 
 ## Motion and input
 
@@ -604,7 +604,8 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   superseded fade's completion do nothing. The accepted region is empty from
   the start of the fade-out until the fade-in ends, then is the new shape at
   once — it was drawn whole when the window moved — unless the state changed
-  meanwhile, when the growth lag applies as usual. The launch, and any panel
+  meanwhile, or just before the trip while the region was still trailing its
+  spring, when the growth lag applies as usual. The launch, and any panel
   built afresh, is placed without a fade. The fader is a seam:
   `InstantPanelFader` by default, so no suite awaits a trip, the animated one
   from `configureForRealLaunch`, and a fake that holds each completion in

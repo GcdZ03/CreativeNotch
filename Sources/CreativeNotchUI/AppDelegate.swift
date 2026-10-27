@@ -3107,8 +3107,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// region restored over a window fading out again.
     private var handoffGeneration = 0
 
-    /// Whether the state changed during the trip, in which case its spring
-    /// may still be growing the shape when the window has faded in.
+    /// Whether the state changed during the trip, or shortly enough before
+    /// it that the region was still trailing its spring, in which case that
+    /// spring may still be growing the shape when the window has faded in.
     private var handoffSawStateChange = false
 
     private func startHandoff(to target: (anchor: Anchor, frame: CGRect), trip: DisplayHandoff) {
@@ -3116,8 +3117,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         handoffGeneration += 1
         let generation = handoffGeneration
         handoffTarget = target
+        // A spring started before this trip may still be growing the shape
+        // when the window has faded in: one that a trip cut short saw, or
+        // one the region was trailing when this trip began. Read before the
+        // shrink below empties the region, so arrival keeps the lag rather
+        // than accepting a shape not yet drawn (2026-10-28, review of #79).
+        handoffSawStateChange = isHandingOff
+            ? handoffSawStateChange
+            : area(of: visibleRect()) > area(of: acceptedRect)
         isHandingOff = true
-        handoffSawStateChange = false
         // Shrink now: from here until it has faded in there is nothing to
         // click where the region was, and nothing yet where it is going.
         syncTrackingRect()
@@ -3151,7 +3159,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Faded in: grow the accepted region to the shape. At once, because the
     /// shape was drawn whole when the window moved -- unless the state
-    /// changed meanwhile, whose spring the growth lag waits for as always.
+    /// changed meanwhile or just before, whose spring the growth lag waits
+    /// for as always.
     private func handoffArrived(_ generation: Int) {
         guard generation == handoffGeneration else { return }
         isHandingOff = false

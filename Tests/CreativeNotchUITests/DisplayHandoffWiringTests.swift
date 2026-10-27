@@ -149,6 +149,62 @@ struct DisplayHandoffWiringTests {
         #expect(d.acceptedRect == CGRect(origin: .zero, size: try #require(d.panel).frame.size))
     }
 
+    /// A state changed just before the trip -- the panel opening, its region
+    /// still trailing the spring -- may be springing yet when the panel has
+    /// faded in, so the region keeps waiting for it rather than taking the
+    /// whole shape on arrival.
+    @Test func aStateChangeJustBeforeTheTripKeepsTheGrowthLag() async throws {
+        let (d, fader, focus) = make()
+        let full = CGRect(origin: .zero, size: try #require(d.panel).frame.size)
+        d.growthDelay = .milliseconds(500)
+        d.state.transition(to: .open(.shelf))
+        #expect(d.acceptedRect == Self.closedRect)
+
+        self.focus(focus, on: Self.right, d)
+        fader.finish(0)
+        d.growthDelay = .milliseconds(20)
+        fader.finish(1)
+        #expect(d.acceptedRect != full)
+        await d.growthTask?.value
+        #expect(d.acceptedRect == full)
+    }
+
+    /// A trip cut short by another, the state having changed during the
+    /// first: the second still waits for that spring.
+    @Test func aStateChangeInATripCutShortKeepsTheGrowthLag() async throws {
+        let (d, fader, focus) = make()
+        let full = CGRect(origin: .zero, size: try #require(d.panel).frame.size)
+        d.growthDelay = .milliseconds(20)
+        self.focus(focus, on: Self.right, d)
+        fader.finish(0)
+        d.state.transition(to: .open(.shelf))
+        self.focus(focus, on: NotchedDelegate.metrics, d)
+
+        fader.finish(1)
+        fader.finish(2)
+        fader.finish(3)
+        #expect(d.acceptedRect != full)
+        await d.growthTask?.value
+        #expect(d.acceptedRect == full)
+    }
+
+    /// A growth already over by the time the panel leaves is no spring to
+    /// wait for: the region is the whole shape the moment it has faded in.
+    @Test func aGrowthAlreadyOverDoesNotLagTheArrival() async throws {
+        let (d, fader, focus) = make()
+        let full = CGRect(origin: .zero, size: try #require(d.panel).frame.size)
+        d.growthDelay = .milliseconds(20)
+        d.state.transition(to: .open(.shelf))
+        await d.growthTask?.value
+        #expect(d.acceptedRect == full)
+
+        self.focus(focus, on: Self.right, d)
+        fader.finish(0)
+        fader.finish(1)
+        #expect(d.acceptedRect == full)
+        #expect(d.growthTask == nil)
+    }
+
     /// A peek showing rides along: same state on the new display, and its
     /// region there once it has faded in.
     @Test func aPeekRidesAlong() {
@@ -362,6 +418,15 @@ struct DisplayHandoffWiringTests {
             .fadeOut(DisplayHandoff.reduced.fadeOut),
             .fadeIn(DisplayHandoff.reduced.fadeIn, drop: 0),
         ])
+    }
+
+    /// The drop is a positive y offset on the content's layer, which is
+    /// "down out of the top edge" only while the content view is not
+    /// flipped; flipped, the shape would rise into place from below.
+    @Test func theDropFallsBecauseTheContentIsNotFlipped() throws {
+        let (d, _, _) = make()
+        let content = try #require(d.panel?.contentView)
+        #expect(content.isFlipped == false)
     }
 
     /// Nothing fades unless asked: a delegate a test builds moves at once,

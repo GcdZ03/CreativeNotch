@@ -54,9 +54,10 @@ struct InstantPanelFader: PanelFader {
 /// display "higher" is the bottom of the display stacked above it, which
 /// would show a sliver of black there. The content's layer is clipped by
 /// the window instead, so the shape comes down out of the top edge on its
-/// own display only. It is an additive offset animated from `drop` to 0 with
-/// the layer's own value left at none, so nothing is left offset if the
-/// animation is cut short or the window is ordered out.
+/// own display only. It animates the offset from `drop` to 0 over a layer
+/// whose own value stays at none, so nothing is left offset if the animation
+/// is cut short or the window is ordered out. Up is +y only because the
+/// content view is not flipped, which a wiring test holds.
 struct AnimatedPanelFader: PanelFader {
     func fadeOut(_ window: NSWindow, over duration: Double, then done: @escaping @MainActor () -> Void) {
         NSAnimationContext.runAnimationGroup({ context in
