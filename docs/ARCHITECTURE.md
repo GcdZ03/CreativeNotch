@@ -556,9 +556,14 @@ which re-checks full screen there.
 Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
 
 - **Springs follow direction.** `NotchMotion` gives growing changes a
-  slightly bouncy spring and shrinking ones a quick, critically damped one;
-  `AppState.lastChangeGrew` records which, and one peek replacing another
-  counts as growing. The growth lag follows the opening spring's response.
+  barely bouncy spring (damping 0.85, under 1% overshoot; 0.74 until
+  2026-10-28 read as lively) and shrinking ones a quick, critically damped
+  one; `AppState.lastChangeGrew` records which, and one peek replacing
+  another counts as growing, so peeks open with the same spring. The growth
+  lag follows the opening spring's response, and that only holds while the
+  spring has reached its target by then: more damping arrives later, and
+  critically damped it would still be 1.4% short at 420ms.
+  `NotchMotionTests` checks both.
 - **Reduce Motion** turns both springs into one short ease, content fades
   rather than blurs in, the shared cover cross-fades rather than slides, the
   hover growth goes, and the bars stand still. The root view only ever takes

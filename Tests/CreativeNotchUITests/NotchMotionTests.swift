@@ -47,6 +47,41 @@ struct NotchMotionTests {
         #expect(AppDelegate.defaultGrowthDelay == .milliseconds(Int(NotchMotion.openResponse * 1000)))
     }
 
+    // MARK: - The opening spring is calm
+
+    /// Where the opening spring has carried the shape `seconds` after a
+    /// change, as a fraction of the way from the old rect to the new one.
+    private func opened(after seconds: Double) -> Double {
+        NotchMotion.openSpring.value(target: 1.0, time: seconds)
+    }
+
+    /// Every millisecond of the first two seconds, long after it settles.
+    private static let instants = (0...2000).map { Double($0) / 1000 }
+
+    /// Under 1% of the travel past the target: a point or two on the
+    /// built-in's panel, where 0.74's 3% was 7pt below it and 14pt past
+    /// its sides (2026-10-28). Over it all the same, so the shape still
+    /// lands rather than coasting to a stop.
+    @Test func theOpeningSpringBarelyOvershoots() {
+        #expect(NotchMotion.open == .spring(NotchMotion.openSpring))
+        let furthest = Self.instants.map(opened(after:)).max() ?? 0
+        #expect(furthest > 1.0)
+        #expect(furthest < 1.01)
+    }
+
+    /// The other half of the growth lag's contract. The delay follows the
+    /// response, but how far the shape has got by then depends on the
+    /// damping too: critically damped, it is still 1.4% short at 420ms,
+    /// 6pt of a 435pt-wide growth the accepted region would claim early.
+    /// From the moment the region grows, the shape must already be there,
+    /// to within half a point of that growth: less than a pixel.
+    @Test func theShapeHasArrivedWhenTheAcceptedRegionGrows() {
+        let (seconds, attoseconds) = AppDelegate.defaultGrowthDelay.components
+        let lag = Double(seconds) + Double(attoseconds) / 1e18
+        let nearest = Self.instants.filter { $0 >= lag }.map(opened(after:)).min() ?? 0
+        #expect(nearest > 1.0 - 0.5 / 435)
+    }
+
     // MARK: - Hover reacts at once, in the drawing only
 
     private static let closedDrawn = CGRect(x: 195, y: 0, width: 230, height: 38)

@@ -3,9 +3,9 @@ import SwiftUI
 /// How the notch moves between states (spec 2026-10-15).
 ///
 /// One spring for every change made opening feel stiff and closing feel
-/// slow at once. Growing now uses a slightly bouncy spring and shrinking a
-/// quicker, critically-damped one, so the panel arrives with a little life
-/// and gets out of the way when dismissed.
+/// slow at once. Growing now uses a barely bouncy spring and shrinking a
+/// quicker, critically-damped one, so the panel arrives settled and gets
+/// out of the way when dismissed.
 enum NotchMotion {
 
     /// The opening spring's response, in seconds. `AppDelegate`'s growth lag
@@ -13,7 +13,19 @@ enum NotchMotion {
     /// drawn shape has.
     static let openResponse: Double = 0.42
 
-    static let open = Animation.spring(response: openResponse, dampingFraction: 0.74)
+    /// The opening spring, as a `Spring` so a test can ask where the shape
+    /// is at a given instant without rendering it.
+    ///
+    /// Calmer since 2026-10-28. At 0.74 it overshot by 3% of the travel —
+    /// about 7pt below a 260pt panel and 14pt past its sides — and read as
+    /// lively next to the Dynamic Island. 0.85 is `.snappy`'s bounce: under
+    /// 1%, a point or two, enough that the shape still lands rather than
+    /// stops. The response is unchanged, so the growth lag is too; the
+    /// extra damping makes the shape first reach full size later (~330ms
+    /// rather than ~240ms), still inside that lag.
+    static let openSpring = Spring(response: openResponse, dampingRatio: 0.85)
+
+    static let open = Animation.spring(openSpring)
     static let close = Animation.spring(response: 0.26, dampingFraction: 1.0)
 
     /// The hover reaction is small, so it can afford to be quick.
