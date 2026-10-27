@@ -131,7 +131,8 @@ out from the left edge knowing nothing of it. Two things keep it off them
   display, menus that overflow carry on right of the camera, and that gap is
   not on the display with the pill. Switching it on is the only place the
   Accessibility prompt is shown; the reader in tests is a sandbox that is
-  never trusted.
+  never trusted. The pill slides to its new place rather than jumping (see
+  Motion and input).
 
 **Coordinates are bottom-left origin, y increasing upward.** `frame.maxY` is
 the top of the screen. A notch rect sits at `y = frame.maxY - inset` with
@@ -583,8 +584,8 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   notch vanish from one display and appear on the other in the same frame —
   measured, one step of the window's bounds with its alpha at 1 throughout.
   `PanelMove` (Core) now decides how each new geometry is reached: the same
-  geometry stays, a move on the display the panel is on is placed at once, and
-  a move to another display is a `DisplayHandoff` — the window fades out
+  geometry stays, a move on the display the panel is on is placed at once (or
+  slid, below), and a move to another display is a `DisplayHandoff` — the window fades out
   (0.08s), moves while invisible, and fades in (0.18s) with its content
   dropping 6pt out of the top edge. Under Reduce Motion it fades without the
   drop. "The same display" is the destination's frame overlapping the window
@@ -610,6 +611,33 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   `InstantPanelFader` by default, so no suite awaits a trip, the animated one
   from `configureForRealLaunch`, and a fake that holds each completion in
   `DisplayHandoffWiringTests`.
+- **Along the menu bar it slides (2026-10-28).** Keeping clear of the menus
+  moved the pill sideways in one frame on every switch between apps with long
+  and short menus. When a move on the same display is the same picture further
+  along — a pill both times, of one size, in a window of one size and one top,
+  at the same place inside it (`PanelMove.isAlongTheBar`) — it is a
+  `PanelSlide` of 0.25s. The window slides, not the shape inside it:
+  `AnimatedPanelSlider` animates the frame with `NSAnimationContext`, AppKit
+  steps it on the main thread (measured, every ~8.5ms), and the window server
+  draws each step from what it has, so nothing in the SwiftUI tree is laid out
+  or redrawn on the way (profiled: SwiftUI in 2 of the main thread's 1ms
+  samples over twelve slides). The accepted region and the hover rect are
+  panel-local, so they ride with the shape the whole way and never empty;
+  the pointer is read against where the window is (`panelLocal`), not
+  `currentFrame`, which is already the destination's, and read again when
+  the slide ends, since AppKit says nothing when a window moves under a still
+  pointer. A second move halfway sets off again from where the window has got
+  to; a placement that is not a slide (a new text size, a trip) ends the slide
+  with an animated frame of no duration, because a frame simply set on a
+  window still animating is undone by its next step; a slide counter makes a
+  replaced slide's completion do nothing, and the one that finishes puts the
+  window on its frame exactly. Full screen is re-checked as for any move, so a
+  display narrowing under the pill still counts as a screen change. A real notch never slides (it would leave the
+  camera), nor a pill whose window the display's edge stops while the pill
+  goes on. Under Reduce Motion the pill is placed at once, as before: a fade
+  would blink it out and back in the one place on every switch. The slider is
+  a seam like the fader: `InstantPanelSlider` by default, the animated one
+  from `configureForRealLaunch`, a fake in `PanelSlideWiringTests`.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
