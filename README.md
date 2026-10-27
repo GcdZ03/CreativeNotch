@@ -558,7 +558,9 @@ The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
 
 With more than one display, the notch follows the display with the focused
-window, moving when you switch to an app on another one or switch desktops. A
+window, moving when you switch to an app on another one or switch desktops. It
+fades out where it was and drops in on the other display in about a quarter of
+a second (with Reduce Motion on, it only fades). A
 window spread across two displays counts as on the one holding most of it.
 Moving between two windows of the same app on different displays (two Chrome
 windows, by click or ⌘\`), or dragging the window you are in onto another

@@ -549,7 +549,8 @@ in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
 re-read when Settings is shown and on that same notification, never polled.
 Changing the setting repositions at once. Moving to another display goes through `reposition`,
-which re-checks full screen there.
+which fades the panel across (see Motion and input) and re-checks full screen
+once it has arrived there.
 
 ## Motion and input
 
@@ -578,6 +579,36 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   hears the same tone, "…, low", from `PowerGaugeTone.spokenLabel` —
   `TimerDisplay.caption` says "paused" beside the panel's dimmed digits, and
   the ear's timer badge draws a pause glyph ahead of its dimmed digits.
+- **Between displays it fades (2026-10-28).** Following focus used to make the
+  notch vanish from one display and appear on the other in the same frame —
+  measured, one step of the window's bounds with its alpha at 1 throughout.
+  `PanelMove` (Core) now decides how each new geometry is reached: the same
+  geometry stays, a move on the display the panel is on is placed at once, and
+  a move to another display is a `DisplayHandoff` — the window fades out
+  (0.08s), moves while invisible, and fades in (0.18s) with its content
+  dropping 6pt out of the top edge. Under Reduce Motion it fades without the
+  drop. "The same display" is the destination's frame overlapping the window
+  where it stands, not equal metrics and not the anchor's centre: a display
+  stacked above the built-in one switching mode kept its bottom edge and
+  brought its top down 30pt, leaving the pill's old centre above the display
+  it was still on. The fades are the window's own alpha through
+  `AnimatedPanelFader`, so the SwiftUI tree is not redrawn for them, and the
+  drop is a Core Animation offset on the content's layer, clipped by the
+  window — moving the window itself up would show a sliver of black on the
+  bottom of the display above the built-in one. `AppState`'s geometry changes
+  only once the window is invisible, so the shape is never drawn as the new
+  display's in the old place. A move asked for during the fade-out replaces
+  its destination (the last display asked for wins, nothing queues); one back
+  to where the panel still is fades it back in on the spot; one during the
+  fade-in fades it out again from where it got to. A trip counter makes a
+  superseded fade's completion do nothing. The accepted region is empty from
+  the start of the fade-out until the fade-in ends, then is the new shape at
+  once — it was drawn whole when the window moved — unless the state changed
+  meanwhile, when the growth lag applies as usual. The launch, and any panel
+  built afresh, is placed without a fade. The fader is a seam:
+  `InstantPanelFader` by default, so no suite awaits a trip, the animated one
+  from `configureForRealLaunch`, and a fake that holds each completion in
+  `DisplayHandoffWiringTests`.
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
