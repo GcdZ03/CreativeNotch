@@ -158,6 +158,7 @@ changes on every build. Measured consequences:
 | | |
 | --- | --- |
 | Camera grant re-prompts on every update | **measured** — module 5 |
+| Accessibility grant stops working on every update, while System Settings still shows it on | **measured** (2026-10-27) — the TCC entry still matches the old code hash; remove the app from the list and allow it again |
 | ~~Launch at login may be refused outright~~ | **measured, and it is not** — an ad-hoc bundle registers cleanly, the record survives a new code hash, and a real logout confirms macOS honours it |
 | Downloads carry quarantine | why install instructions need `xattr -dr` |
 
@@ -166,22 +167,24 @@ costs money rather than time, and it no longer gates any module: launch at
 login turned out not to need it, and the camera ships with a re-prompt on
 every update rather than waiting for one.
 
-What it would still buy: no camera re-prompt on every update, and downloads
-that are not quarantined.
+What it would still buy: no camera re-prompt on every update, an
+Accessibility grant that survives an update, and downloads that are not
+quarantined.
 
 ## Ideas considered, not started
 
 From two rounds of comparing against Boring Notch, NotchNook, Alcove, Atoll
 and DynamicLake (October 2026). Each fits the one rule; none is planned.
 
-- **A calendar and reminders glance.** EventKit notifies on change rather
-  than being polled, but it adds a permission prompt — the first since the
-  camera.
+- ~~**A calendar and reminders glance.**~~ Shipped (2026-10-24), off until
+  switched on, because switching it on is what asks for Calendars and
+  Reminders access — see "The calendar glance" in `ARCHITECTURE.md`.
 - **Synced lyrics.** The playback position now exists to sync them, but it
   means sending the track's title and artist to a lyrics service, so it would
   have to be opt-in.
-- **Bluetooth and AirPods connect alerts.** Connect and disconnect are easy;
-  per-device battery may need private API.
+- ~~**Bluetooth and AirPods connect alerts.**~~ Shipped (2026-10-24), off
+  until switched on, for the same reason — see "Bluetooth alerts" in
+  `ARCHITECTURE.md`.
 - ~~**Download progress**, from watching the Downloads folder.~~ Shipped
   (2026-10-24), from file progress publishing rather than watching the
   folder — see "Downloads" in `ARCHITECTURE.md`.

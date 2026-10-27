@@ -314,9 +314,10 @@ public final class MediaHelperProcess {
     /// SIGKILL if the process is still alive afterward.
     ///
     /// A pure state machine over injected `terminate` / `waitForExit` /
-    /// `forceKill` closures — the same closure-injection `MediaKeyMonitor`
-    /// uses for its event tap — specifically so the escalation path is
-    /// provably reachable in a test without ever spawning a real process.
+    /// `forceKill` closures — the same closure-injection the removed
+    /// `MediaKeyMonitor` used for its event tap — specifically so the
+    /// escalation path is provably reachable in a test without ever
+    /// spawning a real process.
     /// That is not a hypothetical: a media process wedged beyond recovery
     /// during this very session, which is exactly the failure mode this
     /// guards against. `Process.terminate()` sends SIGTERM, and SIGTERM

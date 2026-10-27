@@ -125,9 +125,10 @@ struct PowerObserverTests {
 
     // MARK: - Lifecycle
 
-    /// `VolumeObserver`, `BrightnessObserver` and `MediaKeyMonitor` each
-    /// shipped a `stop()` that forgot one of the things `start()`
-    /// registered, and each was caught by a count exactly like this one.
+    /// The system HUD's `VolumeObserver`, `BrightnessObserver` and
+    /// `MediaKeyMonitor`, since removed with it, each shipped a `stop()`
+    /// that forgot one of the things `start()` registered, and each was
+    /// caught by a count exactly like this one.
     ///
     /// This assertion is necessary and *not* sufficient, which the tests
     /// below cover: clearing the field and actually deregistering are two
