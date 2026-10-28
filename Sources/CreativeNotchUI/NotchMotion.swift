@@ -17,12 +17,15 @@ enum NotchMotion {
     /// is at a given instant without rendering it.
     ///
     /// Calmer since 2026-10-28. At 0.74 it overshot by 3% of the travel —
-    /// about 7pt below a 260pt panel and 14pt past its sides — and read as
-    /// lively next to the Dynamic Island. 0.85 is `.snappy`'s bounce: under
-    /// 1%, a point or two, enough that the shape still lands rather than
-    /// stops. The response is unchanged, so the growth lag is too; the
-    /// extra damping makes the shape first reach full size later (~330ms
-    /// rather than ~240ms), still inside that lag.
+    /// about 7pt past the bottom of a 260pt panel and 14pt past its sides —
+    /// and read as lively next to the Dynamic Island. The window is exactly
+    /// the panel's size and clips that, so on screen the panel's bottom
+    /// corners went square for ~290ms of every open; a peek, smaller than
+    /// the window, overshoots in plain view. 0.85 is `.snappy`'s bounce:
+    /// under 1%, a point or two, enough that the shape still lands rather
+    /// than coasts to a stop. The response is unchanged, so the growth lag
+    /// is too; the extra damping makes the shape first reach full size
+    /// later (~330ms rather than ~240ms), still inside that lag.
     static let openSpring = Spring(response: openResponse, dampingRatio: 0.85)
 
     static let open = Animation.spring(openSpring)
