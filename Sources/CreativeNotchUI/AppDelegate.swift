@@ -835,6 +835,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Asks for nothing: it watches only once Accessibility is allowed,
         // which "Keep clear of app menus" is what asks for.
         windowFocusWatcher = SystemWindowFocusWatcher()
+        // Puts nothing on screen of its own: it animates the panel window,
+        // and only when the panel moves to another display.
+        panelFader = AnimatedPanelFader()
         openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
         downloadsDirectory = Self.realDownloadsDirectory
         revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
@@ -1712,6 +1715,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         if let previous = stateObserver { state.removeObserver(previous) }
         stateObserver = state.observe { [weak self] change in
             guard let self else { return }
+            if case .state = change, self.isHandingOff { self.handoffSawStateChange = true }
             self.syncTrackingRect()
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
@@ -1723,6 +1727,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
                 self.tapIfOpening(newState)
             }
         }
+
+        // Placed where it belongs, not faded there: the launch is no trip,
+        // and a trip the last panel was on is over (2026-10-28).
+        forgetHandoff()
 
         // Seeding is unconditional on purpose. `reposition` dedupes on the
         // geometry being unchanged, which is right for a screen change and
@@ -1926,6 +1934,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // it -- they are kept as independent defences, not as behaviour.
         growthTask?.cancel()
         growthTask = nil
+
+        // Moving between displays (2026-10-28), the window is fading out of
+        // one place or into another, and accepts nothing until it has
+        // arrived. Before the drag exemption below: a window on its way to
+        // another display is not one to drop on either.
+        if isHandingOff {
+            acceptRect(.zero)
+            return
+        }
 
         // `.receiving` widens at once. The lag exists so the app never
         // accepts a click on something not yet drawn; during a drag there
@@ -3023,17 +3040,49 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Moves the panel to wherever the notch or pill is on `metrics`.
     ///
-    /// Returns whether anything actually moved. `didActivateApplication`
+    /// Returns whether anything moved, or is on its way to. `didActivateApplication`
     /// fires on every Cmd-Tab and `@Observable` does not dedupe equal
     /// assignments, so without the guard every app switch pushed a new
     /// frame and a new anchor and forced a redraw -- contradicting the
     /// rule that state transitions are the only thing that triggers one.
+    ///
+    /// On the display it is on, the panel is placed at once. To another
+    /// display it fades across (`PanelMove`, 2026-10-28): the geometry
+    /// changes only once the window is invisible, so the shape is never
+    /// drawn as the new display's in the old place. A move asked for during
+    /// a trip replaces the trip's destination rather than queueing behind
+    /// it, and a move back to where the panel still is calls the trip off.
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = anchor(for: metrics)
         let frame = panelFrame(on: metrics, anchor: anchor)
-        // The dedupe lives in the funnel now, and the tracking rect
-        // re-syncs from the geometry observer.
+        let move = PanelMove.from(
+            currentAnchor, frame: currentFrame,
+            to: anchor, frame: frame,
+            on: metrics.frame,
+            reduceMotion: reduceMotion()
+        )
+        switch move {
+        case .betweenDisplays(let trip) where panel != nil:
+            if handoffTarget != nil {
+                handoffTarget = (anchor, frame)
+            } else {
+                startHandoff(to: (anchor, frame), trip: trip)
+            }
+            return true
+        case .stay:
+            if handoffTarget != nil { callOffHandoff() }
+            return false
+        case .inPlace, .betweenDisplays:
+            if handoffTarget != nil { callOffHandoff() }
+            return place(anchor: anchor, frame: frame)
+        }
+    }
+
+    /// Puts the panel at `frame` now. The dedupe lives in the funnel, and
+    /// the tracking rect re-syncs from the geometry observer.
+    @discardableResult
+    private func place(anchor: Anchor, frame: CGRect) -> Bool {
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
         panel?.setFrame(frame, display: true)
         // A different display has its own current Space, which the watcher
@@ -3042,5 +3091,104 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // one, it stayed hidden on a normal desktop.
         fullScreenWatcher?.evaluate()
         return true
+    }
+
+    // MARK: - Moving between displays (2026-10-28)
+
+    /// Fades the window out and in for a move between displays. Instant
+    /// until the real launch swaps in `AnimatedPanelFader`, so a test that
+    /// moves the panel need await nothing; a wiring test hands in a fake.
+    var panelFader: PanelFader = InstantPanelFader()
+
+    /// The system's Reduce Motion setting, read at each move: the trip then
+    /// fades without the drop. A safe read, so the default is the real one;
+    /// injected so a suite does not depend on the machine running it.
+    var reduceMotion: () -> Bool = { NSWorkspace.shared.accessibilityDisplayShouldReduceMotion }
+
+    /// Where a trip is going while the panel fades out, or `nil`. Replaced,
+    /// never queued: the last display asked for is the one it goes to.
+    private var handoffTarget: (anchor: Anchor, frame: CGRect)?
+
+    /// Whether a trip is under way, fading out or in. While it is, the
+    /// accepted region is empty.
+    private var isHandingOff = false
+
+    /// Counts trips, so a fade that a later one cut short does nothing when
+    /// its completion arrives: never a move to a superseded display, never a
+    /// region restored over a window fading out again.
+    private var handoffGeneration = 0
+
+    /// Whether the state changed during the trip, or shortly enough before
+    /// it that the region was still trailing its spring, in which case that
+    /// spring may still be growing the shape when the window has faded in.
+    private var handoffSawStateChange = false
+
+    private func startHandoff(to target: (anchor: Anchor, frame: CGRect), trip: DisplayHandoff) {
+        guard let panel else { return }
+        handoffGeneration += 1
+        let generation = handoffGeneration
+        handoffTarget = target
+        // A spring started before this trip may still be growing the shape
+        // when the window has faded in: one that a trip cut short saw, or
+        // one the region was trailing when this trip began. Read before the
+        // shrink below empties the region, so arrival keeps the lag rather
+        // than accepting a shape not yet drawn (2026-10-28, review of #79).
+        handoffSawStateChange = isHandingOff
+            ? handoffSawStateChange
+            : area(of: visibleRect()) > area(of: acceptedRect)
+        isHandingOff = true
+        // Shrink now: from here until it has faded in there is nothing to
+        // click where the region was, and nothing yet where it is going.
+        syncTrackingRect()
+        panelFader.fadeOut(panel, over: trip.fadeOut) { [weak self] in
+            self?.handoffFadedOut(generation, trip: trip)
+        }
+    }
+
+    /// Invisible now: move, take the new display's shape, fade in there.
+    private func handoffFadedOut(_ generation: Int, trip: DisplayHandoff) {
+        guard generation == handoffGeneration, let target = handoffTarget, let panel else { return }
+        handoffTarget = nil
+        place(anchor: target.anchor, frame: target.frame)
+        panelFader.fadeIn(panel, over: trip.fadeIn, droppingFrom: trip.drop) { [weak self] in
+            self?.handoffArrived(generation)
+        }
+    }
+
+    /// Back where it still is before it left: fade in on the spot, without
+    /// the drop, since it is not arriving from anywhere.
+    private func callOffHandoff() {
+        guard let panel else { return }
+        handoffGeneration += 1
+        let generation = handoffGeneration
+        handoffTarget = nil
+        let trip: DisplayHandoff = reduceMotion() ? .reduced : .standard
+        panelFader.fadeIn(panel, over: trip.fadeIn, droppingFrom: 0) { [weak self] in
+            self?.handoffArrived(generation)
+        }
+    }
+
+    /// Faded in: grow the accepted region to the shape. At once, because the
+    /// shape was drawn whole when the window moved -- unless the state
+    /// changed meanwhile or just before, whose spring the growth lag waits
+    /// for as always.
+    private func handoffArrived(_ generation: Int) {
+        guard generation == handoffGeneration else { return }
+        isHandingOff = false
+        if handoffSawStateChange {
+            syncTrackingRect()
+        } else {
+            growthTask?.cancel()
+            growthTask = nil
+            acceptRect(visibleRect())
+        }
+    }
+
+    /// A fresh panel is built where it belongs and shown at once: whatever
+    /// trip the last one was on is over.
+    private func forgetHandoff() {
+        handoffGeneration += 1
+        handoffTarget = nil
+        isHandingOff = false
     }
 }
