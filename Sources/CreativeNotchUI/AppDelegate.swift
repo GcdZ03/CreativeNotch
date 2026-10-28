@@ -841,6 +841,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Likewise: it moves the panel window, only while the pill moves
         // along its menu bar.
         panelSlider = AnimatedPanelSlider()
+        // One block on the main queue when the anchor changes on its
+        // display, and nothing otherwise.
+        panelMorpher = AnimatedPanelMorpher()
         openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
         downloadsDirectory = Self.realDownloadsDirectory
         revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
@@ -1718,7 +1721,21 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         stateObserver = state.observe { [weak self] change in
             guard let self else { return }
             if case .state = change, self.isHandingOff { self.handoffSawStateChange = true }
-            self.syncTrackingRect()
+            // When the spring this change starts began, so that an anchor
+            // change while it is still carrying the shape fades rather than
+            // morphing from where it is going (2026-10-28, review of #81).
+            if case .state = change { self.springStarted = self.mediaTime() }
+            // A state change takes the shape from wherever a morph has got
+            // to, on its own spring, and the region trails that spring as it
+            // does any other (2026-10-28) -- from what the morph shared, not
+            // from nothing (`springTookMorph`).
+            if case .state = change, self.state.morph != nil {
+                let shared = self.acceptedRect
+                self.state.endMorph()
+                self.springTookMorph(sharing: shared)
+            } else {
+                self.syncTrackingRect()
+            }
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
@@ -1744,6 +1761,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         let anchor = anchor(for: metrics)
         let frame = panelFrame(on: metrics, anchor: anchor)
         state.setGeometry(anchor: anchor, panelFrame: frame)
+        shownDisplay = metrics.frame
         panel.setFrame(frame, display: true)
         // Seeded directly rather than through the lag: at install there is
         // no animation in flight for the accepted region to trail.
@@ -1760,12 +1778,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// two consumers of this rect and the view's own `drawnRect` all widen
     /// by the badge through the same tested function.
     private func visibleRect() -> CGRect {
-        NotchShape.visibleRect(
+        visibleRect(anchor: currentAnchor, frame: currentFrame)
+    }
+
+    /// The same region for another geometry: what the shape would be in the
+    /// window at `frame`, which `reposition` asks before it moves there.
+    private func visibleRect(anchor: Anchor, frame: CGRect) -> CGRect {
+        let slot = currentBadgeSlot
+        return NotchShape.visibleRect(
             presentation: state.state.presentation,
-            anchor: currentAnchor,
-            panelFrame: currentFrame,
-            badgeWidth: currentBadgeSlot.width,
-            leadingBadgeWidth: currentBadgeSlot.leadingWidth
+            anchor: anchor,
+            panelFrame: frame,
+            badgeWidth: slot.width,
+            leadingBadgeWidth: slot.leadingWidth
         )
     }
 
@@ -1946,6 +1971,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Morphing (2026-10-28), the shape is on its way from the old one to
+        // `target` and every step covers what the two share, so that and no
+        // more. Before the exemptions below: a badge or a drag does not make
+        // a shape still on its way any larger.
+        if let morph = state.morph {
+            let shared = target.intersection(morph.morph.from)
+            acceptRect(shared.isNull ? .zero : shared)
+            return
+        }
+
         // `.receiving` widens at once. The lag exists so the app never
         // accepts a click on something not yet drawn; during a drag there
         // is no click to mis-accept, and the drop region is gated by
@@ -1982,6 +2017,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        growAfterLag()
+    }
+
+    /// Takes the drawn region once the shape has had `growthDelay` to get
+    /// there.
+    private func growAfterLag() {
         growthTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: self.growthDelay)
@@ -3069,6 +3110,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     ///
     /// The pill moving along its own menu bar -- keeping clear of the menus
     /// -- slides there instead of jumping (2026-10-28).
+    ///
+    /// And the anchor changing on the display it is on -- the notch and the
+    /// pill trading places in a mode change, the pill going into or out of
+    /// the menu bar -- morphs the drawn shape from where it was, or fades on
+    /// the spot where the window cannot show where it was (2026-10-28). The
+    /// decision is told what is drawn either side and which display the
+    /// shape was placed on, since a mode change moves the display's top.
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = anchor(for: metrics)
@@ -3077,33 +3125,51 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             currentAnchor, frame: currentFrame,
             to: anchor, frame: frame,
             on: metrics.frame,
-            reduceMotion: reduceMotion()
+            reduceMotion: reduceMotion(),
+            drawn: PanelMove.Drawn(
+                before: drawnNow().offsetBy(dx: slidLag.dx, dy: slidLag.dy),
+                after: visibleRect(anchor: anchor, frame: frame),
+                display: shownDisplay ?? metrics.frame,
+                isMorphing: state.morph != nil,
+                isSpringing: isSpringing
+            )
         )
         switch move {
-        case .betweenDisplays(let trip) where panel != nil:
+        case .betweenDisplays(let trip) where panel != nil, .fadeInPlace(let trip) where panel != nil:
+            let target = HandoffTarget(anchor: anchor, frame: frame, display: metrics.frame, trip: trip)
             if handoffTarget != nil {
-                handoffTarget = (anchor, frame)
+                handoffTarget = target
             } else {
-                startHandoff(to: (anchor, frame), trip: trip)
+                startHandoff(to: target)
             }
             return true
         case .stay:
             if handoffTarget != nil { callOffHandoff() }
+            shownDisplay = metrics.frame
             return false
         case .slide(let slide) where panel != nil:
             if handoffTarget != nil { callOffHandoff() }
+            shownDisplay = metrics.frame
             return self.slide(anchor: anchor, frame: frame, over: slide)
-        case .inPlace, .betweenDisplays, .slide:
+        case .morph(let morph) where panel != nil:
             if handoffTarget != nil { callOffHandoff() }
+            shownDisplay = metrics.frame
+            return self.morph(anchor: anchor, frame: frame, by: morph)
+        case .inPlace, .betweenDisplays, .slide, .morph, .fadeInPlace:
+            if handoffTarget != nil { callOffHandoff() }
+            shownDisplay = metrics.frame
             return place(anchor: anchor, frame: frame)
         }
     }
 
     /// Puts the panel at `frame` now. The dedupe lives in the funnel, and
     /// the tracking rect re-syncs from the geometry observer.
+    ///
+    /// `morph`, when the shape is to morph there from where it was; `nil`
+    /// draws it there at once, ending any morph under way.
     @discardableResult
-    private func place(anchor: Anchor, frame: CGRect) -> Bool {
-        guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
+    private func place(anchor: Anchor, frame: CGRect, morph: ShapeMorph? = nil) -> Bool {
+        guard state.setGeometry(anchor: anchor, panelFrame: frame, morph: morph) else { return false }
         if isSliding, let panel {
             // A frame set on a window still sliding is undone by the
             // slide's next step; this ends it there.
@@ -3134,7 +3200,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Where a trip is going while the panel fades out, or `nil`. Replaced,
     /// never queued: the last display asked for is the one it goes to.
-    private var handoffTarget: (anchor: Anchor, frame: CGRect)?
+    private var handoffTarget: HandoffTarget?
+
+    /// A trip's destination, and how it arrives there.
+    ///
+    /// `display` is that display's frame, for `shownDisplay` on arrival.
+    /// `trip` travels with it (2026-10-28, review of #81): a fade on the spot
+    /// turned into a trip to another display halfway out arrives there with
+    /// the drop, and a trip turned back into a fade on the spot arrives
+    /// without one. Kept with the trip it set out on, the first came in
+    /// from nowhere on the new display and the second dropped 6pt where it
+    /// already was.
+    private struct HandoffTarget {
+        var anchor: Anchor
+        var frame: CGRect
+        var display: CGRect
+        var trip: DisplayHandoff
+    }
 
     /// Whether a trip is under way, fading out or in. While it is, the
     /// accepted region is empty.
@@ -3150,7 +3232,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// spring may still be growing the shape when the window has faded in.
     private var handoffSawStateChange = false
 
-    private func startHandoff(to target: (anchor: Anchor, frame: CGRect), trip: DisplayHandoff) {
+    private func startHandoff(to target: HandoffTarget) {
         guard let panel else { return }
         handoffGeneration += 1
         let generation = handoffGeneration
@@ -3167,17 +3249,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Shrink now: from here until it has faded in there is nothing to
         // click where the region was, and nothing yet where it is going.
         syncTrackingRect()
-        panelFader.fadeOut(panel, over: trip.fadeOut) { [weak self] in
-            self?.handoffFadedOut(generation, trip: trip)
+        panelFader.fadeOut(panel, over: target.trip.fadeOut) { [weak self] in
+            self?.handoffFadedOut(generation)
         }
     }
 
-    /// Invisible now: move, take the new display's shape, fade in there.
-    private func handoffFadedOut(_ generation: Int, trip: DisplayHandoff) {
+    /// Invisible now: move, take the new display's shape, fade in there --
+    /// as the last destination asked for arrives, whichever trip set out.
+    private func handoffFadedOut(_ generation: Int) {
         guard generation == handoffGeneration, let target = handoffTarget, let panel else { return }
         handoffTarget = nil
+        shownDisplay = target.display
         place(anchor: target.anchor, frame: target.frame)
-        panelFader.fadeIn(panel, over: trip.fadeIn, droppingFrom: trip.drop) { [weak self] in
+        panelFader.fadeIn(panel, over: target.trip.fadeIn, droppingFrom: target.trip.drop) { [weak self] in
             self?.handoffArrived(generation)
         }
     }
@@ -3199,10 +3283,15 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// shape was drawn whole when the window moved -- unless the state
     /// changed meanwhile or just before, whose spring the growth lag waits
     /// for as always.
+    ///
+    /// Or unless the shape is still morphing (2026-10-28): a morph that
+    /// called the trip off fades the window back in on the spot while the
+    /// shape goes on its way, and the fade can be over first. The region is
+    /// then what the two shapes share until the morph is (`morphEnded`).
     private func handoffArrived(_ generation: Int) {
         guard generation == handoffGeneration else { return }
         isHandingOff = false
-        if handoffSawStateChange {
+        if handoffSawStateChange || state.morph != nil {
             syncTrackingRect()
         } else {
             growthTask?.cancel()
@@ -3218,6 +3307,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         handoffTarget = nil
         isHandingOff = false
         endSlide()
+        state.endMorph()
     }
 
     // MARK: - Sliding along the menu bar (2026-10-28)
@@ -3246,8 +3336,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Full screen is checked as for any move: a screen change that slides
     /// the pill -- its display changing width -- counts on `reposition` to
     /// have looked, since it moved something.
+    ///
+    /// A morph under way goes on inside the window as it slides
+    /// (2026-10-28): where the shape is in the window is the same all the
+    /// way along, so where it morphs from is too.
     private func slide(anchor: Anchor, frame: CGRect, over slide: PanelSlide) -> Bool {
-        guard let panel, state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
+        guard let panel, state.setGeometry(anchor: anchor, panelFrame: frame, morph: state.morph) else { return false }
         slideGeneration += 1
         let generation = slideGeneration
         isSliding = true
@@ -3274,5 +3368,119 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     private func endSlide() {
         slideGeneration += 1
         isSliding = false
+    }
+
+    // MARK: - Morphing on the spot (2026-10-28)
+
+    /// Says when a morph is over. Instant until the real launch swaps in
+    /// `AnimatedPanelMorpher`, so a test that changes the anchor need await
+    /// nothing; a wiring test hands in a fake.
+    var panelMorpher: PanelMorpher = InstantPanelMorpher()
+
+    /// The clock a morph is timed on, in seconds: how far one has got when
+    /// another change cuts it short. Injected so a test can stop it halfway.
+    var mediaTime: () -> Double = { CACurrentMediaTime() }
+
+    /// The frame of the display the shown geometry was placed on. A mode
+    /// change moves the display's top under the shape, and where the shape
+    /// was is where it was on its display (`PanelMove.Drawn.display`).
+    private var shownDisplay: CGRect?
+
+    /// Counts morphs, so that one a later change replaced does nothing when
+    /// its time is up.
+    private var morphCount = 0
+
+    /// When the morph under way began, on `mediaTime`.
+    private var morphStarted: Double = 0
+
+    /// When the last state change started its spring, on `mediaTime`, or
+    /// `nil` before the first.
+    private var springStarted: Double?
+
+    /// Whether a state's spring may still be carrying the shape
+    /// (2026-10-28, review of #81). Where it has got to is SwiftUI's to
+    /// know, and `visibleRect()` is where it is going: a morph from there
+    /// jumped a peek still growing to its full size on the first frame, the
+    /// same class of pre-trip spring #79 met. Told this, `PanelMove` fades
+    /// on the spot instead, as for any change it cannot morph.
+    private var isSpringing: Bool {
+        guard let springStarted else { return false }
+        return mediaTime() - springStarted < NotchMotion.springCarries
+    }
+
+    /// Places the panel and has the shape morph there from `morph.from`.
+    ///
+    /// The window is put on its new frame at once, as for any placement, and
+    /// the geometry and the morph change together, so the first frame drawn
+    /// in it is the old shape where it was. The accepted region is what the
+    /// two shapes share until the morph is over (`syncTrackingRect`).
+    private func morph(anchor: Anchor, frame: CGRect, by morph: AnchorMorph) -> Bool {
+        morphCount += 1
+        let shape = ShapeMorph(morph: morph, id: morphCount)
+        let started = mediaTime()
+        guard place(anchor: anchor, frame: frame, morph: shape) else { return false }
+        morphStarted = started
+        panelMorpher.morph(over: morph.duration) { [weak self] in
+            self?.morphEnded(shape.id)
+        }
+        return true
+    }
+
+    /// A state change cut a morph short (2026-10-28, review of #81): its
+    /// spring takes the shape from where the morph had got to, which every
+    /// step of the morph drew over `shared`, and nothing more is sure to be
+    /// drawn yet. A shrinking state took its whole new shape at once, and the
+    /// shape springing from the morph's middle need not cover it -- the
+    /// capsule coming up into the menu bar has not reached its top. So the
+    /// region is what the morph shared that the new shape keeps, and the
+    /// whole of it once the spring has had the growth lag, whichever way it
+    /// goes. A trip keeps its empty region, and a drag widens at once, as
+    /// in `syncTrackingRect`.
+    private func springTookMorph(sharing shared: CGRect) {
+        let target = visibleRect()
+        growthTask?.cancel()
+        growthTask = nil
+        if isHandingOff { acceptRect(.zero); return }
+        if case .receiving = state.state { acceptRect(target); return }
+        let kept = shared.intersection(target)
+        acceptRect(kept.isNull ? .zero : kept)
+        guard acceptedRect != target else { return }
+        guard growthDelay > .zero else { acceptRect(target); return }
+        growAfterLag()
+    }
+
+    /// Drawn whole: the region is the new shape at once, with no growth lag,
+    /// since there is no spring left to wait for -- a state change during the
+    /// morph ended it already, and left the region to that spring. A trip
+    /// begun meanwhile keeps its empty region; it gives one back on arrival.
+    private func morphEnded(_ id: Int) {
+        guard state.morph?.id == id else { return }
+        state.endMorph()
+        guard !isHandingOff else { return }
+        growthTask?.cancel()
+        growthTask = nil
+        acceptRect(visibleRect())
+    }
+
+    /// The shape as drawn now, panel-local: where a morph under way has got
+    /// to by `mediaTime`, on the curve the view draws it on, or the resting
+    /// shape. A second change halfway then morphs from where the shape is,
+    /// not from where the first was going.
+    private func drawnNow() -> CGRect {
+        let resting = visibleRect()
+        guard let morph = state.morph?.morph, morph.duration > 0 else { return resting }
+        let progress = (mediaTime() - morphStarted) / morph.duration
+        return AnchorMorph.rect(from: morph.from, to: resting, progress: progress)
+    }
+
+    /// How far the window is short of `currentFrame`: nothing, except part
+    /// way through a slide, when the geometry is already the destination's
+    /// and the window still on its way. What is drawn in it is drawn that
+    /// much off where `currentFrame` would put it, and a morph cutting the
+    /// slide short starts from there -- where the shape is on screen -- not
+    /// from the end of a slide it never finished.
+    private var slidLag: CGVector {
+        guard isSliding, let panel else { return .zero }
+        return CGVector(dx: panel.frame.minX - currentFrame.minX, dy: panel.frame.minY - currentFrame.minY)
     }
 }

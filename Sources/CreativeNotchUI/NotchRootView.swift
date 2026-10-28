@@ -24,6 +24,12 @@ public final class AppState {
     /// rect and the hit-test rect are both panel-*local*.
     public private(set) var panelFrame: CGRect = .zero
 
+    /// The drawn shape's morph from where it was, after the anchor changed
+    /// on the display it is on (2026-10-28), or `nil`. Set with the geometry
+    /// it belongs to, through `setGeometry`, so the first frame drawn in the
+    /// moved window is the old shape, where it was.
+    public private(set) var morph: ShapeMorph?
+
     /// The tab the panel was last opened on.
     ///
     /// Reopening returns here rather than always to the shelf. Only
@@ -794,20 +800,46 @@ public final class AppState {
 
     /// The only way the geometry ever changes. Returns whether anything
     /// actually moved, so callers can skip the work that follows.
+    ///
+    /// `morph` is how the shape gets to the new geometry: from where it was,
+    /// or, `nil`, drawn there at once -- which ends a morph under way, since
+    /// the geometry it was going to is gone (2026-10-28). Set before the
+    /// observers hear of the change, so the region they re-derive knows.
     @discardableResult
     public func setGeometry(
         anchor newAnchor: CreativeNotchCore.Anchor,
-        panelFrame newFrame: CGRect
+        panelFrame newFrame: CGRect,
+        morph newMorph: ShapeMorph? = nil
     ) -> Bool {
         guard newAnchor != anchor || newFrame != panelFrame else { return false }
         anchor = newAnchor
         panelFrame = newFrame
+        morph = newMorph
         notify(.geometry(anchor: newAnchor, panelFrame: newFrame))
         return true
     }
 
+    /// The morph is over, or a state change took the shape from wherever it
+    /// had got to. Notifies nobody: the geometry did not change, and whoever
+    /// ended it re-syncs what it needs to.
+    public func endMorph() {
+        morph = nil
+    }
+
     private func notify(_ change: Change) {
         for observer in observers { observer.handler(change) }
+    }
+}
+
+/// A morph under way (2026-10-28): where the shape starts, and which morph
+/// it is, so that two in a row from the same place are still two.
+public struct ShapeMorph: Equatable, Sendable {
+    public let morph: AnchorMorph
+    public let id: Int
+
+    public init(morph: AnchorMorph, id: Int) {
+        self.morph = morph
+        self.id = id
     }
 }
 
@@ -857,9 +889,21 @@ public struct NotchRootView: View {
     /// showing. `nil` keeps the live per-evaluation read.
     let now: Date?
 
-    public init(app: AppState, now: Date? = nil) {
+    /// The instant into a morph the shape is drawn at, in seconds, or `nil`
+    /// to let the keyframe animator step it (2026-10-28, review of #81).
+    ///
+    /// Pinned the way `now` is, for a render: `ImageRenderer` draws one
+    /// frame and never runs the animator, so without it no test could see
+    /// where a morph draws the shape. The pinned instant is read through the
+    /// same keyframes and the same content closure as the live one
+    /// (`morphKeyframes`), so a render at 0 shows what the first frame of a
+    /// real morph does.
+    let morphTime: Double?
+
+    public init(app: AppState, now: Date? = nil, morphTime: Double? = nil) {
         self.app = app
         self.now = now
+        self.morphTime = morphTime
     }
 
     /// The drawn region, in the top-left-origin space SwiftUI lays out in.
@@ -893,6 +937,38 @@ public struct NotchRootView: View {
             width: visible.width,
             height: visible.height
         )
+    }
+
+    /// Where a morph starts the shape, in the top-left-origin space SwiftUI
+    /// lays out in, or `nil` with no morph under way (2026-10-28).
+    /// `AnchorMorph.from` is bottom-left, as the accepted region is, and
+    /// flipped here the way `drawnRect` flips `visibleRect`.
+    static func morphStart(for app: AppState) -> CGRect? {
+        guard let from = app.morph?.morph.from else { return nil }
+        return CGRect(
+            x: from.minX,
+            y: app.panelFrame.height - from.maxY,
+            width: from.width,
+            height: from.height
+        )
+    }
+
+    /// The morph's progress over its time (2026-10-28): from 0, where the
+    /// old shape was, evenly to 1 over the morph's duration, eased by
+    /// `AnchorMorph.rect`. Held at 1, the shape at rest, with no morph.
+    /// Static so a pinned render reads the same keyframes the animator
+    /// plays (`morphTime`).
+    @KeyframesBuilder<Double>
+    static func morphKeyframes(_ morph: ShapeMorph?) -> some Keyframes<Double> {
+        KeyframeTrack {
+            MoveKeyframe(morph == nil ? 1.0 : 0.0)
+            LinearKeyframe(1.0, duration: morph?.morph.duration ?? 0)
+        }
+    }
+
+    /// Where `morphKeyframes` has the progress `time` seconds in.
+    static func morphProgress(_ morph: ShapeMorph?, at time: Double) -> Double {
+        KeyframeTimeline(initialValue: 1.0) { morphKeyframes(morph) }.value(time: time)
     }
 
     /// The drawn rect for a whole `AppState` — the derivation `body` uses,
@@ -1084,11 +1160,28 @@ public struct NotchRootView: View {
             pull: app.pullProgress,
             state: app.state
         )
+        // An anchor change on this display (2026-10-28): the shape starts
+        // where the old one was and eases to `drawn`. A keyframe animator, so
+        // the start is set rather than read from what SwiftUI last drew --
+        // the window moved in the same commit, and what it last drew is in
+        // the old window's coordinates. Stepped evenly, eased by
+        // `AnchorMorph.rect`, the curve `AppDelegate` measures a morph cut
+        // short with. Once it is over, or with no morph, `drawn` as always.
+        let morph = app.morph
+        let from = Self.morphStart(for: app)
+        let pinned = morphTime.map { Self.morphProgress(morph, at: $0) }
         ZStack(alignment: .topLeading) {
             Color.clear
             shape(badge: slot, at: instant)
-                .frame(width: drawn.width, height: drawn.height)
-                .offset(x: drawn.minX, y: drawn.minY)
+                .keyframeAnimator(initialValue: 1.0, trigger: morph) { content, progress in
+                    let step = pinned ?? progress
+                    let rect = from.map { AnchorMorph.rect(from: $0, to: drawn, progress: step) } ?? drawn
+                    content
+                        .frame(width: rect.width, height: rect.height)
+                        .offset(x: rect.minX, y: rect.minY)
+                } keyframes: { _ in
+                    Self.morphKeyframes(morph)
+                }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .animation(NotchMotion.hover, value: app.isHovering)
