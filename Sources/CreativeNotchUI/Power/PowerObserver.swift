@@ -26,7 +26,7 @@ import CreativeNotchCore
 /// simply not read, and the module wakes its consumers only when the level,
 /// the source, the charging state or Low Power Mode actually changes.
 @MainActor
-public final class PowerObserver {
+public final class PowerObserver: PowerStateObserver {
 
     public var onChange: ((PowerSnapshot) -> Void)?
 
@@ -87,6 +87,8 @@ public final class PowerObserver {
     var registrationCount: Int {
         (source == nil ? 0 : 1) + (lowPowerToken == nil ? 0 : 1)
     }
+
+    public var isObserving: Bool { registrationCount > 0 }
 
     /// The run-loop source, so a test can ask the run loop itself whether
     /// it is still installed.

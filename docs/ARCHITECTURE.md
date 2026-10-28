@@ -1115,6 +1115,16 @@ is deliberately stupid — it converts a `CFDictionary` into a `PowerSnapshot`
 and nothing else. Every judgement is a pure, time-injected type in Core:
 `BatteryEstimateGate`, `LowBatteryArming`, `PowerLabel`.
 
+It sits behind `PowerStateObserver`, and a fresh `AppDelegate` holds
+`SandboxPowerObserver`, which registers nothing and reads nothing; only
+`configureForRealLaunch()` hands it `PowerObserver` (`SandboxedSeamsTests`).
+Until 2026-10-28 the delegate built the real one, so every suite that started
+the subsystems read the battery of the Mac it ran on, and below 20% and
+discharging the first snapshot's low-battery peek widened the closed notch
+under an unrelated test. Tests reach every power decision through
+`PowerController.apply` and `AppDelegate.powerDidChange` instead; only
+`PowerObserverTests` start the real observer, to prove its IOKit registration.
+
 ### Joining the activity gate without being switched off
 
 `PowerController.setActivity` suppresses **peeks** and leaves the observer

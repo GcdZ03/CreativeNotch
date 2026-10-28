@@ -122,6 +122,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// provable, like `clipboard` and `media`.
     private(set) var power: PowerController?
 
+    /// Where the power module's snapshots come from (2026-10-28). Sandboxed
+    /// by default like `bluetoothSource`: a fresh delegate registers nothing
+    /// with IOKit and never reads the battery of the Mac the suite runs on,
+    /// whose level once decided whether a test passed (`PowerStateObserver`).
+    /// Only `configureForRealLaunch()` hands it the real `PowerObserver`. Set
+    /// it before `install(metrics:)`, which builds the controller from it.
+    var powerObserver: PowerStateObserver = SandboxPowerObserver()
+
     /// Bluetooth alerts (2026-10-24). Internal rather than private so the
     /// switchboard and the tests can reach its lifecycle, like `power`.
     private(set) var bluetooth: BluetoothController?
@@ -818,6 +826,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // happen only once Bluetooth alerts are switched on.
         bluetoothSource = IOBluetoothSource()
         bluetoothAccess = SystemBluetoothAccess()
+        // Building it registers nothing: the IOKit source and the Low Power
+        // Mode observer are added on `start()`, which the switchboard calls.
+        powerObserver = PowerObserver()
         // Building it asks for nothing: the prompt is `requestTrust()`, and
         // only switching "Keep clear of app menus" on calls it.
         appMenuReader = SystemAppMenuReader()
@@ -1582,7 +1593,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `applicationDidFinishLaunching` / `applicationWillTerminate`,
         // like the clipboard and media controllers — building the wiring
         // here must not register an IOKit callback.
-        let power = PowerController()
+        let power = PowerController(observer: powerObserver)
         power.onSnapshot = { [weak self] snapshot in
             self?.powerDidChange(snapshot)
         }
