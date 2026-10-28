@@ -838,6 +838,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Puts nothing on screen of its own: it animates the panel window,
         // and only when the panel moves to another display.
         panelFader = AnimatedPanelFader()
+        // Likewise: it moves the panel window, only while the pill moves
+        // along its menu bar.
+        panelSlider = AnimatedPanelSlider()
         openBluetoothSettings = { NSWorkspace.shared.open(SystemBluetoothAccess.settingsURL) }
         downloadsDirectory = Self.realDownloadsDirectory
         revealInFinder = { NSWorkspace.shared.activateFileViewerSelecting([$0]) }
@@ -1293,8 +1296,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // places it places it for both.
         hover.pointerLocation = { [weak self] in
             guard let self else { return nil }
-            let screen = self.pointerLocation()
-            return CGPoint(x: screen.x - self.currentFrame.minX, y: screen.y - self.currentFrame.minY)
+            return self.panelLocal(self.pointerLocation())
         }
 
         let container = PassthroughContainer(frame: CGRect(origin: .zero, size: size))
@@ -2007,8 +2009,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// cancels that pending close.
     private func keepOpenIfPointerInside(_ rect: CGRect) {
         guard graceTask != nil, case .open = state.state else { return }
-        let screen = pointerLocation()
-        let local = CGPoint(x: screen.x - currentFrame.minX, y: screen.y - currentFrame.minY)
+        let local = panelLocal(pointerLocation())
         guard rect.contains(local) else { return }
         cancelDismissGrace()
         state.isHovering = true
@@ -2016,6 +2017,19 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     private func area(of rect: CGRect) -> CGFloat { rect.width * rect.height }
+
+    /// `screen`, a point in screen coordinates, in the panel's own, where
+    /// the accepted region is.
+    ///
+    /// From where the window is, not from `currentFrame` (2026-10-28): while
+    /// the pill slides along the bar the geometry is already the
+    /// destination's and the window is still on its way, carrying the shape
+    /// and the region with it. A pointer resting on the pill as it set off
+    /// read as having left it at once.
+    private func panelLocal(_ screen: CGPoint) -> CGPoint {
+        let origin = panel?.frame.origin ?? currentFrame.origin
+        return CGPoint(x: screen.x - origin.x, y: screen.y - origin.y)
+    }
 
     // MARK: - A Space of its own
 
@@ -3052,6 +3066,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// drawn as the new display's in the old place. A move asked for during
     /// a trip replaces the trip's destination rather than queueing behind
     /// it, and a move back to where the panel still is calls the trip off.
+    ///
+    /// The pill moving along its own menu bar -- keeping clear of the menus
+    /// -- slides there instead of jumping (2026-10-28).
     @discardableResult
     func reposition(metrics: ScreenMetrics) -> Bool {
         let anchor = anchor(for: metrics)
@@ -3073,7 +3090,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .stay:
             if handoffTarget != nil { callOffHandoff() }
             return false
-        case .inPlace, .betweenDisplays:
+        case .slide(let slide) where panel != nil:
+            if handoffTarget != nil { callOffHandoff() }
+            return self.slide(anchor: anchor, frame: frame, over: slide)
+        case .inPlace, .betweenDisplays, .slide:
             if handoffTarget != nil { callOffHandoff() }
             return place(anchor: anchor, frame: frame)
         }
@@ -3084,7 +3104,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     @discardableResult
     private func place(anchor: Anchor, frame: CGRect) -> Bool {
         guard state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
-        panel?.setFrame(frame, display: true)
+        if isSliding, let panel {
+            // A frame set on a window still sliding is undone by the
+            // slide's next step; this ends it there.
+            endSlide()
+            panelSlider.stop(panel, at: frame)
+        } else {
+            panel?.setFrame(frame, display: true)
+        }
         // A different display has its own current Space, which the watcher
         // only looks at when the active Space changes. Moved onto a display
         // showing a full-screen app, the panel sat on top of it; moved off
@@ -3185,10 +3212,67 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// A fresh panel is built where it belongs and shown at once: whatever
-    /// trip the last one was on is over.
+    /// trip or slide the last one was on is over.
     private func forgetHandoff() {
         handoffGeneration += 1
         handoffTarget = nil
         isHandingOff = false
+        endSlide()
+    }
+
+    // MARK: - Sliding along the menu bar (2026-10-28)
+
+    /// Slides the window along the menu bar. Instant until the real launch
+    /// swaps in `AnimatedPanelSlider`, so a test that moves the pill need
+    /// await nothing; a wiring test hands in a fake.
+    var panelSlider: PanelSlider = InstantPanelSlider()
+
+    /// Whether the window is on its way to `currentFrame`, so that a frame
+    /// set on it now has to end the slide.
+    private var isSliding = false
+
+    /// Counts slides, so one that a later move replaced does nothing when
+    /// its completion arrives -- AppKit calls it the moment it is replaced.
+    private var slideGeneration = 0
+
+    /// Takes the geometry at once and sends the window after it.
+    ///
+    /// The geometry first, as for any placement: the shape and the accepted
+    /// region are panel-local and the same all the way along, so neither
+    /// changes, and a second move is decided from where the pill is going.
+    /// The window is not put anywhere here: the slider takes it from where
+    /// it is, which during a slide already under way is somewhere along it.
+    ///
+    /// Full screen is checked as for any move: a screen change that slides
+    /// the pill -- its display changing width -- counts on `reposition` to
+    /// have looked, since it moved something.
+    private func slide(anchor: Anchor, frame: CGRect, over slide: PanelSlide) -> Bool {
+        guard let panel, state.setGeometry(anchor: anchor, panelFrame: frame) else { return false }
+        slideGeneration += 1
+        let generation = slideGeneration
+        isSliding = true
+        panelSlider.slide(panel, to: frame, over: slide.duration) { [weak self] in
+            self?.slideEnded(generation)
+        }
+        fullScreenWatcher?.evaluate()
+        return true
+    }
+
+    /// Arrived: on the frame exactly, whatever the last step rounded to, and
+    /// the pointer read again. AppKit says nothing to a tracking area whose
+    /// window moved under a still pointer, so a pill that slid out from under
+    /// it would otherwise be hovered until the pointer next moved.
+    private func slideEnded(_ generation: Int) {
+        guard generation == slideGeneration else { return }
+        endSlide()
+        if let panel, panel.frame != currentFrame {
+            panel.setFrame(currentFrame, display: true)
+        }
+        hoverView?.updateTrackingRect(acceptedRect)
+    }
+
+    private func endSlide() {
+        slideGeneration += 1
+        isSliding = false
     }
 }

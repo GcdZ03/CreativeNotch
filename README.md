@@ -583,7 +583,8 @@ On a display without a notch, the pill sits in the menu bar and, with nothing
 to show, is a small capsule; a badge — the timer, what is playing — widens it
 just enough to fit. Some apps' menus still reach the middle of the menu bar on
 a narrow display: Settings → Display → **Keep clear of app menus** moves the
-pill right of them (it needs Accessibility; see Permissions).
+pill right of them, sliding it along the bar as you switch apps (with Reduce
+Motion on, it moves at once). It needs Accessibility; see Permissions.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

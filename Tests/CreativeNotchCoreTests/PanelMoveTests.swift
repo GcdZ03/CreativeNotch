@@ -3,7 +3,8 @@ import Testing
 import CreativeNotchCore
 
 /// Which way the panel gets to a new geometry (2026-10-28): placed at once on
-/// the display it is on, faded across to another one.
+/// the display it is on, or slid along its bar when it is only the same pill
+/// further along, and faded across to another one.
 ///
 /// The displays are the owner's desk, in AppKit coordinates: the notched
 /// built-in at the origin, a 1920-wide landscape display directly above it,
@@ -75,12 +76,11 @@ struct PanelMoveTests {
 
     // MARK: - The same display
 
-    /// Keeping clear of the menus slides the pill along its own bar: no trip.
-    @Test func thePillMovingAlongItsOwnBarIsInPlace() {
-        let cleared = Anchor.pill(CGRect(x: 700, y: 2036, width: 180, height: 24))
-        let clearedFrame = CGRect(x: 480, y: 1800, width: 620, height: 260)
-        #expect(move(Self.landscapePill, Self.landscapeFrame, to: cleared, clearedFrame, on: Self.landscape)
-                == .inPlace)
+    /// Keeping clear of the menus moves the pill along its own bar: no trip,
+    /// and the same picture 238pt to the right, so it slides there.
+    @Test func thePillMovingAlongItsOwnBarSlides() {
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: Self.cleared, Self.clearedFrame, on: Self.landscape)
+                == .slide(.standard))
     }
 
     /// A new text size is a new frame around the same anchor.
@@ -111,6 +111,72 @@ struct PanelMoveTests {
         let pill = Anchor.pill(CGRect(x: 666, y: 956, width: 180, height: 24))
         let pillFrame = CGRect(x: 446, y: 720, width: 620, height: 260)
         #expect(move(Self.notch, Self.notchFrame, to: pill, pillFrame, on: Self.builtIn) == .inPlace)
+    }
+
+    // MARK: - Sliding (2026-10-28)
+
+    /// The landscape pill moved right of a long menu bar, its frame with it.
+    private static let cleared = Anchor.pill(CGRect(x: 700, y: 2036, width: 180, height: 24))
+    private static let clearedFrame = CGRect(x: 480, y: 1800, width: 620, height: 260)
+
+    /// Reduce Motion: nothing travels, so the pill is placed at once, as it
+    /// always was.
+    @Test func underReduceMotionTheShiftIsPlacedAtOnce() {
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: Self.cleared, Self.clearedFrame,
+                     on: Self.landscape, reduceMotion: true)
+                == .inPlace)
+    }
+
+    /// A real notch sits around the camera. Its rectangle moves only when the
+    /// display changes mode, and a drawn notch sliding there would leave the
+    /// hardware one for a quarter of a second.
+    @Test func theNotchMovingSidewaysIsPlacedAtOnce() {
+        let shifted = Anchor.notch(CGRect(x: 642, y: 952, width: 185, height: 30))
+        let shiftedFrame = CGRect(x: 424, y: 722, width: 620, height: 260)
+        #expect(move(Self.notch, Self.notchFrame, to: shifted, shiftedFrame, on: Self.builtIn) == .inPlace)
+    }
+
+    /// Near the right edge the panel stops at the display's edge while the
+    /// pill goes on, so the pill is somewhere else inside the window: moving
+    /// the window would not take the drawing to where it ends up.
+    @Test func aShiftThePanelEdgeStopsIsPlacedAtOnce() {
+        let farRight = Anchor.pill(CGRect(x: 1150, y: 2036, width: 180, height: 24))
+        let clampedFrame = CGRect(x: 892, y: 1800, width: 620, height: 260)
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: farRight, clampedFrame, on: Self.landscape)
+                == .inPlace)
+    }
+
+    /// A pill of another size -- the menu bar's height changed with it -- is
+    /// a new shape, not the same one moved.
+    @Test func aPillOfAnotherSizeIsPlacedAtOnce() {
+        let taller = Anchor.pill(CGRect(x: 700, y: 2036, width: 180, height: 30))
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: taller, Self.clearedFrame, on: Self.landscape)
+                == .inPlace)
+    }
+
+    /// A new frame size with the shift -- a new text size or panel width at
+    /// the same moment -- relays the panel out, so it is placed at once.
+    @Test func aShiftWithANewFrameSizeIsPlacedAtOnce() {
+        let wider = CGRect(x: 480, y: 1800, width: 680, height: 260)
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: Self.cleared, wider, on: Self.landscape)
+                == .inPlace)
+    }
+
+    /// Sideways only. The mode change above moves the pill and its frame down
+    /// together, the same picture lower; a slide is along the bar, never
+    /// across the menu bar.
+    @Test func aShiftDownIsNotASlide() {
+        let lower = Anchor.pill(CGRect(x: 700, y: 2006, width: 180, height: 24))
+        let lowerFrame = CGRect(x: 480, y: 1770, width: 620, height: 260)
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: lower, lowerFrame, on: Self.landscape)
+                == .inPlace)
+    }
+
+    /// Long enough to be seen travelling, short enough to be over before the
+    /// eye has gone from the menus to the pill.
+    @Test func theSlideIsShort() {
+        #expect(PanelSlide.standard.duration >= 0.2)
+        #expect(PanelSlide.standard.duration <= 0.3)
     }
 
     // MARK: - The trip itself
