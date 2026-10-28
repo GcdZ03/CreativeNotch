@@ -106,7 +106,10 @@ The pill floats inside the menu bar, inset from both its edges, rather than
 hanging from the screen edge. It used to hang 8pt below the menu bar, where a
 maximised window starts, and covered a browser's tab strip on every external
 display (2026-10-26). With the menu bar auto-hidden there is no band to sit
-in, and it keeps that old place.
+in, and it keeps that old place. Coming back up into the menu bar the shape
+morphs rather than jumping; going down out of it, it fades out and back in on
+the spot, since its window comes down 6pt and could not show where it was (see
+Motion and input).
 
 In the menu bar, the pill shares the bar with the app's menus, which macOS lays
 out from the left edge knowing nothing of it. Two things keep it off them
@@ -131,7 +134,8 @@ out from the left edge knowing nothing of it. Two things keep it off them
   display, menus that overflow carry on right of the camera, and that gap is
   not on the display with the pill. Switching it on is the only place the
   Accessibility prompt is shown; the reader in tests is a sandbox that is
-  never trusted.
+  never trusted. The pill slides to its new place rather than jumping (see
+  Motion and input).
 
 **Coordinates are bottom-left origin, y increasing upward.** `frame.maxY` is
 the top of the screen. A notch rect sits at `y = frame.maxY - inset` with
@@ -549,7 +553,8 @@ in posts `didChangeScreenParameters`, the rule is asked again and finds it.
 The Settings menu's per-display entries come from `AppState.connectedDisplays`,
 re-read when Settings is shown and on that same notification, never polled.
 Changing the setting repositions at once. Moving to another display goes through `reposition`,
-which re-checks full screen there.
+which fades the panel across (see Motion and input) and re-checks full screen
+once it has moved there, before it fades in.
 
 ## Motion and input
 
@@ -583,6 +588,149 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   hears the same tone, "…, low", from `PowerGaugeTone.spokenLabel` —
   `TimerDisplay.caption` says "paused" beside the panel's dimmed digits, and
   the ear's timer badge draws a pause glyph ahead of its dimmed digits.
+- **Between displays it fades (2026-10-28).** Following focus used to make the
+  notch vanish from one display and appear on the other in the same frame —
+  measured, one step of the window's bounds with its alpha at 1 throughout.
+  `PanelMove` (Core) now decides how each new geometry is reached: the same
+  geometry stays, a move on the display the panel is on is placed at once (or
+  slid, or morphed, below), and a move to another display is a `DisplayHandoff` — the window fades out
+  (0.08s), moves while invisible, and fades in (0.18s) with its content
+  dropping 6pt out of the top edge. Under Reduce Motion it fades without the
+  drop. "The same display" is the destination's frame overlapping the window
+  where it stands, not equal metrics and not the anchor's centre: a display
+  stacked above the built-in one switching mode kept its bottom edge and
+  brought its top down 30pt, leaving the pill's old centre above the display
+  it was still on. The fades are the window's own alpha through
+  `AnimatedPanelFader`, so the SwiftUI tree is not redrawn for them, and the
+  drop is a Core Animation offset on the content's layer, clipped by the
+  window — moving the window itself up would show a sliver of black on the
+  bottom of the display above the built-in one. `AppState`'s geometry changes
+  only once the window is invisible, so the shape is never drawn as the new
+  display's in the old place. A move asked for during the fade-out replaces
+  its destination (the last display asked for wins, nothing queues); one back
+  to where the panel still is fades it back in on the spot; one during the
+  fade-in fades it out again from where it got to. A trip counter makes a
+  superseded fade's completion do nothing. The accepted region is empty from
+  the start of the fade-out until the fade-in ends, then is the new shape at
+  once — it was drawn whole when the window moved — unless the state changed
+  meanwhile, or just before the trip while the region was still trailing its
+  spring, when the growth lag applies as usual. The launch, and any panel
+  built afresh, is placed without a fade. The fader is a seam:
+  `InstantPanelFader` by default, so no suite awaits a trip, the animated one
+  from `configureForRealLaunch`, and a fake that holds each completion in
+  `DisplayHandoffWiringTests`.
+- **Along the menu bar it slides (2026-10-28).** Keeping clear of the menus
+  moved the pill sideways in one frame on every switch between apps with long
+  and short menus. When a move on the same display is the same picture further
+  along — a pill both times, of one size, in a window of one size and one top,
+  at the same place inside it (`PanelMove.isAlongTheBar`) — it is a
+  `PanelSlide` of 0.25s. The window slides, not the shape inside it:
+  `AnimatedPanelSlider` animates the frame with `NSAnimationContext`, AppKit
+  steps it on the main thread (measured, every ~8.5ms), and the window server
+  draws each step from what it has, so nothing in the SwiftUI tree is laid out
+  or redrawn on the way (profiled: SwiftUI in 2 of the main thread's 1ms
+  samples over twelve slides). The accepted region and the hover rect are
+  panel-local, so they ride with the shape the whole way and never empty;
+  the pointer is read against where the window is (`panelLocal`), not
+  `currentFrame`, which is already the destination's, and read again when
+  the slide ends, since AppKit says nothing when a window moves under a still
+  pointer. A second move halfway sets off again from where the window has got
+  to; a placement that is not a slide (a new text size, a trip) ends the slide
+  with an animated frame of no duration, because a frame simply set on a
+  window still animating is undone by its next step; a slide counter makes a
+  replaced slide's completion do nothing, and the one that finishes puts the
+  window on its frame exactly. Full screen is re-checked as for any move, so a
+  display narrowing under the pill still counts as a screen change. A real notch never slides (it would leave the
+  camera), nor a pill whose window the display's edge stops while the pill
+  goes on (that one morphs, below). Under Reduce Motion the pill is placed at once, as before: a fade
+  would blink it out and back in the one place on every switch. The slider is
+  a seam like the fader: `InstantPanelSlider` by default, the animated one
+  from `configureForRealLaunch`, a fake in `PanelSlideWiringTests`.
+- **On its own display the shape morphs (2026-10-28).** The anchor changing on
+  the display the panel is on snapped too. Reading `NotchGeometry.anchor` and
+  every caller of `reposition`, four kinds of change reach it, and only some
+  change the anchor: the notch becoming a pill, or back, when the built-in
+  switches to a mode without the notch's band (the one way a notched display
+  stops reporting its notch); the pill going between the menu bar and 8pt below
+  the top when the measured menu bar comes or goes (auto-hide switched, or
+  "Displays have separate Spaces" taking a secondary display's menu bar away);
+  "Keep clear of app menus" moving the pill where the display's edge stops its
+  window; and Settings -- text size, panel width, a tab coming or going --
+  which keep the anchor and grow the window around it. `PanelMove.reshaping`
+  decides them all. The same anchor is placed at once: closed, the shape does
+  not move on screen at all (measured: the capsule pixel-identical in every
+  frame across three text sizes, the window one step each), and open, the
+  content is laid out at its new size at once and a slab growing around it
+  would show it spilling out. A notch becoming another notch is placed at
+  once: the hardware does not move. Otherwise the shape as drawn now is
+  carried into the new window at the same place on its display, measured from
+  the display's top centre (a mode change moves the top, and `shownDisplay`
+  remembers which display the shape was placed on). If that is where the new
+  shape is drawn, nothing on screen moved and it is placed at once (the
+  1920/1680 mode flip still steps the window once, as before); if the new
+  window holds it, it is an `AnchorMorph`; and if not -- the notch is flush
+  with the top and the pill's window hangs 2pt lower, the pill coming down out
+  of the menu bar starts above its new window, the open panel moved at all --
+  it fades out and back in on the spot (`DisplayHandoff.onTheSpot`, 0.08s and
+  0.15s, no drop) through the trip's own steps. A morph places the window at
+  once, as before, and sets `AppState.morph` in the same `setGeometry`, so
+  `NotchRootView` draws the first frame in the moved window where the old
+  shape was and a keyframe animator eases it (cubic ease-out, never past the
+  end, 0.25s like the slide) to the new one; nothing is animated once it is
+  there (measured: 0.00s of CPU over 10s after one). The accepted region and
+  the hover rect are what the old and new shapes share until the morph is
+  over -- every eased step covers that -- then the new shape at once.
+  Interruptions: a state change ends the morph and leaves the shape and the
+  region to its spring; a second change halfway morphs from where the shape
+  has got to (`mediaTime`, on the curve the view draws); a slide during a
+  morph keeps it, and a morph during a slide starts from where the window has
+  slid to, not the slide's end; a morph that calls a fade off fades the window
+  back in on the spot while the region stays the shared one until the morph
+  ends, and a morph whose time is up during a fade leaves the region empty
+  until the fade-in is over; a fresh panel ends any morph; a morph counter
+  makes a replaced one's completion do nothing. After review (2026-10-28):
+  a state change that cuts a morph short leaves the region at what the morph
+  shared that the new shape keeps, and the whole of it after the growth lag
+  even when shrinking, since its spring starts from the morph's middle and
+  need not cover the new shape yet; a new window around the same anchor
+  halfway through (a text size, a notch of another size) morphs on from where
+  the shape has got to instead of jumping it to the end; a change of anchor
+  while a state's spring is still carrying the shape (`NotchMotion.springCarries`,
+  0.8s, the opening spring's settling time) fades on the spot, since
+  `visibleRect()` is where the spring is going and a morph from there jumped a
+  growing peek to full size -- a fixed window after any state change, so one
+  within 0.8s of a close fades too, though a close settles in 0.40s, which
+  errs to a fade and never a jump; and a trip carries its fade with its
+  destination, so a fade on the spot redirected to another display arrives
+  with the drop and a trip redirected to a fade on the spot without one. What the view draws
+  is rendered at pinned instants of a morph (`NotchRootView.morphTime`, through
+  the same keyframes the animator plays) in `AnchorMorphRenderingTests`.
+  The live path, `pinned ?? progress` falling through to the animator's
+  progress, is not: `ImageRenderer` cannot run the animator, so a mutation
+  that ignores the live progress (every morph jumping to its end) passes the
+  suites, and only the on-screen runs below cover it.
+  Under Reduce Motion a change
+  of shape fades on the spot, and the same pill keeping clear of the menus is
+  placed at once, as when it slides. The morpher is a seam like the fader:
+  `InstantPanelMorpher` by default, `AnimatedPanelMorpher` (one block on the
+  main queue per morph) from `configureForRealLaunch`, a fake in
+  `AnchorMorphWiringTests`. Measured with the menu bar or the notch faked away
+  in a scratch build (no system setting may be changed for it): the pill rising
+  into the menu bar morphed in 8-10 frames over ~200ms at 60Hz, the pill
+  becoming the notch in 25-26 frames over ~240ms at 120Hz, never outside the
+  two shapes, and the fades on the spot settled in 220-250ms. In 1 of 23
+  morphs at 60Hz the window's move reached the screen one frame before
+  SwiftUI's commit, showing the old layout 6pt up for that frame: the window
+  server takes a move at once and the content at the next commit, which any
+  placement that moves the window and changes its layout shares (none in 40
+  snaps on the branch before this one). It stays open: a second run of 54
+  morphs after review showed none, 1 in 77 in all, and closing it would mean
+  forcing a SwiftUI layout pass and a Core Animation flush before every window
+  move, which no run of a reasonable length could show had worked. The same
+  review run re-checked what the morph's keyframe animator wraps: hover-opening
+  and closing the panel on the built-in drew the same curves as on `main`
+  (full height 225-242ms, settled 517-533ms, the same 5.9pt overshoot; closed
+  in 346-358ms, never undershooting).
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.
@@ -1119,6 +1267,16 @@ are notifications; there is no timer, no poller, and no permission prompt.
 is deliberately stupid — it converts a `CFDictionary` into a `PowerSnapshot`
 and nothing else. Every judgement is a pure, time-injected type in Core:
 `BatteryEstimateGate`, `LowBatteryArming`, `PowerLabel`.
+
+It sits behind `PowerStateObserver`, and a fresh `AppDelegate` holds
+`SandboxPowerObserver`, which registers nothing and reads nothing; only
+`configureForRealLaunch()` hands it `PowerObserver` (`SandboxedSeamsTests`).
+Until 2026-10-28 the delegate built the real one, so every suite that started
+the subsystems read the battery of the Mac it ran on, and below 20% and
+discharging the first snapshot's low-battery peek widened the closed notch
+under an unrelated test. Tests reach every power decision through
+`PowerController.apply` and `AppDelegate.powerDidChange` instead; only
+`PowerObserverTests` start the real observer, to prove its IOKit registration.
 
 ### Joining the activity gate without being switched off
 

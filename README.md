@@ -558,7 +558,9 @@ The panel is hidden entirely over full-screen apps, so it never covers a film
 or a presentation.
 
 With more than one display, the notch follows the display with the focused
-window, moving when you switch to an app on another one or switch desktops. A
+window, moving when you switch to an app on another one or switch desktops. It
+fades out where it was and drops in on the other display in about a quarter of
+a second (with Reduce Motion on, it only fades). A
 window spread across two displays counts as on the one holding most of it.
 Moving between two windows of the same app on different displays (two Chrome
 windows, by click or ⌘\`), or dragging the window you are in onto another
@@ -581,7 +583,14 @@ On a display without a notch, the pill sits in the menu bar and, with nothing
 to show, is a small capsule; a badge — the timer, what is playing — widens it
 just enough to fit. Some apps' menus still reach the middle of the menu bar on
 a narrow display: Settings → Display → **Keep clear of app menus** moves the
-pill right of them (it needs Accessibility; see Permissions).
+pill right of them, sliding it along the bar as you switch apps (with Reduce
+Motion on, it moves at once). It needs Accessibility; see Permissions. When the
+menu bar comes back, or a notched display switches back to a resolution with
+the notch area, the pill changes shape where it is in about a quarter of a
+second rather than jumping. The other way, when the menu bar is hidden or the
+notch area goes, the shape would start above its new place, so it fades out
+and back in on the spot instead; with Reduce Motion on, every one of these
+fades.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

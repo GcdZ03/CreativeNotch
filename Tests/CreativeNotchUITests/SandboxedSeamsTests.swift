@@ -50,6 +50,16 @@ struct SandboxedSeamsTests {
         // come from a delegate a test built.
         #expect(delegate.bluetoothSource is SandboxBluetoothSource)
         #expect(delegate.bluetoothAccess is SandboxBluetoothAccess)
+
+        // Power (2026-10-28): no IOKit registration, and never the battery
+        // of the Mac the suite runs on -- below 20% and discharging, a real
+        // reading put a low-battery peek in front of an unrelated test.
+        // Asked of the controller `install` built, not only of the seam, so
+        // an `install` that builds its own `PowerObserver` fails here too.
+        #expect(delegate.powerObserver is SandboxPowerObserver)
+        let power = try #require(delegate.power)
+        #expect(power.observer is SandboxPowerObserver)
+        #expect(power.observer === delegate.powerObserver)
     }
 
     /// Two delegates never share a sandbox, so one test's shelf cannot leak
@@ -79,6 +89,8 @@ struct SandboxedSeamsTests {
         // Constructing these registers nothing and prompts for nothing.
         #expect(delegate.bluetoothSource is IOBluetoothSource)
         #expect(delegate.bluetoothAccess is SystemBluetoothAccess)
+        // Constructed, never started: building it registers nothing.
+        #expect(delegate.powerObserver is PowerObserver)
         // Constructed, never used: building it touches no notification center.
         #expect(delegate.timerNotices is SystemTimerNotices)
     }
