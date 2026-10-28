@@ -889,9 +889,21 @@ public struct NotchRootView: View {
     /// showing. `nil` keeps the live per-evaluation read.
     let now: Date?
 
-    public init(app: AppState, now: Date? = nil) {
+    /// The instant into a morph the shape is drawn at, in seconds, or `nil`
+    /// to let the keyframe animator step it (2026-10-28, review of #81).
+    ///
+    /// Pinned the way `now` is, for a render: `ImageRenderer` draws one
+    /// frame and never runs the animator, so without it no test could see
+    /// where a morph draws the shape. The pinned instant is read through the
+    /// same keyframes and the same content closure as the live one
+    /// (`morphKeyframes`), so a render at 0 shows what the first frame of a
+    /// real morph does.
+    let morphTime: Double?
+
+    public init(app: AppState, now: Date? = nil, morphTime: Double? = nil) {
         self.app = app
         self.now = now
+        self.morphTime = morphTime
     }
 
     /// The drawn region, in the top-left-origin space SwiftUI lays out in.
@@ -939,6 +951,24 @@ public struct NotchRootView: View {
             width: from.width,
             height: from.height
         )
+    }
+
+    /// The morph's progress over its time (2026-10-28): from 0, where the
+    /// old shape was, evenly to 1 over the morph's duration, eased by
+    /// `AnchorMorph.rect`. Held at 1, the shape at rest, with no morph.
+    /// Static so a pinned render reads the same keyframes the animator
+    /// plays (`morphTime`).
+    @KeyframesBuilder<Double>
+    static func morphKeyframes(_ morph: ShapeMorph?) -> some Keyframes<Double> {
+        KeyframeTrack {
+            MoveKeyframe(morph == nil ? 1.0 : 0.0)
+            LinearKeyframe(1.0, duration: morph?.morph.duration ?? 0)
+        }
+    }
+
+    /// Where `morphKeyframes` has the progress `time` seconds in.
+    static func morphProgress(_ morph: ShapeMorph?, at time: Double) -> Double {
+        KeyframeTimeline(initialValue: 1.0) { morphKeyframes(morph) }.value(time: time)
     }
 
     /// The drawn rect for a whole `AppState` — the derivation `body` uses,
@@ -1139,19 +1169,18 @@ public struct NotchRootView: View {
         // short with. Once it is over, or with no morph, `drawn` as always.
         let morph = app.morph
         let from = Self.morphStart(for: app)
+        let pinned = morphTime.map { Self.morphProgress(morph, at: $0) }
         ZStack(alignment: .topLeading) {
             Color.clear
             shape(badge: slot, at: instant)
                 .keyframeAnimator(initialValue: 1.0, trigger: morph) { content, progress in
-                    let rect = from.map { AnchorMorph.rect(from: $0, to: drawn, progress: progress) } ?? drawn
+                    let step = pinned ?? progress
+                    let rect = from.map { AnchorMorph.rect(from: $0, to: drawn, progress: step) } ?? drawn
                     content
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 } keyframes: { _ in
-                    KeyframeTrack {
-                        MoveKeyframe(morph == nil ? 1.0 : 0.0)
-                        LinearKeyframe(1.0, duration: morph?.morph.duration ?? 0)
-                    }
+                    Self.morphKeyframes(morph)
                 }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

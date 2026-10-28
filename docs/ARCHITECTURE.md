@@ -106,8 +106,10 @@ The pill floats inside the menu bar, inset from both its edges, rather than
 hanging from the screen edge. It used to hang 8pt below the menu bar, where a
 maximised window starts, and covered a browser's tab strip on every external
 display (2026-10-26). With the menu bar auto-hidden there is no band to sit
-in, and it keeps that old place; going between the two, the shape morphs
-rather than jumping (see Motion and input).
+in, and it keeps that old place. Coming back up into the menu bar the shape
+morphs rather than jumping; going down out of it, it fades out and back in on
+the spot, since its window comes down 6pt and could not show where it was (see
+Motion and input).
 
 In the menu bar, the pill shares the bar with the app's menus, which macOS lays
 out from the left edge knowing nothing of it. Two things keep it off them
@@ -681,7 +683,22 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   back in on the spot while the region stays the shared one until the morph
   ends, and a morph whose time is up during a fade leaves the region empty
   until the fade-in is over; a fresh panel ends any morph; a morph counter
-  makes a replaced one's completion do nothing. Under Reduce Motion a change
+  makes a replaced one's completion do nothing. After review (2026-10-28):
+  a state change that cuts a morph short leaves the region at what the morph
+  shared that the new shape keeps, and the whole of it after the growth lag
+  even when shrinking, since its spring starts from the morph's middle and
+  need not cover the new shape yet; a new window around the same anchor
+  halfway through (a text size, a notch of another size) morphs on from where
+  the shape has got to instead of jumping it to the end; a change of anchor
+  while a state's spring is still carrying the shape (`NotchMotion.springCarries`,
+  0.9s, the opening spring's settling time) fades on the spot, since
+  `visibleRect()` is where the spring is going and a morph from there jumped a
+  growing peek to full size; and a trip carries its fade with its destination,
+  so a fade on the spot redirected to another display arrives with the drop
+  and a trip redirected to a fade on the spot without one. What the view draws
+  is rendered at pinned instants of a morph (`NotchRootView.morphTime`, through
+  the same keyframes the animator plays) in `AnchorMorphRenderingTests`.
+  Under Reduce Motion a change
   of shape fades on the spot, and the same pill keeping clear of the menus is
   placed at once, as when it slides. The morpher is a seam like the fader:
   `InstantPanelMorpher` by default, `AnimatedPanelMorpher` (one block on the
@@ -695,7 +712,14 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   SwiftUI's commit, showing the old layout 6pt up for that frame: the window
   server takes a move at once and the content at the next commit, which any
   placement that moves the window and changes its layout shares (none in 40
-  snaps on the branch before this one).
+  snaps on the branch before this one). It stays open: a second run of 54
+  morphs after review showed none, 1 in 77 in all, and closing it would mean
+  forcing a SwiftUI layout pass and a Core Animation flush before every window
+  move, which no run of a reasonable length could show had worked. The same
+  review run re-checked what the morph's keyframe animator wraps: hover-opening
+  and closing the panel on the built-in drew the same curves as on `main`
+  (full height 225-242ms, settled 517-533ms, the same 5.9pt overshoot; closed
+  in 346-358ms, never undershooting).
 - **Drawn-only reactions.** The hover growth (`hoverInflated`) and a swipe's
   pull (`pulled`) change the *drawn* rect and never the accepted one, which
   keeps the accepted region no larger than what is drawn.

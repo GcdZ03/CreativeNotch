@@ -159,6 +159,12 @@ struct TabRenderingTests {
     /// only then (spec 2026-10-15). The exemption is by file, not by
     /// token, so a loop anywhere else still fails here, and `TimelineView`
     /// stays banned even there.
+    ///
+    /// The animators that loop are banned too (2026-10-28, review of #81):
+    /// a keyframe animator told to repeat, and a phase animator with no
+    /// trigger, which cycles its phases for as long as it is on screen. A
+    /// keyframe animator on a trigger -- the morph's -- plays once per
+    /// change and is allowed.
     @Test func noStockControlStyleOrRepeatingAnimationSurvivesInTheUI() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -179,7 +185,49 @@ struct TabRenderingTests {
                 if token == ".repeatForever", loopAllowed.contains(url.lastPathComponent) { continue }
                 #expect(!code.contains(token), "\(url.lastPathComponent) still uses \(token)")
             }
+            for call in Self.loopingAnimators(in: code) {
+                Issue.record("\(url.lastPathComponent) loops an animator: \(call)")
+            }
         }
+    }
+
+    /// The keyframe and phase animator calls in `code` that loop: a
+    /// keyframe animator whose arguments say `repeating:`, and a phase
+    /// animator whose arguments have no `trigger:`. The arguments are read
+    /// to their closing bracket, so a nested call in them is not the end.
+    static func loopingAnimators(in code: String) -> [String] {
+        var found: [String] = []
+        for name in ["keyframeAnimator(", "KeyframeAnimator(", "phaseAnimator(", "PhaseAnimator("] {
+            var rest = code[...]
+            while let hit = rest.range(of: name) {
+                var depth = 1
+                var end = hit.upperBound
+                while end < rest.endIndex, depth > 0 {
+                    if rest[end] == "(" { depth += 1 }
+                    if rest[end] == ")" { depth -= 1 }
+                    end = rest.index(after: end)
+                }
+                let call = String(rest[hit.lowerBound..<end])
+                let loops = name.lowercased().hasPrefix("keyframe")
+                    ? call.contains("repeating:")
+                    : !call.contains("trigger:")
+                if loops { found.append(call) }
+                rest = rest[end...]
+            }
+        }
+        return found
+    }
+
+    /// The reader above, on calls written out: it is what decides, and a
+    /// reader that found nothing would pass the ban whatever the UI did.
+    @Test func theLoopingAnimatorsAreTheOnesThatRepeat() {
+        #expect(Self.loopingAnimators(in: ".keyframeAnimator(initialValue: 1.0, trigger: morph) { c, v in c }").isEmpty)
+        #expect(Self.loopingAnimators(in: ".keyframeAnimator(initialValue: CGSize(width: 1, height: 2), repeating: true) { c, v in c }").count == 1)
+        #expect(Self.loopingAnimators(in: "KeyframeAnimator(initialValue: 0.0, repeating: true) { v in }").count == 1)
+        #expect(Self.loopingAnimators(in: ".phaseAnimator([0.0, 1.0]) { c, p in c }").count == 1)
+        #expect(Self.loopingAnimators(in: "PhaseAnimator([false, true]) { p in }").count == 1)
+        #expect(Self.loopingAnimators(in: ".phaseAnimator([0.0, 1.0], trigger: tick) { c, p in c }").isEmpty)
+        #expect(Self.loopingAnimators(in: "[UInt32](repeating: 0, count: 4)").isEmpty)
     }
 
     @Test func theTrackFillsFromCore() throws {

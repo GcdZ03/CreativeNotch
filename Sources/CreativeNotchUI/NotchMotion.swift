@@ -28,6 +28,13 @@ enum NotchMotion {
         return growing ? open : close
     }
 
+    /// How long, at most, the spring a state change starts carries the
+    /// shape, in seconds (2026-10-28, review of #81). The opening spring
+    /// settles to within 0.1% in 0.85s, the closing one in 0.40s, Reduce
+    /// Motion's ease in 0.2s. An anchor change inside it cannot say where
+    /// the shape is drawn, so it does not morph (`AppDelegate.isSpringing`).
+    static let springCarries: Double = 0.9
+
     /// Whether the now-playing cover slides between states. Under Reduce
     /// Motion it cross-fades instead: a cover travelling across the top of
     /// the screen is exactly the kind of motion the setting asks to avoid.

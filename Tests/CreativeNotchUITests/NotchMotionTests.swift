@@ -47,6 +47,20 @@ struct NotchMotionTests {
         #expect(AppDelegate.defaultGrowthDelay == .milliseconds(Int(NotchMotion.openResponse * 1000)))
     }
 
+    /// How long the app treats a state's spring as still carrying the shape
+    /// (2026-10-28, review of #81): at least as long as either spring takes
+    /// to settle, or an anchor change near its end would morph from where it
+    /// is going; and not much longer, or a change long after it would fade
+    /// where it could morph. The springs are written out, as `open` and
+    /// `close` define them.
+    @Test func theSpringIsTreatedAsCarryingTheShapeUntilItSettles() {
+        let open = Spring(response: NotchMotion.openResponse, dampingRatio: 0.74).settlingDuration
+        let close = Spring(response: 0.26, dampingRatio: 1.0).settlingDuration
+        #expect(open <= NotchMotion.springCarries)
+        #expect(close <= NotchMotion.springCarries)
+        #expect(NotchMotion.springCarries - open < 0.1)
+    }
+
     // MARK: - Hover reacts at once, in the drawing only
 
     private static let closedDrawn = CGRect(x: 195, y: 0, width: 230, height: 38)

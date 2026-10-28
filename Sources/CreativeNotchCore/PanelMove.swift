@@ -54,11 +54,26 @@ public enum PanelMove: Equatable, Sendable {
         /// moves the display's top under the shape, and where the shape was
         /// is where it was *on its display*.
         public var display: CGRect
+        /// Whether `before` is part way through a morph (2026-10-28, review
+        /// of #81). A new window around the same anchor -- a text size
+        /// changed halfway -- then morphs on from there rather than placing
+        /// the shape at its end at once.
+        public var isMorphing: Bool
+        /// Whether a state's spring is still carrying the shape (2026-10-28,
+        /// review of #81). `before` is then where that spring is going, not
+        /// where it has got to, and a morph from it would jump the shape
+        /// there on its first frame: it fades on the spot instead.
+        public var isSpringing: Bool
 
-        public init(before: CGRect, after: CGRect, display: CGRect) {
+        public init(
+            before: CGRect, after: CGRect, display: CGRect,
+            isMorphing: Bool = false, isSpringing: Bool = false
+        ) {
             self.before = before
             self.after = after
             self.display = display
+            self.isMorphing = isMorphing
+            self.isSpringing = isSpringing
         }
     }
 
@@ -123,6 +138,14 @@ public enum PanelMove: Equatable, Sendable {
     /// Under Reduce Motion nothing travels: a change of shape fades on the
     /// spot, and the same pill keeping clear of the menus is placed at once,
     /// as when it slides, since a fade would blink it on every switch.
+    ///
+    /// Two things the shape may be doing meanwhile (2026-10-28, review of
+    /// #81). Part way through a morph, a new window around the same anchor
+    /// morphs on from where the shape has got to, carried into it as any
+    /// morph's start is: placed at once, it jumped to the morph's end. And
+    /// while a state's spring carries the shape, where it is drawn is
+    /// nowhere `before` can say, so it cannot morph from there; it fades on
+    /// the spot, and the window moves while nothing is drawn in it.
     static func reshaping(
         _ shown: Anchor, frame shownFrame: CGRect,
         to anchor: Anchor, frame: CGRect,
@@ -130,14 +153,17 @@ public enum PanelMove: Equatable, Sendable {
         reduceMotion: Bool,
         drawn: Drawn
     ) -> PanelMove {
-        if shown == anchor || (shown.isNotch && anchor.isNotch) { return .inPlace }
+        let sameShape = shown == anchor || (shown.isNotch && anchor.isNotch)
+        if sameShape && !drawn.isMorphing { return .inPlace }
         let from = carried(drawn.before, from: shownFrame, on: drawn.display, into: frame, on: screen)
         if from == drawn.after { return .inPlace }
+        let holds = CGRect(origin: .zero, size: frame.size).contains(from)
+        if sameShape { return holds && !reduceMotion ? .morph(AnchorMorph(from: from)) : .inPlace }
         if reduceMotion {
             let samePill = !shown.isNotch && !anchor.isNotch && shown.rect.size == anchor.rect.size
             return samePill ? .inPlace : .fadeInPlace(.onTheSpot)
         }
-        guard CGRect(origin: .zero, size: frame.size).contains(from) else { return .fadeInPlace(.onTheSpot) }
+        guard holds, !drawn.isSpringing else { return .fadeInPlace(.onTheSpot) }
         return .morph(AnchorMorph(from: from))
     }
 

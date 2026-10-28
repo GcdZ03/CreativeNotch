@@ -383,6 +383,112 @@ struct AnchorMorphWiringTests {
         #expect(d.state.morph == nil)
     }
 
+    // MARK: - Follow-ups from the review of #81
+
+    /// A peek just shown, its spring still growing it, when the menu bar
+    /// comes back: where the shape is drawn is not the peek's end, which is
+    /// all the app knows, and a morph from there jumped it to full size on
+    /// the first frame. It fades on the spot. Once the spring has had its
+    /// time, the same change morphs.
+    @Test func aChangeWhileAStateSpringCarriesTheShapeFadesOnTheSpot() throws {
+        let peek = NotchState.peek(.power(.unplugged(level: 66)))
+        let (d, morpher, fader, display, clock) = make(on: Self.portraitNoMenuBar)
+        d.state.transition(to: peek)
+        clock.now += 0.1
+
+        change(display, to: Self.portrait, d)
+        #expect(morpher.calls.isEmpty)
+        #expect(d.state.morph == nil)
+        #expect(fader.calls == [.fadeOut(DisplayHandoff.onTheSpot.fadeOut)])
+
+        let (settled, settledMorpher, settledFader, settledDisplay, settledClock) = make(on: Self.portraitNoMenuBar)
+        settled.state.transition(to: peek)
+        settledClock.now += NotchMotion.springCarries
+
+        change(settledDisplay, to: Self.portrait, settled)
+        #expect(settledMorpher.calls == [AnchorMorph.standardDuration])
+        #expect(settled.state.morph != nil)
+        #expect(settledFader.calls.isEmpty)
+    }
+
+    /// The peek going away halfway through a morph: its closing spring takes
+    /// the shape from the morph's middle, 6pt short of the menu bar's top,
+    /// and the closed capsule up there is not drawn yet. The region keeps to
+    /// what the morph shared that the capsule keeps, and takes the capsule
+    /// whole once the spring has had the growth lag -- not at once, as a
+    /// shrinking state otherwise does.
+    @Test func aShrinkingStateEndingAMorphKeepsTheRegionToWhatIsDrawn() async throws {
+        let (d, _, _, display, clock) = make(on: Self.portraitNoMenuBar)
+        d.state.transition(to: .peek(.power(.unplugged(level: 66))))
+        clock.now += NotchMotion.springCarries
+        change(display, to: Self.portrait, d)
+        let morph = try #require(d.state.morph)
+        #expect(morph.morph.from.maxY == 254)
+        let shared = d.acceptedRect
+        d.growthDelay = .milliseconds(1)
+
+        d.state.transition(to: .closed)
+        #expect(d.state.morph == nil)
+        #expect(d.acceptedRect == shared.intersection(Self.inBar))
+        #expect(d.acceptedRect.maxY == 254)
+        #expect(d.growthTask != nil)
+
+        await d.growthTask?.value
+        #expect(d.acceptedRect == Self.inBar)
+    }
+
+    /// A new text size halfway through a morph keeps the anchor and grows
+    /// the window around it. Placed at once, it ended the morph and the
+    /// shape jumped to its end; it morphs on from where it has got to,
+    /// carried into the grown window.
+    @Test func aNewTextSizeHalfwayThroughAMorphMorphsOn() throws {
+        let (d, morpher, fader, display, clock) = make(on: Self.portraitNoMenuBar)
+        let panel = try #require(d.panel)
+        change(display, to: Self.portrait, d)
+        let before = d.currentFrame
+        clock.now += AnchorMorph.standardDuration / 2
+
+        d.state.onSetTextSize?(.larger)
+        let after = d.currentFrame
+        #expect(after.size != before.size)
+        #expect(panel.frame == after)
+        let halfway = AnchorMorph.rect(from: Self.belowBarInBarWindow, to: Self.inBar, progress: 0.5)
+        let carried = halfway.offsetBy(dx: before.minX - after.minX, dy: before.minY - after.minY)
+        #expect(d.state.morph?.morph == AnchorMorph(from: carried))
+        #expect(morpher.calls.count == 2)
+        #expect(fader.calls.isEmpty)
+    }
+
+    /// A fade on the spot turned into a trip to another display before it
+    /// had faded out: it arrives there as a trip does, with the drop. Kept
+    /// on the trip it set out on, it came in from nowhere.
+    @Test func aFadeOnTheSpotRedirectedToAnotherDisplayArrivesWithTheDrop() {
+        let (d, _, fader, display, _) = make(on: Self.portrait)
+        change(display, to: Self.portraitNoMenuBar, d)
+        #expect(fader.calls == [.fadeOut(DisplayHandoff.onTheSpot.fadeOut)])
+
+        change(display, to: NotchedDelegate.metrics, d)
+        fader.finish(0)
+        #expect(d.currentAnchor.isNotch)
+        #expect(fader.calls.last == .fadeIn(DisplayHandoff.standard.fadeIn, drop: DisplayHandoff.standard.drop))
+    }
+
+    /// The other way: a trip to another display turned back into a fade on
+    /// the spot -- the display it is leaving hid its menu bar -- arrives
+    /// where it is without a drop, rather than dropping 6pt in place.
+    @Test func aTripRedirectedToAFadeOnTheSpotArrivesWithoutTheDrop() {
+        let (d, _, fader, display, _) = make(on: Self.portrait)
+        change(display, to: NotchedDelegate.metrics, d)
+        #expect(fader.calls == [.fadeOut(DisplayHandoff.standard.fadeOut)])
+
+        change(display, to: Self.portraitNoMenuBar, d)
+        fader.finish(0)
+        #expect(d.currentAnchor.isNotch == false)
+        #expect(fader.calls.last == .fadeIn(DisplayHandoff.onTheSpot.fadeIn, drop: 0))
+        fader.finish(1)
+        #expect(d.acceptedRect == Self.belowBar)
+    }
+
     /// The view starts the shape where the morph says, in its own top-left
     /// space: `from` is bottom-left, as the region is.
     @Test func theViewStartsTheShapeWhereTheMorphSays() throws {

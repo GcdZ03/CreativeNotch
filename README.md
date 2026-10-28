@@ -585,9 +585,12 @@ just enough to fit. Some apps' menus still reach the middle of the menu bar on
 a narrow display: Settings → Display → **Keep clear of app menus** moves the
 pill right of them, sliding it along the bar as you switch apps (with Reduce
 Motion on, it moves at once). It needs Accessibility; see Permissions. When the
-menu bar is hidden or shown, or a notched display switches to a resolution
-without the notch area, the pill or notch changes shape where it is in about a
-quarter of a second rather than jumping (with Reduce Motion on, it fades).
+menu bar comes back, or a notched display switches back to a resolution with
+the notch area, the pill changes shape where it is in about a quarter of a
+second rather than jumping. The other way, when the menu bar is hidden or the
+notch area goes, the shape would start above its new place, so it fades out
+and back in on the spot instead; with Reduce Motion on, every one of these
+fades.
 
 Quit from the menu bar item, or `pkill -f CreativeNotch`.
 

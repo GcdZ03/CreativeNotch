@@ -157,30 +157,34 @@ struct PanelMoveTests {
     }
 
     /// A pill of another size -- the menu bar's height changed with it -- is
-    /// a new shape, not the same one moved: no slide.
+    /// a new shape, not the same one moved: no slide. The window moved 238pt
+    /// with it, so the capsule as it was is 238pt back along the bar inside
+    /// the new one, at 52pt, and it morphs from there (pinned, review of #81:
+    /// "not a slide" alone passed for any other answer too).
     @Test func aPillOfAnotherSizeIsNoSlide() {
         let taller = Anchor.pill(CGRect(x: 700, y: 2036, width: 180, height: 30))
-        let decided = move(Self.landscapePill, Self.landscapeFrame, to: taller, Self.clearedFrame, on: Self.landscape)
-        #expect(decided != .slide(.standard))
-        #expect(decided != .inPlace)
+        #expect(move(Self.landscapePill, Self.landscapeFrame, to: taller, Self.clearedFrame, on: Self.landscape)
+                == .morph(AnchorMorph(from: CGRect(x: 52, y: 236, width: 40, height: 24))))
     }
 
     /// A new frame size with the shift -- a new text size or panel width at
     /// the same moment -- relays the panel out, so the window does not slide.
+    /// The capsule morphs along the bar from where it was, as above.
     @Test func aShiftWithANewFrameSizeIsNoSlide() {
         let wider = CGRect(x: 480, y: 1800, width: 680, height: 260)
         #expect(move(Self.landscapePill, Self.landscapeFrame, to: Self.cleared, wider, on: Self.landscape)
-                != .slide(.standard))
+                == .morph(AnchorMorph(from: CGRect(x: 52, y: 236, width: 40, height: 24))))
     }
 
     /// Sideways only. A pill and its frame 30pt lower on a display that did
     /// not move is the same picture lower; a slide is along the bar, never
-    /// across the menu bar.
+    /// across the menu bar. Where it was is 30pt above the lower window,
+    /// which cannot show it: it fades on the spot.
     @Test func aShiftDownIsNotASlide() {
         let lower = Anchor.pill(CGRect(x: 700, y: 2006, width: 180, height: 24))
         let lowerFrame = CGRect(x: 480, y: 1770, width: 620, height: 260)
         #expect(move(Self.landscapePill, Self.landscapeFrame, to: lower, lowerFrame, on: Self.landscape)
-                != .slide(.standard))
+                == .fadeInPlace(.onTheSpot))
     }
 
     /// Long enough to be seen travelling, short enough to be over before the
@@ -409,5 +413,70 @@ struct PanelMoveTests {
         #expect(fade.drop == 0)
         #expect(fade.fadeOut > 0 && fade.fadeIn > 0)
         #expect(fade.fadeOut + fade.fadeIn <= 0.3)
+    }
+
+    /// The same fades as a trip under Reduce Motion, on purpose (review of
+    /// #81): nothing travels in either, and under Reduce Motion every change
+    /// of shape fades on the spot, so the two are what one setting shows for
+    /// a move. One retimed alone would make the same system setting fade at
+    /// two speeds.
+    @Test func theFadeOnTheSpotIsReduceMotionsTrip() {
+        #expect(DisplayHandoff.onTheSpot == .reduced)
+    }
+
+    // MARK: - What the shape is doing meanwhile (review of #81)
+
+    /// The landscape pill in the menu bar, 6pt into a morph up from below
+    /// it, the panel then made wider by a new text size: the same anchor in
+    /// a window 60pt wider and 40pt taller. Placed at once, the shape jumped
+    /// to the morph's end; it morphs on from where it has got to, carried
+    /// into the new window -- 30pt right, 40pt up.
+    @Test func aNewTextSizeHalfwayThroughAMorphMorphsOn() {
+        let larger = CGRect(x: 212, y: 1760, width: 680, height: 300)
+        let halfway = CGRect(x: 290, y: 230, width: 40, height: 28)
+        let drawn = PanelMove.Drawn(
+            before: halfway, after: CGRect(x: 320, y: 274, width: 40, height: 26),
+            display: Self.landscape, isMorphing: true
+        )
+        #expect(move(Self.inBar, Self.inBarFrame, to: Self.inBar, larger, on: Self.landscape, drawn: drawn)
+                == .morph(AnchorMorph(from: CGRect(x: 320, y: 270, width: 40, height: 28))))
+        // At rest, the same change is placed at once, as it always was.
+        var resting = drawn
+        resting.isMorphing = false
+        #expect(move(Self.inBar, Self.inBarFrame, to: Self.inBar, larger, on: Self.landscape, drawn: resting)
+                == .inPlace)
+        // And under Reduce Motion, where nothing morphs to go on with.
+        #expect(move(Self.inBar, Self.inBarFrame, to: Self.inBar, larger, on: Self.landscape,
+                     reduceMotion: true, drawn: drawn)
+                == .inPlace)
+    }
+
+    /// The notch becoming another notch halfway through the pill's morph
+    /// into it -- the built-in switched mode twice in quick succession: the
+    /// hardware stays put, and so does the shape on its way there; it morphs
+    /// on from where it is rather than jumping to the end.
+    @Test func aNotchOfAnotherSizeHalfwayThroughAMorphMorphsOn() {
+        let shifted = Anchor.notch(CGRect(x: 652, y: 952, width: 205, height: 30))
+        let shiftedFrame = CGRect(x: 444, y: 722, width: 620, height: 260)
+        let halfway = CGRect(x: 250, y: 231, width: 120, height: 28)
+        let drawn = PanelMove.Drawn(
+            before: halfway, after: CGRect(x: 208, y: 230, width: 205, height: 30),
+            display: Self.builtIn, isMorphing: true
+        )
+        #expect(move(Self.notch, Self.notchFrame, to: shifted, shiftedFrame, on: Self.builtIn, drawn: drawn)
+                == .morph(AnchorMorph(from: halfway)))
+    }
+
+    /// The menu bar shown again just as the panel peeked: the peek's spring
+    /// is still carrying the shape, and `before`, its end, is not where it
+    /// is drawn. A morph from there would jump it to its full size on the
+    /// first frame; it fades on the spot instead, as a change it cannot
+    /// morph does.
+    @Test func whileASpringCarriesTheShapeItFadesOnTheSpot() {
+        var drawn = PanelMove.Drawn(before: Self.closedBelowBar, after: Self.closedPill, display: Self.landscape)
+        drawn.isSpringing = true
+        #expect(move(Self.belowBar, Self.belowBarFrame, to: Self.inBar, Self.inBarFrame,
+                     on: Self.landscape, drawn: drawn)
+                == .fadeInPlace(.onTheSpot))
     }
 }
