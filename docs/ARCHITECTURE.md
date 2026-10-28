@@ -693,11 +693,17 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   while a state's spring is still carrying the shape (`NotchMotion.springCarries`,
   0.9s, the opening spring's settling time) fades on the spot, since
   `visibleRect()` is where the spring is going and a morph from there jumped a
-  growing peek to full size; and a trip carries its fade with its destination,
-  so a fade on the spot redirected to another display arrives with the drop
-  and a trip redirected to a fade on the spot without one. What the view draws
+  growing peek to full size -- a fixed window after any state change, so one
+  within 0.9s of a close fades too, though a close settles in 0.40s, which
+  errs to a fade and never a jump; and a trip carries its fade with its
+  destination, so a fade on the spot redirected to another display arrives
+  with the drop and a trip redirected to a fade on the spot without one. What the view draws
   is rendered at pinned instants of a morph (`NotchRootView.morphTime`, through
   the same keyframes the animator plays) in `AnchorMorphRenderingTests`.
+  The live path, `pinned ?? progress` falling through to the animator's
+  progress, is not: `ImageRenderer` cannot run the animator, so a mutation
+  that ignores the live progress (every morph jumping to its end) passes the
+  suites, and only the on-screen runs below cover it.
   Under Reduce Motion a change
   of shape fades on the spot, and the same pill keeping clear of the menus is
   placed at once, as when it slides. The morpher is a seam like the fader:

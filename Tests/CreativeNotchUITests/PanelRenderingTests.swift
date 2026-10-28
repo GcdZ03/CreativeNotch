@@ -161,10 +161,10 @@ struct TabRenderingTests {
     /// stays banned even there.
     ///
     /// The animators that loop are banned too (2026-10-28, review of #81):
-    /// a keyframe animator told to repeat, and a phase animator with no
-    /// trigger, which cycles its phases for as long as it is on screen. A
-    /// keyframe animator on a trigger -- the morph's -- plays once per
-    /// change and is allowed.
+    /// one with no trigger, which cycles for as long as it is on screen. A
+    /// keyframe animator repeats unless told `repeating: false`, so leaving
+    /// the word out loops too (second review). One on a trigger -- the
+    /// morph's -- plays once per change and is allowed.
     @Test func noStockControlStyleOrRepeatingAnimationSurvivesInTheUI() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -191,10 +191,12 @@ struct TabRenderingTests {
         }
     }
 
-    /// The keyframe and phase animator calls in `code` that loop: a
-    /// keyframe animator whose arguments say `repeating:`, and a phase
-    /// animator whose arguments have no `trigger:`. The arguments are read
-    /// to their closing bracket, so a nested call in them is not the end.
+    /// The keyframe and phase animator calls in `code` that loop: any whose
+    /// arguments have no `trigger:`, unless they say `repeating: false`
+    /// (which only a keyframe animator takes). SwiftUI defaults `repeating`
+    /// to true, and only a literal `false` is known to stop; a flag might be
+    /// true. The arguments are read to their closing bracket, so a nested
+    /// call in them is not the end.
     static func loopingAnimators(in code: String) -> [String] {
         var found: [String] = []
         for name in ["keyframeAnimator(", "KeyframeAnimator(", "phaseAnimator(", "PhaseAnimator("] {
@@ -208,9 +210,7 @@ struct TabRenderingTests {
                     end = rest.index(after: end)
                 }
                 let call = String(rest[hit.lowerBound..<end])
-                let loops = name.lowercased().hasPrefix("keyframe")
-                    ? call.contains("repeating:")
-                    : !call.contains("trigger:")
+                let loops = !call.contains("trigger:") && !call.contains("repeating: false")
                 if loops { found.append(call) }
                 rest = rest[end...]
             }
@@ -228,6 +228,14 @@ struct TabRenderingTests {
         #expect(Self.loopingAnimators(in: "PhaseAnimator([false, true]) { p in }").count == 1)
         #expect(Self.loopingAnimators(in: ".phaseAnimator([0.0, 1.0], trigger: tick) { c, p in c }").isEmpty)
         #expect(Self.loopingAnimators(in: "[UInt32](repeating: 0, count: 4)").isEmpty)
+        // A keyframe animator repeats by default (`repeating: Bool = true`
+        // in SwiftUICore), so the plain way to write one loops with neither
+        // word in its arguments (2026-10-28, second review of #81).
+        #expect(Self.loopingAnimators(in: ".keyframeAnimator(initialValue: 0.0) { c, v in c } keyframes: { _ in LinearKeyframe(1.0, duration: 1) }").count == 1)
+        #expect(Self.loopingAnimators(in: "KeyframeAnimator(initialValue: 0.0) { v in } keyframes: { _ in LinearKeyframe(1.0, duration: 1) }").count == 1)
+        // Only a literal `false` plays once; a flag may be true.
+        #expect(Self.loopingAnimators(in: ".keyframeAnimator(initialValue: 0.0, repeating: false) { c, v in c }").isEmpty)
+        #expect(Self.loopingAnimators(in: "KeyframeAnimator(initialValue: 0.0, repeating: spins) { v in }").count == 1)
     }
 
     @Test func theTrackFillsFromCore() throws {
