@@ -561,9 +561,14 @@ once it has moved there, before it fades in.
 Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
 
 - **Springs follow direction.** `NotchMotion` gives growing changes a
-  slightly bouncy spring and shrinking ones a quick, critically damped one;
-  `AppState.lastChangeGrew` records which, and one peek replacing another
-  counts as growing. The growth lag follows the opening spring's response.
+  barely bouncy spring (damping 0.85, under 1% overshoot; 0.74 until
+  2026-10-28 read as lively) and shrinking ones a quick, critically damped
+  one; `AppState.lastChangeGrew` records which, and one peek replacing
+  another counts as growing, so peeks open with the same spring. The growth
+  lag follows the opening spring's response, and that only holds while the
+  spring has reached its target by then: more damping arrives later, and
+  critically damped it would still be 1.4% short at 420ms.
+  `NotchMotionTests` checks both.
 - **Reduce Motion** turns both springs into one short ease, content fades
   rather than blurs in, the shared cover cross-fades rather than slides, the
   hover growth goes, and the bars stand still. The root view only ever takes
@@ -691,10 +696,10 @@ Spec: `docs/specs/2026-10-15-rich-music-peek-design.md`.
   halfway through (a text size, a notch of another size) morphs on from where
   the shape has got to instead of jumping it to the end; a change of anchor
   while a state's spring is still carrying the shape (`NotchMotion.springCarries`,
-  0.9s, the opening spring's settling time) fades on the spot, since
+  0.8s, the opening spring's settling time) fades on the spot, since
   `visibleRect()` is where the spring is going and a morph from there jumped a
   growing peek to full size -- a fixed window after any state change, so one
-  within 0.9s of a close fades too, though a close settles in 0.40s, which
+  within 0.8s of a close fades too, though a close settles in 0.40s, which
   errs to a fade and never a jump; and a trip carries its fade with its
   destination, so a fade on the spot redirected to another display arrives
   with the drop and a trip redirected to a fade on the spot without one. What the view draws

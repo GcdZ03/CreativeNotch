@@ -403,7 +403,7 @@ struct AnchorMorphWiringTests {
 
         let (settled, settledMorpher, settledFader, settledDisplay, settledClock) = make(on: Self.portraitNoMenuBar)
         settled.state.transition(to: peek)
-        settledClock.now += NotchMotion.springCarries
+        settledClock.now += NotchMotion.springCarries + 0.001
 
         change(settledDisplay, to: Self.portrait, settled)
         #expect(settledMorpher.calls == [AnchorMorph.standardDuration])
@@ -420,7 +420,7 @@ struct AnchorMorphWiringTests {
     @Test func aShrinkingStateEndingAMorphKeepsTheRegionToWhatIsDrawn() async throws {
         let (d, _, _, display, clock) = make(on: Self.portraitNoMenuBar)
         d.state.transition(to: .peek(.power(.unplugged(level: 66))))
-        clock.now += NotchMotion.springCarries
+        clock.now += NotchMotion.springCarries + 0.001
         change(display, to: Self.portrait, d)
         let morph = try #require(d.state.morph)
         #expect(morph.morph.from.maxY == 254)

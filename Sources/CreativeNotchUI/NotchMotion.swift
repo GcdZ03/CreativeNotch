@@ -3,9 +3,9 @@ import SwiftUI
 /// How the notch moves between states (spec 2026-10-15).
 ///
 /// One spring for every change made opening feel stiff and closing feel
-/// slow at once. Growing now uses a slightly bouncy spring and shrinking a
-/// quicker, critically-damped one, so the panel arrives with a little life
-/// and gets out of the way when dismissed.
+/// slow at once. Growing now uses a barely bouncy spring and shrinking a
+/// quicker, critically-damped one, so the panel arrives settled and gets
+/// out of the way when dismissed.
 enum NotchMotion {
 
     /// The opening spring's response, in seconds. `AppDelegate`'s growth lag
@@ -13,7 +13,22 @@ enum NotchMotion {
     /// drawn shape has.
     static let openResponse: Double = 0.42
 
-    static let open = Animation.spring(response: openResponse, dampingFraction: 0.74)
+    /// The opening spring, as a `Spring` so a test can ask where the shape
+    /// is at a given instant without rendering it.
+    ///
+    /// Calmer since 2026-10-28. At 0.74 it overshot by 3% of the travel —
+    /// about 7pt past the bottom of a 260pt panel and 14pt past its sides —
+    /// and read as lively next to the Dynamic Island. The window is exactly
+    /// the panel's size and clips that, so on screen the panel's bottom
+    /// corners went square for ~290ms of every open; a peek, smaller than
+    /// the window, overshoots in plain view. 0.85 is `.snappy`'s bounce:
+    /// under 1%, a point or two, enough that the shape still lands rather
+    /// than coasts to a stop. The response is unchanged, so the growth lag
+    /// is too; the extra damping makes the shape first reach full size
+    /// later (~330ms rather than ~240ms), still inside that lag.
+    static let openSpring = Spring(response: openResponse, dampingRatio: 0.85)
+
+    static let open = Animation.spring(openSpring)
     static let close = Animation.spring(response: 0.26, dampingFraction: 1.0)
 
     /// The hover reaction is small, so it can afford to be quick.
@@ -30,10 +45,10 @@ enum NotchMotion {
 
     /// How long, at most, the spring a state change starts carries the
     /// shape, in seconds (2026-10-28, review of #81). The opening spring
-    /// settles to within 0.1% in 0.85s, the closing one in 0.40s, Reduce
+    /// settles to within 0.1% in 0.75s, the closing one in 0.40s, Reduce
     /// Motion's ease in 0.2s. An anchor change inside it cannot say where
     /// the shape is drawn, so it does not morph (`AppDelegate.isSpringing`).
-    static let springCarries: Double = 0.9
+    static let springCarries: Double = 0.8
 
     /// Whether the now-playing cover slides between states. Under Reduce
     /// Motion it cross-fades instead: a cover travelling across the top of
