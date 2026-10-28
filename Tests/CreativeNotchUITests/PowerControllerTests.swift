@@ -18,7 +18,7 @@ struct PowerControllerTests {
     /// re-enable. Without `reset()`, unplugging while the module is off fires
     /// an `.unplugged` peek the moment it comes back.
     @Test func resettingMakesTheNextSnapshotABaselineAgain() {
-        let controller = PowerController()
+        let controller = PowerController(observer: SandboxPowerObserver())
         var events: [PowerEvent] = []
         controller.onEvent = { events.append($0) }
 
@@ -35,7 +35,7 @@ struct PowerControllerTests {
     /// The control: without the reset that same second snapshot IS an event.
     /// If this fails, `reset()` is being called from somewhere it should not.
     @Test func aSourceChangeWithinOneRunStillPeeks() {
-        let controller = PowerController()
+        let controller = PowerController(observer: SandboxPowerObserver())
         var events: [PowerEvent] = []
         controller.onEvent = { events.append($0) }
 
@@ -65,7 +65,7 @@ struct PowerControllerTests {
 
     private func controller() -> (PowerController, Recorder) {
         let recorder = Recorder()
-        let controller = PowerController()
+        let controller = PowerController(observer: SandboxPowerObserver())
         controller.onEvent = { recorder.events.append($0) }
         controller.onSnapshot = { recorder.snapshots.append($0) }
         return (controller, recorder)
@@ -299,15 +299,16 @@ struct PowerControllerTests {
 
     // MARK: - Lifecycle
 
-    /// `start()` has to actually register, and `stop()` has to undo it.
+    /// `start()` has to reach the observer, and `stop()` has to undo it.
     ///
-    /// The `power?.start()` line in `AppDelegate` itself is covered by
-    /// running the real app, as the clipboard and media start lines
-    /// are — no test in this suite drives
-    /// `applicationDidFinishLaunching`. This pins the half that can be
-    /// pinned headlessly.
+    /// The observer is the sandbox (2026-10-28), so this pins the hand-off
+    /// and not IOKit: that the real `PowerObserver` actually registers and
+    /// deregisters is `PowerObserverTests`' job, against the run loop
+    /// itself. The `power?.start()` line in `AppDelegate` itself is covered
+    /// by running the real app, as the clipboard and media start lines
+    /// are — no test in this suite drives `applicationDidFinishLaunching`.
     @Test func startingBeginsObservingAndStoppingEnds() {
-        let controller = PowerController()
+        let controller = PowerController(observer: SandboxPowerObserver())
 
         controller.start()
         #expect(controller.isObserving)

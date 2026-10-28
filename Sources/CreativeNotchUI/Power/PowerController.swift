@@ -22,12 +22,16 @@ public final class PowerController {
 
     public var hasBattery: Bool { observer.hasBattery }
 
-    private let observer = PowerObserver()
+    /// The IOKit `PowerObserver` only after `configureForRealLaunch()`;
+    /// `SandboxPowerObserver` everywhere else (`PowerStateObserver`).
+    /// Internal so `SandboxedSeamsTests` can ask which one was wired.
+    let observer: PowerStateObserver
     private var arming = LowBatteryArming()
     private var previous: PowerSnapshot?
     private var activity: SystemActivity = .active
 
-    public init() {
+    public init(observer: PowerStateObserver) {
+        self.observer = observer
         observer.onChange = { [weak self] snapshot in
             // `[weak self]`: the observer holds this closure, and a strong
             // capture would be a component keeping its owner alive — the
@@ -60,7 +64,7 @@ public final class PowerController {
     ///
     /// Internal, for the lifecycle proof — the same reason
     /// `PowerObserver.registrationCount` is.
-    var isObserving: Bool { observer.registrationCount > 0 }
+    var isObserving: Bool { observer.isObserving }
 
     /// The lock and sleep gate, fanned out from `AppDelegate`.
     ///
