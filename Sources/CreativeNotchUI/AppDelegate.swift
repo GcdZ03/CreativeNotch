@@ -141,6 +141,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// thing. Set them before `install(metrics:)`, which builds the
     /// controller from them.
     var bluetoothSource: BluetoothSource = SandboxBluetoothSource()
+
+    /// Who is using the camera and microphone, for the capture indicator.
+    /// Sandboxed by default, so no suite reads its developer's real
+    /// microphone; only `configureForRealLaunch()` hands it the system read.
+    /// Set it before `install(metrics:)`, which wires the observer to it.
+    var captureReading: CaptureReading = SandboxCaptureReading()
     var bluetoothAccess: BluetoothAccess = SandboxBluetoothAccess()
 
     /// Reads the frontmost app's menus for "Keep clear of app menus"
@@ -304,6 +310,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Lazy, because a test run builds hundreds of delegates and only a few
     /// ever copy a colour.
     lazy var colorPasteboard: NSPasteboard = NSPasteboard(
+        name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
+    )
+
+    /// Where clipboard history is read from and an entry is copied back to.
+    /// A pasteboard of this delegate's own, like `colorPasteboard`, until
+    /// `configureForRealLaunch()` points it at the general one
+    /// (2026-10-29): the delegate's controller used `.general` outright, so
+    /// a suite that copied an entry back overwrote what the developer had
+    /// copied, and a started poller read their real clipboard. Set it
+    /// before `install(metrics:)`, which builds the controller.
+    lazy var clipboardPasteboard: NSPasteboard = NSPasteboard(
         name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
     )
 
@@ -821,6 +838,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         timerNotices = SystemTimerNotices()
         colorSampler = SystemColorSampler()
         colorPasteboard = .general
+        clipboardPasteboard = .general
+        // Reads only when the switchboard starts the capture module.
+        captureReading = SystemCaptureReading()
         // Building these registers nothing and asks for nothing: the source
         // registers on `start()`, the access prompts on `request`, and both
         // happen only once Bluetooth alerts are switched on.
@@ -1312,6 +1332,10 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // Constructed here, started by the switchboard. Building a panel must
         // not register system-wide property listeners.
         let capture = CaptureController()
+        let reading = captureReading
+        capture.observer.readCurrentUse = { [weak observer = capture.observer] in
+            reading.currentUse(ownCameraUID: observer?.ownCameraUID)
+        }
         capture.onChange = { [weak self] use in
             self?.state.captureUse = use
             self?.syncTrackingRect()
@@ -1407,7 +1431,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // `applicationDidFinishLaunching` — building a panel must not
         // install a timer.
         let clipboardStore = ClipboardStore(capacity: limits.clipboardCapacity)
-        let clipboard = ClipboardController(store: clipboardStore)
+        let clipboard = ClipboardController(store: clipboardStore, pasteboard: clipboardPasteboard)
         state.clipboard = clipboardStore
         state.onCopyClipboard = { [weak clipboard] entry in clipboard?.copy(entry) }
         self.clipboard = clipboard

@@ -225,7 +225,6 @@ private final class Live {
         delegate.shelfPreview = quickLook
         let screen = try XCTUnwrap(NSScreen.main)
         delegate.install(metrics: screen.metrics)
-        delegate.capture?.observer.readCurrentUse = { .none }
         // Isolated defaults are a first run; the welcome card would cover
         // the shelf.
         delegate.state.welcomeSeen = true

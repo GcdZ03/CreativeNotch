@@ -60,6 +60,37 @@ struct SandboxedSeamsTests {
         let power = try #require(delegate.power)
         #expect(power.observer is SandboxPowerObserver)
         #expect(power.observer === delegate.powerObserver)
+
+        // Capture and clipboard (2026-10-29): never the developer's real
+        // microphone, camera or clipboard. Asked of what `install` built,
+        // so an `install` that reaches past the seams fails here too.
+        #expect(delegate.captureReading is SandboxCaptureReading)
+        let clipboard = try #require(delegate.clipboard)
+        #expect(clipboard.pasteboard === delegate.clipboardPasteboard)
+        #expect(clipboard.pasteboard.name != NSPasteboard.general.name)
+    }
+
+    /// The capture indicator reads through the seam `install` was handed,
+    /// with the camera this app's own preview holds, rather than through the
+    /// observer's own default, which is the system read.
+    @Test func theCaptureIndicatorReadsThroughTheSeam() throws {
+        final class Reading: CaptureReading {
+            var askedFor: [String?] = []
+            func currentUse(ownCameraUID: String?) -> CaptureUse {
+                askedFor.append(ownCameraUID)
+                return CaptureUse(camera: true)
+            }
+        }
+        let reading = Reading()
+        let delegate = AppDelegate()
+        delegate.growthDelay = .zero
+        delegate.captureReading = reading
+        delegate.install(metrics: NotchedDelegate.metrics)
+
+        let observer = try #require(delegate.capture?.observer)
+        observer.ownCameraUID = "front"
+        #expect(observer.readCurrentUse() == CaptureUse(camera: true))
+        #expect(reading.askedFor.last == "front")
     }
 
     /// Two delegates never share a sandbox, so one test's shelf cannot leak
@@ -93,6 +124,18 @@ struct SandboxedSeamsTests {
         #expect(delegate.powerObserver is PowerObserver)
         // Constructed, never used: building it touches no notification center.
         #expect(delegate.timerNotices is SystemTimerNotices)
+        // Read only once the switchboard starts the capture and clipboard
+        // modules.
+        #expect(delegate.captureReading is SystemCaptureReading)
+        #expect(delegate.clipboardPasteboard.name == NSPasteboard.general.name)
+        // The motion the shipped app has (2026-10-29): every suite runs the
+        // instant stand-ins, so without these a real launch that kept one
+        // would lose its fade, slide or morph with CI still green.
+        #expect(delegate.panelFader is AnimatedPanelFader)
+        #expect(delegate.panelSlider is AnimatedPanelSlider)
+        #expect(delegate.panelMorpher is AnimatedPanelMorpher)
+        #expect(delegate.windowFocusWatcher is SystemWindowFocusWatcher)
+        #expect(delegate.appMenuReader is SystemAppMenuReader)
     }
 
     /// Opening a shelf file and previewing it reach other apps and put a

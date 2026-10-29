@@ -16,7 +16,8 @@ public final class ClipboardController {
     /// the other controllers expose their own sources.
     let poller: ClipboardPoller
 
-    private let pasteboard: NSPasteboard
+    /// Internal so a test can see which pasteboard the delegate handed in.
+    let pasteboard: NSPasteboard
 
     public init(store: ClipboardStore, pasteboard: NSPasteboard = .general) {
         self.store = store

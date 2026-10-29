@@ -71,10 +71,6 @@ enum NotchedDelegate {
         delegate.screenDescriptors = { [] }
         delegate.state.countdown = countdown
         delegate.install(metrics: metrics)
-        // The indicator would otherwise read the developer's real
-        // microphone and camera, so the suite would pass or fail
-        // depending on whether they happened to be on a call.
-        delegate.capture?.observer.readCurrentUse = { .none }
         return delegate
     }
 }

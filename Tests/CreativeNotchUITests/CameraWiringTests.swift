@@ -25,8 +25,6 @@ struct CameraWiringTests {
             .appendingPathComponent("CreativeNotchCameraWiring-\(UUID().uuidString)")
         delegate.playChime = { _ in }
         delegate.install(metrics: NotchedDelegate.metrics)
-        // Nothing here may reach real hardware or start a real subsystem.
-        delegate.capture?.observer.readCurrentUse = { .none }
         delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}
