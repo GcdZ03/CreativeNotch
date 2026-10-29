@@ -166,7 +166,7 @@ struct SyncedLyricsTests {
             "next",
         ])
         #expect(lyrics.lines[0].time == 40)
-        let second = try #require(lyrics.lines[1].time)
+        let second = lyrics.lines[1].time
         #expect(abs(second - (40 + 10 * 40.0 / 71.0)) < 0.001)
         #expect(lyrics.lines[2].time == 50)
     }
