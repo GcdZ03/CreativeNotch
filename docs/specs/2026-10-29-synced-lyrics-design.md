@@ -119,13 +119,17 @@ the cache and withdraws the strip.
 
 A release build on a 14" MacBook Pro (macOS 26), with a silent stand-in
 player publishing Now Playing for a track LRCLIB has, so nothing played out
-loud. App CPU time over 100s of playback, the app warm:
+loud. App CPU time over 100s of playback, the app relaunched and settled
+30s before each run:
 
-| | App CPU | Wakeups / 3s |
-| --- | --- | --- |
-| Lyrics off | 0.04% | 0 |
-| Lyrics on, 0.3s cross-fade per line | 1.42% | ~180 |
-| Lyrics on, line swapped (shipped) | 0.19% | 8 |
+| | App CPU |
+| --- | --- |
+| Lyrics off | 0.03%, and 0.69% in one run (something else the app did) |
+| Lyrics on, 0.3s cross-fade per line (first cut) | 1.42% |
+| Lyrics on, line swapped (shipped) | 0.19%, 0.22% |
+
+About a sixth of a percent of one core for a song with lyrics, roughly 6ms
+per line change.
 
 The strip showed the note glyph before the first line and each line on its
 timestamp (screenshots checked at 14s, 20s, 24s and 33s into the song).

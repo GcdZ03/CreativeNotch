@@ -8,7 +8,7 @@ import CreativeNotchCore
 /// every four seconds -- and **swapped, not faded.** Measured on the real app
 /// on 2026-10-29 with a song playing: a 0.3s cross-fade on each line cost
 /// 1.42% of a core, because SwiftUI drives every frame of it in-process; the
-/// plain swap costs 0.19%, against 0.04% with lyrics off. Nothing here loops
+/// plain swap costs about 0.2%, against 0.03% with lyrics off. Nothing here loops
 /// or reads a clock. A break between lines, or the wait before
 /// the first, shows a note glyph rather than nothing: a strip that emptied
 /// on every break would read as the app losing its place.
