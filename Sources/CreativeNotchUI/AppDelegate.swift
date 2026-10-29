@@ -324,6 +324,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
     )
 
+    // MARK: - Lyrics
+
+    /// The lyrics module (spec 2026-10-29). Internal rather than private so
+    /// the switchboard and the tests can reach its lifecycle.
+    private(set) var lyrics: LyricsController?
+
+    /// How a lyrics request reaches LRCLIB. Answers nothing by default, so
+    /// no test can send a track's title anywhere; `configureForRealLaunch()`
+    /// hands it the real service. Set it before `install(metrics:)`.
+    var fetchLyrics: LyricsFetch = { _ in nil }
+
     // MARK: - Downloads
 
     /// The downloads module. Internal rather than private so the switchboard
@@ -871,6 +882,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let url = AppDelegate.filesAndFoldersSettings else { return }
             NSWorkspace.shared.open(url)
         }
+        // Sends nothing until the module is on and a track is playing.
+        fetchLyrics = LRCLIBService.fetch
         // Building these fetches nothing: the first request is the launch
         // check, after the subsystems start. The domain is set second, so
         // the real record is read against the real version.
@@ -1402,6 +1415,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         downloads.onAccess = { [weak self] access in self?.state.downloadsAccess = access }
         self.downloads = downloads
         state.onRevealDownload = { [weak self] completion in self?.revealDownload(completion) }
+
+        // Constructed here, started by the switchboard -- and only when the
+        // module is switched on, since it ships off. Building a panel must
+        // not send a track's title anywhere.
+        let lyrics = LyricsController(fetch: fetchLyrics)
+        lyrics.onChange = { [weak self] text in self?.lyricsDidChange(text) }
+        lyrics.trackDidChange(state.nowPlaying)
+        self.lyrics = lyrics
         state.onRecheckDownloadsAccess = { [weak self] in self?.downloads?.recheckAccess() }
         state.onOpenDownloadsPrivacy = { [weak self] in self?.openDownloadsPrivacySettings() }
 
@@ -1816,7 +1837,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             anchor: anchor,
             panelFrame: frame,
             badgeWidth: slot.width,
-            leadingBadgeWidth: slot.leadingWidth
+            leadingBadgeWidth: slot.leadingWidth,
+            lyricsHeight: state.lyricsLineHeight
         )
     }
 
@@ -1892,8 +1914,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.nowPlaying = snapshot
         state.nowPlayingArtwork = snapshot.flatMap { media?.artwork(for: $0) }
         arbiter.setNowPlaying(snapshot)
+        // Before the re-sync, so a pause that withdraws the line shrinks the
+        // region in the same pass as the badge.
+        lyrics?.trackDidChange(snapshot)
         syncTrackingRect()
         reevaluatePeek()
+    }
+
+    /// The lyrics line changed, appeared or went (spec 2026-10-29).
+    ///
+    /// Internal so a test can drive the real publish path without a service.
+    /// The re-sync is not optional, for `nowPlayingDidChange`'s reason: the
+    /// strip grows the closed notch down by a line, and the funnel does not
+    /// fire for it. A new line of the same strip changes no geometry, and
+    /// re-syncing an unchanged rect does nothing.
+    func lyricsDidChange(_ text: LyricsText?) {
+        state.lyrics = text
+        syncTrackingRect()
     }
 
     /// The countdown ticked, started, paused or was cancelled.

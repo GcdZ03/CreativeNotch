@@ -23,11 +23,12 @@ import Testing
     #expect(ModuleID.calendar.rawValue == "calendar")
     #expect(ModuleID.colorPicker.rawValue == "color-picker")
     #expect(ModuleID.downloads.rawValue == "downloads")
+    #expect(ModuleID.lyrics.rawValue == "lyrics")
 }
 
 @Test func everyModuleHasADistinctKey() {
     let keys = ModuleID.allCases.map(PreferenceKeys.enabled)
-    #expect(keys.count == 13)
+    #expect(keys.count == 14)
     #expect(Set(keys).count == keys.count)
     #expect(keys.allSatisfy { $0.hasPrefix("module.") && $0.hasSuffix(".enabled") })
 }
@@ -75,7 +76,7 @@ import Testing
 @Test func preferencesShipWithEverythingOnButTheCalendar() {
     for module in ModuleID.allCases {
         #expect(Preferences.allEnabled[module] == true)
-        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth && module != .downloads), "\(module)")
+        #expect(Preferences.shipped[module] == (module != .calendar && module != .bluetooth && module != .downloads && module != .lyrics), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault)
     }
 }
@@ -83,10 +84,12 @@ import Testing
 /// Bluetooth alerts, the calendar and downloads are the modules that ship off: each
 /// needs a permission, and a permission is asked for when someone switches
 /// the feature on -- never at launch, and never for a feature nobody chose.
+/// Lyrics ship off for the same reason without a prompt: switching them on is
+/// what starts sending each track to LRCLIB (spec 2026-10-29).
 /// Everything else needs no grant and costs nothing at rest, so it stays on.
 @Test func onlyThePermissionModulesShipOff() {
     for module in ModuleID.allCases {
-        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar && module != .downloads), "\(module)")
+        #expect(module.shippedDefault == (module != .bluetooth && module != .calendar && module != .downloads && module != .lyrics), "\(module)")
         #expect(Preferences.shipped[module] == module.shippedDefault, "\(module)")
     }
 }

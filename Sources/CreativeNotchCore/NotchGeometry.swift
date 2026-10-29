@@ -47,6 +47,12 @@ public enum NotchGeometry {
     /// Without one, the player row sits centred in the same space.
     public static let mediaPeekBodyHeight: CGFloat = 100
 
+    /// One line of lyrics (spec 2026-10-29): the strip under the closed
+    /// notch, and the row it adds to the music peek. Below the 33pt menu
+    /// bar it covers the top of a title bar or a browser's tab strip, so it
+    /// is one line and no more.
+    public static let lyricsLineHeight: CGFloat = 22
+
     /// How far the battery peek hangs below the notch's band: one compact
     /// row of icon, words, bar and percentage (2026-10-17). Trimmed from
     /// 44pt after seeing it on screen: a three-second glance should not

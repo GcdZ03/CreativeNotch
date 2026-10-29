@@ -24,6 +24,7 @@ public struct Preferences: Equatable, Sendable {
     public var calendar: Bool
     public var colorPicker: Bool
     public var downloads: Bool
+    public var lyrics: Bool
 
     public init(
         shelf: Bool = true,
@@ -38,7 +39,8 @@ public struct Preferences: Equatable, Sendable {
         bluetooth: Bool = false,
         calendar: Bool = false,
         colorPicker: Bool = true,
-        downloads: Bool = false
+        downloads: Bool = false,
+        lyrics: Bool = false
     ) {
         self.shelf = shelf
         self.clipboard = clipboard
@@ -53,18 +55,20 @@ public struct Preferences: Equatable, Sendable {
         self.calendar = calendar
         self.colorPicker = colorPicker
         self.downloads = downloads
+        self.lyrics = lyrics
     }
 
     /// The shipped state, and what a domain with no keys in it resolves to:
-    /// every module on except the three that need a permission and so wait
-    /// to be asked for -- Bluetooth alerts, the calendar and downloads
+    /// every module on except the four that wait to be asked for --
+    /// Bluetooth alerts, the calendar and downloads, which need a
+    /// permission, and lyrics, which talk to a third party
     /// (`ModuleID.shippedDefault`).
     public static let shipped = Preferences()
 
-    /// Every module on, Bluetooth alerts, the calendar and downloads
+    /// Every module on, Bluetooth alerts, the calendar, downloads and lyrics
     /// included. Not the shipped state; what a person who switched
     /// everything on has.
-    public static let allEnabled = Preferences(bluetooth: true, calendar: true, downloads: true)
+    public static let allEnabled = Preferences(bluetooth: true, calendar: true, downloads: true, lyrics: true)
 
     public subscript(module: ModuleID) -> Bool {
         get {
@@ -82,6 +86,7 @@ public struct Preferences: Equatable, Sendable {
             case .calendar:      return calendar
             case .colorPicker:   return colorPicker
             case .downloads:     return downloads
+            case .lyrics:        return lyrics
             }
         }
         set {
@@ -99,6 +104,7 @@ public struct Preferences: Equatable, Sendable {
             case .calendar:      calendar = newValue
             case .colorPicker:   colorPicker = newValue
             case .downloads:     downloads = newValue
+            case .lyrics:        lyrics = newValue
             }
         }
     }

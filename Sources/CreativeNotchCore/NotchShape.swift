@@ -203,13 +203,19 @@ public enum NotchShape {
     /// crash path to the closed notch's redraw. The parameter is public and
     /// defaulted, though, so the rule is stated here rather than left to be
     /// inferred from the `> 0` below.
+    ///
+    /// `lyricsHeight` is one line of lyrics, or zero (spec 2026-10-29). It
+    /// grows the closed notch down into a strip, and the music peek's body
+    /// by a row; every other presentation, and a closed pill, ignore it.
     public static func visibleRect(
         presentation: Presentation,
         anchor: Anchor,
         panelFrame: CGRect,
         badgeWidth: CGFloat = 0,
-        leadingBadgeWidth: CGFloat = 0
+        leadingBadgeWidth: CGFloat = 0,
+        lyricsHeight: CGFloat = 0
     ) -> CGRect {
+        let lyrics = max(lyricsHeight, 0)
         let local = CGRect(
             x: anchor.rect.minX - panelFrame.minX,
             y: anchor.rect.minY - panelFrame.minY,
@@ -234,6 +240,10 @@ public enum NotchShape {
             //
             // Non-positive is "no badge" — see the doc comment above.
             //
+            // No lyrics strip on a pill (spec 2026-10-29): it sits inside
+            // the menu bar, and one rect grown down by a line would be the
+            // line's width at the menu bar's height too, over the app menus.
+            //
             // Media is the one exception to "trailing only": its cover
             // takes a leading ear while the equalizer takes the trailing
             // one (spec 2026-10-15, "Reversed after the fact").
@@ -247,13 +257,17 @@ public enum NotchShape {
                     height: local.height
                 )
             }
+            // The lyrics strip hangs below the housing and the badge
+            // together (spec 2026-10-29), flush with the screen's top edge
+            // like every other shape here. Notch only: see the pill above,
+            // which has no strip because it would cover app menus.
             let trailing = max(badgeWidth, 0)
             let leading = max(leadingBadgeWidth, 0)
             return CGRect(
                 x: local.minX - leading,
-                y: local.minY,
+                y: local.minY - lyrics,
                 width: leading + local.width + trailing,
-                height: local.height
+                height: local.height + lyrics
             )
 
         case .mediaPeek, .statusPeek:
@@ -263,7 +277,7 @@ public enum NotchShape {
             // with its top edge, on a notch and on a pill alike.
             let isMedia = presentation == .mediaPeek
             let ear = isMedia ? NotchGeometry.peekEarWidth : NotchGeometry.statusPeekEarWidth
-            let body = isMedia ? NotchGeometry.mediaPeekBodyHeight : NotchGeometry.statusPeekBodyHeight
+            let body = isMedia ? NotchGeometry.mediaPeekBodyHeight + lyrics : NotchGeometry.statusPeekBodyHeight
             let height = local.height + body
             return CGRect(
                 x: local.minX - ear,

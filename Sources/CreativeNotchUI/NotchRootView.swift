@@ -644,6 +644,22 @@ public final class AppState {
     /// the app or in a test — never races an asynchronous one.
     public private(set) var nowPlayingBarTint: Color?
 
+    /// The lyrics line for what is playing, from `LyricsController`, or
+    /// `nil`: the module is off, or the track has no synced lyrics (spec
+    /// 2026-10-29). `Equatable`, and published only when a line changes, so
+    /// the guard `@Observable` emits drops nothing that would draw.
+    public internal(set) var lyrics: LyricsText?
+
+    /// Whether the strip under the closed notch and the music peek's lyrics
+    /// row are drawn: there are lyrics, and the music is playing. Paused, the
+    /// strip goes with the badge, which answers "is something playing" too.
+    public var showsLyricsLine: Bool { lyrics != nil && nowPlaying?.isPlaying == true }
+
+    /// The one line `NotchShape.visibleRect` grows by, or zero. Read by the
+    /// drawn rect and by `AppDelegate`'s accepted region alike, so the strip
+    /// cannot be drawn where clicks fall through.
+    var lyricsLineHeight: CGFloat { showsLyricsLine ? NotchGeometry.lyricsLineHeight : 0 }
+
     /// The observed storage behind `countdown`, whose entire job is to
     /// **not** be `Equatable`.
     ///
@@ -922,14 +938,16 @@ public struct NotchRootView: View {
         anchor: CreativeNotchCore.Anchor,
         panelFrame: CGRect,
         badgeWidth: CGFloat = 0,
-        leadingBadgeWidth: CGFloat = 0
+        leadingBadgeWidth: CGFloat = 0,
+        lyricsHeight: CGFloat = 0
     ) -> CGRect {
         let visible = NotchShape.visibleRect(
             presentation: state.presentation,
             anchor: anchor,
             panelFrame: panelFrame,
             badgeWidth: badgeWidth,
-            leadingBadgeWidth: leadingBadgeWidth
+            leadingBadgeWidth: leadingBadgeWidth,
+            lyricsHeight: lyricsHeight
         )
         return CGRect(
             x: visible.minX,
@@ -997,7 +1015,8 @@ public struct NotchRootView: View {
             anchor: app.anchor,
             panelFrame: app.panelFrame,
             badgeWidth: slot.width,
-            leadingBadgeWidth: slot.leadingWidth
+            leadingBadgeWidth: slot.leadingWidth,
+            lyricsHeight: app.lyricsLineHeight
         )
     }
 
@@ -1083,6 +1102,7 @@ public struct NotchRootView: View {
             barTint: app.nowPlayingBarTint,
             artworkAspect: app.nowPlayingArtworkAspect,
             coverNamespace: coverNamespace,
+            lyrics: app.showsLyricsLine ? app.lyrics : nil,
             onCommand: { app.onMediaCommand?($0) },
             onSeek: app.onSeek.map { seek in { seek($0) } }
         )
@@ -1155,7 +1175,8 @@ public struct NotchRootView: View {
             opening: Self.drawnRect(state: .open(app.lastOpenTab), anchor: app.anchor, panelFrame: app.panelFrame),
             closing: Self.drawnRect(
                 state: .closed, anchor: app.anchor, panelFrame: app.panelFrame,
-                badgeWidth: slot.width, leadingBadgeWidth: slot.leadingWidth
+                badgeWidth: slot.width, leadingBadgeWidth: slot.leadingWidth,
+                lyricsHeight: app.lyricsLineHeight
             ),
             pull: app.pullProgress,
             state: app.state
@@ -1278,70 +1299,83 @@ public struct NotchRootView: View {
                     // be sized for one badge and filled with the other —
                     // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
                     // test that bites that mistake.
-                    switch slot {
-                    case .capture:
-                        CaptureBadgeView(use: app.captureUse)
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: badgeAlignment
-                            )
-                    case .downloads:
-                        if let summary = app.downloads {
-                            DownloadsBadgeView(summary: summary)
-                                .frame(
-                                    maxWidth: .infinity,
-                                    maxHeight: .infinity,
-                                    alignment: badgeAlignment
-                                )
-                        } else {
-                            EmptyView()
+                    VStack(spacing: 0) {
+                        Group {
+                            switch slot {
+                            case .capture:
+                                CaptureBadgeView(use: app.captureUse)
+                                    .frame(
+                                        maxWidth: .infinity,
+                                        maxHeight: .infinity,
+                                        alignment: badgeAlignment
+                                    )
+                            case .downloads:
+                                if let summary = app.downloads {
+                                    DownloadsBadgeView(summary: summary)
+                                        .frame(
+                                            maxWidth: .infinity,
+                                            maxHeight: .infinity,
+                                            alignment: badgeAlignment
+                                        )
+                                } else {
+                                    EmptyView()
+                                }
+                            case .recording:
+                                RecordingBadgeView()
+                                    .frame(
+                                        maxWidth: .infinity,
+                                        maxHeight: .infinity,
+                                        alignment: badgeAlignment
+                                    )
+                            case .timer:
+                                if let countdown = app.countdown {
+                                    TimerBadgeView(
+                                        text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
+                                        isPaused: countdown.isPaused,
+                                        remaining: countdown.remaining(at: now)
+                                    )
+                                    .frame(
+                                        maxWidth: .infinity,
+                                        maxHeight: .infinity,
+                                        alignment: badgeAlignment
+                                    )
+                                } else {
+                                    EmptyView()
+                                }
+                            case .nowPlaying:
+                                // Cover then bars, together in the trailing ear that
+                                // `visibleRect` grew, starting just past the housing;
+                                // a square cover leaves its slack at the far end.
+                                HStack(spacing: 5) {
+                                    NowPlayingBadgeView(
+                                        artwork: app.nowPlayingArtwork,
+                                        aspect: app.nowPlayingArtworkAspect,
+                                        coverNamespace: sharedCover,
+                                        track: app.nowPlaying
+                                    )
+                                    EqualizerBarsView(
+                                        isPlaying: true,
+                                        animates: false,
+                                        color: app.nowPlayingBarTint ?? .white
+                                    )
+                                }
+                                .padding(.leading, 6)
+                                .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
+                            case .none:
+                                EmptyView()
+                            }
                         }
-                    case .recording:
-                        RecordingBadgeView()
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: badgeAlignment
-                            )
-                    case .timer:
-                        if let countdown = app.countdown {
-                            TimerBadgeView(
-                                text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
-                                isPaused: countdown.isPaused,
-                                remaining: countdown.remaining(at: now)
-                            )
-                            .frame(
-                                maxWidth: .infinity,
-                                maxHeight: .infinity,
-                                alignment: badgeAlignment
-                            )
-                        } else {
-                            EmptyView()
+                        // The badge keeps the notch's own band; the lyrics strip, when
+                        // there is one, hangs below it (spec 2026-10-29). The band's
+                        // height is the anchor's, so a strip never re-centres a badge.
+                        .frame(height: app.anchor.rect.height)
+                        if app.anchor.isNotch, app.showsLyricsLine, let text = app.lyrics {
+                            LyricsStripView(text: text)
+                                .frame(height: NotchGeometry.lyricsLineHeight)
                         }
-                    case .nowPlaying:
-                        // Cover then bars, together in the trailing ear that
-                        // `visibleRect` grew, starting just past the housing;
-                        // a square cover leaves its slack at the far end.
-                        HStack(spacing: 5) {
-                            NowPlayingBadgeView(
-                                artwork: app.nowPlayingArtwork,
-                                aspect: app.nowPlayingArtworkAspect,
-                                coverNamespace: sharedCover,
-                                track: app.nowPlaying
-                            )
-                            EqualizerBarsView(
-                                isPlaying: true,
-                                animates: false,
-                                color: app.nowPlayingBarTint ?? .white
-                            )
-                        }
-                        .padding(.leading, 6)
-                        .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
-                    case .none:
-                        EmptyView()
                     }
+                    .frame(maxHeight: .infinity, alignment: .top)
 
                 case .open(let tab):
                     // The header sits in the band the content used to be
@@ -1385,6 +1419,7 @@ public struct NotchRootView: View {
                                         artwork: app.nowPlayingArtwork,
                                         showsControls: app.showsMediaControls,
                                         coverNamespace: sharedCover,
+                                        lyrics: app.lyrics,
                                         onSeek: app.onSeek
                                     ) { app.onMediaCommand?($0) }
                                 }

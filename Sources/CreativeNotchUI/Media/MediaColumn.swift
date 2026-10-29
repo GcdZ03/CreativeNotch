@@ -22,6 +22,10 @@ struct MediaColumn: View {
     /// Ties the cover to the badge's and the peek's, so it slides in
     /// from wherever the notch was (spec 2026-10-15).
     var coverNamespace: Namespace.ID? = nil
+    /// The lyric line, or `nil` with the module off or no lyrics for the
+    /// track (spec 2026-10-29). Shown paused too, unlike the strip: the open
+    /// panel is somewhere a person went to look.
+    var lyrics: LyricsText? = nil
     /// Seeks from the progress bar; `nil` leaves it display-only.
     var onSeek: ((TimeInterval) -> Void)? = nil
     let onCommand: (MediaCommand) -> Void
@@ -39,7 +43,12 @@ struct MediaColumn: View {
                     .foregroundStyle(.ink(snapshot == nil ? 0.5 : 0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
-                if let snapshot, !snapshot.artist.isEmpty {
+                // The lyric line takes the artist's place while there is
+                // one (spec 2026-10-29): the column has no room for a third
+                // line at any text size.
+                if snapshot != nil, let lyrics {
+                    LyricsColumnView(text: lyrics)
+                } else if let snapshot, !snapshot.artist.isEmpty {
                     Text(snapshot.artist)
                         .notchFont(12, design: .rounded)
                         .foregroundStyle(.ink(0.55))
