@@ -645,7 +645,7 @@ struct PreferencesView: View {
             // Required: switching it on is what starts sending each track to
             // a third party, so the row names the service and what goes to
             // it before the switch is pressed.
-            detail: String(localized: "The line being sung, under the notch and in the panel. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length.", bundle: .creativeNotch)
+            detail: String(localized: "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .camera, section: .camera, symbolName: "camera", tint: .gray,

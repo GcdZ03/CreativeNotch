@@ -359,4 +359,24 @@ struct LyricsControllerTests {
         await settle(rig)
         #expect(rig.published.last?.current == "one two three four five six seven eight nine ten eleven twelve")
     }
+
+    // MARK: - Nobody looking (the strip tucked away, 2026-10-29)
+
+    @Test func anUnseenLineSchedulesNothingAndComesBackWhenSeen() async {
+        let rig = make()
+        rig.controller.setEnabled(true)
+        rig.controller.trackDidChange(track())
+        await settle(rig)
+        #expect(rig.controller.boundaryTask != nil)
+
+        rig.controller.setLineVisible(false)
+        #expect(rig.controller.boundaryTask == nil)
+        // A seek while nobody looks still works the line out, once.
+        rig.controller.trackDidChange(track(elapsed: 25))
+        #expect(rig.published.last?.current == "two")
+        #expect(rig.controller.boundaryTask == nil)
+
+        rig.controller.setLineVisible(true)
+        #expect(rig.controller.boundaryTask != nil)
+    }
 }

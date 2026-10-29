@@ -3564,12 +3564,12 @@
         }
       }
     },
-    "The line being sung, under the notch and in the panel. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length." : {
+    "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The line being sung, under the notch and in the panel. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length."
+            "value" : "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length."
           }
         }
       }

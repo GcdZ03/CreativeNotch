@@ -101,8 +101,20 @@ the panel show the same parts. Considered and not chosen: scrolling the line
 for long lines (the shape moving by itself mid-song, over more of the window
 below).
 
+**Tucking the strip away (follow-up, same day).** The strip covers the top
+22pt of whatever window is under the notch. A **two-finger push up** on the
+closed notch or the music peek -- the one direction that did nothing there --
+hides it, and the same push brings it back, with one haptic tap each way.
+The choice is remembered (`lyrics.strip.hidden`). The peek and the panel
+keep showing the line. While nothing on screen shows it -- strip tucked away
+and the panel closed, another peek up, the camera tab -- the controller
+schedules nothing, so a tucked-away strip costs nothing at all. A push with
+no lyrics to show does nothing and taps nothing. A push up was chosen over a
+sideways swipe because sideways on the music peek already skips tracks, and
+the peek is what hovering the strip opens.
+
 There is no separate switch for the strip: the module's switch is the one
-decision. A "lyrics in the panel only" option is a possible follow-up.
+decision, and the push up is the way to tuck it away.
 
 The strip is part of the closed shape, so the drawn rect, the hit test and
 the hover tracking rect all grow by it through `NotchShape.visibleRect`, as a

@@ -230,4 +230,78 @@ struct LyricsWiringTests {
         let tooLong = try #require(delegate.lyrics?.tooLongForStrip)
         #expect(tooLong("There's more to do, if we can only live, and this is what we get tonight") == false)
     }
+
+    // MARK: - Tucking the strip away (2026-10-29)
+
+    /// Over the strip: panel-local, bottom-left origin, just below the band.
+    private func pushUp(_ delegate: AppDelegate) {
+        let at = CGPoint(x: delegate.acceptedRect.midX, y: delegate.acceptedRect.minY + 4)
+        let step = { (phase: ScrollSample.Phase, dy: CGFloat) in
+            _ = delegate.handleScroll(ScrollSample(phase: phase, isMomentum: false, isPrecise: true,
+                                                   finger: CGVector(dx: 0, dy: dy), location: at))
+        }
+        step(.began, 0)
+        for _ in 0..<4 { step(.changed, -(NotchSwipe.commitDistance + 10) / 4) }
+        step(.ended, 0)
+    }
+
+    private func playingWithLyrics() async -> AppDelegate {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+        return delegate
+    }
+
+    @Test func pushingUpTucksTheStripAwayAndTheSamePushBringsItBack() async {
+        let delegate = await playingWithLyrics()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        let withStrip = delegate.acceptedRect
+
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.state.showsLyricsStrip == false)
+        #expect(delegate.acceptedRect.height == withStrip.height - NotchGeometry.lyricsLineHeight)
+        expectRectsAgree(delegate)
+        #expect(taps == 1)
+
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(delegate.acceptedRect == withStrip)
+        expectRectsAgree(delegate)
+        #expect(taps == 2)
+    }
+
+    /// Tucked away and nothing else showing the line: nothing is scheduled.
+    @Test func aTuckedAwayStripCostsNothing() async {
+        let delegate = await playingWithLyrics()
+        #expect(delegate.lyrics?.boundaryTask != nil)
+        pushUp(delegate)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+        // The music peek still shows the line, so it wakes while that is up.
+        delegate.state.transition(to: .peek(.nowPlaying(track())))
+        #expect(delegate.lyrics?.boundaryTask != nil)
+        delegate.state.transition(to: .closed)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+    }
+
+    /// Remembered: the next launch starts with the strip tucked away.
+    @Test func theChoiceIsRemembered() async {
+        let delegate = await playingWithLyrics()
+        pushUp(delegate)
+        #expect(delegate.preferencesStore.lyricsStripHidden)
+    }
+
+    /// With no lyrics there is nothing to toggle: the push does nothing.
+    @Test func withNoLyricsAPushUpDoesNothing() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        delegate.nowPlayingDidChange(track())
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(taps == 0)
+    }
 }

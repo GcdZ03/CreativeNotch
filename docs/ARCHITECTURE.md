@@ -1300,7 +1300,11 @@ title, artist and length to LRCLIB.
   body by the same row, through `NotchShape.visibleRect`'s `lyricsHeight`, so
   the drawn rect, the hit test and the hover rect agree as they do for a
   badge. `lyricsDidChange` re-syncs the accepted region for the reason
-  `nowPlayingDidChange` does. A closed pill never grows a strip: it sits in
+  `nowPlayingDidChange` does. A two-finger push up on the closed notch or
+  the music peek (`NotchSwipe.Outcome.toggleLyrics`) tucks the strip away
+  or brings it back (`AppState.lyricsStripHidden`, persisted); the peek and
+  panel keep the line, and `syncLyricsVisibility` tells the controller when
+  no surface shows it, so it then schedules nothing. A closed pill never grows a strip: it sits in
   the menu bar, and one rect a line wide at that height would cover the app
   menus. The panel shows the line in the artist's place: below the progress
   bar it ran off the bottom of the panel at every text size.

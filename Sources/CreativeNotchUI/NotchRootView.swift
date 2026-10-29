@@ -650,15 +650,30 @@ public final class AppState {
     /// the guard `@Observable` emits drops nothing that would draw.
     public internal(set) var lyrics: LyricsText?
 
-    /// Whether the strip under the closed notch and the music peek's lyrics
-    /// row are drawn: there are lyrics, and the music is playing. Paused, the
-    /// strip goes with the badge, which answers "is something playing" too.
+    /// Whether the music peek's lyrics row is drawn: there are lyrics, and
+    /// the music is playing. Paused, the line goes with the badge, which
+    /// answers "is something playing" too.
     public var showsLyricsLine: Bool { lyrics != nil && nowPlaying?.isPlaying == true }
 
-    /// The one line `NotchShape.visibleRect` grows by, or zero. Read by the
-    /// drawn rect and by `AppDelegate`'s accepted region alike, so the strip
-    /// cannot be drawn where clicks fall through.
-    var lyricsLineHeight: CGFloat { showsLyricsLine ? NotchGeometry.lyricsLineHeight : 0 }
+    /// The strip under the closed notch tucked away by a two-finger push up,
+    /// and brought back by another (2026-10-29). Persisted by `AppDelegate`.
+    public internal(set) var lyricsStripHidden = false
+
+    /// Whether the strip under the closed notch is drawn: the line, unless
+    /// it has been tucked away. The peek and the panel still show it.
+    public var showsLyricsStrip: Bool { showsLyricsLine && !lyricsStripHidden }
+
+    /// The one line `NotchShape.visibleRect` grows `presentation` by, or
+    /// zero: the strip for the closed notch, the row for the music peek.
+    /// Read by the drawn rect and by `AppDelegate`'s accepted region alike,
+    /// so a line cannot be drawn where clicks fall through.
+    func lyricsHeight(for presentation: NotchShape.Presentation) -> CGFloat {
+        switch presentation {
+        case .closed:    return showsLyricsStrip ? NotchGeometry.lyricsLineHeight : 0
+        case .mediaPeek: return showsLyricsLine ? NotchGeometry.lyricsLineHeight : 0
+        default:         return 0
+        }
+    }
 
     /// The observed storage behind `countdown`, whose entire job is to
     /// **not** be `Equatable`.
@@ -1016,7 +1031,7 @@ public struct NotchRootView: View {
             panelFrame: app.panelFrame,
             badgeWidth: slot.width,
             leadingBadgeWidth: slot.leadingWidth,
-            lyricsHeight: app.lyricsLineHeight
+            lyricsHeight: app.lyricsHeight(for: app.state.presentation)
         )
     }
 
@@ -1176,7 +1191,7 @@ public struct NotchRootView: View {
             closing: Self.drawnRect(
                 state: .closed, anchor: app.anchor, panelFrame: app.panelFrame,
                 badgeWidth: slot.width, leadingBadgeWidth: slot.leadingWidth,
-                lyricsHeight: app.lyricsLineHeight
+                lyricsHeight: app.lyricsHeight(for: .closed)
             ),
             pull: app.pullProgress,
             state: app.state
@@ -1370,7 +1385,7 @@ public struct NotchRootView: View {
                         // there is one, hangs below it (spec 2026-10-29). The band's
                         // height is the anchor's, so a strip never re-centres a badge.
                         .frame(height: app.anchor.rect.height)
-                        if app.anchor.isNotch, app.showsLyricsLine, let text = app.lyrics {
+                        if app.anchor.isNotch, app.showsLyricsStrip, let text = app.lyrics {
                             LyricsStripView(text: text)
                                 .frame(height: NotchGeometry.lyricsLineHeight)
                         }

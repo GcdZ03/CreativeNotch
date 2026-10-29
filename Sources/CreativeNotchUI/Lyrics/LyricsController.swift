@@ -46,6 +46,9 @@ final class LyricsController {
 
     private(set) var isEnabled = false
     private var activity: SystemActivity = .active
+    /// Whether any surface showing the line is on screen. Hidden, the line
+    /// is still worked out when something changes, but nothing is scheduled.
+    private(set) var isLineVisible = true
 
     /// The last track reported, kept while off so switching on can use it.
     private var track: TrackSnapshot?
@@ -113,6 +116,16 @@ final class LyricsController {
             cancelLookup()
             cancelBoundary()
         }
+    }
+
+    /// The strip tucked away with the panel closed, another peek over the
+    /// music, the camera tab: nobody can see the line, so the one-shot goes.
+    /// Shown again, the line is worked out afresh and the wake comes back.
+    func setLineVisible(_ visible: Bool) {
+        guard visible != isLineVisible else { return }
+        isLineVisible = visible
+        guard isEnabled else { return }
+        if visible { refresh(at: now()) } else { cancelBoundary() }
     }
 
     // MARK: - The track
@@ -220,7 +233,7 @@ final class LyricsController {
         }
         let frame = lyrics.frame(position: position, isPlaying: track.isPlaying, at: instant)
         publish(frame.text)
-        guard activity == .active, let next = frame.nextChangeAt else { return }
+        guard activity == .active, isLineVisible, let next = frame.nextChangeAt else { return }
         schedule(next)
     }
 

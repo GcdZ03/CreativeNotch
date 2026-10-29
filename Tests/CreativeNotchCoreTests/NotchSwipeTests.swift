@@ -48,8 +48,21 @@ struct NotchSwipeTests {
         #expect(swipe([(0, far), (0, -20)]).ended(on: .closed) == .none)
     }
 
-    @Test func pushingUpOnTheClosedNotchDoesNothing() {
-        #expect(swipe([(0, -far)]).ended(on: .closed) == .none)
+    /// Up on the closed notch or the music peek tucks the lyrics strip away,
+    /// and the same push brings it back (2026-10-29). Whether there is a
+    /// strip to toggle is the app's question, not the swipe's.
+    @Test func pushingUpOnTheClosedNotchOrMusicPeekTogglesLyrics() {
+        #expect(swipe([(0, -far)]).ended(on: .closed) == .toggleLyrics)
+        #expect(swipe([(0, -far)]).ended(on: .mediaPeek) == .toggleLyrics)
+    }
+
+    @Test func pushingUpOnTheOtherPeeksDoesNothing() {
+        #expect(swipe([(0, -far)]).ended(on: .peek) == .none)
+        #expect(swipe([(0, -far)]).ended(on: .statusPeek) == .none)
+    }
+
+    @Test func aShortPushUpDoesNothing() {
+        #expect(swipe([(0, -(NotchSwipe.commitDistance - 4))]).ended(on: .closed) == .none)
     }
 
     // MARK: - Closing

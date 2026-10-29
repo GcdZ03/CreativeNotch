@@ -1341,6 +1341,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+        state.lyricsStripHidden = preferencesStore.lyricsStripHidden
 
         // Constructed here, started by the switchboard. Building a panel must
         // not register system-wide property listeners.
@@ -1791,6 +1792,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 self.syncTrackingRect()
             }
+            // Every change, the anchor's included: a strip shows only on a
+            // notch. The controller ignores a visibility it already has.
+            self.syncLyricsVisibility()
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
@@ -1846,7 +1850,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             panelFrame: frame,
             badgeWidth: slot.width,
             leadingBadgeWidth: slot.leadingWidth,
-            lyricsHeight: state.lyricsLineHeight
+            lyricsHeight: state.lyricsHeight(for: state.state.presentation)
         )
     }
 
@@ -2348,7 +2352,39 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // panel's buttons sit behind.
             guard state.showsMediaControls else { return }
             state.onMediaCommand?(outcome == .nextTrack ? .nextTrack : .previousTrack)
+        case .toggleLyrics:
+            // Only when there is a strip to tuck away or bring back: lyrics
+            // on, and a track with lyrics. Anything else is a push that does
+            // nothing, and taps nothing.
+            guard state.preferences.lyrics, state.lyrics != nil else { return }
+            setLyricsStripHidden(!state.lyricsStripHidden)
         }
+    }
+
+    /// Tucks the lyrics strip away or brings it back (2026-10-29): saved,
+    /// felt as one tap, and the region the strip took re-synced, since the
+    /// funnel does not fire for it.
+    func setLyricsStripHidden(_ hidden: Bool) {
+        state.lyricsStripHidden = hidden
+        preferencesStore.setLyricsStripHidden(hidden)
+        performHaptic()
+        syncTrackingRect()
+        syncLyricsVisibility()
+    }
+
+    /// Tells the lyrics controller whether any line is on screen, so it
+    /// sleeps until the next one only while somebody can see it: the strip
+    /// (a notch, not tucked away), the music peek, or the panel's music
+    /// column. A tucked-away strip then costs nothing at all.
+    func syncLyricsVisibility() {
+        let visible: Bool
+        switch state.state {
+        case .closed:                visible = state.anchor.isNotch && !state.lyricsStripHidden
+        case .peek(.nowPlaying):     visible = true
+        case .open(let tab):         visible = tab != .camera && state.showsMediaControls
+        case .peek, .receiving:      visible = false
+        }
+        lyrics?.setLineVisible(visible)
     }
 
     // MARK: - Hover
