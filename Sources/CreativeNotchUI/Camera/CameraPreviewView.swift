@@ -16,6 +16,10 @@ import SwiftUI
 /// whole job is to decline them.
 struct CameraPreview: NSViewRepresentable {
     let session: AVCaptureSession
+    /// The camera's own queue (`CameraSession.queue`). Attaching and
+    /// detaching are changes to the session, and happen there -- see
+    /// `PreviewLayerView.attach(session:mirrored:on:)`.
+    let queue: DispatchQueue
     /// The preview is mirrored; the saved file is not. Mirroring on the
     /// preview layer affects only what is drawn -- the capture connections
     /// carry their own, set to off in `CameraSession.configure()`.
@@ -23,12 +27,13 @@ struct CameraPreview: NSViewRepresentable {
 
     func makeNSView(context: Context) -> PreviewLayerView {
         let view = PreviewLayerView()
-        view.attach(session: session, mirrored: isMirrored)
+        view.attach(session: session, mirrored: isMirrored, on: queue)
+        view.queue = queue
         return view
     }
 
     func updateNSView(_ view: PreviewLayerView, context: Context) {
-        view.attach(session: session, mirrored: isMirrored)
+        view.attach(session: session, mirrored: isMirrored, on: queue)
     }
 
     /// **This is the teardown that matters.**
@@ -39,13 +44,16 @@ struct CameraPreview: NSViewRepresentable {
     /// at it. `stopRunning()` releases the *device* -- measured at 10ms -- but
     /// the retain cycle is a separate problem with a separate fix.
     static func dismantleNSView(_ view: PreviewLayerView, coordinator: ()) {
-        view.detach()
+        if let queue = view.queue { view.detach(on: queue) }
     }
 }
 
 /// A layer-backed view that shows a capture session and declines every click.
 final class PreviewLayerView: NSView {
     private let previewLayer = AVCaptureVideoPreviewLayer()
+
+    /// The queue it attached on, so dismantling detaches on the same one.
+    var queue: DispatchQueue?
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -57,18 +65,47 @@ final class PreviewLayerView: NSView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("not used") }
 
-    func attach(session: AVCaptureSession, mirrored: Bool) {
-        if previewLayer.session !== session { previewLayer.session = session }
-        guard let connection = previewLayer.connection,
-              connection.isVideoMirroringSupported else { return }
-        connection.automaticallyAdjustsVideoMirroring = false
-        connection.isVideoMirrored = mirrored
+    /// Points the layer at `session`, **on the camera's queue**.
+    ///
+    /// Setting a preview layer's session is not a layer-only change: the
+    /// session gains a preview connection, under its own configuration lock.
+    /// Done here on the main thread, it raced `startRunning()` on the camera
+    /// queue, which enumerates those connections -- and threw "collection was
+    /// mutated while being enumerated", aborting the app (crash report
+    /// 2026-10-29, v0.17.0, right after the camera was allowed). On the queue,
+    /// it happens before or after a start or a stop, never during one, which
+    /// is the rule `CameraSession` already keeps for every other change.
+    ///
+    /// Asynchronous, not `queue.sync`: a start can take hundreds of
+    /// milliseconds, and the tab would freeze for it on every open. Wrapped in
+    /// a transaction because a layer changed off the main thread has no run
+    /// loop to commit it.
+    func attach(session: AVCaptureSession, mirrored: Bool, on queue: DispatchQueue) {
+        let layer = Unchecked(previewLayer)
+        let session = Unchecked(session)
+        queue.async {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            defer { CATransaction.commit() }
+            if layer.value.session !== session.value { layer.value.session = session.value }
+            guard let connection = layer.value.connection,
+                  connection.isVideoMirroringSupported else { return }
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = mirrored
+        }
     }
 
-    /// Releases the session the layer is holding. See
-    /// `CameraPreview.dismantleNSView`.
-    func detach() {
-        previewLayer.session = nil
+    /// Releases the session the layer is holding, on the camera's queue for
+    /// `attach`'s reason: removing the preview connection races a stop the
+    /// same way. See `CameraPreview.dismantleNSView`.
+    func detach(on queue: DispatchQueue) {
+        let layer = Unchecked(previewLayer)
+        queue.async {
+            CATransaction.begin()
+            CATransaction.setDisableActions(true)
+            layer.value.session = nil
+            CATransaction.commit()
+        }
     }
 
     /// Whether the layer is currently holding a session. Exposed for the same
@@ -78,4 +115,12 @@ final class PreviewLayerView: NSView {
 
     /// Declines every point, like `HoverTracker`. It draws; it never claims.
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
+/// Carries a capture object onto the camera's queue. AVFoundation's types
+/// have no `Sendable` annotations; what keeps this safe is the rule the box
+/// exists for -- the value is only touched there.
+private struct Unchecked<Value>: @unchecked Sendable {
+    let value: Value
+    init(_ value: Value) { self.value = value }
 }

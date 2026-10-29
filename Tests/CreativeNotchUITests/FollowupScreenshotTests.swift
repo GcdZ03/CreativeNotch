@@ -102,6 +102,7 @@ struct FollowupScreenshotTests {
         for size in [TextSize.standard, .larger] {
             let s = Self.state(on: Self.laptop, textSize: size)
             s.cameraSession = AVCaptureSession()
+            s.cameraQueue = DispatchQueue(label: "test.camera")
             s.cameraState = .denied
             s.transition(to: .open(.camera))
             try Self.write(s, size == .standard ? "camera-default" : "camera-larger")

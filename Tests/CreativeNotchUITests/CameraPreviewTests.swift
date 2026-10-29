@@ -27,15 +27,61 @@ struct CameraPreviewTests {
     /// **The preview layer retains the session** -- stated twice in Apple's
     /// header -- so removing the view is not enough. Without `detach()` the
     /// graph outlives the tab with nothing pointing at it.
+    /// The camera's own queue, as `CameraSession` has one. Every attach and
+    /// detach goes through it, so a test drains it before looking.
+    private let queue = DispatchQueue(label: "test.camera")
+
+    private func drained() { queue.sync {} }
+
     @Test func detachingReleasesTheSessionTheLayerWasHolding() {
         let view = PreviewLayerView(frame: .zero)
         let session = AVCaptureSession()
 
-        view.attach(session: session, mirrored: true)
+        view.attach(session: session, mirrored: true, on: queue)
+        drained()
         #expect(view.isHoldingSession, "the layer never took the session, so releasing it proves nothing")
 
-        view.detach()
+        view.detach(on: queue)
+        drained()
 
+        #expect(view.isHoldingSession == false)
+    }
+
+    /// **The crash of 2026-10-29.** Pointing the layer at the session is a
+    /// change to the session -- AVFoundation adds a preview connection -- and
+    /// it was made on the main thread while the camera queue was inside
+    /// `startRunning()`, which enumerates the connections: "collection was
+    /// mutated while being enumerated", and an abort. Granting access is what
+    /// lined the two up, by restarting the session as the tab redrew.
+    ///
+    /// So the attach waits its turn on the camera queue. Held behind work
+    /// already there -- a `startRunning()` -- it must not have happened yet.
+    @Test func attachingWaitsForTheCameraQueue() {
+        let view = PreviewLayerView(frame: .zero)
+        let busy = DispatchSemaphore(value: 0)
+        queue.async { busy.wait() }        // the queue, inside a start
+
+        view.attach(session: AVCaptureSession(), mirrored: true, on: queue)
+        #expect(view.isHoldingSession == false, "attached while the queue was busy: the race")
+
+        busy.signal()
+        drained()
+        #expect(view.isHoldingSession)
+    }
+
+    /// Detaching is a change to the session too, and races a stop the same way.
+    @Test func detachingWaitsForTheCameraQueue() {
+        let view = PreviewLayerView(frame: .zero)
+        view.attach(session: AVCaptureSession(), mirrored: true, on: queue)
+        drained()
+        let busy = DispatchSemaphore(value: 0)
+        queue.async { busy.wait() }
+
+        view.detach(on: queue)
+        #expect(view.isHoldingSession, "detached while the queue was busy")
+
+        busy.signal()
+        drained()
         #expect(view.isHoldingSession == false)
     }
 
@@ -45,8 +91,9 @@ struct CameraPreviewTests {
         let view = PreviewLayerView(frame: .zero)
         let session = AVCaptureSession()
 
-        view.attach(session: session, mirrored: true)
-        view.attach(session: session, mirrored: true)
+        view.attach(session: session, mirrored: true, on: queue)
+        view.attach(session: session, mirrored: true, on: queue)
+        drained()
 
         #expect(view.isHoldingSession)
     }
@@ -55,10 +102,11 @@ struct CameraPreviewTests {
     /// have to ask first.
     @Test func detachingTwiceIsHarmless() {
         let view = PreviewLayerView(frame: .zero)
-        view.attach(session: AVCaptureSession(), mirrored: true)
+        view.attach(session: AVCaptureSession(), mirrored: true, on: queue)
 
-        view.detach()
-        view.detach()
+        view.detach(on: queue)
+        view.detach(on: queue)
+        drained()
 
         #expect(view.isHoldingSession == false)
     }
