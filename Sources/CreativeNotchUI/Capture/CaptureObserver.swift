@@ -344,3 +344,30 @@ final class CaptureObserver {
         return ids
     }
 }
+
+/// Who is using the camera and microphone right now, as the delegate's
+/// indicator reads it (2026-10-29).
+///
+/// A seam like `PowerStateObserver`: the delegate holds
+/// `SandboxCaptureReading`, which reads nothing, and only
+/// `configureForRealLaunch()` hands it the CoreAudio and CoreMediaIO read.
+/// Every suite that built a delegate used to have to switch the real read
+/// off by hand, or pass or fail by whether its developer was on a call --
+/// the capture badge widens the closed notch the way the low-battery peek
+/// did.
+@MainActor
+protocol CaptureReading {
+    func currentUse(ownCameraUID: String?) -> CaptureUse
+}
+
+/// The default: nobody is ever using anything.
+struct SandboxCaptureReading: CaptureReading {
+    func currentUse(ownCameraUID: String?) -> CaptureUse { .none }
+}
+
+/// The real read, `CaptureObserver.readSystem(ownCameraUID:)`.
+struct SystemCaptureReading: CaptureReading {
+    func currentUse(ownCameraUID: String?) -> CaptureUse {
+        CaptureObserver.readSystem(ownCameraUID: ownCameraUID)
+    }
+}

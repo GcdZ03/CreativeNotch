@@ -176,9 +176,11 @@ struct PowerObserverTests {
         observer.start()
 
         #expect(observer.registrationCount == 2)
+        #expect(observer.isObserving)
 
         observer.stop()
         #expect(observer.registrationCount == 0)
+        #expect(observer.isObserving == false)
     }
 
     /// The run loop, not the field, is asked whether the source is gone.

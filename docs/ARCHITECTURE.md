@@ -1278,6 +1278,16 @@ under an unrelated test. Tests reach every power decision through
 `PowerController.apply` and `AppDelegate.powerDidChange` instead; only
 `PowerObserverTests` start the real observer, to prove its IOKit registration.
 
+The capture indicator and clipboard history followed on 2026-10-29. A fresh
+delegate reads capture use through `SandboxCaptureReading` (nobody is ever
+on a call) and keeps clipboard history on a pasteboard of its own, as the
+colour picker already did; only `configureForRealLaunch()` hands them
+`SystemCaptureReading` and `.general`. Before, every suite had to switch the
+real microphone read off by hand, and the clipboard was `.general` outright,
+so a suite copying an entry back overwrote what the developer had copied.
+`SandboxedSeamsTests` also pins the real launch's fade, slide and morph
+animators, which no other suite runs.
+
 ### Joining the activity gate without being switched off
 
 `PowerController.setActivity` suppresses **peeks** and leaves the observer

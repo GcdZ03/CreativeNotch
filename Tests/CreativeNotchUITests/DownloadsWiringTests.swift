@@ -35,7 +35,6 @@ struct DownloadsWiringTests {
         delegate.takeKey = {}
         delegate.relinquishKey = {}
         delegate.install(metrics: NotchedDelegate.metrics)
-        delegate.capture?.observer.readCurrentUse = { .none }
         delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.media?.supervisor.startHelper = {}

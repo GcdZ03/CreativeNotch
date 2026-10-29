@@ -15,7 +15,7 @@ import CreativeNotchCore
 /// decision is reachable without it through `PowerController.apply` and
 /// `AppDelegate.powerDidChange`.
 @MainActor
-public protocol PowerStateObserver: AnyObject {
+protocol PowerStateObserver: AnyObject {
     var onChange: ((PowerSnapshot) -> Void)? { get set }
     /// Whether this Mac has an internal battery, as of the last `start()`.
     var hasBattery: Bool { get }
@@ -29,13 +29,13 @@ public protocol PowerStateObserver: AnyObject {
 ///
 /// It still answers `isObserving`, so the switchboard's start and stop of
 /// the power module stay provable without reaching IOKit.
-public final class SandboxPowerObserver: PowerStateObserver {
-    public var onChange: ((PowerSnapshot) -> Void)?
-    public var hasBattery: Bool { false }
-    public private(set) var isObserving = false
+final class SandboxPowerObserver: PowerStateObserver {
+    var onChange: ((PowerSnapshot) -> Void)?
+    var hasBattery: Bool { false }
+    private(set) var isObserving = false
 
-    public init() {}
+    init() {}
 
-    public func start() { isObserving = true }
-    public func stop() { isObserving = false }
+    func start() { isObserving = true }
+    func stop() { isObserving = false }
 }

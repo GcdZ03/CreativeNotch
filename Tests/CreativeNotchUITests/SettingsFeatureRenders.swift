@@ -42,7 +42,6 @@ struct SettingsFeatureRenders {
         delegate.announce = { _ in }
         delegate.screenDescriptors = { [] }
         delegate.install(metrics: NotchedDelegate.metrics)
-        delegate.capture?.observer.readCurrentUse = { .none }
         delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
         delegate.clipboard?.poller.cancelTimer = { _ in }
         delegate.state.onSetClipboardExcludedApps?(excluded)

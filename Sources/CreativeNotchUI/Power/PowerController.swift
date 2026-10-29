@@ -30,7 +30,7 @@ public final class PowerController {
     private var previous: PowerSnapshot?
     private var activity: SystemActivity = .active
 
-    public init(observer: PowerStateObserver) {
+    init(observer: PowerStateObserver) {
         self.observer = observer
         observer.onChange = { [weak self] snapshot in
             // `[weak self]`: the observer holds this closure, and a strong

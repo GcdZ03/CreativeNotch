@@ -48,7 +48,6 @@ struct ColorPickerWiringTests {
         delegate.screenDescriptors = { [] }
         delegate.colorSampler = sampler
         delegate.install(metrics: NotchedDelegate.metrics)
-        delegate.capture?.observer.readCurrentUse = { .none }
         return (delegate, sampler)
     }
 
