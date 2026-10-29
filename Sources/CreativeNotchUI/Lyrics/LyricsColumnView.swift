@@ -31,11 +31,9 @@ struct LyricsColumnView: View {
             }
             .lineLimit(1)
             .truncationMode(.tail)
-            .transition(.opacity)
-            .id(text.current)
         }
+        // Swapped, not faded, like the strip (`LyricLineView`).
         .frame(maxWidth: .infinity, alignment: .leading)
-        .animation(.smooth(duration: 0.3), value: text)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(LyricLineView.accessibilityText(for: text.current))
     }

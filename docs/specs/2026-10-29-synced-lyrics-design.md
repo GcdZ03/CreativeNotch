@@ -37,10 +37,13 @@ Atoll's shape.
 [LRCLIB](https://lrclib.net): free, no key, community-maintained, returns
 LRC timestamps. Measured 2026-10-29:
 
-- `GET /api/get?track_name&artist_name&album_name&duration` matches the
-  duration within about 2s and **requires the album to match** — a wrong
-  album is a 404, an empty one is ignored. So the lookup asks with the album,
-  and on a 404 asks once more without it. At most two requests per track.
+- `GET /api/get?track_name&artist_name&duration` matches the duration within
+  about 2s. **The album is not sent.** With it, a wrong album is a 404; and on
+  the afternoon of 2026-10-29 every request carrying the right album answered
+  `503`, three tries running, while the same request without it answered
+  `200` every time. The length already tells a radio edit from an album cut.
+  So one request per track. *Changed while building:* the first cut asked with
+  the album and then without it, and was caught by this on the real app.
 - `/api/get-cached` needs an exact album and second; not used.
 - The service answers `503 ServerOverloaded` under load, sometimes several
   times in a row. A 503 or a network failure is retried **once**, after a
@@ -49,7 +52,7 @@ LRC timestamps. Measured 2026-10-29:
 - Requests carry a `User-Agent` naming the app and its repository, as the
   service asks of clients.
 
-What is sent: title, artist, album and duration in seconds. Nothing else —
+What is sent: title, artist and duration in seconds. Nothing else —
 no identifier, no cookie (an ephemeral session), and the response is not
 written to disk.
 
@@ -64,13 +67,25 @@ history, and this app keeps none.
 
 1. **Under the closed notch** — a strip, while something is playing and has
    synced lyrics. The closed shape grows down by one line (22pt) and the
-   current line sits in it, cross-fading to the next. An empty LRC line (an
+   current line sits in it, swapped for the next with no fade: on the real
+   app a 0.3s cross-fade per line cost 1.42% of a core against 0.19% for the
+   plain swap (see "Measured"). An empty LRC line (an
    instrumental break) shows a note glyph rather than collapsing the strip:
    a strip that shrank and grew on every break would be the shape moving
    by itself, which the open-on-hover revert (2026-10-18) already showed
-   reads as a bug. A setting, on by default once lyrics are on.
-2. **In the music peek** — the same line under the progress bar.
-3. **In the panel's music column** — the current line and the next, dimmer.
+   reads as a bug. Paused, the strip goes with the badge. **Notch only:** a
+   pill sits inside the menu bar, and one rect grown down by a line would be
+   that wide at the menu bar's height too, over the app menus.
+2. **In the music peek** — the same line under the progress bar; the body
+   grows by the row. On a pill too.
+3. **In the panel's music column** — the current line in the artist's place,
+   shown paused too. *Changed while building:* the first cut put the current
+   and next lines under the progress bar, and the text-size render check
+   caught the transport controls running off the bottom of the panel at every
+   size. The artist is still in the peek.
+
+There is no separate switch for the strip: the module's switch is the one
+decision. A "lyrics in the panel only" option is a possible follow-up.
 
 The strip is part of the closed shape, so the drawn rect, the hit test and
 the hover tracking rect all grow by it through `NotchShape.visibleRect`, as a
@@ -99,3 +114,19 @@ the cache and withdraws the strip.
 - **Sync is as good as the position.** MediaRemote republishes on play,
   pause and seek only; a player that buffers without saying so drifts until
   the next event.
+
+## Measured (2026-10-29, real app)
+
+A release build on a 14" MacBook Pro (macOS 26), with a silent stand-in
+player publishing Now Playing for a track LRCLIB has, so nothing played out
+loud. App CPU time over 100s of playback, the app warm:
+
+| | App CPU | Wakeups / 3s |
+| --- | --- | --- |
+| Lyrics off | 0.04% | 0 |
+| Lyrics on, 0.3s cross-fade per line | 1.42% | ~180 |
+| Lyrics on, line swapped (shipped) | 0.19% | 8 |
+
+The strip showed the note glyph before the first line and each line on its
+timestamp (screenshots checked at 14s, 20s, 24s and 33s into the song).
+

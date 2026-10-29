@@ -52,7 +52,7 @@ struct LyricsWiringTests {
 
     private func track(playing: Bool = true) -> TrackSnapshot {
         TrackSnapshot(
-            title: "Song", artist: "Band", album: "Album", isPlaying: playing,
+            title: "Song", artist: "Band", isPlaying: playing,
             position: PlaybackPosition(elapsed: 12, duration: 200, anchoredAt: Self.t0)
         )
     }

@@ -5,8 +5,11 @@ import CreativeNotchCore
 /// peek's row draw it (spec 2026-10-29).
 ///
 /// Redrawn only when the line changes -- the controller's one-shot, about
-/// every four seconds -- with one cross-fade scoped to the text. Nothing
-/// here loops or reads a clock. A break between lines, or the wait before
+/// every four seconds -- and **swapped, not faded.** Measured on the real app
+/// on 2026-10-29 with a song playing: a 0.3s cross-fade on each line cost
+/// 1.42% of a core, because SwiftUI drives every frame of it in-process; the
+/// plain swap costs 0.19%, against 0.04% with lyrics off. Nothing here loops
+/// or reads a clock. A break between lines, or the wait before
 /// the first, shows a note glyph rather than nothing: a strip that emptied
 /// on every break would read as the app losing its place.
 struct LyricLineView: View {
@@ -24,16 +27,12 @@ struct LyricLineView: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.75)
                     .truncationMode(.tail)
-                    .transition(.opacity)
-                    .id(line)
             } else {
                 Image(systemName: "music.note")
                     .font(.system(size: size - 2, weight: .semibold))
                     .foregroundStyle(.ink(opacity * 0.5))
-                    .transition(.opacity)
             }
         }
-        .animation(.smooth(duration: 0.3), value: line)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Self.accessibilityText(for: line))
     }

@@ -11,8 +11,8 @@ typealias LyricsFetch = @Sendable (URL) async -> (status: Int, body: Data)?
 ///
 /// **What runs, and when.** Off, nothing: no request and no wake, and the
 /// track is merely remembered so switching on can look it up. On, a new track
-/// is looked up once (twice when the album misses, once more after a pause
-/// when the service is busy), and the answer is kept for the session.
+/// is looked up once (once more after a pause when the service is busy),
+/// and the answer is kept for the session.
 /// While a track with synced lyrics plays, there is exactly one pending
 /// one-shot, sleeping until the instant the line changes -- the timer's shape
 /// (ARCHITECTURE.md, "Allowed, with the timer as the precedent"). A pause, a
@@ -118,7 +118,7 @@ final class LyricsController {
         track = snapshot
         guard isEnabled else { return }
         let next = snapshot.flatMap {
-            LyricsQuery(title: $0.title, artist: $0.artist, album: $0.album, duration: $0.position?.duration)
+            LyricsQuery(title: $0.title, artist: $0.artist, duration: $0.position?.duration)
         }
         if next?.key != query?.key {
             query = next
@@ -142,17 +142,14 @@ final class LyricsController {
     private func lookUp(_ query: LyricsQuery, isRetry: Bool) {
         let fetch = self.fetch
         lookupTask = Task { [weak self] in
-            var answer = await Self.ask(query, withAlbum: query.requestsAlbumFirst, fetch: fetch)
-            if answer == .none, query.requestsAlbumFirst, !Task.isCancelled {
-                answer = await Self.ask(query, withAlbum: false, fetch: fetch)
-            }
+            let answer = await Self.ask(query, fetch: fetch)
             guard !Task.isCancelled else { return }
             self?.answered(answer, for: query, isRetry: isRetry)
         }
     }
 
-    private static func ask(_ query: LyricsQuery, withAlbum: Bool, fetch: LyricsFetch) async -> LyricsAnswer {
-        guard !Task.isCancelled, let reply = await fetch(query.request(withAlbum: withAlbum)) else {
+    private static func ask(_ query: LyricsQuery, fetch: LyricsFetch) async -> LyricsAnswer {
+        guard !Task.isCancelled, let reply = await fetch(query.request) else {
             return .unavailable
         }
         return LyricsAnswer(status: reply.status, body: reply.body)

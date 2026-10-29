@@ -6,22 +6,22 @@ import Testing
 /// "The service" — every status here was seen on 2026-10-29).
 struct LyricsLookupTests {
 
-    private func query(album: String = "Baldur's Gate 3", duration: Double = 233.4) -> LyricsQuery? {
-        LyricsQuery(title: "I Want to Live", artist: "Borislav Slavov", album: album, duration: duration)
+    private func query(title: String = "I Want to Live", duration: Double = 233.4) -> LyricsQuery? {
+        LyricsQuery(title: title, artist: "Borislav Slavov", duration: duration)
     }
 
     // MARK: - What is worth asking about
 
     @Test func aTrackWithoutATitleArtistOrLengthIsNotLookedUp() {
-        #expect(LyricsQuery(title: "", artist: "A", album: "", duration: 200) == nil)
-        #expect(LyricsQuery(title: "T", artist: "  ", album: "", duration: 200) == nil)
-        #expect(LyricsQuery(title: "T", artist: "A", album: "", duration: nil) == nil)
+        #expect(LyricsQuery(title: "", artist: "A", duration: 200) == nil)
+        #expect(LyricsQuery(title: "T", artist: "  ", duration: 200) == nil)
+        #expect(LyricsQuery(title: "T", artist: "A", duration: nil) == nil)
     }
 
     /// Too short for a song, or podcast-long: not worth a request.
     @Test func implausibleLengthsAreNotLookedUp() {
-        #expect(LyricsQuery(title: "T", artist: "A", album: "", duration: 20) == nil)
-        #expect(LyricsQuery(title: "T", artist: "A", album: "", duration: 60 * 30) == nil)
+        #expect(LyricsQuery(title: "T", artist: "A", duration: 20) == nil)
+        #expect(LyricsQuery(title: "T", artist: "A", duration: 60 * 30) == nil)
     }
 
     /// The service matches whole seconds within about two.
@@ -32,32 +32,24 @@ struct LyricsLookupTests {
 
     @Test func twoQueriesForOneTrackShareAKey() throws {
         #expect(try #require(query(duration: 233.1)).key == #require(query(duration: 232.9)).key)
-        #expect(try #require(query(album: "A")).key != #require(query(album: "B")).key)
+        #expect(try #require(query(title: "A")).key != #require(query(title: "B")).key)
     }
 
     // MARK: - The requests
 
-    @Test func theFirstRequestCarriesTheAlbum() throws {
-        let url = try #require(query()).request(withAlbum: true)
+    /// Title, artist and length, and nothing else -- the album included
+    /// (see `LyricsQuery`).
+    @Test func theRequestCarriesTitleArtistAndLengthOnly() throws {
+        let url = try #require(query()).request
         let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
+        #expect(url.scheme == "https")
         #expect(url.host == "lrclib.net")
         #expect(url.path == "/api/get")
-        #expect(items.contains(URLQueryItem(name: "track_name", value: "I Want to Live")))
-        #expect(items.contains(URLQueryItem(name: "artist_name", value: "Borislav Slavov")))
-        #expect(items.contains(URLQueryItem(name: "album_name", value: "Baldur's Gate 3")))
-        #expect(items.contains(URLQueryItem(name: "duration", value: "233")))
-    }
-
-    /// A wrong album is a 404; an empty one is ignored.
-    @Test func theSecondRequestLeavesTheAlbumEmpty() throws {
-        let url = try #require(query()).request(withAlbum: false)
-        let items = try #require(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems)
-        #expect(items.contains(URLQueryItem(name: "album_name", value: "")))
-    }
-
-    @Test func aTrackWithNoAlbumIsAskedOnce() throws {
-        #expect(try #require(query(album: "")).requestsAlbumFirst == false)
-        #expect(try #require(query(album: "X")).requestsAlbumFirst == true)
+        #expect(Set(items) == [
+            URLQueryItem(name: "track_name", value: "I Want to Live"),
+            URLQueryItem(name: "artist_name", value: "Borislav Slavov"),
+            URLQueryItem(name: "duration", value: "233"),
+        ])
     }
 
     // MARK: - The answers

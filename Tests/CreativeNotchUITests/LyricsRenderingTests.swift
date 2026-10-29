@@ -35,7 +35,7 @@ struct LyricsRenderingTests {
     /// `Text(timerInterval:)` and read the wall clock whatever `now` says.
     static func track(playing: Bool = true, anchoredAt: Date = instant) -> TrackSnapshot {
         TrackSnapshot(
-            title: "I Want to Live", artist: "Borislav Slavov", album: "Baldur's Gate 3", isPlaying: playing,
+            title: "I Want to Live", artist: "Borislav Slavov", isPlaying: playing,
             position: PlaybackPosition(elapsed: 18, duration: 233, anchoredAt: anchoredAt)
         )
     }

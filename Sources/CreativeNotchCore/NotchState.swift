@@ -7,21 +7,15 @@ public enum Tab: String, CaseIterable, Equatable, Sendable {
 public struct TrackSnapshot: Equatable, Sendable {
     public var title: String
     public var artist: String
-    /// What lyrics are looked up by, with the title and artist (spec
-    /// 2026-10-29). Drawn nowhere. Part of equality, which can only make a
-    /// new album a republish -- the same track as far as `TrackIdentity`
-    /// is concerned, which already includes the album.
-    public var album: String
     public var isPlaying: Bool
     /// Where playback is, when the player publishes it. Part of equality on
     /// purpose: a seek is a change worth republishing, and MediaRemote only
     /// sends one on play, pause and seek, never on a clock.
     public var position: PlaybackPosition?
 
-    public init(title: String, artist: String, album: String = "", isPlaying: Bool, position: PlaybackPosition? = nil) {
+    public init(title: String, artist: String, isPlaying: Bool, position: PlaybackPosition? = nil) {
         self.title = title
         self.artist = artist
-        self.album = album
         self.isPlaying = isPlaying
         self.position = position
     }

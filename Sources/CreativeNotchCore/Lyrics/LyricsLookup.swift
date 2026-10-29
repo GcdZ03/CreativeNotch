@@ -1,20 +1,23 @@
 import Foundation
 
-/// The four things sent to LRCLIB for one track, and the requests made of
+/// The three things sent to LRCLIB for one track, and the request made of
 /// them (spec 2026-10-29, "The service").
 ///
-/// This is the whole of what leaves the machine: a title, an artist, an
-/// album and a length in whole seconds. No identifier and no history.
+/// This is the whole of what leaves the machine: a title, an artist and a
+/// length in whole seconds. No album, no identifier and no history. The
+/// album is left out on purpose: with it, LRCLIB answered `503` to every
+/// try for an hour on 2026-10-29 while the same request without it answered
+/// at once, and the length within two seconds already tells a radio edit
+/// from an album cut.
 public struct LyricsQuery: Equatable, Sendable {
     public let title: String
     public let artist: String
-    public let album: String
     public let seconds: Int
 
     /// `nil` for a track not worth a request: no title or artist to match
     /// by, no length (a live stream), or a length no song has. Under 30s is
     /// a jingle or a preview; over 20 minutes is a podcast or a mix.
-    public init?(title: String, artist: String, album: String, duration: TimeInterval?) {
+    public init?(title: String, artist: String, duration: TimeInterval?) {
         let title = title.trimmingCharacters(in: .whitespacesAndNewlines)
         let artist = artist.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty, !artist.isEmpty,
@@ -22,21 +25,16 @@ public struct LyricsQuery: Equatable, Sendable {
         else { return nil }
         self.title = title
         self.artist = artist
-        self.album = album.trimmingCharacters(in: .whitespacesAndNewlines)
         self.seconds = Int(duration.rounded())
     }
 
     /// The cache key. Whole seconds, so two readings of one track that
     /// round alike share an answer.
     public var key: String {
-        [title, artist, album, String(seconds)].joined(separator: "\u{1F}")
+        [title, artist, String(seconds)].joined(separator: "\u{1F}")
     }
 
-    /// Measured: a wrong album is a 404 and an empty one is ignored, so a
-    /// track with an album is asked about with it first and then without.
-    public var requestsAlbumFirst: Bool { !album.isEmpty }
-
-    public func request(withAlbum: Bool) -> URL {
+    public var request: URL {
         var components = URLComponents()
         components.scheme = "https"
         components.host = "lrclib.net"
@@ -44,7 +42,6 @@ public struct LyricsQuery: Equatable, Sendable {
         components.queryItems = [
             URLQueryItem(name: "track_name", value: title),
             URLQueryItem(name: "artist_name", value: artist),
-            URLQueryItem(name: "album_name", value: withAlbum ? album : ""),
             URLQueryItem(name: "duration", value: String(seconds)),
         ]
         // Every component above is set, so this cannot be nil.

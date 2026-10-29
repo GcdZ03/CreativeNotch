@@ -74,11 +74,11 @@ struct LyricsControllerTests {
     }
 
     private func track(
-        _ title: String = "I Want to Live", album: String = "BG3",
+        _ title: String = "I Want to Live",
         playing: Bool = true, elapsed: Double = 12, duration: Double? = 233
     ) -> TrackSnapshot {
         TrackSnapshot(
-            title: title, artist: "Borislav Slavov", album: album, isPlaying: playing,
+            title: title, artist: "Borislav Slavov", isPlaying: playing,
             position: duration.flatMap { PlaybackPosition(elapsed: elapsed, duration: $0, anchoredAt: t0) }
         )
     }
@@ -125,21 +125,8 @@ struct LyricsControllerTests {
         #expect(rig.published.last == LyricsText(current: "two"))
     }
 
-    /// A wrong album is a 404 at LRCLIB; an empty one is ignored.
-    @Test func aMissWithTheAlbumAsksOnceMoreWithout() async throws {
-        let rig = make([(404, "{}"), (200, Self.found)])
-        rig.controller.setEnabled(true)
-        rig.controller.trackDidChange(track())
-        await settle(rig)
-
-        #expect(rig.service.asked.count == 2)
-        let second = try #require(URLComponents(url: rig.service.asked[1], resolvingAgainstBaseURL: false))
-        #expect(second.queryItems?.first { $0.name == "album_name" }?.value == "")
-        #expect(rig.published.last?.current == "one")
-    }
-
-    @Test func notFoundTwiceIsRememberedAndNeverAskedAgain() async {
-        let rig = make([(404, "{}"), (404, "{}")])
+    @Test func notFoundIsRememberedAndNeverAskedAgain() async {
+        let rig = make([(404, "{}")])
         rig.controller.setEnabled(true)
         rig.controller.trackDidChange(track())
         await settle(rig)
@@ -147,9 +134,9 @@ struct LyricsControllerTests {
         rig.controller.trackDidChange(track())
         await settle(rig)
 
-        // Two for the first track, then the other track's lookup (which the
+        // One for the first track, then the other track's lookup (which the
         // script answers with nothing), and nothing more for the first.
-        #expect(rig.service.asked(about: "I Want to Live") == 2)
+        #expect(rig.service.asked(about: "I Want to Live") == 1)
         #expect(rig.published.last == nil)
     }
 
@@ -158,7 +145,7 @@ struct LyricsControllerTests {
     @Test func busyIsRetriedOnceAfterAPause() async {
         let rig = make([(503, "{}"), (503, "{}"), (200, Self.found)])
         rig.controller.setEnabled(true)
-        rig.controller.trackDidChange(track(album: ""))
+        rig.controller.trackDidChange(track())
         await rig.log.waitForRequests(1)
         #expect(await rig.log.requests == [LyricsController.retryDelay])
         rig.controller.retryReached()
@@ -172,12 +159,12 @@ struct LyricsControllerTests {
     @Test func anOutageIsNotRemembered() async {
         let rig = make([nil, nil, (200, Self.found)])
         rig.controller.setEnabled(true)
-        rig.controller.trackDidChange(track(album: ""))
+        rig.controller.trackDidChange(track())
         await rig.log.waitForRequests(1)
         rig.controller.retryReached()
         await settle(rig)
-        rig.controller.trackDidChange(track("Other", album: "", duration: nil))
-        rig.controller.trackDidChange(track(album: ""))
+        rig.controller.trackDidChange(track("Other", duration: nil))
+        rig.controller.trackDidChange(track())
         await settle(rig)
 
         #expect(rig.service.asked.count == 3)
@@ -198,7 +185,7 @@ struct LyricsControllerTests {
     /// old track's lyrics over the new one.
     @Test func aLateAnswerForAnEarlierTrackIsDropped() async {
         let rig = make([(200, Self.found)])
-        rig.service.byTitle["Other"] = [(404, "{}"), (404, "{}")]
+        rig.service.byTitle["Other"] = [(404, "{}")]
         rig.controller.setEnabled(true)
         rig.controller.trackDidChange(track())
         rig.controller.trackDidChange(track("Other"))
@@ -308,6 +295,7 @@ struct LyricsControllerTests {
         rig.controller.setEnabled(true)
         rig.controller.trackDidChange(track())
         await settle(rig)
+        #expect(rig.service.asked.count == 1)
 
         rig.controller.setEnabled(false)
         #expect(rig.published.last == nil)

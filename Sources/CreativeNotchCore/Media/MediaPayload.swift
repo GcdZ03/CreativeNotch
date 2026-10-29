@@ -105,7 +105,7 @@ public struct MediaPayload: Equatable, Sendable, Decodable {
     /// cases so the two cannot drift apart again. (Follow-up F1.)
     public var snapshot: TrackSnapshot? {
         guard !title.isEmpty || !artist.isEmpty else { return nil }
-        return TrackSnapshot(title: title, artist: artist, album: album, isPlaying: isPlaying, position: position)
+        return TrackSnapshot(title: title, artist: artist, isPlaying: isPlaying, position: position)
     }
 
     /// Returns `nil` for anything that is not a JSON object — including
