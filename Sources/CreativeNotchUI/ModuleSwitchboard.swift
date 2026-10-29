@@ -292,9 +292,11 @@ final class ModuleSwitchboard {
             delegate.camera?.setEnabled(enabled)
             if !enabled {
                 delegate.state.cameraSession = nil
+                delegate.state.cameraQueue = nil
                 delegate.state.isRecordingClip = false
             } else {
                 delegate.state.cameraSession = delegate.camera?.captureSession
+                delegate.state.cameraQueue = delegate.camera?.sessionQueue
             }
 
         case .captureIndicator:

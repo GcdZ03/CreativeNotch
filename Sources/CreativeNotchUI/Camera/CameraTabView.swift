@@ -16,6 +16,8 @@ import CreativeNotchCore
 struct CameraTabView: View {
     let state: CameraController.State
     let session: AVCaptureSession
+    /// The camera's own queue, where the preview attaches.
+    let queue: DispatchQueue
     let onShutter: () -> Void
     let onToggleRecording: () -> Void
     let onClose: () -> Void
@@ -56,7 +58,7 @@ struct CameraTabView: View {
             case .unavailable:
                 message(String(localized: "No camera found", bundle: .creativeNotch), detail: String(localized: "This Mac has no built-in camera.", bundle: .creativeNotch))
             case .idle, .previewing, .recording:
-                CameraPreview(session: session, isMirrored: true)
+                CameraPreview(session: session, queue: queue, isMirrored: true)
                     .clipShape(RoundedRectangle(cornerRadius: 10))
             }
 

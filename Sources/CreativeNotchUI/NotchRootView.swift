@@ -510,6 +510,10 @@ public final class AppState {
     /// delegate so the view keeps its one dependency.
     @ObservationIgnored public var cameraSession: AVCaptureSession?
 
+    /// The camera's own queue, published with the session: the preview
+    /// attaches to the session there, never on the main thread (2026-10-29).
+    @ObservationIgnored var cameraQueue: DispatchQueue?
+
     /// What the camera tab shows. Observed, unlike the session itself, which
     /// is an object identity that never changes.
     var cameraState: CameraController.State?
@@ -1697,10 +1701,11 @@ public struct NotchRootView: View {
     /// The camera tab's content: the preview across the whole body.
     @ViewBuilder
     private var cameraContent: some View {
-        if let camera = app.cameraSession, let state = app.cameraState {
+        if let camera = app.cameraSession, let queue = app.cameraQueue, let state = app.cameraState {
             CameraTabView(
                 state: state,
                 session: camera,
+                queue: queue,
                 onShutter: { app.onCameraShutter?() },
                 onToggleRecording: { app.onCameraToggleRecording?() },
                 onClose: { app.transition(to: .closed) }

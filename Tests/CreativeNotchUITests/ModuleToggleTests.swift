@@ -254,11 +254,15 @@ struct ModuleToggleTests {
         delegate.switchboard.setEnabled(true, for: .camera)
         camera.setTabVisible(true)
         #expect(camera.shouldRun, "the camera never started, so stopping it proves nothing")
+        // Published with the session: the queue the preview attaches on
+        // (2026-10-29). Without it the tab would draw nothing.
+        #expect(delegate.state.cameraQueue === camera.sessionQueue)
 
         delegate.switchboard.setEnabled(false, for: .camera)
 
         #expect(camera.shouldRun == false)
         #expect(delegate.state.cameraSession == nil)
+        #expect(delegate.state.cameraQueue == nil)
         #expect(delegate.state.isRecordingClip == false)
         delegate.activity.stop()
     }
