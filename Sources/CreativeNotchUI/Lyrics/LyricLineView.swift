@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import CreativeNotchCore
 
@@ -37,6 +38,18 @@ struct LyricLineView: View {
         .accessibilityLabel(Self.accessibilityText(for: line))
     }
 
+    /// The smallest the line is drawn before it is cut: 75% of 12pt.
+    static let minimumScale: CGFloat = 0.75
+
+    /// Whether `line` fits `width` points at the smallest size the strip
+    /// will draw it, in the strip's own font -- measured, not counted, so a
+    /// line of narrow letters is not split for nothing (2026-10-29).
+    static func fits(_ line: String, width: CGFloat, size: CGFloat = 12) -> Bool {
+        let base = NSFont.systemFont(ofSize: size * minimumScale, weight: .semibold)
+        let font = base.fontDescriptor.withDesign(.rounded).flatMap { NSFont(descriptor: $0, size: 0) } ?? base
+        return (line as NSString).size(withAttributes: [.font: font]).width <= width
+    }
+
     static func accessibilityText(for line: String?) -> String {
         guard let line, !line.isEmpty else {
             return String(localized: "Lyrics: instrumental", bundle: .creativeNotch)
@@ -50,9 +63,11 @@ struct LyricLineView: View {
 struct LyricsStripView: View {
     let text: LyricsText
 
+    static let horizontalPadding: CGFloat = 12
+
     var body: some View {
         LyricLineView(line: text.current)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Self.horizontalPadding)
             .padding(.bottom, 4)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }

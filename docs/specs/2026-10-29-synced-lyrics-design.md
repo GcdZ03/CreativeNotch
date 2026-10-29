@@ -84,6 +84,20 @@ history, and this app keeps none.
    caught the transport controls running off the bottom of the panel at every
    size. The artist is still in the peek.
 
+**Long lines (follow-up, same day).** The strip is about 235pt of text: a
+line is shrunk to 75% and then cut with "…", so anything past about fifty
+characters lost its end. A line the strip cannot fit at that size --
+measured in its own font, not counted -- is now shown in parts: split after
+the pause (`,` `;` `:` `—`) nearest the middle, or the space nearest it, the
+second part timed by the first's share of the characters, and split again
+if a part still does not fit, into at most four. One more wake per long line
+and no animation. Left whole: the last line, a line under two seconds, one
+unbroken word, and everything on a pill, which has no strip. The peek and
+the panel show the same parts. Considered and not chosen: scrolling the line
+(an animation for the line's length) and a two-line strip that grows only
+for long lines (the shape moving by itself mid-song, over more of the window
+below).
+
 There is no separate switch for the strip: the module's switch is the one
 decision. A "lyrics in the panel only" option is a possible follow-up.
 

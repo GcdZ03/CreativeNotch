@@ -1290,7 +1290,11 @@ title, artist and length to LRCLIB.
   come back on return. Off cancels everything, forgets every answer and
   withdraws the line.
 - **The strip.** `AppState.lyrics` is a `LyricsText`, which changes only when
-  the line does. `showsLyricsLine` — lyrics and playing — is what grows the
+  the line does. A line too wide for the strip at 75% size, measured in its
+  font (`LyricLineView.fits`), is split by `SyncedLyrics.splittingLines` at
+  the pause nearest its middle and the halves timed by their share of the
+  characters, so it shows whole in turn, for one more wake and no
+  animation. `showsLyricsLine` — lyrics and playing — is what grows the
   closed notch down by `NotchGeometry.lyricsLineHeight` and the music peek's
   body by the same row, through `NotchShape.visibleRect`'s `lyricsHeight`, so
   the drawn rect, the hit test and the hover rect agree as they do for a

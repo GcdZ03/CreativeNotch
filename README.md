@@ -190,8 +190,9 @@ position and sleeps until exactly then — about one wake every four seconds,
 fewer than the timer badge's one a second. A track is looked up once, with
 one retry when the service is busy, and the answers live in memory for the
 session; nothing is written to disk and nothing is asked while the screen is
-locked. On a notchless Mac the strip would cover the app menus, so the pill
-shows lyrics in the peek and the panel only.
+locked. A line too long for the strip is shown in two parts, split at its
+natural pause, rather than cut off. On a notchless Mac the strip would cover
+the app menus, so the pill shows lyrics in the peek and the panel only.
 
 <p align="center">
   <img src="docs/assets/features/lyrics-strip.png" width="620" alt="The closed notch with the album cover and still bars to its right, and below it a one-line strip reading I feel your breath upon my neck">

@@ -146,4 +146,100 @@ struct SyncedLyricsTests {
         let inBreak = song.frame(position: position, isPlaying: true, at: t0.addingTimeInterval(6))
         #expect(inBreak.current == "")
     }
+
+    // MARK: - Splitting long lines (2026-10-29)
+
+    /// "Too long" for these tests: more than 45 characters. The app measures
+    /// the strip's real width instead.
+    private let tooLong: (String) -> Bool = { $0.count > 45 }
+
+    /// At the comma nearest the middle, and the second half timed by the
+    /// first's share of the characters: 40 + 10 × 40/71.
+    @Test func aLongLineSplitsAtAPauseTimedByItsShare() throws {
+        let lyrics = SyncedLyrics(lines: [
+            LyricLine(time: 40, text: "There's more to do, if we can only live, and this is what we get tonight"),
+            LyricLine(time: 50, text: "next"),
+        ]).splittingLines(where: tooLong)
+        #expect(lyrics.lines.map(\.text) == [
+            "There's more to do, if we can only live,",
+            "and this is what we get tonight",
+            "next",
+        ])
+        #expect(lyrics.lines[0].time == 40)
+        let second = try #require(lyrics.lines[1].time)
+        #expect(abs(second - (40 + 10 * 40.0 / 71.0)) < 0.001)
+        #expect(lyrics.lines[2].time == 50)
+    }
+
+    /// No punctuation near the middle: the space nearest it.
+    @Test func withNoPauseItSplitsAtTheMiddleWord() {
+        let lyrics = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: "one two three four five six seven eight nine ten"),
+            LyricLine(time: 10, text: "x"),
+        ]).splittingLines(where: tooLong)
+        #expect(lyrics.lines.map(\.text) == ["one two three four five", "six seven eight nine ten", "x"])
+    }
+
+    /// A comma near an end is no pause worth splitting at: it would leave a
+    /// half too long and a half of two words.
+    @Test func aPauseNearAnEndIsPassedOver() {
+        let lyrics = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: "Oh, one two three four five six seven eight nine ten eleven"),
+            LyricLine(time: 10, text: "x"),
+        ]).splittingLines(where: tooLong)
+        #expect(lyrics.lines[0].text != "Oh,")
+        #expect(lyrics.lines.count == 3)
+    }
+
+    @Test func aLineThatFitsIsLeftAlone() {
+        let song = SyncedLyrics(lines: [LyricLine(time: 0, text: "short"), LyricLine(time: 5, text: "")])
+        #expect(song.splittingLines(where: tooLong) == song)
+    }
+
+    /// The last line has no end to time its second half against.
+    @Test func theLastLineIsLeftAlone() {
+        let song = SyncedLyrics(lines: [LyricLine(time: 0, text: "one two three four five six seven eight nine ten")])
+        #expect(song.splittingLines(where: tooLong) == song)
+    }
+
+    /// Under two seconds there is no time to read two halves.
+    @Test func aQuickLineIsLeftAlone() {
+        let song = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: "one two three four five six seven eight nine ten"),
+            LyricLine(time: 1.5, text: "x"),
+        ])
+        #expect(song.splittingLines(where: tooLong) == song)
+    }
+
+    /// A line long enough that a half is still too long splits again, into
+    /// at most four parts.
+    @Test func aVeryLongLineSplitsIntoAtMostFour() {
+        let words = (1...40).map { "w\($0)" }.joined(separator: " ")
+        let lyrics = SyncedLyrics(lines: [LyricLine(time: 0, text: words), LyricLine(time: 20, text: "x")])
+            .splittingLines(where: tooLong)
+        #expect(lyrics.lines.count == 5)
+        #expect(lyrics.lines.dropLast().map(\.text).joined(separator: " ") == words)
+        #expect(lyrics.lines.map(\.time) == lyrics.lines.map(\.time).sorted())
+    }
+
+    /// A word with no space in it cannot be split; it is cut as before.
+    @Test func oneUnbrokenWordIsLeftAlone() {
+        let song = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: String(repeating: "a", count: 50)),
+            LyricLine(time: 10, text: "x"),
+        ])
+        #expect(song.splittingLines(where: tooLong) == song)
+    }
+
+    /// The halves are ordinary lines: the frame and its one-shot follow them.
+    @Test func theOneShotLandsOnTheSecondHalf() throws {
+        let lyrics = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: "one two three four five six seven eight nine ten"),
+            LyricLine(time: 10, text: "x"),
+        ]).splittingLines(where: tooLong)
+        let position = try #require(PlaybackPosition(elapsed: 1, duration: 200, anchoredAt: t0))
+        let frame = lyrics.frame(position: position, isPlaying: true, at: t0)
+        #expect(frame.current == "one two three four five")
+        #expect(frame.nextChangeAt == t0.addingTimeInterval(lyrics.lines[1].time - 1))
+    }
 }

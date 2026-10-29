@@ -106,6 +106,69 @@ public struct SyncedLyrics: Equatable, Sendable {
         )
     }
 
+    // MARK: - Long lines (2026-10-29)
+
+    /// Every line `tooLong` says will not fit, split at a natural pause into
+    /// two lines of its own, the second timed by the first's share of the
+    /// characters -- and split again if a half still does not fit, into at
+    /// most four.
+    ///
+    /// The strip under the notch is one line about as wide as the notch and
+    /// its badge; it shrinks a line to 75% and then cuts it with "…". A split
+    /// shows the whole line in turn at the cost of one more wake, where
+    /// scrolling it would be an animation for the line's length. The second
+    /// half's time is an estimate: words are not sung at an even pace.
+    ///
+    /// Left alone: a line that fits, the last line (nothing says when it
+    /// ends), a line or part shorter than `minimumSpan` (no time to read two
+    /// halves), and a single unbroken word.
+    public func splittingLines(where tooLong: (String) -> Bool) -> SyncedLyrics {
+        var split: [LyricLine] = []
+        for (i, line) in lines.enumerated() {
+            guard i + 1 < lines.count, !line.text.isEmpty else {
+                split.append(line)
+                continue
+            }
+            split += Self.split(line.text, from: line.time, to: lines[i + 1].time, depth: 0, tooLong: tooLong)
+        }
+        return SyncedLyrics(lines: split)
+    }
+
+    /// Below this, a line is not split: two halves need a second each.
+    public static let minimumSpan: TimeInterval = 2
+
+    private static func split(
+        _ text: String, from start: TimeInterval, to end: TimeInterval, depth: Int, tooLong: (String) -> Bool
+    ) -> [LyricLine] {
+        guard depth < 2, end - start >= minimumSpan, tooLong(text), let at = breakIndex(in: text) else {
+            return [LyricLine(time: start, text: text)]
+        }
+        let first = String(text[..<at]).trimmingCharacters(in: .whitespaces)
+        let second = String(text[at...]).trimmingCharacters(in: .whitespaces)
+        let share = Double(first.count) / Double(first.count + second.count)
+        let middle = start + (end - start) * share
+        return split(first, from: start, to: middle, depth: depth + 1, tooLong: tooLong)
+            + split(second, from: middle, to: end, depth: depth + 1, tooLong: tooLong)
+    }
+
+    /// Where to break: after the pause (`,` `;` `:` `—` `–`) nearest the
+    /// middle, if one sits in the middle half of the line; otherwise at the
+    /// space nearest the middle. `nil` for a line with no space at all.
+    private static func breakIndex(in text: String) -> String.Index? {
+        let characters = Array(text)
+        let middle = Double(characters.count) / 2
+        let spaces = characters.indices.filter { characters[$0] == " " && $0 > 0 && $0 < characters.count - 1 }
+        guard !spaces.isEmpty else { return nil }
+        let pauses = spaces.filter {
+            ",;:—–".contains(characters[$0 - 1])
+                && Double($0) >= Double(characters.count) * 0.25
+                && Double($0) <= Double(characters.count) * 0.75
+        }
+        let candidates = pauses.isEmpty ? spaces : pauses
+        let best = candidates.min { abs(Double($0) - middle) < abs(Double($1) - middle) }!
+        return text.index(text.startIndex, offsetBy: best)
+    }
+
     // MARK: - LRC
 
     /// `m:ss`, `mm:ss.xx`, `mm:ss.xxx` or `mm:ss:xx` — all four occur.

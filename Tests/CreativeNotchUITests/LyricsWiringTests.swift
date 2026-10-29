@@ -209,4 +209,25 @@ struct LyricsWiringTests {
         #expect(row.detail.contains("LRCLIB"))
         #expect(row.detail.contains("title"))
     }
+
+    // MARK: - Long lines
+
+    /// Measured, not counted: the strip's width on a notch decides.
+    @Test func theStripWidthDecidesWhatSplits() throws {
+        let (delegate, _) = makeDelegate()
+        let tooLong = try #require(delegate.lyrics?.tooLongForStrip)
+        #expect(tooLong("I feel your breath upon my neck") == false)
+        #expect(tooLong("There's more to do, if we can only live, and this is what we get tonight"))
+    }
+
+    /// A pill has no strip, so nothing is split for it.
+    @Test func onAPillNothingSplits() throws {
+        let (delegate, _) = makeDelegate()
+        delegate.state.setGeometry(
+            anchor: .pill(CGRect(x: 500, y: 900, width: 180, height: 32)),
+            panelFrame: CGRect(x: 280, y: 672, width: 620, height: 260)
+        )
+        let tooLong = try #require(delegate.lyrics?.tooLongForStrip)
+        #expect(tooLong("There's more to do, if we can only live, and this is what we get tonight") == false)
+    }
 }

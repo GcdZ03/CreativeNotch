@@ -328,4 +328,35 @@ struct LyricsControllerTests {
         #expect(rig.published.last == nil)
         #expect(rig.controller.boundaryTask == nil)
     }
+
+    // MARK: - Long lines (2026-10-29)
+
+    /// A line too long for the strip arrives in two parts, and the one-shot
+    /// lands on the second: 12s into a line that runs 10–20s and splits
+    /// at about 15.6s.
+    @Test func aLongLineIsShownInPartsWithAWakeBetween() async throws {
+        let long = #"{"instrumental":false,"syncedLyrics":"[00:10.00] There's more to do, if we can only live, and this is what we get tonight\n[00:20.00] next"}"#
+        let rig = make([(200, long)])
+        rig.controller.tooLongForStrip = { $0.count > 45 }
+        rig.controller.setEnabled(true)
+        rig.controller.trackDidChange(track())
+        await settle(rig)
+
+        #expect(rig.published.last == LyricsText(current: "There's more to do, if we can only live,"))
+        await rig.log.waitForRequests(1)
+        let wake = try #require(await rig.log.requests.first)
+        // 10 + 10 × 40/71 = 15.63s; from 12s in, 3.63s, rounded up to the ms.
+        #expect(wake == .milliseconds(3634))
+    }
+
+    /// The cache keeps what the service sent: a split is made on the way to
+    /// the screen, so a later change of width could split differently.
+    @Test func theCacheKeepsTheWholeLine() async {
+        let long = #"{"instrumental":false,"syncedLyrics":"[00:10.00] one two three four five six seven eight nine ten eleven twelve\n[00:20.00] next"}"#
+        let rig = make([(200, long)])
+        rig.controller.setEnabled(true)
+        rig.controller.trackDidChange(track())
+        await settle(rig)
+        #expect(rig.published.last?.current == "one two three four five six seven eight nine ten eleven twelve")
+    }
 }

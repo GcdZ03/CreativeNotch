@@ -1421,6 +1421,14 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // not send a track's title anywhere.
         let lyrics = LyricsController(fetch: fetchLyrics)
         lyrics.onChange = { [weak self] text in self?.lyricsDidChange(text) }
+        // A line too wide for the strip is shown in parts (2026-10-29). The
+        // strip is the notch plus the now-playing badge, the slot it hangs
+        // under while music plays; a pill has no strip, so nothing splits.
+        lyrics.tooLongForStrip = { [weak self] line in
+            guard let anchor = self?.state.anchor, anchor.isNotch else { return false }
+            let width = anchor.rect.width + NotchGeometry.nowPlayingBadgeWidth - LyricsStripView.horizontalPadding * 2
+            return !LyricLineView.fits(line, width: width)
+        }
         lyrics.trackDidChange(state.nowPlaying)
         self.lyrics = lyrics
         state.onRecheckDownloadsAccess = { [weak self] in self?.downloads?.recheckAccess() }

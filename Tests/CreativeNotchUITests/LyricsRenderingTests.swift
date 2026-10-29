@@ -92,6 +92,18 @@ struct LyricsRenderingTests {
         #expect(PanelRenderingTests.ink(b, in: Self.strip(s)) == 0)
     }
 
+    /// The measure agrees with what the strip draws: a line it calls a fit
+    /// is drawn whole, and one it does not is wider than the strip.
+    @Test func theMeasureMatchesTheStrip() {
+        let width = TextSizeRenderingTests.screen.auxiliaryTopRightWidth > 0
+            ? NotchGeometry.anchor(for: Self.screen).rect.width + NotchGeometry.nowPlayingBadgeWidth - 24
+            : 0
+        #expect(LyricLineView.fits("Oh darling, get me drunk and make me feel", width: width))
+        #expect(!LyricLineView.fits("There's more to do, if we can only live, and this is what we get tonight", width: width))
+        #expect(LyricLineView.fits("There's more to do, if we can only live,", width: width))
+        #expect(LyricLineView.fits("and this is what we get tonight", width: width))
+    }
+
     // MARK: - The peek and the panel
 
     @Test func thePeekDrawsTheLine() throws {

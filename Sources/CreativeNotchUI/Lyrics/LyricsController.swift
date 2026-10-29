@@ -37,6 +37,11 @@ final class LyricsController {
     /// How long a busy or unreachable service is given before the one retry.
     static let retryDelay: Duration = .seconds(4)
 
+    /// Whether a line is too long for the strip, so `SyncedLyrics.
+    /// splittingLines` shows it in parts rather than cut off. Never by
+    /// default; `AppDelegate` measures against the strip's real width.
+    var tooLongForStrip: (String) -> Bool = { _ in false }
+
     private let fetch: LyricsFetch
 
     private(set) var isEnabled = false
@@ -122,7 +127,7 @@ final class LyricsController {
         }
         if next?.key != query?.key {
             query = next
-            lyrics = next.flatMap { cache.answer(for: $0.key)?.lyrics }
+            lyrics = next.flatMap { cache.answer(for: $0.key)?.lyrics }.map(prepared)
             gaveUp = nil
             cancelLookup()
             lookUpIfNeeded()
@@ -164,7 +169,7 @@ final class LyricsController {
         guard asked.key == query?.key else { return }
         switch answer {
         case .found(let found):
-            lyrics = found
+            lyrics = prepared(found)
             refresh(at: now())
         case .none:
             break
@@ -180,6 +185,12 @@ final class LyricsController {
                 }
             }
         }
+    }
+
+    /// The cache keeps lyrics as the service sent them; the split for the
+    /// strip is made when they go on screen.
+    private func prepared(_ lyrics: SyncedLyrics) -> SyncedLyrics {
+        lyrics.splittingLines(where: tooLongForStrip)
     }
 
     /// The pause after a busy answer is over: the one retry. Internal so a
