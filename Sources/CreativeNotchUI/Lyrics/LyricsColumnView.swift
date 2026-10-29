@@ -12,12 +12,16 @@ import CreativeNotchCore
 /// sizes (`LyricLineView`).
 struct LyricsColumnView: View {
     let text: LyricsText
+    /// Whether the line under the notch is tucked away (2026-10-29).
+    var tuckedAway = false
+    /// The glyph is a button that tucks it away or brings it back -- the
+    /// way for anyone who would rather not swipe, and the only one when
+    /// open on hover has opened the panel before a swipe could start.
+    var onToggle: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "quote.bubble")
-                .notchFont(10, weight: .semibold)
-                .foregroundStyle(.ink(0.45))
+            toggle
             Group {
                 if let current = text.current, !current.isEmpty {
                     Text(current)
@@ -31,10 +35,33 @@ struct LyricsColumnView: View {
             }
             .lineLimit(1)
             .truncationMode(.tail)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(LyricLineView.accessibilityText(for: text.current))
         }
         // Swapped, not faded, like the strip (`LyricLineView`).
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(LyricLineView.accessibilityText(for: text.current))
+    }
+
+    static func toggleLabel(tuckedAway: Bool) -> String {
+        tuckedAway
+            ? String(localized: "Show lyrics under the notch", bundle: .creativeNotch)
+            : String(localized: "Hide lyrics under the notch", bundle: .creativeNotch)
+    }
+
+    /// Filled while the line shows under the notch, an outline while it is
+    /// tucked away.
+    @ViewBuilder
+    private var toggle: some View {
+        let glyph = Image(systemName: tuckedAway ? "quote.bubble" : "quote.bubble.fill")
+            .notchFont(10, weight: .semibold)
+            .foregroundStyle(.ink(tuckedAway ? 0.35 : 0.6))
+        if let onToggle {
+            Button(action: onToggle) { glyph.contentShape(Rectangle()) }
+                .buttonStyle(.plain)
+                .help(Self.toggleLabel(tuckedAway: tuckedAway))
+                .accessibilityLabel(Self.toggleLabel(tuckedAway: tuckedAway))
+        } else {
+            glyph.accessibilityHidden(true)
+        }
     }
 }

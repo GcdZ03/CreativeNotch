@@ -1794,6 +1794,16 @@
         }
       }
     },
+    "Hide lyrics under the notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide lyrics under the notch"
+          }
+        }
+      }
+    },
     "Hides this welcome. Show it again from the menu bar icon." : {
       "localizations" : {
         "en" : {
@@ -3268,6 +3278,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Show in Finder"
+          }
+        }
+      }
+    },
+    "Show lyrics under the notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show lyrics under the notch"
           }
         }
       }

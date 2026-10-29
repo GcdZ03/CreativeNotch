@@ -473,7 +473,7 @@ it back.
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Switch Synced lyrics on in Settings, then play a song | A strip drops below the notch with the line being sung, changing as the song goes; it goes away when you pause. The peek gains the same line, and the panel shows it under the title. Songs LRCLIB has no synced lyrics for show no strip |
-| Two-finger swipe up on the notch while the lyrics strip shows | Tucks the strip away (the peek and panel still show the line); the same swipe brings it back. Remembered across launches |
+| Two-finger swipe up on the notch while the lyrics strip shows | Tucks the line under the notch away, in the strip and the hover player; the same swipe brings it back. Remembered across launches. The panel keeps the line, and the quote icon beside it does the same toggle |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |
 | Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |

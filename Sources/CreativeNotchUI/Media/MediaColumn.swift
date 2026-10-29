@@ -26,6 +26,10 @@ struct MediaColumn: View {
     /// track (spec 2026-10-29). Shown paused too, unlike the strip: the open
     /// panel is somewhere a person went to look.
     var lyrics: LyricsText? = nil
+    /// Whether the line under the notch is tucked away, and how to toggle
+    /// it: the lyric line's glyph is the button (2026-10-29).
+    var lyricsTuckedAway = false
+    var onToggleLyrics: (() -> Void)? = nil
     /// Seeks from the progress bar; `nil` leaves it display-only.
     var onSeek: ((TimeInterval) -> Void)? = nil
     let onCommand: (MediaCommand) -> Void
@@ -47,7 +51,7 @@ struct MediaColumn: View {
                 // one (spec 2026-10-29): the column has no room for a third
                 // line at any text size.
                 if snapshot != nil, let lyrics {
-                    LyricsColumnView(text: lyrics)
+                    LyricsColumnView(text: lyrics, tuckedAway: lyricsTuckedAway, onToggle: onToggleLyrics)
                 } else if let snapshot, !snapshot.artist.isEmpty {
                     Text(snapshot.artist)
                         .notchFont(12, design: .rounded)

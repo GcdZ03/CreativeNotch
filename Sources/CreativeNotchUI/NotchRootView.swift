@@ -444,6 +444,11 @@ public final class AppState {
     @ObservationIgnored
     public var onSeek: ((TimeInterval) -> Void)?
 
+    /// Tucks the lyrics under the notch away, or brings them back, from the
+    /// panel's lyric line (2026-10-29). Wired by `AppDelegate`.
+    @ObservationIgnored
+    public var onToggleLyricsStrip: (() -> Void)?
+
     /// How the timer tab reaches `TimerController`.
     ///
     /// Closures rather than a controller reference, for the same reason
@@ -650,17 +655,20 @@ public final class AppState {
     /// the guard `@Observable` emits drops nothing that would draw.
     public internal(set) var lyrics: LyricsText?
 
-    /// Whether the music peek's lyrics row is drawn: there are lyrics, and
-    /// the music is playing. Paused, the line goes with the badge, which
-    /// answers "is something playing" too.
+    /// Whether there is a line to show: lyrics, and the music playing.
+    /// Paused, the line goes with the badge, which answers "is something
+    /// playing" too.
     public var showsLyricsLine: Bool { lyrics != nil && nowPlaying?.isPlaying == true }
 
-    /// The strip under the closed notch tucked away by a two-finger push up,
-    /// and brought back by another (2026-10-29). Persisted by `AppDelegate`.
+    /// The lyrics under the notch -- the strip and the music peek's row --
+    /// tucked away by a two-finger push up, or the panel's button, and
+    /// brought back the same way (2026-10-29). Persisted by `AppDelegate`.
+    /// The panel keeps its line either way.
     public internal(set) var lyricsStripHidden = false
 
-    /// Whether the strip under the closed notch is drawn: the line, unless
-    /// it has been tucked away. The peek and the panel still show it.
+    /// Whether the strip under the closed notch and the music peek's row are
+    /// drawn: a line, not tucked away. Both, so a push up on the peek -- what
+    /// hovering the strip opens -- visibly takes the line away.
     public var showsLyricsStrip: Bool { showsLyricsLine && !lyricsStripHidden }
 
     /// The one line `NotchShape.visibleRect` grows `presentation` by, or
@@ -669,9 +677,8 @@ public final class AppState {
     /// so a line cannot be drawn where clicks fall through.
     func lyricsHeight(for presentation: NotchShape.Presentation) -> CGFloat {
         switch presentation {
-        case .closed:    return showsLyricsStrip ? NotchGeometry.lyricsLineHeight : 0
-        case .mediaPeek: return showsLyricsLine ? NotchGeometry.lyricsLineHeight : 0
-        default:         return 0
+        case .closed, .mediaPeek: return showsLyricsStrip ? NotchGeometry.lyricsLineHeight : 0
+        default:                  return 0
         }
     }
 
@@ -1117,7 +1124,7 @@ public struct NotchRootView: View {
             barTint: app.nowPlayingBarTint,
             artworkAspect: app.nowPlayingArtworkAspect,
             coverNamespace: coverNamespace,
-            lyrics: app.showsLyricsLine ? app.lyrics : nil,
+            lyrics: app.showsLyricsStrip ? app.lyrics : nil,
             onCommand: { app.onMediaCommand?($0) },
             onSeek: app.onSeek.map { seek in { seek($0) } }
         )
@@ -1435,6 +1442,8 @@ public struct NotchRootView: View {
                                         showsControls: app.showsMediaControls,
                                         coverNamespace: sharedCover,
                                         lyrics: app.lyrics,
+                                        lyricsTuckedAway: app.lyricsStripHidden,
+                                        onToggleLyrics: app.onToggleLyricsStrip,
                                         onSeek: app.onSeek
                                     ) { app.onMediaCommand?($0) }
                                 }

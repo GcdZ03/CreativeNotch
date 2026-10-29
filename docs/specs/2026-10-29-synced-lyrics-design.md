@@ -105,11 +105,22 @@ below).
 22pt of whatever window is under the notch. A **two-finger push up** on the
 closed notch or the music peek -- the one direction that did nothing there --
 hides it, and the same push brings it back, with one haptic tap each way.
-The choice is remembered (`lyrics.strip.hidden`). The peek and the panel
-keep showing the line. While nothing on screen shows it -- strip tucked away
-and the panel closed, another peek up, the camera tab -- the controller
-schedules nothing, so a tucked-away strip costs nothing at all. A push with
-no lyrics to show does nothing and taps nothing. A push up was chosen over a
+The choice is remembered (`lyrics.strip.hidden`). It takes the music peek's
+row too: hovering the strip opens the peek, so a push there has to visibly
+take the line away. The panel keeps its line, and the line's quote glyph in
+the panel is a button that does the same toggle. While nothing on screen
+shows the line -- tucked away with the panel closed, another peek up, the
+camera tab -- the controller schedules nothing, so a tucked-away strip costs
+nothing at all. A push with no lyrics to show does nothing and taps nothing.
+
+**Hover and open on hover.** The hover dwell is a one-shot armed when the
+pointer arrives (300ms to the peek, or the open-on-hover delay to the
+panel). A swipe now holds it the moment the fingers start: before, with open
+on hover, the panel could open mid-swipe and the rest of a push up then
+closed it again, toggling nothing. A swipe that acted does not re-arm the
+dwell, so no peek or panel follows it; one that did nothing re-arms it, as
+if the pointer had just arrived. Someone who waits past the delay gets the
+panel, as before, and its quote button. A push up was chosen over a
 sideways swipe because sideways on the music peek already skips tracks, and
 the peek is what hovering the strip opens.
 

@@ -1302,9 +1302,14 @@ title, artist and length to LRCLIB.
   badge. `lyricsDidChange` re-syncs the accepted region for the reason
   `nowPlayingDidChange` does. A two-finger push up on the closed notch or
   the music peek (`NotchSwipe.Outcome.toggleLyrics`) tucks the strip away
-  or brings it back (`AppState.lyricsStripHidden`, persisted); the peek and
-  panel keep the line, and `syncLyricsVisibility` tells the controller when
-  no surface shows it, so it then schedules nothing. A closed pill never grows a strip: it sits in
+  or brings it back (`AppState.lyricsStripHidden`, persisted), the strip
+  and the peek's row together; the panel keeps the line, with its quote
+  glyph as a button for the same toggle. `syncLyricsVisibility` tells the
+  controller when no surface shows the line, so it then schedules nothing.
+  A swipe that starts on the closed notch holds the hover dwell
+  (`HoverTracker.holdDwell`), so open on hover cannot open the panel under
+  the fingers and turn a push up into "close"; it is re-armed only when the
+  swipe did nothing. A closed pill never grows a strip: it sits in
   the menu bar, and one rect a line wide at that height would cover the app
   menus. The panel shows the line in the artist's place: below the progress
   bar it ran off the bottom of the panel at every text size.

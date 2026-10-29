@@ -279,8 +279,11 @@ struct LyricsWiringTests {
         #expect(delegate.lyrics?.boundaryTask != nil)
         pushUp(delegate)
         #expect(delegate.lyrics?.boundaryTask == nil)
-        // The music peek still shows the line, so it wakes while that is up.
+        // The peek tucks its row away too; the panel keeps the line, so it
+        // wakes while the panel is open.
         delegate.state.transition(to: .peek(.nowPlaying(track())))
+        #expect(delegate.lyrics?.boundaryTask == nil)
+        delegate.state.transition(to: .open(.shelf))
         #expect(delegate.lyrics?.boundaryTask != nil)
         delegate.state.transition(to: .closed)
         #expect(delegate.lyrics?.boundaryTask == nil)
@@ -301,6 +304,82 @@ struct LyricsWiringTests {
         delegate.performHaptic = { taps += 1 }
         delegate.nowPlayingDidChange(track())
         pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(taps == 0)
+    }
+
+    // MARK: - Hover, open on hover, and the panel's button (2026-10-29)
+
+    private func pointerArrives(_ delegate: AppDelegate) {
+        delegate.hoverView?.mouseEntered(with: NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+            context: nil, eventNumber: 0, trackingNumber: 0, userData: nil
+        )!)
+    }
+
+    /// With open on hover, the panel opening mid-swipe turned the rest of a
+    /// push up into "close": the swipe now holds the dwell, and one that
+    /// acted does not start it again, so no panel follows the push.
+    @Test func withOpenOnHoverAPushUpTogglesAndOpensNothing() async {
+        let delegate = await playingWithLyrics()
+        delegate.state.onSetHoverBehaviour?(HoverBehaviour(opensOnHover: true, openDelay: 0.2))
+        // The pointer on the notch, so nothing but the swipe releases the dwell.
+        let notch = delegate.state.anchor.rect
+        delegate.pointerLocation = { CGPoint(x: notch.midX, y: notch.midY) }
+        pointerArrives(delegate)
+        #expect(delegate.hoverView?.dwellTask != nil)
+
+        // The moment the fingers start, the dwell waits.
+        let at = CGPoint(x: delegate.acceptedRect.midX, y: delegate.acceptedRect.minY + 4)
+        _ = delegate.handleScroll(ScrollSample(phase: .began, isMomentum: false, isPrecise: true,
+                                               finger: .zero, location: at))
+        #expect(delegate.hoverView?.dwellTask == nil)
+        _ = delegate.handleScroll(ScrollSample(phase: .cancelled, isMomentum: false, isPrecise: true,
+                                               finger: .zero, location: at))
+
+        pushUp(delegate)
+
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.state.state == .closed)
+        #expect(delegate.hoverView?.dwellTask == nil)
+    }
+
+    /// A swipe that did nothing leaves the pointer resting as if just arrived.
+    @Test func aSwipeThatDidNothingStartsTheDwellAgain() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        let notch = delegate.state.anchor.rect
+        delegate.pointerLocation = { CGPoint(x: notch.midX, y: notch.midY) }
+        pointerArrives(delegate)
+        pushUp(delegate)            // no lyrics: nothing to toggle
+        #expect(delegate.hoverView?.dwellTask != nil)
+    }
+
+    /// Tucked away, the music peek -- what hovering the strip opens -- loses
+    /// its row too, so a push up on the peek visibly takes the line away.
+    @Test func tuckingAwayTakesThePeeksRowToo() async {
+        let delegate = await playingWithLyrics()
+        delegate.state.transition(to: .peek(.nowPlaying(track())))
+        let withRow = delegate.acceptedRect.height
+
+        pushUp(delegate)
+
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.acceptedRect.height == withRow - NotchGeometry.lyricsLineHeight)
+        #expect(NotchRootView.nowPlayingPeek(for: delegate.state, track: track()).lyrics == nil)
+        expectRectsAgree(delegate)
+        #expect(delegate.lyrics?.boundaryTask == nil, "nothing on screen shows the line")
+    }
+
+    /// The panel's lyric glyph is a button that does the same, without a tap.
+    @Test func thePanelsButtonTogglesWithoutAHaptic() async {
+        let delegate = await playingWithLyrics()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        delegate.state.onToggleLyricsStrip?()
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.preferencesStore.lyricsStripHidden)
+        delegate.state.onToggleLyricsStrip?()
         #expect(delegate.state.lyricsStripHidden == false)
         #expect(taps == 0)
     }
