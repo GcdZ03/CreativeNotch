@@ -236,6 +236,35 @@ struct DisplayChoiceTests {
         #expect(pinned.screenOnFocusChange(in: desk, focusedWindow: window) == nil)
     }
 
+    // MARK: - Screen changes while following focus
+
+    /// A display plugged in, rearranged or switched to another mode asks
+    /// where the panel goes with no app switch to say. Following focus, the
+    /// answer is the focused window's screen, as it is on a switch -- not
+    /// `NSScreen.main`, which can name another screen and put the notch
+    /// there until the next switch (2026-10-29).
+    @Test func aScreenChangeFollowingFocusGoesToTheFocusedWindow() {
+        let landscapeWindow = CGRect(x: -408, y: 982, width: 1920, height: 1050)
+        #expect(DisplayChoice.focusedWindow.screen(in: desk, focusedWindow: landscapeWindow) == 2)
+        let builtInWindow = CGRect(x: 0, y: 55, width: 1512, height: 894)
+        #expect(DisplayChoice.focusedWindow.screen(in: desk, focusedWindow: builtInWindow) == 1)
+    }
+
+    /// Unlike a focus change, a screen change must put the panel somewhere:
+    /// with no window to go by, or one off every screen, it falls back as it
+    /// always has -- the main screen, then the first.
+    @Test func aScreenChangeWithNoWindowFallsBackToTheMainScreen() {
+        #expect(DisplayChoice.focusedWindow.screen(in: desk, focusedWindow: nil) == 3)
+        let nowhere = CGRect(x: 5000, y: 5000, width: 100, height: 100)
+        #expect(DisplayChoice.focusedWindow.screen(in: desk, focusedWindow: nowhere) == 3)
+    }
+
+    /// Pinned, the window is no reason to go anywhere else.
+    @Test func aPinnedScreenChangeIgnoresTheWindow() {
+        let landscapeWindow = CGRect(x: -408, y: 982, width: 1920, height: 1050)
+        #expect(DisplayChoice.builtIn.screen(in: desk, focusedWindow: landscapeWindow) == 1)
+    }
+
     // MARK: - Persistence
 
     @Test func anAbsentValueResolvesToTheDefault() {

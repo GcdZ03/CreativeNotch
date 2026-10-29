@@ -2,14 +2,18 @@ import AppKit
 import CreativeNotchCore
 
 extension NSScreen {
-    /// The screen "Show on" picks right now, by `DisplayChoice.screen(in:)`.
+    /// The screen "Show on" picks right now, by
+    /// `DisplayChoice.screen(in:focusedWindow:)`.
     ///
     /// Read fresh on every call rather than remembered: the list changes
     /// with the cables, and a remembered `NSScreen` for a display that has
-    /// gone is a panel placed on nothing.
+    /// gone is a panel placed on nothing. Following focus, the focused
+    /// window is read too, so a screen change lands where a switch would
+    /// (2026-10-29); pinned, the window list is not read.
     @MainActor
     static func chosen(by choice: DisplayChoice) -> NSScreen? {
-        picked(by: choice.screen(in:))
+        let window = choice.followsActivation ? focusedWindowFrame : nil
+        return picked { choice.screen(in: $0, focusedWindow: window) }
     }
 
     /// The screen a change of focus moves the panel to, by
