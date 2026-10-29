@@ -194,9 +194,12 @@ and DynamicLake (October 2026). Each fits the one rule; none is planned.
 ## Still deliberately not planned
 
 - **An audio visualiser.** Named in this category as a top CPU cost; it
-  contradicts the one rule directly. The music peek's equalizer bars are not
-  one: they read no audio, stand still in the closed notch, and loop only
-  while the hover peek is open (spec 2026-10-15).
+  contradicts the one rule directly. The equalizer bars are not one: they
+  read no audio, loop in Core Animation at 20 frames a second, and move in the
+  closed notch only when "Moving bars" is switched on (2026-10-29). A real
+  visualiser needs a Core Audio tap and an FFT for as long as music plays,
+  and one competitor's tap broke the AirPods pause gesture on Bluetooth
+  output.
 - **A screen-recording indicator.** Cut from module 1 above. No public API
   reports that another application is capturing the screen, and macOS
   already shows its own indicator for it.

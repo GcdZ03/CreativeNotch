@@ -8,10 +8,12 @@ import CreativeNotchCore
 /// gets a wider tile (`NotchGeometry.coverWidth`).
 ///
 /// It answers one question at a glance — is something playing — and it is
-/// **static**. No pulse and no `TimelineView`, and the bars beside it stand
-/// still too: it is on screen for as long as music plays, and this app
-/// exists precisely to not redraw continuously for that long. Its only
-/// redraws are the ones the artwork or the playing state cause.
+/// **static**. No pulse and no `TimelineView`, and by default the bars beside
+/// it stand still too: it is on screen for as long as music plays, and this
+/// app exists precisely to not redraw continuously for that long. Its only
+/// redraws are the ones the artwork or the playing state cause. The bars move
+/// only when "Moving bars" is on, and then in Core Animation, not here
+/// (`EqualizerBarsView`).
 ///
 /// The cover is the same one the music peek and the panel show, tied by
 /// `nowPlayingCover(in:)`, so it slides into them rather than popping.

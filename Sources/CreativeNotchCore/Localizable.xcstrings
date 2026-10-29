@@ -2212,6 +2212,16 @@
         }
       }
     },
+    "Moving bars" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Moving bars"
+          }
+        }
+      }
+    },
     "Music" : {
       "localizations" : {
         "en" : {
@@ -3470,6 +3480,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Text size"
+          }
+        }
+      }
+    },
+    "The bars beside the closed notch move while music plays and your Mac is plugged in. The app does no work for them, but the screen redraws them the whole time; on battery and in Low Power Mode they stand still." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The bars beside the closed notch move while music plays and your Mac is plugged in. The app does no work for them, but the screen redraws them the whole time; on battery and in Low Power Mode they stand still."
           }
         }
       }

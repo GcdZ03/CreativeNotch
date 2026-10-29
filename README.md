@@ -164,11 +164,18 @@ and four equalizer bars just to its right — a video's thumbnail gets a wider
 tile than an album cover. Hovering it
 drops down a small player — cover, title over artist, play/pause and a
 progress bar — and clicking opens the panel, with the cover sliding between
-all three. The closed notch is deliberately **static**: its bars stand
-still, because they are on screen for as long as music plays and a loop
-there would redraw for that long, which is the exact cost this project
-exists to avoid. They move only inside the hover player, and the progress
-bar is one animation to the end of the track rather than a ticking clock.
+all three. The closed notch is **still by default**: its bars stand still,
+because they are on screen for as long as music plays and a loop there
+would redraw for that long, which is the exact cost this project exists to
+avoid. They move inside the hover player, and the progress bar is one
+animation to the end of the track rather than a ticking clock. If you want
+them moving all the time, Settings → Layout → **Moving bars** does it: the
+bars are handed to Core Animation once, so the app itself does no work per
+frame, and capped at 20 frames a second — but the screen still redraws them
+for as long as the music plays, which measured about 15 points of a core in
+the window server. So it ships off, and even switched on the bars move only
+while the Mac is plugged in, never in Low Power Mode. The measurements are in
+[`docs/research/2026-10-29-equalizer-cost.md`](docs/research/2026-10-29-equalizer-cost.md).
 Reading that information through
 MediaRemote is gated by code-signing identifier, which this app cannot
 satisfy directly — so the app spawns the system's own `perl`, signed as
@@ -471,6 +478,7 @@ it back.
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
+| Settings → Layout → **Moving bars** | The bars beside the closed notch move while music plays and the Mac is plugged in; on battery or in Low Power Mode they stand still |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Switch Synced lyrics on in Settings, then play a song | A strip drops below the notch with the line being sung, changing as the song goes; it goes away when you pause. The peek gains the same line, and the panel shows it under the title. Songs LRCLIB has no synced lyrics for show no strip |
 | Two-finger swipe up on the notch while the lyrics strip shows | Tucks the line under the notch away, in the strip and the hover player; the same swipe brings it back. Remembered across launches. The panel keeps the line, and the quote icon beside it does the same toggle |

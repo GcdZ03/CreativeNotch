@@ -101,6 +101,15 @@ struct LayoutRows: View {
             )
         }
 
+        // Under the badge it moves, and only while that badge is shown.
+        Toggle(isOn: Self.binding(\.animatesNowPlayingBars, on: controller)) {
+            SettingsLabel(
+                title: String(localized: "Moving bars", bundle: .creativeNotch), detail: String(localized: "The bars beside the closed notch move while music plays and your Mac is plugged in. The app does no work for them, but the screen redraws them the whole time; on battery and in Low Power Mode they stand still.", bundle: .creativeNotch),
+                symbol: "waveform", tint: .pink
+            )
+        }
+        .disabled(!controller.layoutOptions.showsNowPlayingBadge)
+
         Toggle(isOn: Self.binding(\.showsTimerBadge, on: controller)) {
             SettingsLabel(
                 title: String(localized: "Timer badge", bundle: .creativeNotch), detail: String(localized: "The countdown beside the closed notch.", bundle: .creativeNotch),
