@@ -913,10 +913,12 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// The metrics of the screen "Show on" picks, or `nil` with no screen.
     ///
-    /// The launch, a screen change and the preference itself all ask here, so the choice is made in one place. `NSScreen.main` is
-    /// the screen holding the key window, and an accessory app launching may
-    /// have none -- the panel was once never built, for the whole session --
-    /// so the rule falls back to any screen (`DisplayChoice.screen(in:)`).
+    /// The launch, a screen change and the preference itself all ask here, so the choice is made in one place. Following
+    /// focus, the focused window's screen comes first, as on a switch
+    /// (2026-10-29). Without one it is `NSScreen.main`, the screen holding
+    /// the key window, and an accessory app launching may have none -- the
+    /// panel was once never built, for the whole session -- so the rule
+    /// falls back to any screen (`DisplayChoice.screen(in:focusedWindow:)`).
     /// Injected so a test can answer it without a real display.
     var screenMetrics: (DisplayChoice) -> ScreenMetrics? = { choice in
         NSScreen.chosen(by: choice)?.metrics

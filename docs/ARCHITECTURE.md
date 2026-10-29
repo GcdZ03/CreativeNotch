@@ -519,7 +519,13 @@ permission) and placed on the screen holding most of it
 screen when `didActivateApplication` arrives and left the notch one switch
 behind (2026-10-26). An app with no window leaves the notch where it is. A
 focus change that lands on the same screen costs one window-list read, about
-4ms; `reposition` drops the equal geometry.
+4ms; `reposition` drops the equal geometry. The launch, a screen change and
+a setting that resizes the panel read the focused window the same way
+(`screen(in:focusedWindow:)`, 2026-10-29): a display plugged in or a mode
+change used to ask `NSScreen.main` alone and could put the notch on another
+screen until the next switch. Only when no window is on any screen do they
+fall back to the main screen, then the first, since they must place the
+panel somewhere. Pinned, the window list is not read.
 
 Focus moving inside the frontmost app — clicking or ⌘\` between two of its
 windows, or its window dragged or scripted onto another display — is neither

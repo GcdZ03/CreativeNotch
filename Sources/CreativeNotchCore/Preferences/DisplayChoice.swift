@@ -49,7 +49,14 @@ public enum DisplayChoice: Hashable, Sendable {
     /// before focus: a fallback that followed focus would hop with every
     /// screen change while the user is waiting for their display to come
     /// back, which is what they pinned to avoid.
-    public func screen(in screens: [ScreenDescriptor]) -> CGDirectDisplayID? {
+    ///
+    /// Following focus, `focusedWindow` decides first, as it does on a
+    /// switch (`screenOnFocusChange`): a display plugged in or a mode
+    /// changed asked `NSScreen.main`, which can name another screen, and the
+    /// notch sat there until the next switch (2026-10-29). Without a window
+    /// on any screen it falls back as before.
+    public func screen(in screens: [ScreenDescriptor], focusedWindow: CGRect? = nil) -> CGDirectDisplayID? {
+        if let id = screenOnFocusChange(in: screens, focusedWindow: focusedWindow) { return id }
         let focused = (screens.first(where: \.isMain) ?? screens.first)?.id
         let builtIn = screens.first(where: \.isBuiltIn)?.id
         switch self {
