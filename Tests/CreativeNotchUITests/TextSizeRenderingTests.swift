@@ -276,6 +276,9 @@ struct TextSizeRenderingTests {
             // shape's 22pt line, like the badges. The panel's lyrics are
             // `LyricsColumnView`, which scales.
             "LyricLineView.swift",
+            // The stopwatch's segment and the timing peek (2026-10-29):
+            // the timer badge's and the battery row's fixed type.
+            "StopwatchBadgeView.swift", "TimingPeekView.swift",
             "PreferencesWindow.swift", "LayoutRows.swift", "UpdatesSection.swift", "NotchTypeStyle.swift",
             // Only the peek's fallback label, which no state reaches.
             "NotchRootView.swift",

@@ -147,21 +147,10 @@ struct TimerBadgeRenderingTests {
         return false
     }
 
-    /// The slot's width and its content must be decided by the same rule.
-    /// A timer that reserves 44pt and then draws an album cover is the
-    /// "two derivations of one thing" bug in a new costume.
-    ///
-    /// `NotchShape.badgeSlot` replaced `badgeWidth` on this branch: an
-    /// identity rather than a width, so the drawn content and the reserved
-    /// width read the same answer instead of two independent constants —
-    /// the first two assertions below pin that pure-function side.
-    ///
-    /// The pure function alone would not catch `NotchRootView`'s `.closed`
-    /// overlay drawing `NowPlayingBadgeView` for `.timer` too: `badgeSlot`
-    /// itself is unaffected by that bug. The third assertion renders the
-    /// actual view and checks the drawn branch directly, so a wiring
-    /// mistake there — not just a slot-identity mistake — fails this test.
-    @Test func aRunningTimerTakesTheSlotFromPlayingMedia() throws {
+    /// Music and a running timer share the ear (2026-10-29): the slots are
+    /// both, music first, and the render still paints the cover -- the
+    /// view drawing the music's segment, not only the timer's.
+    @Test func aRunningTimerSitsBesidePlayingMedia() throws {
         let now = Date()
         let state = AppState()
         state.setGeometry(
@@ -172,12 +161,10 @@ struct TimerBadgeRenderingTests {
         state.nowPlayingArtwork = SolidArtwork.red
         state.countdown = Countdown(duration: 600, startingAt: now)
 
-        #expect(NotchShape.badgeSlot(
+        // Side by side since 2026-10-29: the music keeps its segment.
+        #expect(NotchShape.badgeSlots(
             countdown: state.countdown, nowPlaying: state.nowPlaying, at: now
-        ) == .timer)
-        #expect(NotchShape.badgeSlot(
-            countdown: state.countdown, nowPlaying: state.nowPlaying, at: now
-        ).width == NotchGeometry.timerBadgeWidth)
+        ) == [.nowPlaying, .timer])
 
         let renderer = ImageRenderer(
             content: NotchRootView(app: state, now: now)
@@ -188,6 +175,6 @@ struct TimerBadgeRenderingTests {
         let tiff = try #require(image.tiffRepresentation)
         let bitmap = try #require(NSBitmapImageRep(data: tiff))
 
-        #expect(!Self.contains(bitmap, .systemRed))
+        #expect(Self.contains(bitmap, .systemRed), "the cover stays beside the timer")
     }
 }

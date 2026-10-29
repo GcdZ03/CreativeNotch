@@ -67,6 +67,12 @@ public enum PeekContent: Equatable, Sendable {
     case downloadDone(DownloadCompletion)
     /// An audio Bluetooth device arriving or leaving (2026-10-24).
     case bluetooth(BluetoothAudioEvent)
+    /// The countdowns, on a hover over the timer's segment (2026-10-29).
+    /// Carries nothing: the row reads the live countdown from `AppState`,
+    /// as the segment does, so it never shows a stale second.
+    case timer
+    /// The stopwatch, on a hover over its segment (2026-10-29).
+    case stopwatch
 }
 
 /// The one state the panel is ever in.
@@ -88,6 +94,8 @@ public enum NotchState: Equatable, Sendable {
         // The battery peek's one row below the notch: an icon, a name and
         // a word, which is the same shape of message.
         case .peek(.bluetooth):  return .statusPeek
+        // A time and a word, the battery row's shape again.
+        case .peek(.timer), .peek(.stopwatch): return .statusPeek
         case .peek:              return .peek
         case .open, .receiving:  return .expanded
         }

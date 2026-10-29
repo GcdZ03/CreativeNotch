@@ -14,6 +14,8 @@ public enum BadgeSlot: Equatable, Sendable {
     case recording
     case capture
     case downloads
+    /// A stopwatch that has been started and not reset (2026-10-29).
+    case stopwatch
 
     /// How far the closed notch grows for this slot.
     public var width: CGFloat {
@@ -24,6 +26,7 @@ public enum BadgeSlot: Equatable, Sendable {
         case .recording:  return NotchGeometry.recordingBadgeWidth
         case .capture:    return NotchGeometry.captureBadgeWidth
         case .downloads:  return NotchGeometry.downloadsBadgeWidth
+        case .stopwatch:  return NotchGeometry.stopwatchBadgeWidth
         }
     }
 
@@ -36,8 +39,40 @@ public enum BadgeSlot: Equatable, Sendable {
     /// ever needs the left again is one decision rather than a second rule.
     public var leadingWidth: CGFloat {
         switch self {
-        case .none, .nowPlaying, .timer, .recording, .capture, .downloads: return 0
+        case .none, .nowPlaying, .timer, .recording, .capture, .downloads, .stopwatch: return 0
         }
+    }
+}
+
+extension Array where Element == BadgeSlot {
+    /// How far the closed notch grows for all of these at once: one shape,
+    /// every segment's width.
+    public var totalWidth: CGFloat { reduce(0) { $0 + $1.width } }
+
+    /// These, less the least important until they fit `room` (2026-10-29),
+    /// in their order from the notch out. The stopwatch goes first, then
+    /// downloads, music and the timer; the privacy dot never, even past the
+    /// room, because it is the one thing here the user cannot see any other
+    /// way.
+    public func fitting(_ room: CGFloat) -> [BadgeSlot] {
+        let dropOrder: [BadgeSlot] = [.stopwatch, .downloads, .nowPlaying, .timer]
+        var kept = self
+        for slot in dropOrder where kept.totalWidth > room {
+            kept.removeAll { $0 == slot }
+        }
+        return kept
+    }
+}
+
+/// One segment of the closed notch's trailing ear: an activity and where it
+/// is, panel-local with a bottom-left origin like `visibleRect`.
+public struct BadgeSegment: Equatable, Sendable {
+    public let slot: BadgeSlot
+    public let rect: CGRect
+
+    public init(slot: BadgeSlot, rect: CGRect) {
+        self.slot = slot
+        self.rect = rect
     }
 }
 
@@ -186,6 +221,72 @@ public enum NotchShape {
         if !hidden.contains(.downloads), downloads != nil { return .downloads }
         if !hidden.contains(.nowPlaying), nowPlaying?.isPlaying == true { return .nowPlaying }
         return .none
+    }
+
+    /// Every activity beside the notch at once, ordered from the notch out
+    /// (2026-10-29): music keeps the bar nearest the notch, then the timer,
+    /// the stopwatch and downloads, and the privacy dot -- this app's
+    /// recording, or another app's camera or microphone -- at the far end,
+    /// where macOS keeps its own. They share one shape, so the drawn rect,
+    /// the hit test and the hover rect still grow from one width
+    /// (`totalWidth`), and nothing outranks anything any more: a timer no
+    /// longer takes the music's place.
+    ///
+    /// `hidden` passes over the music, the timer (the stopwatch with it) and
+    /// downloads, and never the privacy dot, for `badgeSlot`'s reasons.
+    public static func badgeSlots(
+        countdown: Countdown?,
+        stopwatch: Stopwatch = Stopwatch(),
+        nowPlaying: TrackSnapshot?,
+        isRecording: Bool = false,
+        capture: CaptureUse = .none,
+        downloads: DownloadSummary? = nil,
+        hiding hidden: Set<BadgeSlot> = [],
+        fitting room: CGFloat = .infinity,
+        at now: Date
+    ) -> [BadgeSlot] {
+        var slots: [BadgeSlot] = []
+        if !hidden.contains(.nowPlaying), nowPlaying?.isPlaying == true { slots.append(.nowPlaying) }
+        if !hidden.contains(.timer), let countdown, !countdown.hasFinished(at: now) { slots.append(.timer) }
+        if !hidden.contains(.timer), !stopwatch.isReset { slots.append(.stopwatch) }
+        if !hidden.contains(.downloads), downloads != nil { slots.append(.downloads) }
+        if isRecording {
+            slots.append(.recording)
+        } else if capture.isAnythingCapturing {
+            slots.append(.capture)
+        }
+        return slots.fitting(room)
+    }
+
+    /// How wide the segments beside the notch may grow: as far as the panel
+    /// window reaches (2026-10-29). The window is centred on the anchor and
+    /// never resizes, so past half its width, less half the notch, a segment
+    /// would be cut off and its clicks would land nowhere. A pill grows both
+    /// ways about its centre, so the whole panel width is its room.
+    public static func badgeRoom(anchor: Anchor, panelFrame: CGRect) -> CGFloat {
+        anchor.isNotch ? max((panelFrame.width - anchor.rect.width) / 2, 0) : panelFrame.width
+    }
+
+    /// Where each of `slots` is drawn, in order. On a notch they run out
+    /// from the housing's trailing edge; on a pill they fill the pill,
+    /// centred, as `visibleRect` sizes it. As tall as the anchor's band, so
+    /// a lyrics strip below belongs to no segment.
+    public static func badgeSegments(_ slots: [BadgeSlot], anchor: Anchor, panelFrame: CGRect) -> [BadgeSegment] {
+        let shape = visibleRect(presentation: .closed, anchor: anchor, panelFrame: panelFrame, badgeWidth: slots.totalWidth)
+        let band = CGRect(
+            x: shape.minX, y: anchor.rect.minY - panelFrame.minY, width: shape.width, height: anchor.rect.height
+        )
+        var x = anchor.isNotch ? band.maxX - slots.totalWidth : band.midX - slots.totalWidth / 2
+        return slots.map { slot in
+            defer { x += slot.width }
+            return BadgeSegment(slot: slot, rect: CGRect(x: x, y: band.minY, width: slot.width, height: band.height))
+        }
+    }
+
+    /// The segment under `point`, or `nil` over the housing, the strip, or
+    /// nothing at all.
+    public static func segment(at point: CGPoint, in segments: [BadgeSegment]) -> BadgeSlot? {
+        segments.first { $0.rect.contains(point) }?.slot
     }
 
     /// Panel-local, bottom-left origin, y increasing upward — matching an

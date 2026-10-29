@@ -269,7 +269,7 @@ struct AnchorMorphWiringTests {
     /// A morph cutting a slide short starts where the shape is on screen:
     /// in the window as far as it has slid, not in the one it was sliding
     /// to. The window is stopped on its new frame, and the shape morphs
-    /// from 206pt back along the bar, where the window still was.
+    /// from 230pt back along the bar, where the window still was.
     @Test func aMorphDuringASlideStartsWhereTheWindowHasGot() throws {
         let (d, _, _, display, _) = make(on: Self.portrait)
         let panel = try #require(d.panel)
@@ -279,10 +279,10 @@ struct AnchorMorphWiringTests {
         d.panelSlider = slider
         d.activeApplicationDidChange(pid: 42)
         #expect(slider.calls.count == 1)
-        #expect(panel.frame.minX == d.currentFrame.minX - 206)
+        #expect(panel.frame.minX == d.currentFrame.minX - 230)
 
         change(display, to: Self.portraitTallerMenuBar, d)
-        #expect(d.state.morph?.morph == AnchorMorph(from: Self.inBar.offsetBy(dx: -206, dy: 0)))
+        #expect(d.state.morph?.morph == AnchorMorph(from: Self.inBar.offsetBy(dx: -230, dy: 0)))
         #expect(slider.calls.last == .stop(at: d.currentFrame))
         #expect(panel.frame == d.currentFrame)
     }

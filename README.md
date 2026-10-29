@@ -97,6 +97,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 | ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
 | ✅ **Synced lyrics** — the line being sung, in a strip under the notch, in the music peek and in the panel; one request to LRCLIB per track and one wake per line (off until you switch it on) | Done |
+| ✅ **Activities side by side** — music keeps its place beside the notch and the timer, stopwatch, downloads and the camera/microphone dot each get their own capsule next to it; hover or click one for its own glance or tab | Done |
 | ✅ **Ready for translation** — every word on screen and every VoiceOver label in one String Catalog; English only so far | Done |
 | ✅ **In-app updates** — Check for Updates in the menu bar; Settings says when a new release is out and installs it in place, checksum and signature verified, without re-running the installer | Done |
 
@@ -490,7 +491,8 @@ it back.
 | Switch to another app | Closes it |
 | Move the cursor away | Closes it, after a 400 ms grace |
 | Switch to the Timer tab | Presets (5, 10 and 25 minutes until you change them in Settings), or type your own up to 99 minutes |
-| Start a timer | The countdown appears beside the notch; it takes the slot from the album cover |
+| Start a timer | The countdown appears beside the notch, next to the album cover rather than in its place |
+| Several things at once — music, a timer, the stopwatch, a download, the camera or microphone in use | Each gets its own tinted capsule in one bar right of the notch, music nearest; hover one for its own glance, click it to open its tab. When they don't all fit, the stopwatch gives way first, and the camera/microphone dot never does |
 | Watch it | Minutes until the last one, then seconds — it redraws when the text changes, not every second |
 | Pause it | The countdown dims, shows a pause symbol beside the notch, and stops redrawing entirely; in the panel, "left" beside the digits becomes "paused" |
 | Let it finish | The notch peeks and chimes once (Glass, or the sound you pick in Settings, or none), and stays until you click it |

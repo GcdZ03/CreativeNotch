@@ -18,12 +18,13 @@ import CreativeNotchCore
 struct PanelSlideWiringTests {
 
     /// The portrait display `ClearOfMenusWiringTests` uses: centre 540, and
-    /// pid 42's menus put the pill's centre at 746, so a shift is 206pt.
+    /// pid 42's menus put the pill's centre at 770 (`ClearOfMenusWiringTests.
+    /// clear`), so a shift is 230pt.
     private static let portrait = ScreenMetrics(
         frame: CGRect(x: 0, y: 0, width: 1080, height: 1920),
         safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 30
     )
-    private static let shift: CGFloat = 206
+    private static let shift: CGFloat = 230
     private static let longMenus: pid_t = 42
     private static let shortMenus: pid_t = 43
 

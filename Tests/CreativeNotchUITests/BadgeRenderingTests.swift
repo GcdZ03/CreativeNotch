@@ -247,24 +247,22 @@ struct BadgeRenderingTests {
         #expect(Self.paintedBox(image, .systemRed) == nil)
     }
 
-    // MARK: - The slot is shared, and the timer owns it
+    // MARK: - Music and the timer side by side (2026-10-29)
 
-    /// The slot holds one badge, and while a timer runs that badge is the
-    /// timer's — so the album cover must not be painted, even though media
-    /// is playing and its artwork is cached.
+    /// With a timer running the music keeps its segment, nearest the notch,
+    /// and the cover is painted there -- inside its own segment and nowhere
+    /// in the timer's, which starts where the music's ends.
     ///
-    /// The only test that bites the mistake the identity exists to
-    /// prevent. `NotchRootView` branches on `slot == .nowPlaying`; widen
-    /// that to `slot != BadgeSlot.none` — which is what a width-based
-    /// `> 0` amounts to — and the cover lands in the countdown's 44pt slot
-    /// with every other test in the suite still green, because nothing
-    /// else renders a closed notch with a countdown set.
-    @Test func aRunningTimerKeepsTheAlbumCoverOutOfTheSlot() throws {
+    /// The test that bites a segment drawing another's content: the cover
+    /// in the countdown's 44pt, or the timer's digits pushing the cover out.
+    @Test func aRunningTimerKeepsTheAlbumCoverInItsOwnSegment() throws {
         let image = try #require(Self.closedNotch(
             countdown: Self.running(), nowPlaying: Self.playing, artwork: SolidArtwork.red
         ))
-
-        #expect(Self.paintedBox(image, .systemRed) == nil)
+        let segments = NotchShape.badgeSegments([.nowPlaying, .timer], anchor: .notch(Self.anchor), panelFrame: Self.panel)
+        let cover = try #require(Self.paintedBox(image, .systemRed), "the cover is painted")
+        #expect(cover.minX >= segments[0].rect.minX)
+        #expect(cover.maxX <= segments[0].rect.maxX, "the cover stays out of the timer's segment")
     }
 
     /// The vacuity guard for the test above: the countdown really does

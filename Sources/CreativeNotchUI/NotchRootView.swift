@@ -1023,7 +1023,7 @@ public struct NotchRootView: View {
     /// `now` is defaulted rather than stored, so every call reads the clock
     /// afresh unless a caller pins it.
     static func drawnRect(for app: AppState, now: Date = Date()) -> CGRect {
-        drawnRect(for: app, badge: badgeSlot(for: app, at: now))
+        drawnRect(for: app, badges: badgeSlots(for: app, at: now))
     }
 
     /// The same derivation for a slot that has already been decided.
@@ -1031,13 +1031,12 @@ public struct NotchRootView: View {
     /// `body` calls this one, passing the slot it also draws the content
     /// from, so the width the shape grows by and the badge that lands in
     /// it cannot come from two different readings of the clock.
-    static func drawnRect(for app: AppState, badge slot: BadgeSlot) -> CGRect {
+    static func drawnRect(for app: AppState, badges slots: [BadgeSlot]) -> CGRect {
         drawnRect(
             state: app.state,
             anchor: app.anchor,
             panelFrame: app.panelFrame,
-            badgeWidth: slot.width,
-            leadingBadgeWidth: slot.leadingWidth,
+            badgeWidth: slots.totalWidth,
             lyricsHeight: app.lyricsHeight(for: app.state.presentation)
         )
     }
@@ -1064,6 +1063,22 @@ public struct NotchRootView: View {
     /// below it: at the instant a timer finishes, two reads microseconds
     /// apart disagree, and the slot's width and its content would come from
     /// different answers.
+    static func badgeSlots(for app: AppState, at now: Date) -> [BadgeSlot] {
+        NotchShape.badgeSlots(
+            countdown: app.countdown,
+            stopwatch: app.stopwatch,
+            nowPlaying: app.nowPlaying,
+            isRecording: app.isRecordingClip,
+            capture: app.captureUse,
+            downloads: app.downloads,
+            hiding: app.layoutOptions.hiddenBadges,
+            fitting: NotchShape.badgeRoom(anchor: app.anchor, panelFrame: app.panelFrame),
+            at: now
+        )
+    }
+
+    /// The most important of them, by the order the single slot used before
+    /// there were segments. Kept for what asks "which one", not "which ones".
     static func badgeSlot(for app: AppState, at now: Date) -> BadgeSlot {
         NotchShape.badgeSlot(
             countdown: app.countdown,
@@ -1200,8 +1215,8 @@ public struct NotchRootView: View {
         // `drawnRect(for:)` for the width, would read the clock again with
         // it.
         let instant = now ?? Date()
-        let slot = Self.badgeSlot(for: app, at: instant)
-        let resting = Self.drawnRect(for: app, badge: slot)
+        let slots = Self.badgeSlots(for: app, at: instant)
+        let resting = Self.drawnRect(for: app, badges: slots)
         let drawn = Self.pulled(
             Self.hoverInflated(
                 resting,
@@ -1212,7 +1227,7 @@ public struct NotchRootView: View {
             opening: Self.drawnRect(state: .open(app.lastOpenTab), anchor: app.anchor, panelFrame: app.panelFrame),
             closing: Self.drawnRect(
                 state: .closed, anchor: app.anchor, panelFrame: app.panelFrame,
-                badgeWidth: slot.width, leadingBadgeWidth: slot.leadingWidth,
+                badgeWidth: slots.totalWidth,
                 lyricsHeight: app.lyricsHeight(for: .closed)
             ),
             pull: app.pullProgress,
@@ -1230,7 +1245,7 @@ public struct NotchRootView: View {
         let pinned = morphTime.map { Self.morphProgress(morph, at: $0) }
         ZStack(alignment: .topLeading) {
             Color.clear
-            shape(badge: slot, at: instant)
+            shape(badges: slots, at: instant)
                 .keyframeAnimator(initialValue: 1.0, trigger: morph) { content, progress in
                     let step = pinned ?? progress
                     let rect = from.map { AnchorMorph.rect(from: $0, to: drawn, progress: step) } ?? drawn
@@ -1302,13 +1317,114 @@ public struct NotchRootView: View {
         )
     }
 
+    /// One activity's segment of the closed notch's ear (2026-10-29). Alone,
+    /// it is drawn as the badge always was; beside others, each sits on its
+    /// own tint, so the row reads as separate capsules in one shape.
+    @ViewBuilder
+    private func segment(_ slot: BadgeSlot, at now: Date, tinted: Bool) -> some View {
+        // Alone, trailing on a notch as the badge always was; on its own
+        // tint beside others, centred in its capsule.
+        let badgeAlignment: Alignment = app.anchor.isNotch && !tinted ? .trailing : .center
+        Group {
+            switch slot {
+            case .capture:
+                CaptureBadgeView(use: app.captureUse)
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: badgeAlignment
+                    )
+            case .downloads:
+                if let summary = app.downloads {
+                    DownloadsBadgeView(summary: summary)
+                        .frame(
+                            maxWidth: .infinity,
+                            maxHeight: .infinity,
+                            alignment: badgeAlignment
+                        )
+                } else {
+                    EmptyView()
+                }
+            case .recording:
+                RecordingBadgeView()
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: badgeAlignment
+                    )
+            case .timer:
+                if let countdown = app.countdown {
+                    TimerBadgeView(
+                        text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
+                        isPaused: countdown.isPaused,
+                        remaining: countdown.remaining(at: now)
+                    )
+                    .frame(
+                        maxWidth: .infinity,
+                        maxHeight: .infinity,
+                        alignment: badgeAlignment
+                    )
+                } else {
+                    EmptyView()
+                }
+            case .nowPlaying:
+                // Cover then bars, together in the trailing ear that
+                // `visibleRect` grew, starting just past the housing;
+                // a square cover leaves its slack at the far end.
+                HStack(spacing: 5) {
+                    NowPlayingBadgeView(
+                        artwork: app.nowPlayingArtwork,
+                        aspect: app.nowPlayingArtworkAspect,
+                        coverNamespace: sharedCover,
+                        track: app.nowPlaying
+                    )
+                    EqualizerBarsView(
+                        isPlaying: true,
+                        animates: Self.closedBarsMove(for: app),
+                        color: app.nowPlayingBarTint ?? .white
+                    )
+                }
+                .padding(.leading, 6)
+                .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
+            case .stopwatch:
+                StopwatchBadgeView(stopwatch: app.stopwatch, now: now)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
+            case .none:
+                EmptyView()
+            }
+        }
+        .background {
+            if tinted, let tint = Self.segmentTint(slot, app: app) {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(tint.opacity(0.22))
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 2)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    /// Each segment's tint beside others: the artwork's colour for music, as
+    /// the bars take it; orange for timing, the timer tab's; teal for
+    /// downloads, its Settings row's. The privacy dot has none -- it is
+    /// already the reddest thing in the menu bar.
+    static func segmentTint(_ slot: BadgeSlot, app: AppState) -> Color? {
+        switch slot {
+        case .nowPlaying:          return app.nowPlayingBarTint ?? .white
+        case .timer, .stopwatch:   return .orange
+        case .downloads:           return .teal
+        case .recording, .capture, .none: return nil
+        }
+    }
+
     /// Takes the slot rather than reading it, so the content it draws and
     /// the width `body` grew the frame by are the same answer. Takes `now`
     /// for the same reason: the timer's text is `countdown.remaining(at:)`
     /// of *this* instant, not a fresh `Date()` — a second read here is
     /// exactly the divergence `theReservedWidthAndTheDrawnContentComeFrom
     /// OneClockRead` exists to catch.
-    private func shape(badge slot: BadgeSlot, at now: Date) -> some View {
+    private func shape(badges slots: [BadgeSlot], at now: Date) -> some View {
         let badgeAlignment: Alignment = app.anchor.isNotch ? .trailing : .center
         return backgroundShape
             .fill(.black)
@@ -1337,72 +1453,18 @@ public struct NotchRootView: View {
                     // `aRunningTimerKeepsTheAlbumCoverOutOfTheSlot` is the
                     // test that bites that mistake.
                     VStack(spacing: 0) {
-                        Group {
-                            switch slot {
-                            case .capture:
-                                CaptureBadgeView(use: app.captureUse)
-                                    .frame(
-                                        maxWidth: .infinity,
-                                        maxHeight: .infinity,
-                                        alignment: badgeAlignment
-                                    )
-                            case .downloads:
-                                if let summary = app.downloads {
-                                    DownloadsBadgeView(summary: summary)
-                                        .frame(
-                                            maxWidth: .infinity,
-                                            maxHeight: .infinity,
-                                            alignment: badgeAlignment
-                                        )
-                                } else {
-                                    EmptyView()
-                                }
-                            case .recording:
-                                RecordingBadgeView()
-                                    .frame(
-                                        maxWidth: .infinity,
-                                        maxHeight: .infinity,
-                                        alignment: badgeAlignment
-                                    )
-                            case .timer:
-                                if let countdown = app.countdown {
-                                    TimerBadgeView(
-                                        text: TimerDisplay.text(remaining: countdown.remaining(at: now)),
-                                        isPaused: countdown.isPaused,
-                                        remaining: countdown.remaining(at: now)
-                                    )
-                                    .frame(
-                                        maxWidth: .infinity,
-                                        maxHeight: .infinity,
-                                        alignment: badgeAlignment
-                                    )
-                                } else {
-                                    EmptyView()
-                                }
-                            case .nowPlaying:
-                                // Cover then bars, together in the trailing ear that
-                                // `visibleRect` grew, starting just past the housing;
-                                // a square cover leaves its slack at the far end.
-                                HStack(spacing: 5) {
-                                    NowPlayingBadgeView(
-                                        artwork: app.nowPlayingArtwork,
-                                        aspect: app.nowPlayingArtworkAspect,
-                                        coverNamespace: sharedCover,
-                                        track: app.nowPlaying
-                                    )
-                                    EqualizerBarsView(
-                                        isPlaying: true,
-                                        animates: Self.closedBarsMove(for: app),
-                                        color: app.nowPlayingBarTint ?? .white
-                                    )
-                                }
-                                .padding(.leading, 6)
-                                .frame(width: NotchGeometry.nowPlayingBadgeWidth, alignment: .leading)
-                                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
-                            case .none:
-                                EmptyView()
+                        // Every activity at once, ordered from the notch out
+                        // (2026-10-29): music nearest, each other activity its
+                        // own segment, one shape. Trailing on a notch, so the
+                        // row lands exactly in the ear `visibleRect` grew;
+                        // centred on a pill.
+                        HStack(spacing: 0) {
+                            ForEach(slots, id: \.self) { slot in
+                                segment(slot, at: now, tinted: slots.count > 1)
+                                    .frame(width: slot.width)
                             }
                         }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: badgeAlignment)
                         // The badge keeps the notch's own band; the lyrics strip, when
                         // there is one, hangs below it (spec 2026-10-29). The band's
                         // height is the anchor's, so a strip never re-centres a badge.
@@ -1550,6 +1612,18 @@ public struct NotchRootView: View {
                 // and its band height for the same reason.
                 case .peek(.bluetooth(let event)):
                     BluetoothPeekView(event: event, bandHeight: app.anchor.rect.height)
+
+                // A hover over the timer's or the stopwatch's segment
+                // (2026-10-29): the same row, reading the live values. With
+                // the activity gone mid-hover, the arbiter has already moved
+                // on, so an empty row here would be a frame at most.
+                case .peek(.timer):
+                    if let countdown = app.countdown {
+                        TimingPeekView(content: .countdown(countdown, count: max(app.timers.count, 1)),
+                                       now: now, bandHeight: app.anchor.rect.height)
+                    }
+                case .peek(.stopwatch):
+                    TimingPeekView(content: .stopwatch(app.stopwatch), now: now, bandHeight: app.anchor.rect.height)
 
                 case .peek(.nowPlaying(let track)):
                     // The same notch gap the power peek gets, from the same

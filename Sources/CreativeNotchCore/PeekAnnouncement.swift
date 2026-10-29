@@ -39,6 +39,11 @@ public enum PeekAnnouncement {
             return summary.spoken
         case .downloadDone(let completion):
             return completion.text
+        // A hover over a segment that already shows the time: nothing to
+        // announce, and the row's own label reads the live time, which a
+        // payload-free case cannot.
+        case .timer, .stopwatch:
+            return nil
         }
     }
 

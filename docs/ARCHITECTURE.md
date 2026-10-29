@@ -1461,6 +1461,22 @@ locked fire on time; genuine system sleep fires **on wake**, late, and the
 peek says how late. Firing at the right wall-clock moment on a sleeping Mac
 would need `IOPMSchedulePowerEvent`, which this app deliberately does not use.
 
+### Activities side by side (2026-10-29)
+
+Spec: `docs/specs/2026-10-29-live-activities-design.md`. The single slot
+below became a row: `NotchShape.badgeSlots` returns every active badge from
+the notch out — music, the timer, the stopwatch (new), downloads, the privacy
+dot — and the closed shape grows by their `totalWidth`, so the drawn rect,
+the hit test and the hover rect still come from one `visibleRect` and one
+width. Nothing outranks anything for *showing* any more; what the paragraphs
+below say about ranking now decides only what gives way when the row would
+not fit the panel window (`badgeRoom`, `fitting`): the stopwatch first, then
+downloads, music and the timer, and the privacy dot never.
+`NotchShape.badgeSegments` places each one, and `AppDelegate.segmentUnderPointer`
+routes a hover (`PeekArbiter.content(now:over:)`) and a click
+(`openPanel(openedBy:toward:)`) to the segment's own peek and tab.
+`badgeSlot` (singular) is kept for "which one matters most".
+
 ### Why the trailing ear
 
 The countdown shares the trailing slot with the now-playing badge and
@@ -2220,7 +2236,10 @@ publishes nothing.
 
 ### Where it sits in the badge slot
 
-Above the timer and above now-playing, below this app's own recording:
+Since 2026-10-29 it sits *beside* the timer and now-playing, at the far end
+of the row, rather than in their place; the order below now decides only what
+gives way when the row does not fit, and the dot never does. Before that:
+above the timer and above now-playing, below this app's own recording:
 
 | | |
 | --- | --- |
