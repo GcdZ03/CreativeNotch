@@ -493,6 +493,29 @@
         }
       }
     },
+    "%lld timers" : {
+      "comment" : "Timer peek: how many countdowns are running",
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld timer"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld timers"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld%%" : {
       "comment" : "Battery level\nDownload progress",
       "localizations" : {

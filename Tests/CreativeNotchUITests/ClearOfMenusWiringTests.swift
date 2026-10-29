@@ -19,9 +19,11 @@ struct ClearOfMenusWiringTests {
         safeAreaTopInset: 0, auxiliaryTopLeftWidth: 0, auxiliaryTopRightWidth: 0, menuBarHeight: 30
     )
     private static let centred: CGFloat = 540
-    /// pid 42's menus end at 700: the widest closed pill (68) starts 12
-    /// past them, so its centre is 700 + 12 + 34.
-    private static let clear: CGFloat = 746
+    /// pid 42's menus end at 700. The widest closed pill is every activity
+    /// at once (2026-10-29, `pillClosedMaxWidth`), whose centre would be
+    /// 700 + 12 + half of it -- further right than leaves room for the open
+    /// panel, so it stops there: 1080 - 620 / 2.
+    private static let clear: CGFloat = 770
     private static let longMenus: pid_t = 42
     private static let shortMenus: pid_t = 43
     private static let noMenus: pid_t = 99

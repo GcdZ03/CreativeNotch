@@ -85,25 +85,29 @@ struct CaptureBadgeTests {
         #expect(delegate.currentBadgeWidth == NotchGeometry.recordingBadgeWidth)
     }
 
-    /// **A capture outranks a running timer and a playing track**, because it
-    /// is the one thing in the list the user cannot find out any other way.
-    @Test func aCaptureOutranksTheTimerAndTheTrack() {
+    /// **A capture joins a running timer and a playing track** (2026-10-29),
+    /// at the far end, rather than taking their place: it is the one thing
+    /// in the list the user cannot find out any other way, and now nothing
+    /// has to give way for it to show.
+    @Test func aCaptureJoinsTheTimerAndTheTrack() {
         let delegate = makeDelegate()
         delegate.state.countdown = Countdown(duration: 600, startingAt: Date())
         delegate.state.nowPlaying = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
-        #expect(delegate.currentBadgeWidth == NotchGeometry.timerBadgeWidth)
+        #expect(delegate.currentBadgeSlots == [.nowPlaying, .timer])
 
         delegate.state.captureUse = CaptureUse(microphone: true)
 
-        #expect(delegate.currentBadgeWidth == NotchGeometry.captureBadgeWidth)
+        #expect(delegate.currentBadgeSlots == [.nowPlaying, .timer, .capture])
+        #expect(delegate.currentBadgeWidth == NotchGeometry.nowPlayingBadgeWidth
+                + NotchGeometry.timerBadgeWidth + NotchGeometry.captureBadgeWidth)
     }
 
-    /// And it yields when the capture stops, rather than sticking.
-    @Test func theSlotGoesBackWhenCapturingEnds() {
+    /// And it goes when the capture stops, rather than sticking.
+    @Test func theDotGoesWhenCapturingEnds() {
         let delegate = makeDelegate()
         delegate.state.nowPlaying = TrackSnapshot(title: "T", artist: "A", isPlaying: true)
         delegate.state.captureUse = CaptureUse(camera: true)
-        #expect(delegate.currentBadgeWidth == NotchGeometry.captureBadgeWidth)
+        #expect(delegate.currentBadgeWidth == NotchGeometry.nowPlayingBadgeWidth + NotchGeometry.captureBadgeWidth)
 
         delegate.state.captureUse = .none
 

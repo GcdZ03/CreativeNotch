@@ -80,10 +80,10 @@ private func pill(_ m: ScreenMetrics, menusEnd: CGFloat) -> CGRect? {
 }
 
 /// The reported case: menus reaching past the centre. The pill moves right
-/// until even its widest closed shape -- the idle capsule or any badge --
-/// starts `pillMenuGap` past the last menu.
+/// until even its widest closed shape -- the idle capsule, or every activity
+/// at once (2026-10-29) -- starts `pillMenuGap` past the last menu.
 @Test func longMenusPushThePillJustPastThem() throws {
-    for end: CGFloat in [500, 560, 650] {
+    for end: CGFloat in [450, 500, 600] {
         let r = try #require(pill(portrait, menusEnd: end))
         let widestLeft = r.midX - NotchGeometry.pillClosedMaxWidth / 2
         #expect(widestLeft == portrait.frame.minX + end + NotchGeometry.pillMenuGap)

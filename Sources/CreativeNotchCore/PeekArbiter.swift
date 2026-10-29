@@ -64,6 +64,10 @@ public struct PeekArbiter: Equatable, Sendable {
     private var timerDoneNotified = false
     private var timerDoneShown = false
     private var downloads: DownloadSummary?
+    /// Whether a countdown and a started stopwatch have segments beside the
+    /// notch (2026-10-29): a hover over one can show it.
+    private var countdownShown = false
+    private var stopwatchShown = false
     private var downloadDone: DownloadCompletion?
     private var downloadDoneExpiry: TimeInterval = 0
 
@@ -71,6 +75,12 @@ public struct PeekArbiter: Equatable, Sendable {
 
     /// What is downloading, or `nil`. Ambient, like now-playing: shown on
     /// hover, never unasked.
+    /// What timing the notch is showing, for a hover over its segment.
+    public mutating func setTimers(countdown: Bool, stopwatch: Bool) {
+        countdownShown = countdown
+        stopwatchShown = stopwatch
+    }
+
     public mutating func setDownloads(_ summary: DownloadSummary?) {
         downloads = summary
     }
@@ -196,7 +206,10 @@ public struct PeekArbiter: Equatable, Sendable {
         bluetooth = nil
     }
 
-    public func content(now: TimeInterval) -> PeekContent? {
+    /// `over` is the segment beside the notch the pointer is on, when the
+    /// hover started there (2026-10-29): its own activity shows, ahead of
+    /// the ambient order below -- but never ahead of anything unasked.
+    public func content(now: TimeInterval, over segment: BadgeSlot? = nil) -> PeekContent? {
         if dragActive { return .dragTarget }
         if let timerDone, now < timerDoneExpiry { return .timerDone(timerDone) }
         // Above now-playing deliberately: now-playing is ambient wallpaper
@@ -208,9 +221,15 @@ public struct PeekArbiter: Equatable, Sendable {
         // just did with their own hands, and the 5 s completion is still
         // there once it has gone -- the other order would swallow it whole.
         if let downloadDone, now < downloadDoneExpiry { return .downloadDone(downloadDone) }
-        // Above now-playing in the same order the badge slot uses, so a
-        // hover over the download ring shows the download, not the track the
-        // ring took the slot from.
+        switch segment {
+        case .nowPlaying? where nowPlaying?.isPlaying == true: return .nowPlaying(nowPlaying!)
+        case .timer? where countdownShown:                    return .timer
+        case .stopwatch? where stopwatchShown:                return .stopwatch
+        case .downloads?:                                     if let downloads { return .downloads(downloads) }
+        default:                                              break
+        }
+        // Over no segment in particular, the order the single slot used:
+        // the download ahead of the track.
         if let downloads { return .downloads(downloads) }
         if let nowPlaying, nowPlaying.isPlaying { return .nowPlaying(nowPlaying) }
         return nil
@@ -241,9 +260,22 @@ public struct PeekArbiter: Equatable, Sendable {
         replacing showing: PeekContent,
         pointerInside: Bool
     ) -> PeekContent? {
-        switch content(now: now) {
+        // The segment the showing peek came from, so a change underneath --
+        // the track moving on -- keeps the hover on what it asked for.
+        let segment: BadgeSlot?
+        switch showing {
+        case .timer:      segment = .timer
+        case .stopwatch:  segment = .stopwatch
+        case .nowPlaying: segment = .nowPlaying
+        case .downloads:  segment = .downloads
+        default:          segment = nil
+        }
+        switch content(now: now, over: segment) {
         case .nowPlaying(let track):
             return pointerInside ? .nowPlaying(track) : nil
+        // Asked for by a hover, so kept only under the pointer.
+        case .timer, .stopwatch:
+            return pointerInside ? content(now: now, over: segment) : nil
         // Ambient for the same reason: kept, following the percent, while
         // the pointer is over it; never fallen back to without it.
         case .downloads(let summary):

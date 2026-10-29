@@ -44,6 +44,9 @@ struct TimerBadgeTests {
     /// and the equalizer together in the trailing ear.
     private static let mediaRect = CGRect(x: 195, y: 222, width: 298, height: 38)
 
+    /// Music and a timer side by side (2026-10-29): 230 + 68 + 44.
+    private static let bothRect = CGRect(x: 195, y: 222, width: 342, height: 38)
+
     private static let playing = TrackSnapshot(title: "Song", artist: "Band", isPlaying: true)
 
     /// 25 minutes from the wall clock, so it is still running at every
@@ -108,46 +111,43 @@ struct TimerBadgeTests {
         #expect(delegate.currentBadgeWidth == 0)
     }
 
-    /// The timer outranks playing media in all three rects, not just in the
-    /// pure function.
+    /// A running timer and playing media both show (2026-10-29), and all
+    /// three rects grow by both segments, not just the pure function.
     ///
     /// This drives the real publish path: the countdown is already set when
-    /// `nowPlayingDidChange` re-syncs, so the slot is decided with both
-    /// claimants present. 274, not media's 298 — if the hit test resolved
-    /// the tie the other way it would accept clicks on 24pt the countdown
-    /// never draws.
-    @Test func aRunningTimerOutranksPlayingMediaInAllThreeRects() {
+    /// `nowPlayingDidChange` re-syncs. 342 -- if any consumer still took
+    /// only one of the two it would be 274 or 298, and clicks on a segment
+    /// the user can see would fall through.
+    @Test func aRunningTimerAndPlayingMediaGrowAllThreeRectsTogether() {
         let delegate = makeDelegate(countdown: Self.running())
         delegate.nowPlayingDidChange(Self.playing)
 
-        #expect(delegate.acceptedRect == Self.timedRect)
-        #expect(delegate.hoverView?.trackingRect == Self.timedRect)
-        #expect(NotchRootView.drawnRect(for: delegate.state).width == Self.timedRect.width)
-        #expect(Self.timedRect != Self.mediaRect)
+        #expect(delegate.acceptedRect == Self.bothRect)
+        #expect(delegate.hoverView?.trackingRect == Self.bothRect)
+        #expect(NotchRootView.drawnRect(for: delegate.state).width == Self.bothRect.width)
+        #expect(Self.bothRect != Self.timedRect && Self.bothRect != Self.mediaRect)
     }
 
     // MARK: - The click actually lands
 
     /// End to end through the real hit test, on both sides of where the
-    /// countdown's slot ends.
+    /// second segment ends (2026-10-29).
     ///
-    /// The timer's 44pt slot ends at x 469; the media ear, since it holds the
-    /// cover and the bars, runs on to x 493. With both claimants present the
-    /// timer owns the slot, so a click at x 480 must fall through to the menu
-    /// bar — if `AppDelegate` ever resolved the slot without the countdown,
-    /// it would accept clicks on 24pt the user sees as empty menu bar.
-    @Test func theCountdownOwnsTheSlotOverMusicInTheHitTest() throws {
-        let insideCountdown = NSPoint(x: 450, y: 240)
-        let pastCountdown = NSPoint(x: 480, y: 240)
+    /// The music's 68pt segment runs from x 425 to 493 and the timer's 44pt
+    /// from there to x 537. A click at x 520 lands on the timer; one at 545
+    /// is past both and must fall through to the menu bar.
+    @Test func bothSegmentsTakeClicksAndNothingPastThem() throws {
+        let onTimer = NSPoint(x: 520, y: 240)
+        let pastBoth = NSPoint(x: 545, y: 240)
 
         let idle = makeDelegate()
-        #expect(try #require(idle.hostView).hitTest(insideCountdown) == nil)
+        #expect(try #require(idle.hostView).hitTest(onTimer) == nil)
 
         let timed = makeDelegate(countdown: Self.running())
         timed.nowPlayingDidChange(Self.playing)
         let host = try #require(timed.hostView)
-        #expect(host.hitTest(insideCountdown) != nil)
-        #expect(host.hitTest(pastCountdown) == nil)
+        #expect(host.hitTest(onTimer) != nil)
+        #expect(host.hitTest(pastBoth) == nil)
     }
 
     /// The countdown grows one side only, so the mirror-image point on the

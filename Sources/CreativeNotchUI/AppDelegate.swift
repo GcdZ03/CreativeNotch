@@ -1073,6 +1073,16 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// are a `Text(timerInterval:)` counting from `Stopwatch.anchor`.
     func applyStopwatch(_ command: StopwatchCommand) {
         state.stopwatch = state.stopwatch.applying(command, at: Date(timeIntervalSince1970: now()))
+        // A started or reset stopwatch gains or loses its segment beside the
+        // notch (2026-10-29), which the funnel does not fire for.
+        syncTimersWithArbiter()
+        syncTrackingRect()
+    }
+
+    /// Which timing segments are beside the notch, for a hover over one.
+    private func syncTimersWithArbiter() {
+        let slots = currentBadgeSlots
+        arbiter.setTimers(countdown: slots.contains(.timer), stopwatch: slots.contains(.stopwatch))
     }
 
     /// A countdown just started: the moment to ask for notification
@@ -1224,13 +1234,24 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `avoided` is a tab to open on only when it is the sole visible one —
     /// "Show Welcome Again" passes `.camera`, where the card never shows.
     @discardableResult
-    func openPanel(openedBy reason: PanelOpenReason, avoiding avoided: CreativeNotchCore.Tab? = nil) -> Bool {
+    func openPanel(
+        openedBy reason: PanelOpenReason,
+        avoiding avoided: CreativeNotchCore.Tab? = nil,
+        toward segment: BadgeSlot? = nil
+    ) -> Bool {
         guard !isHiddenForFullScreen else { return false }
         let visible = TabVisibility.visible(
             enabled: state.preferences,
             hasBattery: state.hasBattery
         )
         guard !visible.isEmpty else { return false }
+        // Toward an activity's own tab when the click or hover was on its
+        // segment and that tab is switched on (2026-10-29).
+        if let target = Self.tab(for: segment), visible.contains(target.tab) {
+            if let mode = target.mode { state.timerMode = mode }
+            state.transition(to: .open(target.tab), openedBy: reason)
+            return true
+        }
         let preferred = visible.filter { $0 != avoided }
         let pool = preferred.isEmpty ? visible : preferred
         state.transition(to: .open(pool.contains(state.lastOpenTab)
@@ -1574,7 +1595,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.onClearClipboard = { [weak self] in self?.clipboard?.store.clear() }
         state.onRemoveClipboardEntry = { [weak self] id in self?.clipboard?.store.remove(id) }
         state.onTogglePinClipboardEntry = { [weak self] id in self?.togglePin(id) }
-        state.onOpenPanel = { [weak self] in self?.openPanel(openedBy: .tap) }
+        // Toward the tab of the segment under the pointer, if it has one.
+        state.onOpenPanel = { [weak self] in
+            guard let self else { return }
+            self.openPanel(openedBy: .tap, toward: self.segmentUnderPointer)
+        }
         state.onOpenSettings = { [weak self] in
             self?.openSettingsFromPanel(highlighting: nil)
         }
@@ -1849,13 +1874,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// The same region for another geometry: what the shape would be in the
     /// window at `frame`, which `reposition` asks before it moves there.
     private func visibleRect(anchor: Anchor, frame: CGRect) -> CGRect {
-        let slot = currentBadgeSlot
         return NotchShape.visibleRect(
             presentation: state.state.presentation,
             anchor: anchor,
             panelFrame: frame,
-            badgeWidth: slot.width,
-            leadingBadgeWidth: slot.leadingWidth,
+            badgeWidth: currentBadgeWidth,
             lyricsHeight: state.lyricsHeight(for: state.state.presentation)
         )
     }
@@ -1869,7 +1892,31 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// because that is all the three rects need — `visibleRect` grows by
     /// a number and stays ignorant of which badge asked. Internal so a
     /// test can assert the source of the width directly.
-    var currentBadgeWidth: CGFloat { currentBadgeSlot.width }
+    var currentBadgeWidth: CGFloat { currentBadgeSlots.totalWidth }
+
+    /// Every activity beside the notch, from the notch out (2026-10-29):
+    /// what the shape grows by and what a hover or a click lands on.
+    var currentBadgeSlots: [BadgeSlot] {
+        NotchShape.badgeSlots(
+            countdown: state.countdown,
+            stopwatch: state.stopwatch,
+            nowPlaying: state.nowPlaying,
+            isRecording: state.isRecordingClip,
+            capture: state.captureUse,
+            downloads: state.downloads,
+            hiding: state.layoutOptions.hiddenBadges,
+            fitting: NotchShape.badgeRoom(anchor: currentAnchor, panelFrame: currentFrame),
+            at: Date()
+        )
+    }
+
+    /// The segment under the pointer on the closed notch, or `nil`.
+    var segmentUnderPointer: BadgeSlot? {
+        guard case .closed = state.state else { return nil }
+        let pointer = panelLocal(pointerLocation())
+        let segments = NotchShape.badgeSegments(currentBadgeSlots, anchor: currentAnchor, panelFrame: currentFrame)
+        return NotchShape.segment(at: pointer, in: segments)
+    }
 
     /// The slot itself, for the one consumer that needs both of its
     /// widths: `visibleRect()`, which grows the leading ear for media's
@@ -1975,6 +2022,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.countdown = countdown
         state.timers = timer?.timers.all ?? []
         if countdown == nil { state.isAddingTimer = false }
+        syncTimersWithArbiter()
         syncTrackingRect()
     }
 
@@ -2416,15 +2464,32 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// the closed notch or a peek, never over a drag or an open panel, and
     /// falling back to the peek when there is no tab to open.
     private func peek() {
+        // Read before anything moves: which segment beside the notch the
+        // pointer rests on (2026-10-29), so the peek -- or, with open on
+        // hover, the panel's tab -- is that activity's.
+        let segment = segmentUnderPointer
         if state.hoverBehaviour.opensOnHover {
             switch state.state {
             case .closed, .peek:
-                if openPanel(openedBy: .hover) { return }
+                if openPanel(openedBy: .hover, toward: segment) { return }
             case .open, .receiving:
                 return
             }
         }
-        presentPeek()
+        presentPeek(over: segment)
+    }
+
+    /// The panel's tab for an activity's segment, or `nil` for one with no
+    /// tab of its own: the timer and the stopwatch are the Timer tab (in
+    /// their own mode), a recording is the Camera tab. Music, downloads and
+    /// the capture dot open the panel as before.
+    static func tab(for segment: BadgeSlot?) -> (tab: CreativeNotchCore.Tab, mode: TimerTabMode?)? {
+        switch segment {
+        case .timer?:     return (.timer, .timer)
+        case .stopwatch?: return (.timer, .stopwatch)
+        case .recording?: return (.camera, nil)
+        default:          return nil
+        }
     }
 
     /// Current power state into the panel.
@@ -2473,7 +2538,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
     /// that lands mid-drag must not destroy them. What is shown is whatever
     /// the arbiter decides: priority among drag, power and now-playing is
     /// its call alone, not the caller's.
-    private func presentPeek() {
+    private func presentPeek(over segment: BadgeSlot? = nil) {
         let now = self.now()
 
         switch state.state {
@@ -2483,7 +2548,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             break
         }
 
-        guard let content = arbiter.content(now: now) else { return }
+        guard let content = arbiter.content(now: now, over: segment) else { return }
         applyPeek(content)
         schedulePeekReevaluation(for: content)
     }
@@ -2549,7 +2614,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         // their own — they end when the track stops, the downloads finish or
         // the drag does. The delay is irrelevant for them; `reevaluatePeek`
         // does not reschedule.
-        case .nowPlaying, .downloads, .dragTarget:
+        case .nowPlaying, .downloads, .dragTarget, .timer, .stopwatch:
             return power
         }
     }
@@ -2598,7 +2663,7 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             // changes.
             switch content {
             case .power, .timerDone, .bluetooth, .downloadDone: schedulePeekReevaluation(for: content)
-            case .nowPlaying, .downloads, .dragTarget: break
+            case .nowPlaying, .downloads, .dragTarget, .timer, .stopwatch: break
             }
         } else {
             state.transition(to: .closed)

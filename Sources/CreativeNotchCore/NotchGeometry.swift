@@ -17,12 +17,14 @@ public enum NotchGeometry {
     /// The space "Keep clear of app menus" leaves between the end of the
     /// frontmost app's menus and the closed pill (2026-10-26).
     public static let pillMenuGap: CGFloat = 12
-    /// The widest the closed pill gets: the idle capsule, or the widest
-    /// badge. Keeping clear of the menus keeps clear for this, so a badge
-    /// appearing never grows the pill back over them.
+    /// The widest the closed pill gets: the idle capsule, or every activity
+    /// at once (2026-10-29) -- music, timer, stopwatch, downloads and the
+    /// wider of the two privacy dots. Keeping clear of the menus keeps clear
+    /// for this, so an activity starting never grows the pill back over them.
     public static let pillClosedMaxWidth: CGFloat = max(
-        pillIdleWidth, nowPlayingBadgeWidth, timerBadgeWidth,
-        recordingBadgeWidth, captureBadgeWidth, downloadsBadgeWidth
+        pillIdleWidth,
+        nowPlayingBadgeWidth + timerBadgeWidth + stopwatchBadgeWidth + downloadsBadgeWidth
+            + max(recordingBadgeWidth, captureBadgeWidth)
     )
     public static let peekSize = CGSize(width: 320, height: 44)
 
@@ -107,6 +109,11 @@ public enum NotchGeometry {
     /// hover sync on every change, turning a once-a-minute redraw into a
     /// once-a-minute geometry update.
     public static let timerBadgeWidth: CGFloat = 44
+
+    /// How far a stopwatch extends the ear (2026-10-29): `"0:00"` to
+    /// `"59:59"` at 12pt rounded, the timer's text, with room for an hour's
+    /// digit. Fixed for the timer's reason.
+    public static let stopwatchBadgeWidth: CGFloat = 52
 
     /// How far a recording indicator extends past the trailing edge.
     ///
