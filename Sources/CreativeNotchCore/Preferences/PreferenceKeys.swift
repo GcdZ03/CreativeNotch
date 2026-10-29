@@ -77,6 +77,9 @@ public enum PreferenceKeys {
     public static let layoutShowsTimerBadge = "layout.badge.timer"
     /// A boolean: the download progress ring beside the closed notch.
     public static let layoutShowsDownloadsBadge = "layout.badge.downloads"
+    /// A boolean: whether the bars beside the closed notch move. Absent is
+    /// off, unlike every badge key.
+    public static let layoutAnimatesNowPlayingBars = "layout.badge.now-playing.moving"
 
     /// What a raw value for one of the layout menus means, by the policy
     /// `resolveTextSize` follows: anything that names no choice reads as

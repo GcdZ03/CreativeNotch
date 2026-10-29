@@ -98,6 +98,9 @@ public final class PreferencesStore {
             ),
             showsDownloadsBadge: PreferenceKeys.resolveEnabled(
                 defaults.object(forKey: PreferenceKeys.layoutShowsDownloadsBadge)
+            ),
+            animatesNowPlayingBars: PreferenceKeys.resolveEnabled(
+                defaults.object(forKey: PreferenceKeys.layoutAnimatesNowPlayingBars), shippedDefault: false
             )
         )
     }
@@ -112,6 +115,7 @@ public final class PreferencesStore {
         defaults.set(layout.showsNowPlayingBadge, forKey: PreferenceKeys.layoutShowsNowPlayingBadge)
         defaults.set(layout.showsTimerBadge, forKey: PreferenceKeys.layoutShowsTimerBadge)
         defaults.set(layout.showsDownloadsBadge, forKey: PreferenceKeys.layoutShowsDownloadsBadge)
+        defaults.set(layout.animatesNowPlayingBars, forKey: PreferenceKeys.layoutAnimatesNowPlayingBars)
     }
 
     /// How a picked colour is copied. Read on every call, never cached.

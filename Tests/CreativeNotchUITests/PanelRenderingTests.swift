@@ -172,7 +172,10 @@ struct TabRenderingTests {
             .deletingLastPathComponent()
             .appendingPathComponent("Sources/CreativeNotchUI")
         let enumerator = try #require(FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil))
-        let banned = [".borderedProminent", ".bordered)", ".roundedBorder", "TimelineView", ".repeatForever"]
+        // `.repeatForever` has no exemption any more (2026-10-29): the bars
+        // loop in Core Animation, so the one loop left is a `repeatCount`,
+        // allowed in the bars' own file and nowhere else.
+        let banned = [".borderedProminent", ".bordered)", ".roundedBorder", "TimelineView", ".repeatForever", "repeatCount"]
         let loopAllowed = ["EqualizerBarsView.swift"]
         for case let url as URL in enumerator where url.pathExtension == "swift" {
             let text = try String(contentsOf: url, encoding: .utf8)
@@ -182,7 +185,7 @@ struct TabRenderingTests {
                 .filter { !$0.trimmingCharacters(in: .whitespaces).hasPrefix("//") }
                 .joined(separator: "\n")
             for token in banned {
-                if token == ".repeatForever", loopAllowed.contains(url.lastPathComponent) { continue }
+                if token == "repeatCount", loopAllowed.contains(url.lastPathComponent) { continue }
                 #expect(!code.contains(token), "\(url.lastPathComponent) still uses \(token)")
             }
             for call in Self.loopingAnimators(in: code) {

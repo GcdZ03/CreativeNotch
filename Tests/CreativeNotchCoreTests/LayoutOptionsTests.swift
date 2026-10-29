@@ -40,6 +40,7 @@ struct LayoutOptionsTests {
         #expect(o.showsNowPlayingBadge)
         #expect(o.showsTimerBadge)
         #expect(o.showsDownloadsBadge)
+        #expect(o.animatesNowPlayingBars == false, "moving bars are opt-in")
         #expect(o.hiddenBadges.isEmpty)
         #expect(PanelWidth.standard.nominalWidth == NotchGeometry.expandedSize.width)
         #expect(PanelCorners.standard.radius == NotchGeometry.panelCornerRadius)
@@ -70,6 +71,7 @@ struct LayoutOptionsTests {
         o.showsNowPlayingBadge = false
         o.showsTimerBadge = false
         o.showsDownloadsBadge = false
+        o.animatesNowPlayingBars = true
         PreferencesStore(defaults: defaults).saveLayout(o)
         #expect(PreferencesStore(defaults: defaults).loadLayout() == o)
         #expect(defaults.string(forKey: PreferenceKeys.layoutWidth) == "wide")
@@ -78,6 +80,18 @@ struct LayoutOptionsTests {
         #expect(defaults.object(forKey: PreferenceKeys.layoutShowsBattery) as? Bool == false)
         #expect(defaults.object(forKey: PreferenceKeys.layoutShowsDownloadsBadge) as? Bool == false)
         #expect(PreferenceKeys.layoutShowsDownloadsBadge == "layout.badge.downloads")
+        #expect(defaults.object(forKey: PreferenceKeys.layoutAnimatesNowPlayingBars) as? Bool == true)
+        #expect(PreferenceKeys.layoutAnimatesNowPlayingBars == "layout.badge.now-playing.moving")
+    }
+
+    /// Absent is off for the moving bars, where it is on for every badge:
+    /// a fresh install keeps the closed notch still (2026-10-29).
+    @Test func absentMovingBarsAreStill() {
+        let defaults = makeIsolatedDefaults()
+        defaults.set(false, forKey: PreferenceKeys.layoutShowsTimerBadge)
+        #expect(PreferencesStore(defaults: defaults).loadLayout().animatesNowPlayingBars == false)
+        defaults.set(true, forKey: PreferenceKeys.layoutAnimatesNowPlayingBars)
+        #expect(PreferencesStore(defaults: defaults).loadLayout().animatesNowPlayingBars == true)
     }
 
     /// Hand-typed junk reads as the default and is left in place for

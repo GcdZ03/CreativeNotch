@@ -20,10 +20,14 @@ rides moments that already happen — launch, a wake, Settings opening — and
 has no schedule of its own (see "Updates").
 
 **Animation follows the same rule.** One-shot animations on a state change
-are fine. A loop is not, with one named exception — the music peek's
-equalizer, which runs only while that peek is open — and
+are fine. A loop is not, with one named exception — the equalizer bars,
+which loop in the music peek while it is open and in the closed notch only
+when "Moving bars" is switched on — and
 `noStockControlStyleOrRepeatingAnimationSurvivesInTheUI` bans `TimelineView`
-and `.repeatForever` everywhere else. The system spinner on a shelf tile
+and `.repeatForever` everywhere, and a Core Animation `repeatCount` outside
+the bars' own file. The bars loop in Core Animation rather than SwiftUI
+because a SwiftUI loop costs the app 5–6% of a core while it runs and a layer
+animation 0.01% (`docs/research/2026-10-29-equalizer-cost.md`). The system spinner on a shelf tile
 whose file is still copying in is the same shape of exception: it exists
 only while a copy the user started is running and the pane is on screen.
 
@@ -1236,10 +1240,17 @@ derivations of one rectangle is the shape of this project's only Critical
 bug. Playback changes do not pass through the `AppState` funnel, so starting
 or stopping music re-syncs the tracking rect explicitly.
 
-**What moves, and what does not.** The closed notch's bars stand still: they
-are on screen for as long as music plays, and the clipboard poller remains
-the only timer in the project. The peek's bars loop only while the peek is
-open — the single exemption from the no-loop guard, by file name. The
+**What moves, and what does not.** The closed notch's bars stand still by
+default: they are on screen for as long as music plays, and the clipboard
+poller remains the only timer in the project. The peek's bars loop while the
+peek is open. **Moving bars (2026-10-29)**, a Layout switch that ships off,
+lets the closed notch's loop too — never in Low Power Mode, never under
+Reduce Motion. Both loops are four `CABasicAnimation`s handed to the window
+server once and capped at 20 frames a second
+(`EqualizerBarsView.framesPerSecond`): the app does nothing per frame, and
+the cap keeps a ProMotion display from compositing them 120 times a second.
+What is left is the window server's own compositing, which is why the switch
+ships off; the numbers are in `docs/research/2026-10-29-equalizer-cost.md`. The
 progress bar has no clock: it is set to now and given one linear animation
 to the end of the track, restarted when a play, pause or seek republishes
 the position, and its times are `Text(timerInterval:)`.

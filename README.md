@@ -163,11 +163,17 @@ and four equalizer bars just to its right — a video's thumbnail gets a wider
 tile than an album cover. Hovering it
 drops down a small player — cover, title over artist, play/pause and a
 progress bar — and clicking opens the panel, with the cover sliding between
-all three. The closed notch is deliberately **static**: its bars stand
-still, because they are on screen for as long as music plays and a loop
-there would redraw for that long, which is the exact cost this project
-exists to avoid. They move only inside the hover player, and the progress
-bar is one animation to the end of the track rather than a ticking clock.
+all three. The closed notch is **still by default**: its bars stand still,
+because they are on screen for as long as music plays and a loop there
+would redraw for that long, which is the exact cost this project exists to
+avoid. They move inside the hover player, and the progress bar is one
+animation to the end of the track rather than a ticking clock. If you want
+them moving all the time, Settings → Layout → **Moving bars** does it: the
+bars are handed to Core Animation once, so the app itself does no work per
+frame, and capped at 20 frames a second — but the screen still redraws them
+for as long as the music plays, so it ships off, and they stand still in Low
+Power Mode. The measurements are in
+[`docs/research/2026-10-29-equalizer-cost.md`](docs/research/2026-10-29-equalizer-cost.md).
 Reading that information through
 MediaRemote is gated by code-signing identifier, which this app cannot
 satisfy directly — so the app spawns the system's own `perl`, signed as
@@ -444,6 +450,7 @@ it back.
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
+| Settings → Layout → **Moving bars** | The bars beside the closed notch move while music plays; they stand still again in Low Power Mode |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |

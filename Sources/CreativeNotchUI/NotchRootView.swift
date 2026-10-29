@@ -1070,6 +1070,15 @@ public struct NotchRootView: View {
     /// does not pin that `body`'s `.peek(.nowPlaying)` case calls it. That
     /// a now-playing peek draws the peek at all is what the rendering
     /// tests cover, and they are the tests that caught C2.
+    /// Whether the bars beside the closed notch move (2026-10-29): only when
+    /// Settings → Layout → "Moving bars" is on, and never in Low Power Mode,
+    /// which is the machine asking everything to do less. Reduce Motion
+    /// stills them too, through `animatesEqualizer`, as it does the peek's.
+    /// Static so a test can read it without rendering.
+    static func closedBarsMove(for app: AppState) -> Bool {
+        app.layoutOptions.animatesNowPlayingBars && app.power?.isLowPowerMode != true
+    }
+
     static func nowPlayingPeek(
         for app: AppState,
         track: TrackSnapshot,
@@ -1332,7 +1341,7 @@ public struct NotchRootView: View {
                             )
                             EqualizerBarsView(
                                 isPlaying: true,
-                                animates: false,
+                                animates: Self.closedBarsMove(for: app),
                                 color: app.nowPlayingBarTint ?? .white
                             )
                         }

@@ -100,6 +100,14 @@ public struct LayoutOptions: Equatable, Sendable {
     /// ambient ring goes, and the slot falls to whatever is below it.
     public var showsDownloadsBadge: Bool
 
+    /// Whether the bars beside the closed notch move while music plays
+    /// (2026-10-29). **Off by default**, and the one layout option that is:
+    /// moving bars cost the app nothing per frame (Core Animation plays
+    /// them), but the window server composites them for as long as the music
+    /// plays, which is the always-on cost this project exists to avoid.
+    /// Measured in `docs/research/2026-10-29-equalizer-cost.md`.
+    public var animatesNowPlayingBars: Bool
+
     public static let `default` = LayoutOptions()
 
     public init(
@@ -109,7 +117,8 @@ public struct LayoutOptions: Equatable, Sendable {
         showsBattery: Bool = true,
         showsNowPlayingBadge: Bool = true,
         showsTimerBadge: Bool = true,
-        showsDownloadsBadge: Bool = true
+        showsDownloadsBadge: Bool = true,
+        animatesNowPlayingBars: Bool = false
     ) {
         self.width = width
         self.corners = corners
@@ -118,6 +127,7 @@ public struct LayoutOptions: Equatable, Sendable {
         self.showsNowPlayingBadge = showsNowPlayingBadge
         self.showsTimerBadge = showsTimerBadge
         self.showsDownloadsBadge = showsDownloadsBadge
+        self.animatesNowPlayingBars = animatesNowPlayingBars
     }
 
     /// The badges `NotchShape.badgeSlot` should pass over. Only the ambient
