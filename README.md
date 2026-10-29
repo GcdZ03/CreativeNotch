@@ -61,7 +61,7 @@ command. It is not sold, and it is not on the App Store.
 
 ## Status
 
-**The foundation is complete. All thirteen modules are built, and every one of them can be switched off.**
+**The foundation is complete. All fourteen modules are built, and every one of them can be switched off.**
 
 | | |
 |---|---|
@@ -96,6 +96,7 @@ command. It is not sold, and it is not on the App Store.
 | ✅ **Clipboard app exclusions** — apps whose copies are never recorded | Done |
 | ✅ **Colour picker** — pick a colour from anywhere on screen; copied as hex, RGB, HSL or SwiftUI | Done |
 | ✅ **Downloads** — a progress ring beside the notch while Safari and other browsers download, and a click-to-reveal peek when one finishes (off until you switch it on) | Done |
+| ✅ **Synced lyrics** — the line being sung, in a strip under the notch, in the music peek and in the panel; one request to LRCLIB per track and one wake per line (off until you switch it on) | Done |
 | ✅ **Ready for translation** — every word on screen and every VoiceOver label in one String Catalog; English only so far | Done |
 | ✅ **In-app updates** — Check for Updates in the menu bar; Settings says when a new release is out and installs it in place, checksum and signature verified, without re-running the installer | Done |
 
@@ -183,6 +184,26 @@ streaming the result back as newline-delimited JSON. The helper is
 supervised with bounded restarts, started only while the screen is
 unlocked and the machine is awake, and stopped the moment the app quits —
 one subprocess is the budget for this project, and it never outlives it.
+
+Synced lyrics are the fourteenth, and they ship **off**: switching them on is
+what starts sending each track's title, artist and length to
+[LRCLIB](https://lrclib.net), a free community lyrics service, and the
+Settings row says so before you press it. While a track with synced lyrics
+plays, the closed notch grows down by one line and the line being sung sits
+in it; the music peek gains the same row, and the panel shows it in the
+artist's place. The line is kept in time the way the timer is, not by a
+clock: the app works out when the next line starts from the playback
+position and sleeps until exactly then — about one wake every four seconds,
+fewer than the timer badge's one a second. A track is looked up once, with
+one retry when the service is busy, and the answers live in memory for the
+session; nothing is written to disk and nothing is asked while the screen is
+locked. A line too long for the strip is shown in two parts, split at its
+natural pause, rather than cut off. On a notchless Mac the strip would cover
+the app menus, so the pill shows lyrics in the peek and the panel only.
+
+<p align="center">
+  <img src="docs/assets/features/lyrics-strip.png" width="620" alt="The closed notch with the album cover and still bars to its right, and below it a one-line strip reading I feel your breath upon my neck">
+</p>
 
 The colour picker is a dropper in the right ear of the open panel. Click it
 and the panel steps aside for the system's own magnifying loupe; click any
@@ -330,7 +351,7 @@ is registered with the window server rather than a monitor. Quick Look and
 Open on the shelf use the system's own viewers on files the shelf already
 holds, so they ask for nothing either. The colour picker uses
 `NSColorSampler`, the system's own loupe, which hands back only the pixel
-you click and so needs no Screen Recording permission. Nine of the thirteen
+you click and so needs no Screen Recording permission. Ten of the fourteen
 modules work with nothing granted.
 
 **The camera is the exception.** macOS prompts for camera access the first
@@ -362,6 +383,12 @@ the way Finder draws its progress bars, and reads nothing but file names.
 Refuse, and the Settings row says it cannot see downloads, with a button to
 System Settings › Privacy & Security › Files & Folders; nothing is watched
 until you allow it.
+
+**Synced lyrics ask for nothing, and still ship off.** They need no
+permission, but switching them on is what sends each playing track's title,
+artist and length to LRCLIB (lrclib.net) — once per track, in an
+ephemeral session with no cookies, the answer kept in memory only. Off, they
+send nothing at all.
 
 **Notifications, for the timer only.** The notch is hidden over full-screen
 apps, so a timer that finishes there posts a "Timer done" notification. macOS
@@ -453,6 +480,8 @@ it back.
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
 | Settings → Layout → **Moving bars** | The bars beside the closed notch move while music plays and the Mac is plugged in; on battery or in Low Power Mode they stand still |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
+| Switch Synced lyrics on in Settings, then play a song | A strip drops below the notch with the line being sung, changing as the song goes; it goes away when you pause. The peek gains the same line, and the panel shows it under the title. Songs LRCLIB has no synced lyrics for show no strip |
+| Two-finger swipe up on the notch while the lyrics strip shows | Tucks the line under the notch away, in the strip and the hover player; the same swipe brings it back. Remembered across launches. The panel keeps the line, and the quote icon beside it does the same toggle |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |
 | Plug in or unplug the charger | A one-row status drops below the notch for three seconds: icon, what happened, bar and percentage |

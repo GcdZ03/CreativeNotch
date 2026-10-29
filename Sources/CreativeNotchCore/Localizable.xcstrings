@@ -1794,6 +1794,16 @@
         }
       }
     },
+    "Hide lyrics under the notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide lyrics under the notch"
+          }
+        }
+      }
+    },
     "Hides this welcome. Show it again from the menu bar icon." : {
       "localizations" : {
         "en" : {
@@ -2099,6 +2109,27 @@
         }
       }
     },
+    "Lyrics: %@" : {
+      "comment" : "The lyric line being sung",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lyrics: %@"
+          }
+        }
+      }
+    },
+    "Lyrics: instrumental" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lyrics: instrumental"
+          }
+        }
+      }
+    },
     "Media controls" : {
       "localizations" : {
         "en" : {
@@ -2383,12 +2414,12 @@
         }
       }
     },
-    "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch." : {
+    "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch. Synced lyrics start off: they ask LRCLIB once per track, wake once per line while music plays, and keep answers in memory only." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch."
+            "value" : "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch. Synced lyrics start off: they ask LRCLIB once per track, wake once per line while music plays, and keep answers in memory only."
           }
         }
       }
@@ -3261,6 +3292,16 @@
         }
       }
     },
+    "Show lyrics under the notch" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show lyrics under the notch"
+          }
+        }
+      }
+    },
     "Show on" : {
       "localizations" : {
         "en" : {
@@ -3389,6 +3430,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Stopwatch, %@"
+          }
+        }
+      }
+    },
+    "Synced lyrics" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced lyrics"
           }
         }
       }
@@ -3549,6 +3600,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "The level beside the settings gear."
+          }
+        }
+      }
+    },
+    "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length."
           }
         }
       }

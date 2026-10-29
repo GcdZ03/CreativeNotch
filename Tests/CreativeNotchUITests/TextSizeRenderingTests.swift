@@ -122,6 +122,15 @@ struct TextSizeRenderingTests {
             $0.transition(to: .open(.timer))
         }),
         ("battery", { $0.transition(to: .open(.power)) }),
+        // The music column with a lyric line in the artist's place
+        // (2026-10-29): a row under the progress bar ran off the bottom at
+        // every size, which this pane caught.
+        ("lyrics in the music column", {
+            $0.lyrics = LyricsText(current: "I feel your breath upon my neck")
+            // The battery pane, which clears the strip on its own; the empty
+            // shelf's drop hint reaches it by design.
+            $0.transition(to: .open(.power))
+        }),
         ("welcome", {
             $0.welcomeSeen = false
             $0.transition(to: .open(.shelf), openedBy: .tap)
@@ -263,6 +272,10 @@ struct TextSizeRenderingTests {
             "CaptureBadgeView.swift", "TimerBadgeView.swift", "NowPlayingBadgeView.swift",
             "NowPlayingView.swift", "PowerPeekView.swift", "TimerDonePeekView.swift",
             "BluetoothPeekView.swift", "DownloadsBadgeView.swift", "DownloadPeekView.swift",
+            // The lyrics strip and the peek's row: sized into the closed
+            // shape's 22pt line, like the badges. The panel's lyrics are
+            // `LyricsColumnView`, which scales.
+            "LyricLineView.swift",
             "PreferencesWindow.swift", "LayoutRows.swift", "UpdatesSection.swift", "NotchTypeStyle.swift",
             // Only the peek's fallback label, which no state reaches.
             "NotchRootView.swift",

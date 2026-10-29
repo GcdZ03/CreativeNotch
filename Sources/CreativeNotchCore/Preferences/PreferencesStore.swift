@@ -64,6 +64,18 @@ public final class PreferencesStore {
         defaults.set(enabled, forKey: PreferenceKeys.pillClearsMenus)
     }
 
+    /// Whether the lyrics strip is tucked away (2026-10-29). Read on every
+    /// call; shown unless hidden, and a hand-typed string reads as shown.
+    public var lyricsStripHidden: Bool {
+        PreferenceKeys.resolveEnabled(
+            defaults.object(forKey: PreferenceKeys.lyricsStripHidden), shippedDefault: false
+        )
+    }
+
+    public func setLyricsStripHidden(_ hidden: Bool) {
+        defaults.set(hidden, forKey: PreferenceKeys.lyricsStripHidden)
+    }
+
     /// How large the open panel's text is. Read on every call, never cached.
     public var textSize: TextSize {
         PreferenceKeys.resolveTextSize(defaults.object(forKey: PreferenceKeys.textSize))

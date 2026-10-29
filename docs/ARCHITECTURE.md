@@ -43,7 +43,8 @@ definition. What it must not do is schedule anything when no countdown is
 running, or wake more often than the display actually changes. The calendar
 glance is the second user: one one-shot to the next instant its rows would
 read differently, and only while its pane is on screen (see "The calendar
-glance").
+glance"). Synced lyrics are the third: one one-shot to the instant the next
+line starts, and only while that track plays (see "Synced lyrics").
 
 The one genuine exception is clipboard history, because `NSPasteboard` has
 no change notification. It gets a poller, and that poller is gated centrally
@@ -51,9 +52,9 @@ on `SystemActivity`, which is anything but `.active` when the machine is
 asleep, the screen is locked, the display is asleep (the energy saver
 timeout, a lid closed on an external display), or this session has been
 switched away from by fast user switching. A dark display reads as
-`.asleep` and a switched-away session as `.locked`. **The gate has six
-consumers, joining it in three different ways** — the clipboard poller and
-the media helper are suspended outside `.active`; the power and downloads
+`.asleep` and a switched-away session as `.locked`. **The gate has seven
+consumers, joining it in three different ways** — the clipboard poller, the
+media helper and the lyrics one-shot are suspended outside `.active`; the power and downloads
 modules are never suspended, because a notification-driven source costs
 nothing idle, and only withhold their peeks; and the
 timer and the camera split: the timer's *redraws* are gated while its
@@ -852,6 +853,8 @@ AppKit's own drag events, clipboard needs nothing, and the global shortcut
 goes through the window server rather than a monitor. The colour picker uses
 `NSColorSampler`, which returns only the clicked pixel and so needs no Screen
 Recording grant; there is no usage string for it because there is no prompt.
+Synced lyrics need no grant either, but ship off all the same: switching them
+on is what sends each track to a third party (see "Synced lyrics").
 
 `CameraController.reevaluate()` reads `authorizationStatus()` before building
 the capture graph. `.denied` and `.restricted` short-circuit to the denied
@@ -1275,6 +1278,58 @@ the player's own reading when it republishes. The touch target is 14pt over a
 4pt bar that thickens under the pointer. The project rule holds: nothing
 scripts a real player, so the seek itself was checked by hand.
 
+### Synced lyrics (2026-10-29)
+
+Spec: `docs/specs/2026-10-29-synced-lyrics-design.md`. `ModuleID.lyrics`,
+**off until switched on**, because on is what starts sending each track's
+title, artist and length to LRCLIB.
+
+- **Core.** `SyncedLyrics` parses LRC and answers, for a `PlaybackPosition`
+  and a `now`, the current line and the instant it next changes
+  (`LyricsFrame`). `LyricsQuery` is what is sent -- title, artist and whole
+  seconds, never the album, which on 2026-10-29 turned every request into a
+  `503` while the same one without it answered. `LyricsAnswer` sorts the
+  replies: synced lyrics are found; a 404, an instrumental or plain lyrics only
+  are none; a 503 (seen several times running on 2026-10-29), a 429, any other
+  failure and no reply at all are unavailable, which is never cached.
+  `LyricsCache` keeps the last fifty answers in memory.
+- **`LyricsController`** holds at most one request, one parked retry and one
+  pending wake. A new track is looked up once; unavailable is retried once
+  after four seconds and then left until the track changes. While a track with
+  lyrics plays, the one wake sleeps until `nextChangeAt` and lands *on* the
+  boundary, so a wake a hair early cannot redraw the old line and sleep for
+  microseconds. A pause, a seek or a new track republishes the position and
+  replaces the wake. Outside `.active` the wake and any request go, and both
+  come back on return. Off cancels everything, forgets every answer and
+  withdraws the line.
+- **The strip.** `AppState.lyrics` is a `LyricsText`, which changes only when
+  the line does. A line too wide for the strip at 75% size, measured in its
+  font (`LyricLineView.fits`), is split by `SyncedLyrics.splittingLines` at
+  the pause nearest its middle -- full-width punctuation included, and for
+  Chinese and Japanese between any two characters -- and the halves timed by their share of the
+  characters, so it shows whole in turn, for one more wake and no
+  animation. `showsLyricsLine` — lyrics and playing — is what grows the
+  closed notch down by `NotchGeometry.lyricsLineHeight` and the music peek's
+  body by the same row, through `NotchShape.visibleRect`'s `lyricsHeight`, so
+  the drawn rect, the hit test and the hover rect agree as they do for a
+  badge. `lyricsDidChange` re-syncs the accepted region for the reason
+  `nowPlayingDidChange` does. A two-finger push up on the closed notch or
+  the music peek (`NotchSwipe.Outcome.toggleLyrics`) tucks the strip away
+  or brings it back (`AppState.lyricsStripHidden`, persisted), the strip
+  and the peek's row together; the panel keeps the line, with its quote
+  glyph as a button for the same toggle. `syncLyricsVisibility` tells the
+  controller when no surface shows the line, so it then schedules nothing.
+  A swipe that starts on the closed notch holds the hover dwell
+  (`HoverTracker.holdDwell`), so open on hover cannot open the panel under
+  the fingers and turn a push up into "close"; it is re-armed only when the
+  swipe did nothing. A closed pill never grows a strip: it sits in
+  the menu bar, and one rect a line wide at that height would cover the app
+  menus. The panel shows the line in the artist's place: below the progress
+  bar it ran off the bottom of the panel at every text size.
+- **The request** is `LRCLIBService`: an ephemeral `URLSession`, an 8s
+  timeout, the updater's `User-Agent`. `AppDelegate.fetchLyrics` answers
+  nothing until `configureForRealLaunch()`, so no test sends a title anywhere.
+
 ## Battery and power state
 
 The first module that needs **no exception to the one rule at all**.
@@ -1658,7 +1713,7 @@ and `downloadsDirectory` are sandboxed seams, made real only by
 
 ## Preferences
 
-Thirteen switches. **Switching a module off stops what it runs**, rather than
+Fourteen switches. **Switching a module off stops what it runs**, rather than
 hiding it — which is the only reason this module was worth building. A
 preference that removes the feature and leaves the cost running is strictly
 worse than no preference, because the user pays for something they explicitly

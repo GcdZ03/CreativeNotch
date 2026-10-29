@@ -1,0 +1,386 @@
+import AppKit
+import Foundation
+import Testing
+import CreativeNotchCore
+@testable import CreativeNotchUI
+
+/// The lyrics module joined to the app: switch, controller, the strip under
+/// the closed notch, and the region that accepts clicks (spec 2026-10-29).
+///
+/// Every request goes to a scripted fake: no test sends a title anywhere.
+@MainActor
+struct LyricsWiringTests {
+
+    private final class Service: @unchecked Sendable {
+        static let found = #"{"instrumental":false,"syncedLyrics":"[00:10.00] one\n[00:20.00] two"}"#
+        private(set) var asked: [URL] = []
+        func fetch(_ url: URL) -> (status: Int, body: Data)? {
+            asked.append(url)
+            return (200, Data(Self.found.utf8))
+        }
+    }
+
+    private func makeDelegate() -> (AppDelegate, Service) {
+        let service = Service()
+        let delegate = AppDelegate()
+        delegate.shelfTrash = TestTrash.shelf
+        delegate.preferencesDefaults = TestDefaults.isolated("lyrics")
+        delegate.growthDelay = .zero
+        delegate.playChime = { _ in }
+        delegate.performHaptic = {}
+        delegate.announce = { _ in }
+        delegate.pointerLocation = { CGPoint(x: -10_000, y: -10_000) }
+        delegate.screenDescriptors = { [] }
+        delegate.fetchLyrics = { url in service.fetch(url) }
+        delegate.installOutsideClickMonitor = { _ in nil }
+        delegate.takeKey = {}
+        delegate.relinquishKey = {}
+        delegate.install(metrics: NotchedDelegate.metrics)
+        delegate.clipboard?.poller.scheduleTimer = { _, _ in nil }
+        delegate.clipboard?.poller.cancelTimer = { _ in }
+        delegate.media?.supervisor.startHelper = {}
+        delegate.media?.supervisor.stopHelper = {}
+        // Parks every line's one-shot: nothing here waits out a real one.
+        // And a pinned clock: under a loaded parallel run a test can take
+        // seconds, and the real one would carry the song past its last line.
+        delegate.lyrics?.sleep = { _ in try? await Task.sleep(for: .seconds(86_400)) }
+        delegate.lyrics?.now = { Self.t0 }
+        return (delegate, service)
+    }
+
+    private static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+
+    private func track(playing: Bool = true) -> TrackSnapshot {
+        TrackSnapshot(
+            title: "Song", artist: "Band", isPlaying: playing,
+            position: PlaybackPosition(elapsed: 12, duration: 200, anchoredAt: Self.t0)
+        )
+    }
+
+    private func play(_ delegate: AppDelegate, _ snapshot: TrackSnapshot) async {
+        delegate.nowPlayingDidChange(snapshot)
+        await delegate.lyrics?.lookupTask?.value
+    }
+
+    /// The drawn shape and the region that accepts clicks and hover agree.
+    private func expectRectsAgree(_ delegate: AppDelegate, sourceLocation: SourceLocation = #_sourceLocation) {
+        let drawn = NotchRootView.drawnRect(for: delegate.state)
+        #expect(drawn.size == delegate.acceptedRect.size, sourceLocation: sourceLocation)
+        #expect(drawn.minX == delegate.acceptedRect.minX, sourceLocation: sourceLocation)
+        #expect(delegate.hoverView?.trackingRect == delegate.acceptedRect, sourceLocation: sourceLocation)
+    }
+
+    // MARK: - Ships off
+
+    /// A fresh install applies its preferences and lyrics stay off: a track
+    /// playing at launch is sent nowhere.
+    @Test func aFreshLaunchSendsNothing() async {
+        let (delegate, service) = makeDelegate()
+        delegate.switchboard.apply()
+        await play(delegate, track())
+
+        #expect(delegate.state.preferences.lyrics == false)
+        #expect(service.asked.isEmpty)
+        #expect(delegate.state.lyrics == nil)
+    }
+
+    /// The default seam answers nothing; only the real launch replaces it.
+    @Test func aBareDelegateNeverReachesTheService() async {
+        let delegate = AppDelegate()
+        let url = URL(string: "https://lrclib.net/api/get")!
+        #expect(await delegate.fetchLyrics(url) == nil)
+    }
+
+    /// Switched on with a track already playing: it is looked up at once.
+    @Test func switchingOnLooksUpWhatIsPlaying() async {
+        let (delegate, service) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.nowPlayingDidChange(track())
+        delegate.switchboard.setEnabled(true, for: .lyrics, persist: true)
+        await delegate.lyrics?.lookupTask?.value
+
+        #expect(service.asked.count == 1)
+        #expect(delegate.state.lyrics == LyricsText(current: "one"))
+        #expect(delegate.preferencesStore.load().lyrics == true)
+    }
+
+    // MARK: - The strip
+
+    /// The strip grows the closed notch down by a line, and the region that
+    /// accepts clicks and hover grows with it -- a drawn line clicks fell
+    /// through would be this project's only Critical bug again.
+    @Test func theStripGrowsWhatAcceptsClicksWithTheDrawing() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        delegate.nowPlayingDidChange(TrackSnapshot(title: "Song", artist: "Band", isPlaying: true))
+        let withoutStrip = delegate.acceptedRect
+
+        await play(delegate, track())
+
+        #expect(delegate.state.showsLyricsLine)
+        #expect(delegate.acceptedRect.height == withoutStrip.height + NotchGeometry.lyricsLineHeight)
+        #expect(delegate.acceptedRect.maxY == withoutStrip.maxY)
+        expectRectsAgree(delegate)
+    }
+
+    /// Paused, the strip goes with the badge, and the region shrinks with it.
+    @Test func pausingTakesTheStripAway() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+        let withStrip = delegate.acceptedRect.height
+
+        delegate.nowPlayingDidChange(track(playing: false))
+
+        #expect(delegate.state.showsLyricsLine == false)
+        #expect(delegate.acceptedRect.height == withStrip - NotchGeometry.lyricsLineHeight)
+        expectRectsAgree(delegate)
+    }
+
+    /// Off withdraws the line and shrinks the notch at once.
+    @Test func switchingOffTakesTheStripAway() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        delegate.nowPlayingDidChange(TrackSnapshot(title: "Song", artist: "Band", isPlaying: true))
+        let withoutStrip = delegate.acceptedRect
+        await play(delegate, track())
+
+        delegate.switchboard.setEnabled(false, for: .lyrics)
+
+        #expect(delegate.state.lyrics == nil)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+        #expect(delegate.lyrics?.cachedAnswers == 0)
+        #expect(delegate.acceptedRect == withoutStrip)
+        expectRectsAgree(delegate)
+    }
+
+    /// The music peek grows by the lyrics row, and so does what accepts the
+    /// pointer, or the row would be a strip of the peek that closes it.
+    @Test func theMusicPeekGrowsByTheRow() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+
+        delegate.state.transition(to: .peek(.nowPlaying(track())))
+
+        let peek = NotchShape.visibleRect(
+            presentation: .mediaPeek, anchor: delegate.state.anchor, panelFrame: delegate.state.panelFrame
+        )
+        #expect(NotchRootView.drawnRect(for: delegate.state).height == peek.height + NotchGeometry.lyricsLineHeight)
+        expectRectsAgree(delegate)
+    }
+
+    // MARK: - Quitting and locking
+
+    @Test func quittingStopsTheOneShot() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+        #expect(delegate.lyrics?.boundaryTask != nil)
+
+        delegate.switchboard.stopAll()
+
+        #expect(delegate.lyrics?.boundaryTask == nil)
+    }
+
+    @Test func lockingStopsTheOneShot() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+
+        delegate.switchboard.setActivity(.locked)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+
+        delegate.switchboard.setActivity(.active)
+        #expect(delegate.lyrics?.boundaryTask != nil)
+    }
+
+    // MARK: - Settings
+
+    @Test func theSettingsRowSaysWhereTracksGo() throws {
+        let row = try #require(PreferencesView.rows.first { $0.module == .lyrics })
+        #expect(row.section == .music)
+        #expect(row.detail.contains("LRCLIB"))
+        #expect(row.detail.contains("title"))
+    }
+
+    // MARK: - Long lines
+
+    /// Measured, not counted: the strip's width on a notch decides.
+    @Test func theStripWidthDecidesWhatSplits() throws {
+        let (delegate, _) = makeDelegate()
+        let tooLong = try #require(delegate.lyrics?.tooLongForStrip)
+        #expect(tooLong("I feel your breath upon my neck") == false)
+        #expect(tooLong("There's more to do, if we can only live, and this is what we get tonight"))
+    }
+
+    /// A pill has no strip, so nothing is split for it.
+    @Test func onAPillNothingSplits() throws {
+        let (delegate, _) = makeDelegate()
+        delegate.state.setGeometry(
+            anchor: .pill(CGRect(x: 500, y: 900, width: 180, height: 32)),
+            panelFrame: CGRect(x: 280, y: 672, width: 620, height: 260)
+        )
+        let tooLong = try #require(delegate.lyrics?.tooLongForStrip)
+        #expect(tooLong("There's more to do, if we can only live, and this is what we get tonight") == false)
+    }
+
+    // MARK: - Tucking the strip away (2026-10-29)
+
+    /// Over the strip: panel-local, bottom-left origin, just below the band.
+    private func pushUp(_ delegate: AppDelegate) {
+        let at = CGPoint(x: delegate.acceptedRect.midX, y: delegate.acceptedRect.minY + 4)
+        let step = { (phase: ScrollSample.Phase, dy: CGFloat) in
+            _ = delegate.handleScroll(ScrollSample(phase: phase, isMomentum: false, isPrecise: true,
+                                                   finger: CGVector(dx: 0, dy: dy), location: at))
+        }
+        step(.began, 0)
+        for _ in 0..<4 { step(.changed, -(NotchSwipe.commitDistance + 10) / 4) }
+        step(.ended, 0)
+    }
+
+    private func playingWithLyrics() async -> AppDelegate {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        delegate.switchboard.setEnabled(true, for: .lyrics)
+        await play(delegate, track())
+        return delegate
+    }
+
+    @Test func pushingUpTucksTheStripAwayAndTheSamePushBringsItBack() async {
+        let delegate = await playingWithLyrics()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        let withStrip = delegate.acceptedRect
+
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.state.showsLyricsStrip == false)
+        #expect(delegate.acceptedRect.height == withStrip.height - NotchGeometry.lyricsLineHeight)
+        expectRectsAgree(delegate)
+        #expect(taps == 1)
+
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(delegate.acceptedRect == withStrip)
+        expectRectsAgree(delegate)
+        #expect(taps == 2)
+    }
+
+    /// Tucked away and nothing else showing the line: nothing is scheduled.
+    @Test func aTuckedAwayStripCostsNothing() async {
+        let delegate = await playingWithLyrics()
+        #expect(delegate.lyrics?.boundaryTask != nil)
+        pushUp(delegate)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+        // The peek tucks its row away too; the panel keeps the line, so it
+        // wakes while the panel is open.
+        delegate.state.transition(to: .peek(.nowPlaying(track())))
+        #expect(delegate.lyrics?.boundaryTask == nil)
+        delegate.state.transition(to: .open(.shelf))
+        #expect(delegate.lyrics?.boundaryTask != nil)
+        delegate.state.transition(to: .closed)
+        #expect(delegate.lyrics?.boundaryTask == nil)
+    }
+
+    /// Remembered: the next launch starts with the strip tucked away.
+    @Test func theChoiceIsRemembered() async {
+        let delegate = await playingWithLyrics()
+        pushUp(delegate)
+        #expect(delegate.preferencesStore.lyricsStripHidden)
+    }
+
+    /// With no lyrics there is nothing to toggle: the push does nothing.
+    @Test func withNoLyricsAPushUpDoesNothing() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        delegate.nowPlayingDidChange(track())
+        pushUp(delegate)
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(taps == 0)
+    }
+
+    // MARK: - Hover, open on hover, and the panel's button (2026-10-29)
+
+    private func pointerArrives(_ delegate: AppDelegate) {
+        delegate.hoverView?.mouseEntered(with: NSEvent.enterExitEvent(
+            with: .mouseEntered, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+            context: nil, eventNumber: 0, trackingNumber: 0, userData: nil
+        )!)
+    }
+
+    /// With open on hover, the panel opening mid-swipe turned the rest of a
+    /// push up into "close": the swipe now holds the dwell, and one that
+    /// acted does not start it again, so no panel follows the push.
+    @Test func withOpenOnHoverAPushUpTogglesAndOpensNothing() async {
+        let delegate = await playingWithLyrics()
+        delegate.state.onSetHoverBehaviour?(HoverBehaviour(opensOnHover: true, openDelay: 0.2))
+        // The pointer on the notch, so nothing but the swipe releases the dwell.
+        let notch = delegate.state.anchor.rect
+        delegate.pointerLocation = { CGPoint(x: notch.midX, y: notch.midY) }
+        pointerArrives(delegate)
+        #expect(delegate.hoverView?.dwellTask != nil)
+
+        // The moment the fingers start, the dwell waits.
+        let at = CGPoint(x: delegate.acceptedRect.midX, y: delegate.acceptedRect.minY + 4)
+        _ = delegate.handleScroll(ScrollSample(phase: .began, isMomentum: false, isPrecise: true,
+                                               finger: .zero, location: at))
+        #expect(delegate.hoverView?.dwellTask == nil)
+        _ = delegate.handleScroll(ScrollSample(phase: .cancelled, isMomentum: false, isPrecise: true,
+                                               finger: .zero, location: at))
+
+        pushUp(delegate)
+
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.state.state == .closed)
+        #expect(delegate.hoverView?.dwellTask == nil)
+    }
+
+    /// A swipe that did nothing leaves the pointer resting as if just arrived.
+    @Test func aSwipeThatDidNothingStartsTheDwellAgain() async {
+        let (delegate, _) = makeDelegate()
+        delegate.switchboard.apply()
+        let notch = delegate.state.anchor.rect
+        delegate.pointerLocation = { CGPoint(x: notch.midX, y: notch.midY) }
+        pointerArrives(delegate)
+        pushUp(delegate)            // no lyrics: nothing to toggle
+        #expect(delegate.hoverView?.dwellTask != nil)
+    }
+
+    /// Tucked away, the music peek -- what hovering the strip opens -- loses
+    /// its row too, so a push up on the peek visibly takes the line away.
+    @Test func tuckingAwayTakesThePeeksRowToo() async {
+        let delegate = await playingWithLyrics()
+        delegate.state.transition(to: .peek(.nowPlaying(track())))
+        let withRow = delegate.acceptedRect.height
+
+        pushUp(delegate)
+
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.acceptedRect.height == withRow - NotchGeometry.lyricsLineHeight)
+        #expect(NotchRootView.nowPlayingPeek(for: delegate.state, track: track()).lyrics == nil)
+        expectRectsAgree(delegate)
+        #expect(delegate.lyrics?.boundaryTask == nil, "nothing on screen shows the line")
+    }
+
+    /// The panel's lyric glyph is a button that does the same, without a tap.
+    @Test func thePanelsButtonTogglesWithoutAHaptic() async {
+        let delegate = await playingWithLyrics()
+        var taps = 0
+        delegate.performHaptic = { taps += 1 }
+        delegate.state.onToggleLyricsStrip?()
+        #expect(delegate.state.lyricsStripHidden)
+        #expect(delegate.preferencesStore.lyricsStripHidden)
+        delegate.state.onToggleLyricsStrip?()
+        #expect(delegate.state.lyricsStripHidden == false)
+        #expect(taps == 0)
+    }
+}

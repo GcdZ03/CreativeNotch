@@ -70,6 +70,7 @@ final class ModuleSwitchboard {
         setEnabled(preferences.colorPicker, for: .colorPicker)
         setEnabled(preferences.bluetooth, for: .bluetooth)
         setEnabled(preferences.downloads, for: .downloads)
+        setEnabled(preferences.lyrics, for: .lyrics)
     }
 
     /// Stops everything, regardless of preference.
@@ -86,6 +87,7 @@ final class ModuleSwitchboard {
         delegate.timer?.cancel()
         delegate.capture?.stop()
         delegate.downloads?.stop()
+        delegate.lyrics?.stop()
         // Synchronous, and it waits for a clip in progress to be closed: a
         // `.mov` whose index was never written is a file nothing can play.
         delegate.camera?.shutDown()
@@ -155,6 +157,11 @@ final class ModuleSwitchboard {
         // download finishing behind the lock screen and leave its ring on
         // the notch after unlock. Only the completion peek is withheld.
         delegate.downloads?.setActivity(next)
+        // The clipboard's shape: nobody can see the line outside `.active`,
+        // so the one-shot and any request go, and both come back on return.
+        // Costs nothing to cycle: the answers are kept, so unlocking asks
+        // only about a track that changed behind the lock screen.
+        delegate.lyrics?.setActivity(next)
     }
 
     /// Starts or stops one module, and is the only thing that does.
@@ -319,6 +326,14 @@ final class ModuleSwitchboard {
             // itself (`stop()`), as the capture indicator does.
             delegate.downloads?.setEnabled(enabled)
             if !enabled { delegate.arbiter.clearDownloads() }
+        case .lyrics:
+            // On looks up what is playing now -- the first thing sent to
+            // LRCLIB, which is why the module ships off and this happens only
+            // after a click. Off cancels the request and the one-shot,
+            // forgets every answer and withdraws the line; the controller
+            // publishes the absence itself, and the delegate re-syncs the
+            // region the strip took.
+            delegate.lyrics?.setEnabled(enabled)
 
         case .hotkey:
             // Stopping means UNREGISTERING, not ignoring the callback. A
