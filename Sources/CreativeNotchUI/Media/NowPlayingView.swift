@@ -44,6 +44,10 @@ struct NowPlayingPeekView: View {
     /// Wide artwork gets a wider tile, as in the closed notch.
     var artworkAspect: CGFloat? = nil
     var coverNamespace: Namespace.ID? = nil
+    /// The lyrics, or `nil` for no lyrics row (spec 2026-10-29). Non-nil
+    /// only while `NotchShape.visibleRect` has grown the body by
+    /// `lyricsLineHeight` for it (`AppState.showsLyricsLine`).
+    var lyrics: LyricsText? = nil
     var onCommand: (MediaCommand) -> Void = { _ in }
     /// Seeks from the progress bar; `nil` leaves it display-only.
     var onSeek: ((TimeInterval) -> Void)? = nil
@@ -60,6 +64,10 @@ struct NowPlayingPeekView: View {
                 player
                 if let position = track.position {
                     PlaybackProgressView(position: position, isPlaying: track.isPlaying, onSeek: onSeek)
+                }
+                if let lyrics {
+                    LyricLineView(line: lyrics.current)
+                        .frame(height: NotchGeometry.lyricsLineHeight)
                 }
             }
             .padding(.horizontal, 16)

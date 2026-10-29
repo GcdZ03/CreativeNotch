@@ -324,6 +324,17 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         name: NSPasteboard.Name("com.gcdz.creativenotch.sandbox.\(UUID().uuidString)")
     )
 
+    // MARK: - Lyrics
+
+    /// The lyrics module (spec 2026-10-29). Internal rather than private so
+    /// the switchboard and the tests can reach its lifecycle.
+    private(set) var lyrics: LyricsController?
+
+    /// How a lyrics request reaches LRCLIB. Answers nothing by default, so
+    /// no test can send a track's title anywhere; `configureForRealLaunch()`
+    /// hands it the real service. Set it before `install(metrics:)`.
+    var fetchLyrics: LyricsFetch = { _ in nil }
+
     // MARK: - Downloads
 
     /// The downloads module. Internal rather than private so the switchboard
@@ -871,6 +882,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             guard let url = AppDelegate.filesAndFoldersSettings else { return }
             NSWorkspace.shared.open(url)
         }
+        // Sends nothing until the module is on and a track is playing.
+        fetchLyrics = LRCLIBService.fetch
         // Building these fetches nothing: the first request is the launch
         // check, after the subsystems start. The domain is set second, so
         // the real record is read against the real version.
@@ -1328,6 +1341,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Purged on launch and after each add — never on a timer.
         preferencesStore = PreferencesStore(defaults: preferencesDefaults)
+        state.lyricsStripHidden = preferencesStore.lyricsStripHidden
+        // The panel's button: the way to tuck the line away for anyone who
+        // cannot or would rather not swipe, and the one open on hover leaves.
+        state.onToggleLyricsStrip = { [weak self] in
+            guard let self else { return }
+            self.setLyricsStripHidden(!self.state.lyricsStripHidden, haptic: false)
+        }
 
         // Constructed here, started by the switchboard. Building a panel must
         // not register system-wide property listeners.
@@ -1402,6 +1422,22 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         downloads.onAccess = { [weak self] access in self?.state.downloadsAccess = access }
         self.downloads = downloads
         state.onRevealDownload = { [weak self] completion in self?.revealDownload(completion) }
+
+        // Constructed here, started by the switchboard -- and only when the
+        // module is switched on, since it ships off. Building a panel must
+        // not send a track's title anywhere.
+        let lyrics = LyricsController(fetch: fetchLyrics)
+        lyrics.onChange = { [weak self] text in self?.lyricsDidChange(text) }
+        // A line too wide for the strip is shown in parts (2026-10-29). The
+        // strip is the notch plus the now-playing badge, the slot it hangs
+        // under while music plays; a pill has no strip, so nothing splits.
+        lyrics.tooLongForStrip = { [weak self] line in
+            guard let anchor = self?.state.anchor, anchor.isNotch else { return false }
+            let width = anchor.rect.width + NotchGeometry.nowPlayingBadgeWidth - LyricsStripView.horizontalPadding * 2
+            return !LyricLineView.fits(line, width: width)
+        }
+        lyrics.trackDidChange(state.nowPlaying)
+        self.lyrics = lyrics
         state.onRecheckDownloadsAccess = { [weak self] in self?.downloads?.recheckAccess() }
         state.onOpenDownloadsPrivacy = { [weak self] in self?.openDownloadsPrivacySettings() }
 
@@ -1762,6 +1798,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 self.syncTrackingRect()
             }
+            // Every change, the anchor's included: a strip shows only on a
+            // notch. The controller ignores a visibility it already has.
+            self.syncLyricsVisibility()
             if case .state(let newState) = change {
                 self.syncDismissAffordances(for: newState)
                 self.syncKeyWindow(for: newState)
@@ -1816,7 +1855,8 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             anchor: anchor,
             panelFrame: frame,
             badgeWidth: slot.width,
-            leadingBadgeWidth: slot.leadingWidth
+            leadingBadgeWidth: slot.leadingWidth,
+            lyricsHeight: state.lyricsHeight(for: state.state.presentation)
         )
     }
 
@@ -1892,8 +1932,23 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         state.nowPlaying = snapshot
         state.nowPlayingArtwork = snapshot.flatMap { media?.artwork(for: $0) }
         arbiter.setNowPlaying(snapshot)
+        // Before the re-sync, so a pause that withdraws the line shrinks the
+        // region in the same pass as the badge.
+        lyrics?.trackDidChange(snapshot)
         syncTrackingRect()
         reevaluatePeek()
+    }
+
+    /// The lyrics line changed, appeared or went (spec 2026-10-29).
+    ///
+    /// Internal so a test can drive the real publish path without a service.
+    /// The re-sync is not optional, for `nowPlayingDidChange`'s reason: the
+    /// strip grows the closed notch down by a line, and the funnel does not
+    /// fire for it. A new line of the same strip changes no geometry, and
+    /// re-syncing an unchanged rect does nothing.
+    func lyricsDidChange(_ text: LyricsText?) {
+        state.lyrics = text
+        syncTrackingRect()
     }
 
     /// The countdown ticked, started, paused or was cancelled.
@@ -2225,6 +2280,9 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private var swipe = NotchSwipe()
     private var swiping = false
+    /// Whether the swipe in progress started on the closed notch, whose
+    /// dwell it is holding (2026-10-29).
+    private var swipeHeldDwell = false
 
     /// One scroll event from the hosting view, as a swipe step (spec
     /// 2026-10-17). Returns whether it was used; an unused one goes on as
@@ -2256,6 +2314,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             swipe.began()
             swiping = true
+            // Hold the hover dwell while the fingers move: with open on
+            // hover, the panel opening mid-swipe turned the rest of a push
+            // up into "close" (2026-10-29).
+            swipeHeldDwell = presentation == .closed
+            if swipeHeldDwell { hoverView?.holdDwell() }
             return presentation != .expanded
         case .changed:
             guard swiping else { return false }
@@ -2273,7 +2336,11 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
             swiping = false
             let outcome = sample.phase == .ended ? swipe.ended(on: presentation) : .none
             state.pullProgress = 0
-            apply(outcome)
+            let acted = apply(outcome)
+            // A swipe that did nothing leaves the pointer where it was, as if
+            // just arrived; one that acted does not bring a peek after it.
+            if swipeHeldDwell, !acted { hoverView?.rearmDwell() }
+            swipeHeldDwell = false
             // A threshold tap that did not end in opening must not swallow
             // the next open's tap.
             if outcome != .open { swipeTapped = false }
@@ -2290,10 +2357,13 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         return point.y >= panelHeight - stripHeight
     }
 
-    private func apply(_ outcome: NotchSwipe.Outcome) {
+    /// Whether the swipe did something: a gated outcome that was refused
+    /// did nothing, and the hover dwell it held starts again.
+    @discardableResult
+    private func apply(_ outcome: NotchSwipe.Outcome) -> Bool {
         switch outcome {
         case .none:
-            break
+            return false
         case .open:
             openPanel(openedBy: .swipe)
         case .close:
@@ -2301,9 +2371,42 @@ public final class AppDelegate: NSObject, NSApplicationDelegate {
         case .nextTrack, .previousTrack:
             // Only with working transport controls, the same gate the
             // panel's buttons sit behind.
-            guard state.showsMediaControls else { return }
+            guard state.showsMediaControls else { return false }
             state.onMediaCommand?(outcome == .nextTrack ? .nextTrack : .previousTrack)
+        case .toggleLyrics:
+            // Only when there is a strip to tuck away or bring back: lyrics
+            // on, and a track with lyrics. Anything else is a push that does
+            // nothing, and taps nothing.
+            guard state.preferences.lyrics, state.lyrics != nil else { return false }
+            setLyricsStripHidden(!state.lyricsStripHidden)
         }
+        return true
+    }
+
+    /// Tucks the lyrics under the notch away or brings them back
+    /// (2026-10-29): saved, felt as one tap when it was a swipe, and the
+    /// region the line took re-synced, since the funnel does not fire for it.
+    func setLyricsStripHidden(_ hidden: Bool, haptic: Bool = true) {
+        state.lyricsStripHidden = hidden
+        preferencesStore.setLyricsStripHidden(hidden)
+        if haptic { performHaptic() }
+        syncTrackingRect()
+        syncLyricsVisibility()
+    }
+
+    /// Tells the lyrics controller whether any line is on screen, so it
+    /// sleeps until the next one only while somebody can see it: the strip
+    /// (a notch, not tucked away), the music peek, or the panel's music
+    /// column. A tucked-away strip then costs nothing at all.
+    func syncLyricsVisibility() {
+        let visible: Bool
+        switch state.state {
+        case .closed:                visible = state.anchor.isNotch && !state.lyricsStripHidden
+        case .peek(.nowPlaying):     visible = !state.lyricsStripHidden
+        case .open(let tab):         visible = tab != .camera && state.showsMediaControls
+        case .peek, .receiving:      visible = false
+        }
+        lyrics?.setLineVisible(visible)
     }
 
     // MARK: - Hover

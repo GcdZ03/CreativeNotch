@@ -45,6 +45,9 @@ public enum PreferenceKeys {
     /// Absent means off: switching it on is what asks for Accessibility
     /// access.
     public static let pillClearsMenus = "display.pillClearsMenus"
+    /// A boolean: the lyrics strip under the closed notch tucked away by a
+    /// two-finger push up (2026-10-29). Absent is shown.
+    public static let lyricsStripHidden = "lyrics.strip.hidden"
 
     /// How large the open panel's text is (2026-10-24), as a `TextSize` raw
     /// value. Absent means the default, the look from before the setting.

@@ -103,6 +103,26 @@ public final class HoverTracker: NSView {
     public override func mouseEntered(with event: NSEvent) {
         isPointerInside = true
         onEnter()
+        armDwell()
+    }
+
+    /// A two-finger swipe has started on the notch (2026-10-29): the dwell
+    /// waits, so a peek -- or, with open on hover, the panel -- cannot open
+    /// under the fingers and turn the rest of the swipe into something else.
+    func holdDwell() {
+        dwellTask?.cancel()
+        dwellTask = nil
+    }
+
+    /// The swipe did nothing: start the dwell again, as if just arrived. Not
+    /// called after a swipe that acted -- a peek opening the moment the
+    /// fingers lift would be a second thing nobody asked for.
+    func rearmDwell() {
+        guard isPointerInside else { return }
+        armDwell()
+    }
+
+    private func armDwell() {
         dwellTask?.cancel()
         dwellTask = Task { @MainActor [weak self] in
             guard let wait = self?.currentDwell() else { return }

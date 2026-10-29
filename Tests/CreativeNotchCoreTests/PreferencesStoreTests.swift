@@ -159,3 +159,16 @@ struct PreferencesStoreTests {
         #expect(PreferencesStore(defaults: defaults).clipboardExcludedApps == ["com.apple.Terminal", "com.b"])
     }
 }
+
+/// The lyrics strip's tucked-away state (2026-10-29): shown when absent, and
+/// a hand-typed string reads as shown.
+@Test func theLyricsStripIsShownUnlessTuckedAway() {
+    let defaults = UserDefaults(suiteName: "lyrics-strip-\(UUID().uuidString)")!
+    let store = PreferencesStore(defaults: defaults)
+    #expect(store.lyricsStripHidden == false)
+    store.setLyricsStripHidden(true)
+    #expect(PreferencesStore(defaults: defaults).lyricsStripHidden)
+    defaults.set("yes", forKey: PreferenceKeys.lyricsStripHidden)
+    #expect(store.lyricsStripHidden == false)
+}
+

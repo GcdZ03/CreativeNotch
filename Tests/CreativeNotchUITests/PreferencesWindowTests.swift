@@ -135,7 +135,7 @@ struct PreferencesWindowTests {
     /// there is no stored `Bool` and nothing to stop. `rows` stays a list of
     /// modules, which is what keeps `everyModuleHasASwitch` meaningful.
     @Test func launchAtLoginIsNotAModuleRow() {
-        #expect(ModuleID.allCases.count == 13)
+        #expect(ModuleID.allCases.count == 14)
         #expect(PreferencesView.rows.allSatisfy { $0.title != "Open at login" })
         #expect(PreferencesView.rows.count == ModuleID.allCases.count)
     }

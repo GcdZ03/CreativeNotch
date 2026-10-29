@@ -179,9 +179,9 @@ and DynamicLake (October 2026). Each fits the one rule; none is planned.
 - ~~**A calendar and reminders glance.**~~ Shipped (2026-10-24), off until
   switched on, because switching it on is what asks for Calendars and
   Reminders access — see "The calendar glance" in `ARCHITECTURE.md`.
-- **Synced lyrics.** The playback position now exists to sync them, but it
-  means sending the track's title and artist to a lyrics service, so it would
-  have to be opt-in.
+- ~~**Synced lyrics.**~~ Shipped (2026-10-29), off until switched on, because
+  switching it on is what sends each track to LRCLIB — see "Synced lyrics" in
+  `ARCHITECTURE.md` and `docs/specs/2026-10-29-synced-lyrics-design.md`.
 - ~~**Bluetooth and AirPods connect alerts.**~~ Shipped (2026-10-24), off
   until switched on, for the same reason — see "Bluetooth alerts" in
   `ARCHITECTURE.md`.

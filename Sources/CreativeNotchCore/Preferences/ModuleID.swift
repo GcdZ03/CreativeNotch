@@ -26,14 +26,18 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     case calendar
     case colorPicker = "color-picker"
     case downloads
+    /// Synced lyrics for what is playing, from LRCLIB (spec 2026-10-29).
+    case lyrics
 
     /// What an absent key means for this module.
     ///
-    /// On for every module but three. **The calendar, Bluetooth alerts and
+    /// On for every module but four. **The calendar, Bluetooth alerts and
     /// downloads ship off** because none can work without asking for
     /// something: the calendar's glance needs the Calendars and Reminders
     /// grants, Bluetooth alerts need Bluetooth access, and the downloads
-    /// ring needs the Downloads folder. A permission prompt belongs to the
+    /// ring needs the Downloads folder. **Lyrics ship off** for the same
+    /// reason with no prompt to show it: switching them on is what starts
+    /// sending each track's title and artist to a third party. A permission prompt belongs to the
     /// moment someone switches the feature on, never to a launch, and never
     /// to a feature nobody chose (see Permissions in `ARCHITECTURE.md`):
     /// switched on in Settings, the prompt follows the person's own click and
@@ -46,7 +50,7 @@ public enum ModuleID: String, CaseIterable, Equatable, Sendable {
     /// a mistyped value reads as off too.
     public var shippedDefault: Bool {
         switch self {
-        case .bluetooth, .calendar, .downloads: return false
+        case .bluetooth, .calendar, .downloads, .lyrics: return false
         default:                                return true
         }
     }

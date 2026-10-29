@@ -2,8 +2,9 @@ import CoreGraphics
 
 /// A two-finger trackpad swipe on the notch (spec 2026-10-17).
 ///
-/// Down opens, following the fingers; up closes the open panel; sideways on
-/// the music peek skips a track. Pure: it is fed finger movement and asked
+/// Down opens, following the fingers; up closes the open panel, and on the
+/// closed notch or the music peek hides or shows the lyrics strip; sideways
+/// on the music peek skips a track. Pure: it is fed finger movement and asked
 /// what it means, so every rule here is testable without a trackpad.
 ///
 /// Everything is in **finger space** — positive y is the fingers moving
@@ -13,7 +14,7 @@ public struct NotchSwipe: Equatable, Sendable {
 
     public enum Axis: Equatable, Sendable { case undecided, vertical, horizontal }
 
-    public enum Outcome: Equatable, Sendable { case none, open, close, nextTrack, previousTrack }
+    public enum Outcome: Equatable, Sendable { case none, open, close, nextTrack, previousTrack, toggleLyrics }
 
     /// How far the fingers travel before a pull commits to opening or
     /// closing. Short enough to be a flick, long enough that resting two
@@ -81,7 +82,13 @@ public struct NotchSwipe: Equatable, Sendable {
             return .none
         case .vertical:
             switch presentation {
-            case .closed, .peek, .statusPeek, .mediaPeek:
+            case .closed, .mediaPeek:
+                // Up tucks the lyrics strip into the notch, or brings it
+                // back (2026-10-29). Not drawn as a pull: the strip going or
+                // coming is the answer.
+                if dy <= -Self.commitDistance { return .toggleLyrics }
+                return dy >= Self.commitDistance ? .open : .none
+            case .peek, .statusPeek:
                 return dy >= Self.commitDistance ? .open : .none
             case .expanded:
                 return dy <= -Self.commitDistance ? .close : .none

@@ -530,7 +530,7 @@ enum PreferencesSection: CaseIterable {
         case .notch:
             return String(localized: "The shelf costs nothing when idle: switching it off hides the tab and refuses drops, it does not save battery. Lowering its limits moves the files that no longer fit to the Trash straight away. Clipboard history is the only repeating timer in the app, and switching it off stops it. The colour picker runs nothing until you click it: macOS draws the loupe and hands back only the colour you click, so it needs no Screen Recording permission. The calendar is off until you switch it on, asks for access then, and reads nothing while its pane is closed. Bluetooth alerts are off until you switch them on, which is when macOS asks for Bluetooth access; they listen for connections rather than checking, and switching them off stops listening. Downloads starts off because it asks to read your Downloads folder; it listens for the progress browsers publish, the way Finder does, and switching it off stops listening.", bundle: .creativeNotch)
         case .music:
-            return String(localized: "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch.", bundle: .creativeNotch)
+            return String(localized: "Now playing runs a helper process to read the track; switching it off terminates the helper. Media controls map a framework that has no unload, so switching them off hides the buttons and the framework stays mapped until the next launch. Synced lyrics start off: they ask LRCLIB once per track, wake once per line while music plays, and keep answers in memory only.", bundle: .creativeNotch)
         case .camera:
             return String(localized: "The camera is the only module that costs anything while it runs: the light is on whenever the preview is, and a clip keeps recording if you close the notch. The indicator is notification-driven and costs nothing while nothing is capturing.", bundle: .creativeNotch)
         case .shortcut:
@@ -638,6 +638,14 @@ struct PreferencesView: View {
             // Required. Only disabled-at-launch means "not loaded": the
             // framework is mapped with `dlopen` and there is no `dlclose`.
             detail: String(localized: "Play, pause and skip. Off hides the buttons; the framework stays mapped until the next launch.", bundle: .creativeNotch)
+        ),
+        PreferencesRow(
+            module: .lyrics, section: .music, symbolName: "quote.bubble", tint: .pink,
+            title: String(localized: "Synced lyrics", bundle: .creativeNotch),
+            // Required: switching it on is what starts sending each track to
+            // a third party, so the row names the service and what goes to
+            // it before the switch is pressed.
+            detail: String(localized: "The line being sung, under the notch and in the panel; swipe up on the notch with two fingers to hide or show it. Looks each track up on LRCLIB (lrclib.net), sending its title, artist and length.", bundle: .creativeNotch)
         ),
         PreferencesRow(
             module: .camera, section: .camera, symbolName: "camera", tint: .gray,
