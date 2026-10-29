@@ -1,4 +1,4 @@
 /// Namespace for the pure-logic core. Deliberately AppKit-free.
 public enum CoreInfo {
-    public static let version = "0.16.0"
+    public static let version = "0.17.0"
 }
