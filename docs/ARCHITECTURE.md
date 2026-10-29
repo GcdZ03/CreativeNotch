@@ -1244,13 +1244,15 @@ or stopping music re-syncs the tracking rect explicitly.
 default: they are on screen for as long as music plays, and the clipboard
 poller remains the only timer in the project. The peek's bars loop while the
 peek is open. **Moving bars (2026-10-29)**, a Layout switch that ships off,
-lets the closed notch's loop too — never in Low Power Mode, never under
-Reduce Motion. Both loops are four `CABasicAnimation`s handed to the window
+lets the closed notch's loop too — only on the charger, never in Low Power
+Mode, never under Reduce Motion (`NotchRootView.closedBarsMove`). Both loops are four `CABasicAnimation`s handed to the window
 server once and capped at 20 frames a second
 (`EqualizerBarsView.framesPerSecond`): the app does nothing per frame, and
 the cap keeps a ProMotion display from compositing them 120 times a second.
-What is left is the window server's own compositing, which is why the switch
-ships off; the numbers are in `docs/research/2026-10-29-equalizer-cost.md`. The
+What is left is the window server's own compositing — about 15 points of a
+core on the real app, moving against still — which is why the switch ships
+off and stops on battery; the numbers are in
+`docs/research/2026-10-29-equalizer-cost.md`. The
 progress bar has no clock: it is set to now and given one linear animation
 to the end of the track, restarted when a play, pause or seek republishes
 the position, and its times are `Text(timerInterval:)`.

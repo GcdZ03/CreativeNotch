@@ -171,8 +171,9 @@ animation to the end of the track rather than a ticking clock. If you want
 them moving all the time, Settings → Layout → **Moving bars** does it: the
 bars are handed to Core Animation once, so the app itself does no work per
 frame, and capped at 20 frames a second — but the screen still redraws them
-for as long as the music plays, so it ships off, and they stand still in Low
-Power Mode. The measurements are in
+for as long as the music plays, which measured about 15 points of a core in
+the window server. So it ships off, and even switched on the bars move only
+while the Mac is plugged in, never in Low Power Mode. The measurements are in
 [`docs/research/2026-10-29-equalizer-cost.md`](docs/research/2026-10-29-equalizer-cost.md).
 Reading that information through
 MediaRemote is gated by code-signing identifier, which this app cannot
@@ -450,7 +451,7 @@ it back.
 | Click the media buttons in the panel | Controls whatever is playing |
 | Open the panel while something is playing | Cover, title, artist, a progress bar and the transport buttons fill the music column on the left; the column stays put when nothing is playing, so the tabs never move |
 | Something starts playing | The cover and still equalizer bars appear right of the notch; both go away when you pause |
-| Settings → Layout → **Moving bars** | The bars beside the closed notch move while music plays; they stand still again in Low Power Mode |
+| Settings → Layout → **Moving bars** | The bars beside the closed notch move while music plays and the Mac is plugged in; on battery or in Low Power Mode they stand still |
 | Hover the closed notch while a track is loaded | A small player drops down: cover, title and artist, play/pause and a progress bar; the bars move while it is open |
 | Two-finger swipe sideways on that player | Next track (left) or previous (right) |
 | Click or drag on the progress bar, in the player or the panel | Jumps to that point in the song; the times follow your finger while you drag |

@@ -1071,12 +1071,18 @@ public struct NotchRootView: View {
     /// a now-playing peek draws the peek at all is what the rendering
     /// tests cover, and they are the tests that caught C2.
     /// Whether the bars beside the closed notch move (2026-10-29): only when
-    /// Settings → Layout → "Moving bars" is on, and never in Low Power Mode,
-    /// which is the machine asking everything to do less. Reduce Motion
-    /// stills them too, through `animatesEqualizer`, as it does the peek's.
-    /// Static so a test can read it without rendering.
+    /// Settings → Layout → "Moving bars" is on, **only on the charger**, and
+    /// never in Low Power Mode. The app pays nothing per frame, but on the
+    /// real app the window server ran about 15 points of a core higher with
+    /// the bars moving than still (`docs/research/2026-10-29-equalizer-cost.md`)
+    /// -- a cost a battery should not carry for the length of an album. With
+    /// the power module off there is no reading, and the switch is taken at
+    /// its word. Reduce Motion stills them too, through `animatesEqualizer`,
+    /// as it does the peek's. Static so a test can read it without rendering.
     static func closedBarsMove(for app: AppState) -> Bool {
-        app.layoutOptions.animatesNowPlayingBars && app.power?.isLowPowerMode != true
+        guard app.layoutOptions.animatesNowPlayingBars else { return false }
+        guard let power = app.power else { return true }
+        return power.source == .wall && !power.isLowPowerMode
     }
 
     static func nowPlayingPeek(

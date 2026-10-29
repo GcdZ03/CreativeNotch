@@ -3433,12 +3433,12 @@
         }
       }
     },
-    "The bars beside the closed notch move while music plays. macOS draws them, not the app, but the screen redraws them the whole time; they stand still in Low Power Mode." : {
+    "The bars beside the closed notch move while music plays and your Mac is plugged in. The app does no work for them, but the screen redraws them the whole time; on battery and in Low Power Mode they stand still." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "The bars beside the closed notch move while music plays. macOS draws them, not the app, but the screen redraws them the whole time; they stand still in Low Power Mode."
+            "value" : "The bars beside the closed notch move while music plays and your Mac is plugged in. The app does no work for them, but the screen redraws them the whole time; on battery and in Low Power Mode they stand still."
           }
         }
       }

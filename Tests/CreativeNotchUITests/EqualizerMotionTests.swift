@@ -52,23 +52,32 @@ struct EqualizerMotionTests {
 
     // MARK: - When the closed notch's bars move
 
-    private func state(moving: Bool, lowPower: Bool? = nil) -> AppState {
+    private func state(moving: Bool, source: PowerSource? = nil, lowPower: Bool = false) -> AppState {
         let s = AppState()
         s.layoutOptions = LayoutOptions(animatesNowPlayingBars: moving)
-        if let lowPower {
-            s.power = PowerSnapshot(level: 50, source: .battery, isCharging: false, isLowPowerMode: lowPower)
+        if let source {
+            s.power = PowerSnapshot(level: 50, source: source, isCharging: source == .wall, isLowPowerMode: lowPower)
         }
         return s
     }
 
     @Test func stillUnlessAskedFor() {
         #expect(NotchRootView.closedBarsMove(for: AppState()) == false)
-        #expect(NotchRootView.closedBarsMove(for: state(moving: false)) == false)
-        #expect(NotchRootView.closedBarsMove(for: state(moving: true)) == true)
+        #expect(NotchRootView.closedBarsMove(for: state(moving: false, source: .wall)) == false)
+        #expect(NotchRootView.closedBarsMove(for: state(moving: true, source: .wall)) == true)
     }
 
-    @Test func lowPowerModeStillsThem() {
-        #expect(NotchRootView.closedBarsMove(for: state(moving: true, lowPower: true)) == false)
-        #expect(NotchRootView.closedBarsMove(for: state(moving: true, lowPower: false)) == true)
+    /// The window server's cost is not one a battery should carry.
+    @Test func onBatteryTheyStandStill() {
+        #expect(NotchRootView.closedBarsMove(for: state(moving: true, source: .battery)) == false)
+    }
+
+    @Test func lowPowerModeStillsThemEvenOnTheCharger() {
+        #expect(NotchRootView.closedBarsMove(for: state(moving: true, source: .wall, lowPower: true)) == false)
+    }
+
+    /// With the power module off there is nothing to read: the switch wins.
+    @Test func withNoPowerReadingTheSwitchDecides() {
+        #expect(NotchRootView.closedBarsMove(for: state(moving: true)) == true)
     }
 }
