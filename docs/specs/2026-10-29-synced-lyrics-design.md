@@ -88,11 +88,14 @@ history, and this app keeps none.
 line is shrunk to 75% and then cut with "…", so anything past about fifty
 characters lost its end. A line the strip cannot fit at that size --
 measured in its own font, not counted -- is now shown in parts: split after
-the pause (`,` `;` `:` `—`) nearest the middle, or the space nearest it, the
+the pause (`,` `;` `:` `—`, or full-width `，、；：！？。`) nearest the middle,
+or the space nearest it -- or, for Chinese and Japanese, which are written
+without spaces, between any two characters near the middle (Korean breaks
+only at spaces). The
 second part timed by the first's share of the characters, and split again
 if a part still does not fit, into at most four. One more wake per long line
 and no animation. Left whole: the last line, a line under two seconds, one
-unbroken word, and everything on a pill, which has no strip. The peek and
+unbroken word in a spaced script, and everything on a pill, which has no strip. The peek and
 the panel show the same parts. Considered and not chosen: scrolling the line
 (an animation for the line's length) and a two-line strip that grows only
 for long lines (the shape moving by itself mid-song, over more of the window
@@ -114,6 +117,18 @@ service and says what is sent.
 
 Switching it off cancels any request in flight, drops the one-shot, clears
 the cache and withdraws the strip.
+
+## Chinese songs (checked 2026-10-29)
+
+LRCLIB has synced lyrics for popular Chinese songs (twenty versions each of
+晴天 and 告白气球 by 周杰伦), and matched the artist written 周杰伦, 周杰倫
+or "Jay Chou" alike; a romanized title ("Qing Tian") found nothing, so the
+title has to be as the player shows it in Chinese, which Spotify and Music
+do. The strip fits about 26 Chinese characters at its smallest size; a
+longer line is split at a full-width pause, a space, or between any two
+characters near the middle. A second source with wider Chinese coverage
+(NetEase Cloud Music, as Atoll uses) was considered and left out: see the
+PR.
 
 ## Accepted trade-offs
 

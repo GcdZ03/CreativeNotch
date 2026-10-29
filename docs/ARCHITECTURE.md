@@ -1292,7 +1292,8 @@ title, artist and length to LRCLIB.
 - **The strip.** `AppState.lyrics` is a `LyricsText`, which changes only when
   the line does. A line too wide for the strip at 75% size, measured in its
   font (`LyricLineView.fits`), is split by `SyncedLyrics.splittingLines` at
-  the pause nearest its middle and the halves timed by their share of the
+  the pause nearest its middle -- full-width punctuation included, and for
+  Chinese and Japanese between any two characters -- and the halves timed by their share of the
   characters, so it shows whole in turn, for one more wake and no
   animation. `showsLyricsLine` — lyrics and playing — is what grows the
   closed notch down by `NotchGeometry.lyricsLineHeight` and the music peek's

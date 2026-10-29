@@ -242,4 +242,57 @@ struct SyncedLyricsTests {
         #expect(frame.current == "one two three four five")
         #expect(frame.nextChangeAt == t0.addingTimeInterval(lyrics.lines[1].time - 1))
     }
+
+    // MARK: - Chinese and Japanese lines (2026-10-29)
+
+    /// Chinese is written without spaces, so "too long" here is in
+    /// characters of its own: more than 12.
+    private let tooLongCJK: (String) -> Bool = { $0.count > 12 }
+
+    private func split(_ text: String) -> [String] {
+        SyncedLyrics(lines: [LyricLine(time: 0, text: text), LyricLine(time: 10, text: "x")])
+            .splittingLines(where: tooLongCJK).lines.dropLast().map(\.text)
+    }
+
+    /// After the full-width comma nearest the middle; no space needed.
+    @Test func aChineseLineSplitsAfterItsComma() {
+        #expect(split("为你翘课的那一天，花落的那一天") == ["为你翘课的那一天，", "花落的那一天"])
+        // Three phrases: the comma nearest the middle first, then the half
+        // still too long splits at its own.
+        #expect(split("为你翘课的那一天，花落的那一天，教室的那一间") == ["为你翘课的那一天，", "花落的那一天，", "教室的那一间"])
+    }
+
+    /// No punctuation and no space: Chinese can break between any two
+    /// characters, so it breaks at the middle one.
+    @Test func aChineseLineWithNoPauseSplitsInTheMiddle() {
+        #expect(split("没想到失去的勇气我还留着好想再问一遍") == ["没想到失去的勇气我", "还留着好想再问一遍"])
+    }
+
+    /// A space between phrases is the pause, and it wins over the middle
+    /// character.
+    @Test func aSpaceBetweenChinesePhrasesIsThePause() {
+        #expect(split("等到放晴的那天 也许我会比较好一点") == ["等到放晴的那天", "也许我会比较好一点"])
+    }
+
+    @Test func japaneseKanaBreaksAnywhereToo() {
+        #expect(split("あいうえおかきくけこさしすせそ").count == 2)
+    }
+
+    /// Korean is written with spaces between words: it breaks at a space,
+    /// never inside a word.
+    @Test func koreanBreaksOnlyAtASpace() {
+        let parts = split("사랑했지만 그대를 사랑했지만 그저")
+        #expect(parts.count == 2)
+        #expect(parts.joined(separator: " ") == "사랑했지만 그대를 사랑했지만 그저")
+    }
+
+    /// The second half is timed by the characters' share, which for Chinese
+    /// is close to the sung syllables': 9 of 18 is halfway.
+    @Test func aChineseHalfIsTimedByItsShare() throws {
+        let lyrics = SyncedLyrics(lines: [
+            LyricLine(time: 0, text: "没想到失去的勇气我还留着好想再问一遍"),
+            LyricLine(time: 10, text: "x"),
+        ]).splittingLines(where: tooLongCJK)
+        #expect(lyrics.lines[1].time == 5)
+    }
 }

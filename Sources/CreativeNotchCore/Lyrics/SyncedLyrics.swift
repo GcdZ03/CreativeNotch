@@ -121,7 +121,8 @@ public struct SyncedLyrics: Equatable, Sendable {
     ///
     /// Left alone: a line that fits, the last line (nothing says when it
     /// ends), a line or part shorter than `minimumSpan` (no time to read two
-    /// halves), and a single unbroken word.
+    /// halves), and a single unbroken word in a script written with spaces.
+    /// Chinese and Japanese break between characters (`breakIndex`).
     public func splittingLines(where tooLong: (String) -> Bool) -> SyncedLyrics {
         var split: [LyricLine] = []
         for (i, line) in lines.enumerated() {
@@ -151,22 +152,53 @@ public struct SyncedLyrics: Equatable, Sendable {
             + split(second, from: middle, to: end, depth: depth + 1, tooLong: tooLong)
     }
 
-    /// Where to break: after the pause (`,` `;` `:` `—` `–`) nearest the
-    /// middle, if one sits in the middle half of the line; otherwise at the
-    /// space nearest the middle. `nil` for a line with no space at all.
+    /// Where to break, as the index the second part starts at, in order of
+    /// preference:
+    ///
+    /// 1. after a pause in the middle half of the line -- `, ; : — –`
+    ///    before a space, or a full-width `，、；：！？。` with or without one;
+    /// 2. at a space in the middle half;
+    /// 3. at the space, or the boundary between two Chinese or Japanese
+    ///    characters, nearest the middle. Those scripts are written without
+    ///    spaces and can break between any two characters (2026-10-29);
+    ///    Korean is written with spaces, so it breaks only at one.
+    ///
+    /// `nil` when there is nowhere to break: one unbroken word.
     private static func breakIndex(in text: String) -> String.Index? {
         let characters = Array(text)
-        let middle = Double(characters.count) / 2
-        let spaces = characters.indices.filter { characters[$0] == " " && $0 > 0 && $0 < characters.count - 1 }
-        guard !spaces.isEmpty else { return nil }
-        let pauses = spaces.filter {
-            ",;:—–".contains(characters[$0 - 1])
-                && Double($0) >= Double(characters.count) * 0.25
-                && Double($0) <= Double(characters.count) * 0.75
+        let count = characters.count
+        let middle = Double(count) / 2
+        let inMiddleHalf = { (i: Int) in Double(i) >= Double(count) * 0.25 && Double(i) <= Double(count) * 0.75 }
+        let positions = Array(1..<max(count, 1))
+        let spaces = positions.filter { characters[$0] == " " && $0 < count - 1 }
+        let pauses = positions.filter { i in
+            (characters[i] == " " && ",;:—–".contains(characters[i - 1]))
+                || ("，、；：！？。".contains(characters[i - 1]) && characters[i] != " ")
         }
-        let candidates = pauses.isEmpty ? spaces : pauses
-        let best = candidates.min { abs(Double($0) - middle) < abs(Double($1) - middle) }!
+        let boundaries = positions.filter { Self.breaksAnywhere(characters[$0 - 1]) && Self.breaksAnywhere(characters[$0]) }
+        let nearest = { (candidates: [Int]) in
+            candidates.min { abs(Double($0) - middle) < abs(Double($1) - middle) }
+        }
+        guard let best = nearest(pauses.filter(inMiddleHalf))
+            ?? nearest(spaces.filter(inMiddleHalf))
+            ?? nearest(spaces + boundaries)
+        else { return nil }
         return text.index(text.startIndex, offsetBy: best)
+    }
+
+    /// Han characters and kana: a line may break before or after any of them.
+    private static func breaksAnywhere(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { scalar in
+            switch scalar.value {
+            case 0x3040...0x30FF,   // hiragana and katakana
+                 0x3400...0x4DBF,   // CJK extension A
+                 0x4E00...0x9FFF,   // CJK unified ideographs
+                 0xF900...0xFAFF:   // CJK compatibility ideographs
+                return true
+            default:
+                return false
+            }
+        }
     }
 
     // MARK: - LRC
